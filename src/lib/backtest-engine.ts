@@ -95,14 +95,16 @@ async function runPortfolioBacktest(
   const fundTypes = new Map<string, FundType>();
 
   for (const holding of portfolio.holdings) {
-    const fund = getFundById(holding.fundId);
+    // Usar fondo de la base de datos local o el fondo dinámico del holding
+    const fund = getFundById(holding.fundId) || holding.fund;
     if (!fund) {
       console.warn(`[BacktestEngine] Fondo no encontrado: ${holding.fundId}`);
       continue;
     }
 
     try {
-      const prices = await getMonthlyPrices(holding.fundId);
+      // Pasar el yahooTicker para fondos dinámicos que no están en la BD local
+      const prices = await getMonthlyPrices(holding.fundId, fund.yahooTicker);
       fundPrices.set(holding.fundId, prices);
       fundTers.set(holding.fundId, fund.ter);
       fundTypes.set(holding.fundId, fund.type);

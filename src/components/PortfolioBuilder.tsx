@@ -61,6 +61,8 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
       holdings: allocations.map((a) => ({
         fundId: a.fund.id,
         weight: a.weight,
+        // Incluir datos del fondo para fondos dinámicos (Yahoo Finance)
+        fund: a.fund.id.startsWith("yahoo-") ? a.fund : undefined,
       })),
       isValid,
     });

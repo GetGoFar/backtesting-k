@@ -69,13 +69,20 @@ interface CacheEntry {
 /**
  * Obtiene los precios mensuales de un fondo por su ID
  * @param fundId - ID del fondo (ej: "vanguard-global", "caixabank-global")
+ * @param yahooTicker - Ticker de Yahoo Finance (opcional, para fondos dinámicos)
  * @returns Map de fecha (YYYY-MM) a precio de cierre
  */
-export async function getMonthlyPrices(fundId: string): Promise<Map<string, number>> {
+export async function getMonthlyPrices(fundId: string, yahooTicker?: string): Promise<Map<string, number>> {
   console.log(`[DataFetcher] Obteniendo precios para: ${fundId}`);
 
+  // Buscar en base de datos local
   const fund = getFundById(fundId);
-  if (!fund) {
+
+  // Si no está en la base de datos pero tenemos ticker de Yahoo, usarlo directamente
+  const ticker = fund?.yahooTicker || yahooTicker;
+  const isLocalFund = !!fund;
+
+  if (!fund && !yahooTicker) {
     const error = `Fondo no encontrado: ${fundId}`;
     console.error(`[DataFetcher] ERROR: ${error}`);
     throw new Error(error);
@@ -100,16 +107,19 @@ export async function getMonthlyPrices(fundId: string): Promise<Map<string, numb
   // Obtener datos según el tipo de fondo
   let prices: MonthlyPrice[];
 
-  if (fund.yahooTicker) {
-    console.log(`[DataFetcher] Descargando de Yahoo Finance: ${fund.yahooTicker}`);
-    prices = await fetchFromYahooFinance(fund.yahooTicker);
-  } else {
+  if (ticker) {
+    console.log(`[DataFetcher] Descargando de Yahoo Finance: ${ticker}`);
+    prices = await fetchFromYahooFinance(ticker);
+  } else if (isLocalFund && fund) {
     console.log(`[DataFetcher] Leyendo CSV para fondo bancario: ${fund.isin}`);
     prices = await readFromCSV(fund.isin);
+  } else {
+    prices = [];
   }
 
   if (prices.length === 0) {
-    const error = `No hay datos disponibles para el fondo: ${fundId} (${fund.name})`;
+    const name = fund?.name || fundId;
+    const error = `No hay datos disponibles para el fondo: ${fundId} (${name})`;
     console.error(`[DataFetcher] ERROR: ${error}`);
     throw new Error(error);
   }

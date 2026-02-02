@@ -61,6 +61,8 @@ export interface PortfolioHolding {
   fundId: string;
   /** Peso en la cartera (porcentaje, ej: 30 para 30%) */
   weight: number;
+  /** Datos completos del fondo (opcional, para fondos dinámicos de Yahoo Finance) */
+  fund?: Fund;
 }
 
 /** Definición de una cartera de inversión */
