@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Colores personalizados para El Proyecto K */
+:root {
+  /* Cartera indexada - Azul */
+  --color-indexed: #1d4ed8;
+  --color-indexed-light: #3b82f6;
+  --color-indexed-bg: #eff6ff;
+
+  /* Cartera bancaria - Rosa/Rojo */
+  --color-active: #e11d48;
+  --color-active-light: #f43f5e;
+  --color-active-bg: #fff1f2;
+
+  /* Positivo/Negativo */
+  --color-positive: #059669;
+  --color-negative: #dc2626;
+}
+
+/* Animación de carga */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Tooltip personalizado */
+.tooltip {
+  @apply invisible opacity-0 absolute z-50 bg-gray-900 text-white text-xs rounded-lg py-2 px-3 max-w-xs transition-all duration-200;
+}
+
+.tooltip-trigger:hover .tooltip {
+  @apply visible opacity-100;
+}
+
+/* Gradiente para el logo K */
+.gradient-k {
+  background: linear-gradient(135deg, #1d4ed8 0%, #4f46e5 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Scrollbar personalizado */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
