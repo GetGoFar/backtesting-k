@@ -329,10 +329,15 @@ function validateHolding(
     return `El fondo #${index} de la cartera ${portfolioLabel} no tiene ID (fundId).`;
   }
 
-  // Verificar que el fondo existe
-  const fund = getFundById(holding.fundId);
+  // Verificar que el fondo existe (en la BD local o como fondo dinámico de Yahoo Finance)
+  const fund = getFundById(holding.fundId) || holding.fund;
   if (!fund) {
     return `El fondo '${holding.fundId}' de la cartera ${portfolioLabel} no existe. Usa /api/funds para ver los fondos disponibles.`;
+  }
+
+  // Verificar que los fondos dinámicos de Yahoo tienen yahooTicker
+  if (!getFundById(holding.fundId) && holding.fund && !holding.fund.yahooTicker) {
+    return `El fondo dinámico '${holding.fundId}' de la cartera ${portfolioLabel} no tiene ticker de Yahoo Finance.`;
   }
 
   // Validar peso
