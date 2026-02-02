@@ -151,7 +151,8 @@ async function runPortfolioBacktest(
   // 4. Calcular métricas
   const values = simulation.timeSeries.map((p) => p.value);
   const finalValue = values[values.length - 1] ?? 0;
-  const years = commonDates.length / 12;
+  // El número de años es (meses - 1) / 12 porque tenemos N puntos pero N-1 períodos
+  const years = (commonDates.length - 1) / 12;
 
   const metrics = calculateMetrics(
     values,
@@ -260,19 +261,19 @@ function simulatePortfolio(
 
       if (!currentPrice || !previousPrice || previousPrice === 0) continue;
 
-      // Retorno bruto del mes: (precio_mes / precio_mes_anterior) - 1
-      const grossReturn = (currentPrice / previousPrice) - 1;
+      // Retorno del mes: (precio_mes / precio_mes_anterior) - 1
+      // NOTA: Los precios NAV de Yahoo Finance YA incluyen el TER descontado,
+      // por lo que no debemos restar el TER nuevamente (evitar doble conteo)
+      const monthlyReturn = (currentPrice / previousPrice) - 1;
 
-      // Retorno neto después de TER: retorno_bruto - (TER/12/100)
-      const monthlyTerDeduction = ter / 12 / 100;
-      const netReturn = grossReturn - monthlyTerDeduction;
-
-      // Calcular comisión pagada este mes
-      const feeAmount = currentPositionValue * monthlyTerDeduction;
-      totalFeesPaid += feeAmount;
+      // Estimar comisiones pagadas para mostrar al usuario (informativo)
+      // Esto es una estimación basada en el TER del fondo
+      const monthlyTerRate = ter / 12 / 100;
+      const estimatedFee = currentPositionValue * monthlyTerRate;
+      totalFeesPaid += estimatedFee;
 
       // Aplicar retorno a la posición
-      const newPositionValue = currentPositionValue * (1 + netReturn);
+      const newPositionValue = currentPositionValue * (1 + monthlyReturn);
       positionValues.set(holding.fundId, newPositionValue);
     }
 
