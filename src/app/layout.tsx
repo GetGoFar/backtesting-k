@@ -67,7 +67,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" className={dmSans.variable}>
+    <html lang="es" className={dmSans.variable} suppressHydrationWarning>
       <body
         className={`${dmSans.className} min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 antialiased`}
       >

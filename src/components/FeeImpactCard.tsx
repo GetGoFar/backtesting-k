@@ -21,6 +21,15 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
 
   const { resultA, resultB, config } = results;
 
+  // Verificar que tenemos resultados válidos
+  if (!resultA || !resultB) {
+    return (
+      <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border border-amber-200 shadow-sm p-6">
+        <p className="text-amber-800 text-center">No hay datos suficientes para mostrar el impacto de comisiones.</p>
+      </div>
+    );
+  }
+
   // Calcular comisiones
   const feesA = resultA.fees.totalFees;
   const feesB = resultB.fees.totalFees;

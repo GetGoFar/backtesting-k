@@ -94,24 +94,40 @@ export function AnnualReturnsChart({ results, isLoading }: AnnualReturnsChartPro
     );
   }
 
+  // Verificar que tenemos resultados válidos
+  if (!results.resultA || !results.resultB) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <h3 className="text-lg font-semibold text-slate-900 mb-4">
+          Rentabilidades anuales
+        </h3>
+        <p className="text-slate-500 text-center py-8">No hay datos suficientes.</p>
+      </div>
+    );
+  }
+
+  // Destructurar después de la verificación de null (ahora TypeScript sabe que no son null)
+  const resultA = results.resultA;
+  const resultB = results.resultB;
+
   // Combinar datos de ambas carteras por año
   const dataMap = new Map<number, Record<string, number>>();
 
-  for (const annual of results.resultA.annualReturns) {
+  for (const annual of resultA.annualReturns) {
     dataMap.set(annual.year, {
       year: annual.year,
-      [results.resultA.portfolioName]: annual.returnPct,
+      [resultA.portfolioName]: annual.returnPct,
     });
   }
 
-  for (const annual of results.resultB.annualReturns) {
+  for (const annual of resultB.annualReturns) {
     const entry = dataMap.get(annual.year);
     if (entry) {
-      entry[results.resultB.portfolioName] = annual.returnPct;
+      entry[resultB.portfolioName] = annual.returnPct;
     } else {
       dataMap.set(annual.year, {
         year: annual.year,
-        [results.resultB.portfolioName]: annual.returnPct,
+        [resultB.portfolioName]: annual.returnPct,
       });
     }
   }
@@ -122,8 +138,8 @@ export function AnnualReturnsChart({ results, isLoading }: AnnualReturnsChartPro
 
   // Calcular el rango del eje Y
   const allReturns = [
-    ...results.resultA.annualReturns.map((r) => r.returnPct),
-    ...results.resultB.annualReturns.map((r) => r.returnPct),
+    ...resultA.annualReturns.map((r) => r.returnPct),
+    ...resultB.annualReturns.map((r) => r.returnPct),
   ];
   const minReturn = Math.min(...allReturns, 0);
   const maxReturn = Math.max(...allReturns, 0);
@@ -166,8 +182,8 @@ export function AnnualReturnsChart({ results, isLoading }: AnnualReturnsChartPro
             />
             <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1} />
             <Bar
-              dataKey={results.resultA.portfolioName}
-              name={results.resultA.portfolioName}
+              dataKey={resultA.portfolioName}
+              name={resultA.portfolioName}
               fill={COLORS.a}
               radius={[4, 4, 0, 0]}
             >
@@ -175,7 +191,7 @@ export function AnnualReturnsChart({ results, isLoading }: AnnualReturnsChartPro
                 <Cell
                   key={`cell-a-${index}`}
                   fill={
-                    (entry[results.resultA.portfolioName] ?? 0) >= 0
+                    (entry[resultA.portfolioName] ?? 0) >= 0
                       ? COLORS.a
                       : "#93c5fd"
                   }
@@ -183,8 +199,8 @@ export function AnnualReturnsChart({ results, isLoading }: AnnualReturnsChartPro
               ))}
             </Bar>
             <Bar
-              dataKey={results.resultB.portfolioName}
-              name={results.resultB.portfolioName}
+              dataKey={resultB.portfolioName}
+              name={resultB.portfolioName}
               fill={COLORS.b}
               radius={[4, 4, 0, 0]}
             >
@@ -192,7 +208,7 @@ export function AnnualReturnsChart({ results, isLoading }: AnnualReturnsChartPro
                 <Cell
                   key={`cell-b-${index}`}
                   fill={
-                    (entry[results.resultB.portfolioName] ?? 0) >= 0
+                    (entry[resultB.portfolioName] ?? 0) >= 0
                       ? COLORS.b
                       : "#fda4af"
                   }

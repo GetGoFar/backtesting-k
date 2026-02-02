@@ -95,6 +95,18 @@ export function DrawdownChart({ results, isLoading }: DrawdownChartProps) {
     );
   }
 
+  // Verificar que tenemos resultados válidos
+  if (!results.resultA || !results.resultB) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <h3 className="text-lg font-semibold text-slate-900 mb-4">
+          Drawdowns (caídas desde máximos)
+        </h3>
+        <p className="text-slate-500 text-center py-8">No hay datos suficientes.</p>
+      </div>
+    );
+  }
+
   // Combinar datos de ambas carteras por fecha
   const dataMap = new Map<string, Record<string, number | string>>();
 

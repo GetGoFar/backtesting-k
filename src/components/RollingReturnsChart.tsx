@@ -109,23 +109,39 @@ export function RollingReturnsChart({ results, isLoading }: RollingReturnsChartP
     );
   }
 
+  // Verificar que tenemos resultados válidos
+  if (!results.resultA || !results.resultB) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <h3 className="text-lg font-semibold text-slate-900 mb-4">
+          Rentabilidad móvil anualizada
+        </h3>
+        <p className="text-slate-500 text-center py-8">No hay datos suficientes.</p>
+      </div>
+    );
+  }
+
+  // Destructurar después de la verificación de null (ahora TypeScript sabe que no son null)
+  const resultA = results.resultA;
+  const resultB = results.resultB;
+
   // Obtener los datos según la ventana seleccionada
   const getWindowData = (window: RollingWindow) => {
     switch (window) {
       case "1":
         return {
-          a: results.resultA.rollingReturns.oneYear,
-          b: results.resultB.rollingReturns.oneYear,
+          a: resultA.rollingReturns.oneYear,
+          b: resultB.rollingReturns.oneYear,
         };
       case "3":
         return {
-          a: results.resultA.rollingReturns.threeYear,
-          b: results.resultB.rollingReturns.threeYear,
+          a: resultA.rollingReturns.threeYear,
+          b: resultB.rollingReturns.threeYear,
         };
       case "5":
         return {
-          a: results.resultA.rollingReturns.fiveYear,
-          b: results.resultB.rollingReturns.fiveYear,
+          a: resultA.rollingReturns.fiveYear,
+          b: resultB.rollingReturns.fiveYear,
         };
     }
   };
@@ -138,18 +154,18 @@ export function RollingReturnsChart({ results, isLoading }: RollingReturnsChartP
   for (const point of windowData.a) {
     dataMap.set(point.date, {
       date: point.date,
-      [results.resultA.portfolioName]: point.value * 100, // Convertir a porcentaje
+      [resultA.portfolioName]: point.value * 100, // Convertir a porcentaje
     });
   }
 
   for (const point of windowData.b) {
     const entry = dataMap.get(point.date);
     if (entry) {
-      entry[results.resultB.portfolioName] = point.value * 100;
+      entry[resultB.portfolioName] = point.value * 100;
     } else {
       dataMap.set(point.date, {
         date: point.date,
-        [results.resultB.portfolioName]: point.value * 100,
+        [resultB.portfolioName]: point.value * 100,
       });
     }
   }
@@ -283,8 +299,8 @@ export function RollingReturnsChart({ results, isLoading }: RollingReturnsChartP
             <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1} strokeDasharray="3 3" />
             <Line
               type="monotone"
-              dataKey={results.resultA.portfolioName}
-              name={results.resultA.portfolioName}
+              dataKey={resultA.portfolioName}
+              name={resultA.portfolioName}
               stroke={COLORS.a}
               strokeWidth={2}
               dot={false}
@@ -292,8 +308,8 @@ export function RollingReturnsChart({ results, isLoading }: RollingReturnsChartP
             />
             <Line
               type="monotone"
-              dataKey={results.resultB.portfolioName}
-              name={results.resultB.portfolioName}
+              dataKey={resultB.portfolioName}
+              name={resultB.portfolioName}
               stroke={COLORS.b}
               strokeWidth={2}
               dot={false}

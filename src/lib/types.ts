@@ -197,10 +197,10 @@ export interface BacktestWarning {
 
 /** Respuesta completa del API de backtest */
 export interface BacktestResponse {
-  /** Resultado de la cartera A */
-  resultA: BacktestResult;
-  /** Resultado de la cartera B */
-  resultB: BacktestResult;
+  /** Resultado de la cartera A (null si no hay datos suficientes) */
+  resultA: BacktestResult | null;
+  /** Resultado de la cartera B (null si no hay datos suficientes) */
+  resultB: BacktestResult | null;
   /** Configuración utilizada */
   config: BacktestConfig;
   /** Rango efectivo de datos usado (puede diferir del solicitado) */

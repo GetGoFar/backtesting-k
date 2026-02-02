@@ -199,6 +199,18 @@ export function MetricsTable({ results, isLoading }: MetricsTableProps) {
 
   const { resultA, resultB } = results;
 
+  // Verificar que tenemos resultados válidos
+  if (!resultA || !resultB) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <h3 className="text-lg font-semibold text-slate-900 mb-4">
+          Métricas comparativas
+        </h3>
+        <p className="text-slate-500 text-center py-8">No hay datos suficientes para mostrar métricas.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
       <h3 className="text-lg font-semibold text-slate-900 mb-4">

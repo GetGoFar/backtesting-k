@@ -14,7 +14,7 @@ const INDEXED_FUNDS: Fund[] = [
     name: "Vanguard Global Stock Index Fund",
     shortName: "Vanguard Global",
     isin: "IE00B03HCZ61",
-    yahooTicker: "0P0000YXJO.L",
+    yahooTicker: "VHVE.AS", // ETF equivalente: Vanguard FTSE Developed World
     ter: 0.18,
     category: "RV Global",
     type: "index",
@@ -58,7 +58,7 @@ const INDEXED_FUNDS: Fund[] = [
     name: "Vanguard EUR Government Bond",
     shortName: "Vanguard RF EUR",
     isin: "IE00B04GQQ17",
-    yahooTicker: "0P0000K0JN.L",
+    yahooTicker: "VETY.AS", // ETF equivalente: Vanguard EUR Eurozone Gov Bond
     ter: 0.12,
     category: "RF EUR Gov",
     type: "index",
