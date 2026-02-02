@@ -70,7 +70,7 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
               {formatEUR(feesA)}
             </p>
             <p className="text-xs text-slate-500 mt-1">
-              TER medio: {(resultA.fees.weightedTer * 100).toFixed(2)}%
+              TER medio: {resultA.fees.weightedTer.toFixed(2)}%
             </p>
           </div>
 
@@ -83,7 +83,7 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
               {formatEUR(feesB)}
             </p>
             <p className="text-xs text-slate-500 mt-1">
-              TER medio: {(resultB.fees.weightedTer * 100).toFixed(2)}%
+              TER medio: {resultB.fees.weightedTer.toFixed(2)}%
             </p>
           </div>
 
