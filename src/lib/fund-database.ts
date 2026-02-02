@@ -64,17 +64,8 @@ const INDEXED_FUNDS: Fund[] = [
     type: "index",
     currency: "EUR",
   },
-  {
-    id: "vanguard-eurozone-bond",
-    name: "Vanguard EUR Eurozone Gov Bond",
-    shortName: "Vanguard Eurozona",
-    isin: "IE00BH04GL39",
-    yahooTicker: "VGEA.AS",
-    ter: 0.1,
-    category: "RF EUR Gov",
-    type: "index",
-    currency: "EUR",
-  },
+  // VGEA.AS no funciona en Yahoo Finance, usamos VETY.AS como alternativa
+  // El fondo vanguard-eur-bond ya cubre esta categoría
   {
     id: "ishares-euro-bond",
     name: "iShares Core Euro Govt Bond",
@@ -87,12 +78,12 @@ const INDEXED_FUNDS: Fund[] = [
     currency: "EUR",
   },
   {
-    id: "amundi-europe",
-    name: "Amundi Index MSCI Europe",
-    shortName: "Amundi Europa",
-    isin: "LU0389811885",
-    yahooTicker: "CEUE.PA",
-    ter: 0.15,
+    id: "ishares-europe",
+    name: "iShares Core MSCI Europe UCITS ETF",
+    shortName: "iShares Europa",
+    isin: "IE00B4K48X80",
+    yahooTicker: "IMEU.AS",
+    ter: 0.12,
     category: "RV Europa",
     type: "index",
     currency: "EUR",
