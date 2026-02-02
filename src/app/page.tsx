@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { PortfolioBuilder } from "@/components/PortfolioBuilder";
 import { MetricsTable } from "@/components/MetricsTable";
@@ -11,6 +11,23 @@ import type {
   PortfolioHolding,
   BacktestWarning,
 } from "@/lib/types";
+
+// Función para obtener el mes actual en formato YYYY-MM
+function getCurrentMonth(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = (now.getMonth() + 1).toString().padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+// Función para obtener el mes anterior en formato YYYY-MM
+function getPreviousMonth(): string {
+  const now = new Date();
+  now.setMonth(now.getMonth() - 1);
+  const year = now.getFullYear();
+  const month = (now.getMonth() + 1).toString().padStart(2, "0");
+  return `${year}-${month}`;
+}
 
 // Lazy loading de los gráficos - solo se cargan cuando hay resultados
 const PerformanceChart = dynamic(
@@ -91,9 +108,11 @@ export default function Home() {
     isValid: false,
   });
 
-  // Estado de configuración
+  // Estado de configuración - usar fechas dinámicas
+  const currentMonth = useMemo(() => getCurrentMonth(), []);
+  const previousMonth = useMemo(() => getPreviousMonth(), []);
   const [startDate, setStartDate] = useState("2015-01");
-  const [endDate, setEndDate] = useState("2024-12");
+  const [endDate, setEndDate] = useState(currentMonth);
   const [initialInvestment, setInitialInvestment] = useState(10000);
   const [monthlyContribution, setMonthlyContribution] = useState(0);
   const [rebalanceFrequency, setRebalanceFrequency] =
@@ -309,8 +328,8 @@ export default function Home() {
                   type="month"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  min="2015-01"
-                  max="2024-11"
+                  min="2010-01"
+                  max={previousMonth}
                   className="w-full px-3 py-2 text-sm sm:text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 />
               </div>
@@ -324,8 +343,8 @@ export default function Home() {
                   type="month"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  min="2015-02"
-                  max="2024-12"
+                  min="2010-02"
+                  max={currentMonth}
                   className="w-full px-3 py-2 text-sm sm:text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 />
               </div>
