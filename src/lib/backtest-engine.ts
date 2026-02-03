@@ -42,34 +42,46 @@ const RISK_FREE_RATE = 0.01;
  */
 export async function runBacktest(
   config: BacktestConfig
-): Promise<{ a: BacktestResult | null; b: BacktestResult | null }> {
+): Promise<{ a: BacktestResult | null; b: BacktestResult | null; correlation?: number }> {
   console.log("[BacktestEngine] Iniciando backtest...");
   console.log(`[BacktestEngine] Período: ${config.startDate} - ${config.endDate}`);
   console.log(`[BacktestEngine] Inversión inicial: ${config.initialAmount}€`);
 
-  // Ejecutar backtests en paralelo
-  const [resultA, resultB] = await Promise.all([
-    runPortfolioBacktest(
-      config.portfolioA,
-      config.startDate,
-      config.endDate,
-      config.initialAmount,
-      config.rebalanceFrequency,
-      config.monthlyContribution ?? 0
-    ),
-    runPortfolioBacktest(
-      config.portfolioB,
-      config.startDate,
-      config.endDate,
-      config.initialAmount,
-      config.rebalanceFrequency,
-      config.monthlyContribution ?? 0
-    ),
-  ]);
+  // Ejecutar backtests solo para carteras que existen
+  const resultAPromise = config.portfolioA
+    ? runPortfolioBacktest(
+        config.portfolioA,
+        config.startDate,
+        config.endDate,
+        config.initialAmount,
+        config.rebalanceFrequency,
+        config.monthlyContribution ?? 0
+      )
+    : Promise.resolve(null);
+
+  const resultBPromise = config.portfolioB
+    ? runPortfolioBacktest(
+        config.portfolioB,
+        config.startDate,
+        config.endDate,
+        config.initialAmount,
+        config.rebalanceFrequency,
+        config.monthlyContribution ?? 0
+      )
+    : Promise.resolve(null);
+
+  const [resultA, resultB] = await Promise.all([resultAPromise, resultBPromise]);
 
   console.log("[BacktestEngine] Backtest completado");
 
-  return { a: resultA, b: resultB };
+  // Calcular correlación si ambas carteras tienen resultados
+  let correlation: number | undefined;
+  if (resultA && resultB && resultA.timeSeries.length > 1 && resultB.timeSeries.length > 1) {
+    correlation = calculateCorrelation(resultA.timeSeries, resultB.timeSeries);
+    console.log(`[BacktestEngine] Correlación entre carteras: ${(correlation * 100).toFixed(1)}%`);
+  }
+
+  return { a: resultA, b: resultB, correlation };
 }
 
 // -----------------------------------------------------------------------------
@@ -695,6 +707,74 @@ function calculateWeightedTer(
 }
 
 // -----------------------------------------------------------------------------
+// Correlación entre carteras
+// -----------------------------------------------------------------------------
+
+/**
+ * Calcula la correlación de Pearson entre dos series temporales
+ * Usa los retornos mensuales para calcular la correlación
+ */
+function calculateCorrelation(
+  seriesA: TimeSeriesPoint[],
+  seriesB: TimeSeriesPoint[]
+): number {
+  // Crear mapas de fecha -> valor para alinear las series
+  const mapA = new Map(seriesA.map((p) => [p.date, p.value]));
+  const mapB = new Map(seriesB.map((p) => [p.date, p.value]));
+
+  // Encontrar fechas comunes
+  const commonDates = seriesA
+    .map((p) => p.date)
+    .filter((date) => mapB.has(date))
+    .sort();
+
+  if (commonDates.length < 3) return 0;
+
+  // Calcular retornos mensuales para cada serie
+  const returnsA: number[] = [];
+  const returnsB: number[] = [];
+
+  for (let i = 1; i < commonDates.length; i++) {
+    const prevDate = commonDates[i - 1]!;
+    const currDate = commonDates[i]!;
+
+    const prevA = mapA.get(prevDate);
+    const currA = mapA.get(currDate);
+    const prevB = mapB.get(prevDate);
+    const currB = mapB.get(currDate);
+
+    if (prevA && currA && prevB && currB && prevA > 0 && prevB > 0) {
+      returnsA.push((currA - prevA) / prevA);
+      returnsB.push((currB - prevB) / prevB);
+    }
+  }
+
+  if (returnsA.length < 2) return 0;
+
+  // Calcular correlación de Pearson
+  const n = returnsA.length;
+  const meanA = returnsA.reduce((sum, r) => sum + r, 0) / n;
+  const meanB = returnsB.reduce((sum, r) => sum + r, 0) / n;
+
+  let numerator = 0;
+  let denomA = 0;
+  let denomB = 0;
+
+  for (let i = 0; i < n; i++) {
+    const diffA = returnsA[i]! - meanA;
+    const diffB = returnsB[i]! - meanB;
+    numerator += diffA * diffB;
+    denomA += diffA * diffA;
+    denomB += diffB * diffB;
+  }
+
+  const denominator = Math.sqrt(denomA * denomB);
+  if (denominator === 0) return 0;
+
+  return numerator / denominator;
+}
+
+// -----------------------------------------------------------------------------
 // Exports adicionales para testing
 // -----------------------------------------------------------------------------
 
@@ -705,6 +785,7 @@ export const _testing = {
   calculateMaxDrawdown,
   calculateMetrics,
   calculateRollingReturnSeries,
+  calculateCorrelation,
   findCommonDateRange,
   rebalancePortfolio,
   shouldRebalance,

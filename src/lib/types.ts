@@ -79,10 +79,10 @@ export interface Portfolio {
 
 /** Configuración completa para ejecutar un backtest */
 export interface BacktestConfig {
-  /** Primera cartera a comparar */
-  portfolioA: Portfolio;
-  /** Segunda cartera a comparar */
-  portfolioB: Portfolio;
+  /** Primera cartera a comparar (opcional) */
+  portfolioA?: Portfolio;
+  /** Segunda cartera a comparar (opcional) */
+  portfolioB?: Portfolio;
   /** Fecha de inicio (formato YYYY-MM-DD) */
   startDate: string;
   /** Fecha de fin (formato YYYY-MM-DD) */
@@ -212,6 +212,8 @@ export interface BacktestResponse {
   };
   /** Avisos para el usuario */
   warnings?: BacktestWarning[];
+  /** Correlación entre las dos carteras (-1 a 1) */
+  correlation?: number;
 }
 
 // -----------------------------------------------------------------------------

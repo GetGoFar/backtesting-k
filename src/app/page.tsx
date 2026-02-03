@@ -98,12 +98,12 @@ export default function Home() {
 
   // Estado de las carteras (recibido desde PortfolioBuilder)
   const [portfolioA, setPortfolioA] = useState<PortfolioState>({
-    name: "Cartera Indexada",
+    name: "Cartera 1",
     holdings: [],
     isValid: false,
   });
   const [portfolioB, setPortfolioB] = useState<PortfolioState>({
-    name: "Cartera Bancaria",
+    name: "Cartera 2",
     holdings: [],
     isValid: false,
   });
@@ -136,41 +136,32 @@ export default function Home() {
   // Validar que las carteras están completas
   const hasHoldingsA = portfolioA.holdings.length > 0;
   const hasHoldingsB = portfolioB.holdings.length > 0;
-  const canRunBacktest = portfolioA.isValid && portfolioB.isValid;
+  // Permitir ejecutar con al menos una cartera válida
+  const canRunBacktest = portfolioA.isValid || portfolioB.isValid;
 
   // Mensaje de validación
   const getValidationMessage = (): string => {
     if (!hasHoldingsA && !hasHoldingsB) {
-      return "Añade al menos un fondo a cada cartera";
+      return "Añade al menos un fondo a una cartera";
     }
-    if (!hasHoldingsA) {
-      return "Añade al menos un fondo a la Cartera A";
+    // Si hay holdings pero ninguna es válida
+    if ((hasHoldingsA && !portfolioA.isValid) && (hasHoldingsB && !portfolioB.isValid)) {
+      return "Los pesos de las carteras deben sumar 100%";
     }
-    if (!hasHoldingsB) {
-      return "Añade al menos un fondo a la Cartera B";
+    if (hasHoldingsA && !portfolioA.isValid) {
+      return "Los pesos de la Cartera 1 deben sumar 100%";
     }
-    if (!portfolioA.isValid && !portfolioB.isValid) {
-      return "Los pesos de ambas carteras deben sumar 100%";
-    }
-    if (!portfolioA.isValid) {
-      return "Los pesos de la Cartera A deben sumar 100%";
-    }
-    if (!portfolioB.isValid) {
-      return "Los pesos de la Cartera B deben sumar 100%";
+    if (hasHoldingsB && !portfolioB.isValid) {
+      return "Los pesos de la Cartera 2 deben sumar 100%";
     }
     return "";
   };
 
   // Ejecutar backtest
   const handleRunBacktest = async () => {
-    // Validar que ambas carteras tienen al menos un fondo
-    if (!hasHoldingsA || !hasHoldingsB) {
-      setError("Ambas carteras deben tener al menos un fondo");
-      return;
-    }
-
-    if (!canRunBacktest) {
-      setError("Los pesos de cada cartera deben sumar 100%");
+    // Validar que al menos una cartera es válida
+    if (!portfolioA.isValid && !portfolioB.isValid) {
+      setError("Al menos una cartera debe tener fondos con pesos que sumen 100%");
       return;
     }
 
@@ -179,24 +170,33 @@ export default function Home() {
     setShowResults(false);
 
     try {
+      // Construir payload solo con carteras válidas
+      const payload: Record<string, unknown> = {
+        startDate: startDate + "-01",
+        endDate: endDate + "-01",
+        initialAmount: initialInvestment,
+        monthlyContribution,
+        rebalanceFrequency,
+      };
+
+      if (portfolioA.isValid) {
+        payload.portfolioA = {
+          name: portfolioA.name,
+          holdings: portfolioA.holdings,
+        };
+      }
+
+      if (portfolioB.isValid) {
+        payload.portfolioB = {
+          name: portfolioB.name,
+          holdings: portfolioB.holdings,
+        };
+      }
+
       const response = await fetch("/api/backtest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          portfolioA: {
-            name: portfolioA.name,
-            holdings: portfolioA.holdings,
-          },
-          portfolioB: {
-            name: portfolioB.name,
-            holdings: portfolioB.holdings,
-          },
-          startDate: startDate + "-01",
-          endDate: endDate + "-01",
-          initialAmount: initialInvestment,
-          monthlyContribution,
-          rebalanceFrequency,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();

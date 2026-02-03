@@ -42,7 +42,7 @@ const SIDE_COLORS = {
 export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   const [allocations, setAllocations] = useState<FundAllocation[]>([]);
   const [name, setName] = useState(
-    side === "a" ? "Cartera Indexada" : "Cartera Bancaria"
+    side === "a" ? "Cartera 1" : "Cartera 2"
   );
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [showPresetDropdown, setShowPresetDropdown] = useState(false);

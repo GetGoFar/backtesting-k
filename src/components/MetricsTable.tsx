@@ -197,25 +197,87 @@ export function MetricsTable({ results, isLoading }: MetricsTableProps) {
     );
   }
 
-  const { resultA, resultB } = results;
+  const { resultA, resultB, correlation } = results;
 
-  // Verificar que tenemos resultados válidos
-  if (!resultA || !resultB) {
+  // Si no hay ningún resultado
+  if (!resultA && !resultB) {
     return (
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
         <h3 className="text-lg font-semibold text-slate-900 mb-4">
-          Métricas comparativas
+          Métricas
         </h3>
         <p className="text-slate-500 text-center py-8">No hay datos suficientes para mostrar métricas.</p>
       </div>
     );
   }
 
+  // Si solo hay una cartera, mostrar tabla simplificada
+  const singleResult = resultA || resultB;
+  const isSinglePortfolio = !resultA || !resultB;
+
+  // Vista para una sola cartera
+  if (isSinglePortfolio && singleResult) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <h3 className="text-lg font-semibold text-slate-900 mb-4">
+          Métricas - {singleResult.portfolioName}
+        </h3>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b-2 border-slate-200">
+                <th className="py-3 px-4 text-left text-sm font-semibold text-slate-600">
+                  Métrica
+                </th>
+                <th className="py-3 px-4 text-right text-sm font-semibold text-blue-600">
+                  Valor
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {METRICS_CONFIG.map((metric) => (
+                <tr key={metric.key} className="hover:bg-slate-50 transition-colors">
+                  <td className="py-3 px-4">
+                    <div className="flex items-center">
+                      <span className="text-sm text-slate-700">{metric.label}</span>
+                      <MetricTooltip content={metric.tooltip} />
+                    </div>
+                  </td>
+                  <td className="py-3 px-4 text-right text-sm text-slate-700">
+                    {metric.format(metric.getValue(singleResult))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  // Vista comparativa para dos carteras
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-      <h3 className="text-lg font-semibold text-slate-900 mb-4">
-        Métricas comparativas
-      </h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-slate-900">
+          Métricas comparativas
+        </h3>
+        {/* Mostrar correlación si está disponible */}
+        {correlation !== undefined && (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg">
+            <span className="text-sm text-slate-600">Correlación:</span>
+            <span className={`text-sm font-bold ${
+              correlation > 0.7 ? "text-amber-600" :
+              correlation > 0.3 ? "text-blue-600" :
+              correlation > -0.3 ? "text-emerald-600" :
+              "text-purple-600"
+            }`}>
+              {(correlation * 100).toFixed(1)}%
+            </span>
+            <MetricTooltip content="Correlación de Pearson entre los retornos mensuales de ambas carteras. Valores cercanos a 100% indican que se mueven juntas, cercanos a 0% son independientes, y negativos se mueven en direcciones opuestas." />
+          </div>
+        )}
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
@@ -224,17 +286,17 @@ export function MetricsTable({ results, isLoading }: MetricsTableProps) {
                 Métrica
               </th>
               <th className="py-3 px-4 text-right text-sm font-semibold text-blue-600">
-                {resultA.portfolioName}
+                {resultA!.portfolioName}
               </th>
               <th className="py-3 px-4 text-right text-sm font-semibold text-rose-600">
-                {resultB.portfolioName}
+                {resultB!.portfolioName}
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {METRICS_CONFIG.map((metric) => {
-              const valueA = metric.getValue(resultA);
-              const valueB = metric.getValue(resultB);
+              const valueA = metric.getValue(resultA!);
+              const valueB = metric.getValue(resultB!);
               const winner = getWinner(valueA, valueB, metric.higherIsBetter);
 
               return (

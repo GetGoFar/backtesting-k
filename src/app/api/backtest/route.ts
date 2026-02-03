@@ -64,22 +64,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Normalizar pesos si no suman exactamente 100% y recopilar avisos
     const warnings: BacktestWarning[] = [];
 
-    const normalizedA = normalizeWeights(config.portfolioA);
-    if (normalizedA.normalized) {
-      warnings.push({
-        type: "weight_normalized",
-        message: `Los pesos de "${config.portfolioA.name}" sumaban ${normalizedA.originalTotal.toFixed(1)}% y se han normalizado a 100%.`,
-      });
-      config.portfolioA.holdings = normalizedA.holdings;
+    if (config.portfolioA) {
+      const normalizedA = normalizeWeights(config.portfolioA);
+      if (normalizedA.normalized) {
+        warnings.push({
+          type: "weight_normalized",
+          message: `Los pesos de "${config.portfolioA.name}" sumaban ${normalizedA.originalTotal.toFixed(1)}% y se han normalizado a 100%.`,
+        });
+        config.portfolioA.holdings = normalizedA.holdings;
+      }
     }
 
-    const normalizedB = normalizeWeights(config.portfolioB);
-    if (normalizedB.normalized) {
-      warnings.push({
-        type: "weight_normalized",
-        message: `Los pesos de "${config.portfolioB.name}" sumaban ${normalizedB.originalTotal.toFixed(1)}% y se han normalizado a 100%.`,
-      });
-      config.portfolioB.holdings = normalizedB.holdings;
+    if (config.portfolioB) {
+      const normalizedB = normalizeWeights(config.portfolioB);
+      if (normalizedB.normalized) {
+        warnings.push({
+          type: "weight_normalized",
+          message: `Los pesos de "${config.portfolioB.name}" sumaban ${normalizedB.originalTotal.toFixed(1)}% y se han normalizado a 100%.`,
+        });
+        config.portfolioB.holdings = normalizedB.holdings;
+      }
     }
 
     // Ejecutar backtest con timeout
@@ -142,6 +146,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         endDate: effectiveEnd,
       } : undefined,
       warnings: warnings.length > 0 ? warnings : undefined,
+      correlation: result.correlation,
     });
   } catch (error) {
     console.error("[API /backtest] Error:", error);
@@ -211,23 +216,22 @@ function normalizeWeights(portfolio: Portfolio): {
  * Retorna un mensaje de error si hay problemas, o null si todo es válido
  */
 function validateConfig(config: BacktestConfig): string | null {
-  // Validar que existe portfolioA
-  if (!config.portfolioA) {
-    return "Falta la cartera A (portfolioA).";
+  // Validar que existe al menos una cartera
+  if (!config.portfolioA && !config.portfolioB) {
+    return "Se requiere al menos una cartera (portfolioA o portfolioB).";
   }
 
-  // Validar que existe portfolioB
-  if (!config.portfolioB) {
-    return "Falta la cartera B (portfolioB).";
+  // Validar cartera A (si existe)
+  if (config.portfolioA) {
+    const portfolioAError = validatePortfolio(config.portfolioA, "1");
+    if (portfolioAError) return portfolioAError;
   }
 
-  // Validar cartera A
-  const portfolioAError = validatePortfolio(config.portfolioA, "A");
-  if (portfolioAError) return portfolioAError;
-
-  // Validar cartera B
-  const portfolioBError = validatePortfolio(config.portfolioB, "B");
-  if (portfolioBError) return portfolioBError;
+  // Validar cartera B (si existe)
+  if (config.portfolioB) {
+    const portfolioBError = validatePortfolio(config.portfolioB, "2");
+    if (portfolioBError) return portfolioBError;
+  }
 
   // Validar fechas
   const datesError = validateDates(config.startDate, config.endDate);
