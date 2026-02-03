@@ -15,7 +15,7 @@ const INDEXED_FUNDS: Fund[] = [
     shortName: "Vanguard Global",
     isin: "IE00B03HCZ61",
     yahooTicker: "VWRL.AS", // ETF equivalente: Vanguard FTSE All-World
-    ter: 0.18,
+    ter: 0.22,
     category: "RV Global",
     type: "index",
     currency: "EUR",
@@ -72,7 +72,7 @@ const INDEXED_FUNDS: Fund[] = [
     shortName: "iShares RF EUR",
     isin: "IE00B4WXJJ64",
     yahooTicker: "IEGA.AS",
-    ter: 0.09,
+    ter: 0.07,
     category: "RF EUR Gov",
     type: "index",
     currency: "EUR",

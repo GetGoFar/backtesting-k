@@ -107,6 +107,17 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
     markAsCustom();
   };
 
+  const handleTerChange = (fundId: string, ter: number) => {
+    setAllocations(
+      allocations.map((a) =>
+        a.fund.id === fundId
+          ? { ...a, fund: { ...a.fund, ter: Math.max(0, ter) } }
+          : a
+      )
+    );
+    markAsCustom();
+  };
+
   const handlePresetSelect = (preset: PortfolioPreset) => {
     // Convertir holdings del preset a allocaciones con fondos completos
     const newAllocations: FundAllocation[] = [];
@@ -303,9 +314,26 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                   <p className="text-sm font-medium text-slate-900 truncate">
                     {allocation.fund.shortName}
                   </p>
-                  <p className="text-xs text-slate-500">
-                    TER: {allocation.fund.ter}%
-                  </p>
+                  {/* TER editable */}
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <span className="text-xs text-slate-500">TER:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="10"
+                      step="0.01"
+                      value={allocation.fund.ter}
+                      onChange={(e) =>
+                        handleTerChange(
+                          allocation.fund.id,
+                          Number(e.target.value)
+                        )
+                      }
+                      className="w-14 px-1 py-0.5 text-xs text-right border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      title="Editar TER"
+                    />
+                    <span className="text-xs text-slate-500">%</span>
+                  </div>
                 </div>
 
                 {/* Input de peso */}
