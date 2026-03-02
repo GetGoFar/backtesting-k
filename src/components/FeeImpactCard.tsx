@@ -21,8 +21,8 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
 
   const { resultA, resultB, config } = results;
 
-  // Verificar que tenemos resultados válidos
-  if (!resultA || !resultB) {
+  // Verificar que tenemos al menos un resultado válido
+  if (!resultA && !resultB) {
     return (
       <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border border-amber-200 shadow-sm p-6">
         <p className="text-amber-800 text-center">No hay datos suficientes para mostrar el impacto de comisiones.</p>
@@ -30,23 +30,78 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
     );
   }
 
-  // Calcular comisiones
-  const feesA = resultA.fees.totalFees;
-  const feesB = resultB.fees.totalFees;
-  const feeDifference = Math.abs(feesA - feesB);
-  const cheaperPortfolio = feesA < feesB ? "A" : "B";
-  const cheaperName = feesA < feesB ? resultA.portfolioName : resultB.portfolioName;
-  const expensiveName = feesA < feesB ? resultB.portfolioName : resultA.portfolioName;
-
-  // Calcular si las comisiones superan el 20% del capital inicial
   const initialAmount = config.initialAmount;
+  const isSinglePortfolio = !resultA || !resultB;
+  const singleResult = resultA || resultB;
+
+  // Modo single portfolio
+  if (isSinglePortfolio && singleResult) {
+    const fees = singleResult.fees.totalFees;
+    const feesPercentOfInitial = (fees / initialAmount) * 100;
+
+    return (
+      <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border border-amber-200 shadow-sm overflow-hidden">
+        <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4">
+          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+            <span className="text-2xl">💰</span>
+            Comisiones estimadas — {singleResult.portfolioName}
+          </h3>
+        </div>
+        <div className="p-6">
+          <div className="grid gap-4 sm:grid-cols-3 mb-6">
+            <div className="bg-white/70 rounded-lg p-4 border border-amber-100">
+              <p className="text-xs font-medium text-slate-600 mb-1">
+                Comisiones totales
+              </p>
+              <p className="text-2xl font-bold text-slate-900">
+                {formatEUR(fees)}
+              </p>
+            </div>
+            <div className="bg-white/70 rounded-lg p-4 border border-amber-100">
+              <p className="text-xs font-medium text-slate-600 mb-1">
+                TER medio ponderado
+              </p>
+              <p className="text-2xl font-bold text-slate-900">
+                {singleResult.fees.weightedTer.toFixed(2)}%
+              </p>
+            </div>
+            <div className="bg-white/70 rounded-lg p-4 border border-amber-100">
+              <p className="text-xs font-medium text-slate-600 mb-1">
+                % sobre inversión inicial
+              </p>
+              <p className="text-2xl font-bold text-amber-600">
+                {feesPercentOfInitial.toFixed(1)}%
+              </p>
+            </div>
+          </div>
+          <div className="bg-amber-100/50 rounded-lg p-4 border border-amber-200">
+            <p className="text-amber-900 font-medium">
+              Has pagado un total de{" "}
+              <span className="font-bold">{formatEUR(fees)}</span> en comisiones
+              durante el periodo analizado.
+            </p>
+            <p className="text-amber-800 text-sm mt-2">
+              Añade una segunda cartera para comparar el impacto de las comisiones entre ambas.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Modo comparación (dos carteras)
+  const feesA = resultA!.fees.totalFees;
+  const feesB = resultB!.fees.totalFees;
+  const feeDifference = Math.abs(feesA - feesB);
+  const cheaperName = feesA < feesB ? resultA!.portfolioName : resultB!.portfolioName;
+  const expensiveName = feesA < feesB ? resultB!.portfolioName : resultA!.portfolioName;
+
   const maxFees = Math.max(feesA, feesB);
   const feesPercentOfInitial = (maxFees / initialAmount) * 100;
   const showExtraWarning = feesPercentOfInitial > 20;
 
-  // Diferencia en valor final
-  const valueDifference = Math.abs(resultA.finalValue - resultB.finalValue);
-  const betterPortfolioValue = resultA.finalValue > resultB.finalValue ? resultA : resultB;
+  const valueDifference = Math.abs(resultA!.finalValue - resultB!.finalValue);
+  const betterPortfolioValue = resultA!.finalValue > resultB!.finalValue ? resultA! : resultB!;
 
   return (
     <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border border-amber-200 shadow-sm overflow-hidden">
@@ -64,26 +119,26 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
           {/* Cartera A */}
           <div className="bg-white/70 rounded-lg p-4 border border-amber-100">
             <p className="text-xs font-medium text-blue-600 mb-1">
-              {resultA.portfolioName}
+              {resultA!.portfolioName}
             </p>
             <p className="text-2xl font-bold text-slate-900">
               {formatEUR(feesA)}
             </p>
             <p className="text-xs text-slate-500 mt-1">
-              TER medio: {resultA.fees.weightedTer.toFixed(2)}%
+              TER medio: {resultA!.fees.weightedTer.toFixed(2)}%
             </p>
           </div>
 
           {/* Cartera B */}
           <div className="bg-white/70 rounded-lg p-4 border border-amber-100">
             <p className="text-xs font-medium text-rose-600 mb-1">
-              {resultB.portfolioName}
+              {resultB!.portfolioName}
             </p>
             <p className="text-2xl font-bold text-slate-900">
               {formatEUR(feesB)}
             </p>
             <p className="text-xs text-slate-500 mt-1">
-              TER medio: {resultB.fees.weightedTer.toFixed(2)}%
+              TER medio: {resultB!.fees.weightedTer.toFixed(2)}%
             </p>
           </div>
 

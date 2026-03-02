@@ -196,7 +196,8 @@ async function attemptYahooFetch(
     const timestamps = result.timestamp;
     const closes = result.indicators.adjclose[0].adjclose;
 
-    const prices: MonthlyPrice[] = [];
+    // Deduplicar por mes: quedarse con el último precio válido de cada mes
+    const monthlyMap = new Map<string, number>();
 
     for (let i = 0; i < timestamps.length; i++) {
       const timestamp = timestamps[i];
@@ -205,11 +206,17 @@ async function attemptYahooFetch(
       if (timestamp !== undefined && closePrice !== null && closePrice !== undefined) {
         const date = new Date(timestamp * 1000);
         const month = formatYearMonth(date);
-        prices.push({ month, closePrice });
+        monthlyMap.set(month, closePrice); // sobrescribe con el último del mes
       }
     }
 
-    console.log(`[DataFetcher] Yahoo Finance devolvió ${prices.length} precios para ${ticker}`);
+    const prices: MonthlyPrice[] = [];
+    for (const [month, closePrice] of monthlyMap) {
+      prices.push({ month, closePrice });
+    }
+    prices.sort((a, b) => a.month.localeCompare(b.month));
+
+    console.log(`[DataFetcher] Yahoo Finance devolvió ${prices.length} meses para ${ticker} (de ${timestamps.length} registros)`);
     return prices;
   } catch (error) {
     console.error(`[DataFetcher] Error en fetch a Yahoo Finance (intento ${attempt}):`, error);

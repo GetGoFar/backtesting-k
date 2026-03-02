@@ -95,8 +95,8 @@ export function DrawdownChart({ results, isLoading }: DrawdownChartProps) {
     );
   }
 
-  // Verificar que tenemos resultados válidos
-  if (!results.resultA || !results.resultB) {
+  // Verificar que tenemos al menos un resultado válido
+  if (!results.resultA && !results.resultB) {
     return (
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
         <h3 className="text-lg font-semibold text-slate-900 mb-4">
@@ -107,25 +107,32 @@ export function DrawdownChart({ results, isLoading }: DrawdownChartProps) {
     );
   }
 
-  // Combinar datos de ambas carteras por fecha
+  const resultA = results.resultA;
+  const resultB = results.resultB;
+
+  // Combinar datos de las carteras disponibles por fecha
   const dataMap = new Map<string, Record<string, number | string>>();
 
-  for (const point of results.resultA.drawdowns) {
-    dataMap.set(point.date, {
-      date: point.date,
-      [results.resultA.portfolioName]: point.drawdown,
-    });
-  }
-
-  for (const point of results.resultB.drawdowns) {
-    const entry = dataMap.get(point.date);
-    if (entry) {
-      entry[results.resultB.portfolioName] = point.drawdown;
-    } else {
+  if (resultA) {
+    for (const point of resultA.drawdowns) {
       dataMap.set(point.date, {
         date: point.date,
-        [results.resultB.portfolioName]: point.drawdown,
+        [resultA.portfolioName]: point.drawdown,
       });
+    }
+  }
+
+  if (resultB) {
+    for (const point of resultB.drawdowns) {
+      const entry = dataMap.get(point.date);
+      if (entry) {
+        entry[resultB.portfolioName] = point.drawdown;
+      } else {
+        dataMap.set(point.date, {
+          date: point.date,
+          [resultB.portfolioName]: point.drawdown,
+        });
+      }
     }
   }
 
@@ -135,8 +142,8 @@ export function DrawdownChart({ results, isLoading }: DrawdownChartProps) {
 
   // Calcular el mínimo drawdown para el dominio del eje Y
   const allDrawdowns = [
-    ...results.resultA.drawdowns.map((d) => d.drawdown),
-    ...results.resultB.drawdowns.map((d) => d.drawdown),
+    ...(resultA ? resultA.drawdowns.map((d) => d.drawdown) : []),
+    ...(resultB ? resultB.drawdowns.map((d) => d.drawdown) : []),
   ];
   const minDrawdown = Math.min(...allDrawdowns, 0);
 
@@ -198,22 +205,26 @@ export function DrawdownChart({ results, isLoading }: DrawdownChartProps) {
               )}
             />
             <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1} />
-            <Area
-              type="monotone"
-              dataKey={results.resultA.portfolioName}
-              name={results.resultA.portfolioName}
-              stroke={COLORS.a.stroke}
-              fill="url(#gradientA)"
-              strokeWidth={2}
-            />
-            <Area
-              type="monotone"
-              dataKey={results.resultB.portfolioName}
-              name={results.resultB.portfolioName}
-              stroke={COLORS.b.stroke}
-              fill="url(#gradientB)"
-              strokeWidth={2}
-            />
+            {resultA && (
+              <Area
+                type="monotone"
+                dataKey={resultA.portfolioName}
+                name={resultA.portfolioName}
+                stroke={COLORS.a.stroke}
+                fill="url(#gradientA)"
+                strokeWidth={2}
+              />
+            )}
+            {resultB && (
+              <Area
+                type="monotone"
+                dataKey={resultB.portfolioName}
+                name={resultB.portfolioName}
+                stroke={COLORS.b.stroke}
+                fill="url(#gradientB)"
+                strokeWidth={2}
+              />
+            )}
           </AreaChart>
         </ResponsiveContainer>
       </div>

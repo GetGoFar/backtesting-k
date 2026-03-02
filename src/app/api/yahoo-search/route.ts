@@ -18,6 +18,54 @@ interface YahooSearchResponse {
 }
 
 /**
+ * Busca el TER (ongoing charge) de un fondo en Morningstar
+ * Usa el ISIN o nombre para buscar, luego obtiene el ongoingCharge del screener
+ */
+async function fetchTerFromMorningstar(
+  searchQuery: string,
+  yahooSymbol: string
+): Promise<number | null> {
+  try {
+    // Paso 1: Buscar en Morningstar para obtener el SecId y Performance ID
+    const searchUrl = `https://www.morningstar.es/es/util/SecuritySearch.ashx?q=${encodeURIComponent(searchQuery)}&limit=5`;
+    const searchRes = await fetch(searchUrl, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      signal: AbortSignal.timeout(3000),
+    });
+    const searchText = await searchRes.text();
+
+    if (!searchText || searchText.length < 5) return null;
+
+    // Extraer el Performance ID del primer resultado
+    const piMatch = searchText.match(/"pi":"([^"]+)"/);
+    if (!piMatch) return null;
+    const performanceId = piMatch[1];
+
+    // Paso 2: Obtener ongoingCharge del screener de Morningstar
+    const screenUrl = `https://lt.morningstar.com/api/rest.svc/klr5zyak8x/security/screener?outputType=json&securityDataPoints=SecId|Name|ongoingCharge&term=${performanceId}`;
+    const screenRes = await fetch(screenUrl, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      signal: AbortSignal.timeout(3000),
+    });
+    const screenData = await screenRes.json();
+
+    const ongoingCharge = screenData?.rows?.[0]?.ongoingCharge;
+    if (typeof ongoingCharge === "number" && ongoingCharge > 0) {
+      console.log(
+        `[Morningstar] TER para ${yahooSymbol}: ${ongoingCharge}%`
+      );
+      return ongoingCharge;
+    }
+
+    return null;
+  } catch (error) {
+    // Morningstar es best-effort, no bloquear si falla
+    console.warn(`[Morningstar] No se pudo obtener TER: ${error}`);
+    return null;
+  }
+}
+
+/**
  * GET /api/yahoo-search?q=query
  *
  * Busca fondos/ETFs en Yahoo Finance
@@ -63,7 +111,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         typeDisplay: q.typeDisp,
       }));
 
-    return NextResponse.json({ results: filtered });
+    // Intentar obtener TER real de Morningstar para cada resultado
+    const resultsWithTer = await Promise.all(
+      filtered.map(async (result) => {
+        const ter = await fetchTerFromMorningstar(query, result.symbol);
+        return { ...result, ter };
+      })
+    );
+
+    return NextResponse.json({ results: resultsWithTer });
   } catch (error) {
     console.error("[Yahoo Search] Error:", error);
     return NextResponse.json({ results: [] });

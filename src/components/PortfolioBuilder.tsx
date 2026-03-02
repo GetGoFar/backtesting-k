@@ -21,21 +21,21 @@ interface PortfolioBuilderProps {
   }) => void;
 }
 
-// Colores según el side
+// Colores según el side — estilo El Proyecto K
 const SIDE_COLORS = {
   a: {
-    bg: "bg-blue-50",
-    border: "border-blue-200",
-    headerBg: "bg-gradient-to-r from-blue-600 to-blue-700",
+    bg: "bg-white",
+    border: "border-brand-border",
+    headerBg: "bg-brand-navy",
     accent: "blue",
-    ring: "ring-blue-500",
+    ring: "ring-brand-coral",
   },
   b: {
-    bg: "bg-rose-50",
-    border: "border-rose-200",
-    headerBg: "bg-gradient-to-r from-rose-600 to-rose-700",
+    bg: "bg-white",
+    border: "border-brand-border",
+    headerBg: "bg-brand-coral",
     accent: "rose",
-    ring: "ring-rose-500",
+    ring: "ring-brand-coral",
   },
 };
 
@@ -154,12 +154,13 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   const excludedFundIds = allocations.map((a) => a.fund.id);
 
   // Agrupar presets por tipo
-  const indexPresets = presets.filter((p) => p.type === "index");
+  const inbestmePresets = presets.filter((p) => p.id.startsWith("k-inbestme"));
+  const indexPresets = presets.filter((p) => p.type === "index" && !p.id.startsWith("k-inbestme"));
   const activePresets = presets.filter((p) => p.type === "active");
 
   return (
     <div
-      className={`${colors.bg} border ${colors.border} rounded-xl overflow-hidden shadow-sm`}
+      className={`${colors.bg} border ${colors.border} rounded-lg overflow-hidden shadow-sm`}
     >
       {/* Header con color */}
       <div className={`${colors.headerBg} px-4 py-3`}>
@@ -214,11 +215,36 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
           </button>
 
           {showPresetDropdown && (
-            <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-72 overflow-auto">
-              {/* Carteras K (Indexadas) */}
+            <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-96 overflow-auto">
+              {/* Carteras K Inbestme (1-10) */}
+              <div className="p-2 border-b border-slate-100">
+                <p className="text-xs font-semibold text-indigo-500 uppercase tracking-wider px-2 py-1">
+                  Carteras K Inbestme (1-10)
+                </p>
+                <div className="grid grid-cols-2 gap-1">
+                  {inbestmePresets.map((preset) => (
+                    <button
+                      key={preset.id}
+                      onClick={() => handlePresetSelect(preset)}
+                      className={`text-left px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors ${
+                        selectedPresetId === preset.id ? "bg-indigo-50" : ""
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                        <span className="font-medium text-xs text-slate-800">
+                          {preset.name.replace("Cartera K Inbestme ", "K")}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Carteras K Simples (Indexadas) */}
               <div className="p-2 border-b border-slate-100">
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-2 py-1">
-                  Carteras K (Indexadas)
+                  Carteras K Simples
                 </p>
                 {indexPresets.map((preset) => (
                   <button
@@ -311,9 +337,14 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
 
                 {/* Info del fondo */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-900 truncate">
-                    {allocation.fund.shortName}
+                  <p className="text-sm font-medium text-slate-900 truncate" title={allocation.fund.name}>
+                    {allocation.fund.name !== allocation.fund.shortName && allocation.fund.name.length > allocation.fund.shortName.length
+                      ? allocation.fund.name
+                      : allocation.fund.shortName}
                   </p>
+                  {allocation.fund.yahooTicker && (
+                    <p className="text-xs text-slate-400 truncate">{allocation.fund.yahooTicker}</p>
+                  )}
                   {/* TER editable */}
                   <div className="flex items-center gap-1 mt-0.5">
                     <span className="text-xs text-slate-500">TER:</span>
@@ -329,7 +360,7 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                           Number(e.target.value)
                         )
                       }
-                      className="w-14 px-1 py-0.5 text-xs text-right border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      className="w-14 px-1 py-0.5 text-xs text-right border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-brand-coral"
                       title="Editar TER"
                     />
                     <span className="text-xs text-slate-500">%</span>

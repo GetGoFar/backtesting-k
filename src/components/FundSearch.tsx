@@ -11,6 +11,7 @@ interface YahooResult {
   exchange: string;
   type: string;
   typeDisplay: string;
+  ter?: number | null; // TER real de Morningstar (puede ser null si no se encontró)
 }
 
 interface FundSearchProps {
@@ -102,7 +103,7 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
       shortName: result.shortName,
       isin: result.symbol, // Usamos el símbolo como identificador
       yahooTicker: result.symbol,
-      ter: 0.2, // TER estimado por defecto (el usuario puede ajustarlo)
+      ter: result.ter ?? 0.2, // TER real de Morningstar, o 0.2% por defecto
       category: "RV Global", // Categoría por defecto
       type: "index", // Asumimos indexado por defecto para ETFs
       currency: "EUR",
@@ -231,6 +232,18 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
                             <>
                               <span className="text-slate-300">•</span>
                               <span>{result.typeDisplay}</span>
+                            </>
+                          )}
+                          {result.ter != null && (
+                            <>
+                              <span className="text-slate-300">•</span>
+                              <span className="text-emerald-600 font-medium">TER: {result.ter}%</span>
+                            </>
+                          )}
+                          {result.ter == null && (
+                            <>
+                              <span className="text-slate-300">•</span>
+                              <span className="text-amber-500">TER: ~0.2% (est.)</span>
                             </>
                           )}
                         </div>

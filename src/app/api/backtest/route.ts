@@ -147,6 +147,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       } : undefined,
       warnings: warnings.length > 0 ? warnings : undefined,
       correlation: result.correlation,
+      correlationMatrix: result.correlationMatrix,
+      assetMetrics: result.assetMetrics,
     });
   } catch (error) {
     console.error("[API /backtest] Error:", error);

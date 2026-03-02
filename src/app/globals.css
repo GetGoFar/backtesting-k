@@ -4,6 +4,10 @@
 
 /* Colores personalizados para El Proyecto K */
 :root {
+  /* Marca */
+  --color-coral: #E24E42;
+  --color-navy: #101828;
+
   /* Cartera indexada - Azul */
   --color-indexed: #1d4ed8;
   --color-indexed-light: #3b82f6;
@@ -38,9 +42,14 @@
   @apply visible opacity-100;
 }
 
-/* Gradiente para el logo K */
+/* Gradiente K — púrpura a cian (del sitio web) */
 .gradient-k {
-  background: linear-gradient(135deg, #1d4ed8 0%, #4f46e5 100%);
+  background: linear-gradient(90deg, hsla(259, 84%, 78%, 1) 0%, hsla(206, 67%, 75%, 1) 100%);
+}
+
+/* Gradiente texto K */
+.gradient-k-text {
+  background: linear-gradient(90deg, hsla(259, 84%, 78%, 1) 0%, hsla(206, 67%, 75%, 1) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -64,4 +73,18 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* Botón CTA estilo El Proyecto K */
+.btn-coral {
+  @apply bg-brand-coral text-white font-medium rounded-pill transition-all;
+}
+.btn-coral:hover {
+  @apply bg-brand-coral-dark shadow-lg;
+}
+.btn-coral:active {
+  transform: scale(0.98);
+}
+.btn-coral:disabled {
+  @apply bg-slate-200 text-slate-400 cursor-not-allowed shadow-none;
 }

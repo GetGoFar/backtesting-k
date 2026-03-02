@@ -16,9 +16,16 @@ export type FundCategory =
   | "RV Europa"
   | "RV España"
   | "RV Emergentes"
+  | "RV Sectorial"
+  | "RV REITs"
   | "RF EUR Gov"
+  | "RF EUR Gov Corto"
+  | "RF EUR Gov Medio"
+  | "RF EUR Gov Largo"
+  | "RF EUR Corp"
   | "RF EUR"
-  | "RF Flexible";
+  | "RF Flexible"
+  | "Oro";
 
 /** Frecuencia de rebalanceo de la cartera */
 export type RebalanceFrequency = "monthly" | "quarterly" | "annual" | "none";
@@ -93,6 +100,8 @@ export interface BacktestConfig {
   rebalanceFrequency: RebalanceFrequency;
   /** Aportación mensual opcional en EUR */
   monthlyContribution?: number;
+  /** Usar rango de fechas común donde ambas carteras tienen datos */
+  useCommonDateRange?: boolean;
 }
 
 // -----------------------------------------------------------------------------
@@ -197,6 +206,58 @@ export interface BacktestWarning {
   message: string;
 }
 
+/** Entrada de correlación entre dos activos */
+export interface CorrelationEntry {
+  /** ID del primer fondo */
+  fundId1: string;
+  /** ID del segundo fondo */
+  fundId2: string;
+  /** Nombre corto del primer fondo */
+  name1: string;
+  /** Nombre corto del segundo fondo */
+  name2: string;
+  /** Coeficiente de correlación (-1 a 1) */
+  correlation: number;
+}
+
+/** Métricas individuales de un activo */
+export interface AssetMetrics {
+  /** ID del fondo */
+  fundId: string;
+  /** Nombre del fondo */
+  name: string;
+  /** ISIN del fondo (si disponible) */
+  isin?: string;
+  /** Ticker de Yahoo Finance */
+  yahooTicker?: string;
+  /** TER del fondo (porcentaje, ej: 0.20 para 0.20%) */
+  ter: number;
+  /** Rentabilidad anualizada (CAGR) */
+  cagr: number;
+  /** Volatilidad anualizada */
+  volatility: number;
+  /** Máximo drawdown */
+  maxDrawdown: number;
+  /** Ratio de Sharpe */
+  sharpe: number;
+  /** Rentabilidad total acumulada */
+  totalReturn: number;
+  /** Número de meses de datos */
+  months: number;
+}
+
+/** Matriz de correlaciones entre activos */
+export interface CorrelationMatrix {
+  /** Lista de fondos incluidos (IDs) */
+  fundIds: string[];
+  /** Nombres cortos de los fondos (mismo orden que fundIds) */
+  fundNames: string[];
+  /** Matriz de correlaciones (array 2D, mismo orden que fundIds) */
+  matrix: number[][];
+  /** Lista plana de correlaciones para acceso fácil */
+  entries: CorrelationEntry[];
+}
+
 /** Respuesta completa del API de backtest */
 export interface BacktestResponse {
   /** Resultado de la cartera A (null si no hay datos suficientes) */
@@ -214,6 +275,10 @@ export interface BacktestResponse {
   warnings?: BacktestWarning[];
   /** Correlación entre las dos carteras (-1 a 1) */
   correlation?: number;
+  /** Matriz de correlaciones entre todos los activos */
+  correlationMatrix?: CorrelationMatrix;
+  /** Métricas individuales de cada activo */
+  assetMetrics?: AssetMetrics[];
 }
 
 // -----------------------------------------------------------------------------

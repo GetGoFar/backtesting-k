@@ -85,8 +85,8 @@ export function PerformanceChart({ results, isLoading }: PerformanceChartProps) 
     );
   }
 
-  // Verificar que tenemos resultados válidos
-  if (!results.resultA || !results.resultB) {
+  // Verificar que tenemos al menos un resultado válido
+  if (!results.resultA && !results.resultB) {
     return (
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
         <h3 className="text-lg font-semibold text-slate-900 mb-4">
@@ -97,25 +97,32 @@ export function PerformanceChart({ results, isLoading }: PerformanceChartProps) 
     );
   }
 
-  // Combinar datos de ambas carteras por fecha
+  const resultA = results.resultA;
+  const resultB = results.resultB;
+
+  // Combinar datos de las carteras disponibles por fecha
   const dataMap = new Map<string, Record<string, number | string>>();
 
-  for (const point of results.resultA.timeSeries) {
-    dataMap.set(point.date, {
-      date: point.date,
-      [results.resultA.portfolioName]: point.value,
-    });
-  }
-
-  for (const point of results.resultB.timeSeries) {
-    const entry = dataMap.get(point.date);
-    if (entry) {
-      entry[results.resultB.portfolioName] = point.value;
-    } else {
+  if (resultA) {
+    for (const point of resultA.timeSeries) {
       dataMap.set(point.date, {
         date: point.date,
-        [results.resultB.portfolioName]: point.value,
+        [resultA.portfolioName]: point.value,
       });
+    }
+  }
+
+  if (resultB) {
+    for (const point of resultB.timeSeries) {
+      const entry = dataMap.get(point.date);
+      if (entry) {
+        entry[resultB.portfolioName] = point.value;
+      } else {
+        dataMap.set(point.date, {
+          date: point.date,
+          [resultB.portfolioName]: point.value,
+        });
+      }
     }
   }
 
@@ -125,8 +132,8 @@ export function PerformanceChart({ results, isLoading }: PerformanceChartProps) 
 
   // Calcular el dominio del eje Y con margen
   const allValues = [
-    ...results.resultA.timeSeries.map((p) => p.value),
-    ...results.resultB.timeSeries.map((p) => p.value),
+    ...(resultA ? resultA.timeSeries.map((p) => p.value) : []),
+    ...(resultB ? resultB.timeSeries.map((p) => p.value) : []),
   ];
   const minValue = Math.min(...allValues);
   const maxValue = Math.max(...allValues);
@@ -179,24 +186,28 @@ export function PerformanceChart({ results, isLoading }: PerformanceChartProps) 
                 <span className="text-sm text-slate-700">{value}</span>
               )}
             />
-            <Line
-              type="monotone"
-              dataKey={results.resultA.portfolioName}
-              name={results.resultA.portfolioName}
-              stroke={COLORS.a}
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4, fill: COLORS.a }}
-            />
-            <Line
-              type="monotone"
-              dataKey={results.resultB.portfolioName}
-              name={results.resultB.portfolioName}
-              stroke={COLORS.b}
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4, fill: COLORS.b }}
-            />
+            {resultA && (
+              <Line
+                type="monotone"
+                dataKey={resultA.portfolioName}
+                name={resultA.portfolioName}
+                stroke={COLORS.a}
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 4, fill: COLORS.a }}
+              />
+            )}
+            {resultB && (
+              <Line
+                type="monotone"
+                dataKey={resultB.portfolioName}
+                name={resultB.portfolioName}
+                stroke={COLORS.b}
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 4, fill: COLORS.b }}
+              />
+            )}
           </LineChart>
         </ResponsiveContainer>
       </div>

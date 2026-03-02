@@ -94,8 +94,8 @@ export function AnnualReturnsChart({ results, isLoading }: AnnualReturnsChartPro
     );
   }
 
-  // Verificar que tenemos resultados válidos
-  if (!results.resultA || !results.resultB) {
+  // Verificar que tenemos al menos un resultado válido
+  if (!results.resultA && !results.resultB) {
     return (
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
         <h3 className="text-lg font-semibold text-slate-900 mb-4">
@@ -106,29 +106,32 @@ export function AnnualReturnsChart({ results, isLoading }: AnnualReturnsChartPro
     );
   }
 
-  // Destructurar después de la verificación de null (ahora TypeScript sabe que no son null)
   const resultA = results.resultA;
   const resultB = results.resultB;
 
-  // Combinar datos de ambas carteras por año
+  // Combinar datos de las carteras disponibles por año
   const dataMap = new Map<number, Record<string, number>>();
 
-  for (const annual of resultA.annualReturns) {
-    dataMap.set(annual.year, {
-      year: annual.year,
-      [resultA.portfolioName]: annual.returnPct,
-    });
-  }
-
-  for (const annual of resultB.annualReturns) {
-    const entry = dataMap.get(annual.year);
-    if (entry) {
-      entry[resultB.portfolioName] = annual.returnPct;
-    } else {
+  if (resultA) {
+    for (const annual of resultA.annualReturns) {
       dataMap.set(annual.year, {
         year: annual.year,
-        [resultB.portfolioName]: annual.returnPct,
+        [resultA.portfolioName]: annual.returnPct,
       });
+    }
+  }
+
+  if (resultB) {
+    for (const annual of resultB.annualReturns) {
+      const entry = dataMap.get(annual.year);
+      if (entry) {
+        entry[resultB.portfolioName] = annual.returnPct;
+      } else {
+        dataMap.set(annual.year, {
+          year: annual.year,
+          [resultB.portfolioName]: annual.returnPct,
+        });
+      }
     }
   }
 
@@ -138,8 +141,8 @@ export function AnnualReturnsChart({ results, isLoading }: AnnualReturnsChartPro
 
   // Calcular el rango del eje Y
   const allReturns = [
-    ...resultA.annualReturns.map((r) => r.returnPct),
-    ...resultB.annualReturns.map((r) => r.returnPct),
+    ...(resultA ? resultA.annualReturns.map((r) => r.returnPct) : []),
+    ...(resultB ? resultB.annualReturns.map((r) => r.returnPct) : []),
   ];
   const minReturn = Math.min(...allReturns, 0);
   const maxReturn = Math.max(...allReturns, 0);
@@ -181,40 +184,44 @@ export function AnnualReturnsChart({ results, isLoading }: AnnualReturnsChartPro
               )}
             />
             <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1} />
-            <Bar
-              dataKey={resultA.portfolioName}
-              name={resultA.portfolioName}
-              fill={COLORS.a}
-              radius={[4, 4, 0, 0]}
-            >
-              {chartData.map((entry, index) => (
-                <Cell
-                  key={`cell-a-${index}`}
-                  fill={
-                    (entry[resultA.portfolioName] ?? 0) >= 0
-                      ? COLORS.a
-                      : "#93c5fd"
-                  }
-                />
-              ))}
-            </Bar>
-            <Bar
-              dataKey={resultB.portfolioName}
-              name={resultB.portfolioName}
-              fill={COLORS.b}
-              radius={[4, 4, 0, 0]}
-            >
-              {chartData.map((entry, index) => (
-                <Cell
-                  key={`cell-b-${index}`}
-                  fill={
-                    (entry[resultB.portfolioName] ?? 0) >= 0
-                      ? COLORS.b
-                      : "#fda4af"
-                  }
-                />
-              ))}
-            </Bar>
+            {resultA && (
+              <Bar
+                dataKey={resultA.portfolioName}
+                name={resultA.portfolioName}
+                fill={COLORS.a}
+                radius={[4, 4, 0, 0]}
+              >
+                {chartData.map((entry, index) => (
+                  <Cell
+                    key={`cell-a-${index}`}
+                    fill={
+                      (entry[resultA.portfolioName] ?? 0) >= 0
+                        ? COLORS.a
+                        : "#93c5fd"
+                    }
+                  />
+                ))}
+              </Bar>
+            )}
+            {resultB && (
+              <Bar
+                dataKey={resultB.portfolioName}
+                name={resultB.portfolioName}
+                fill={COLORS.b}
+                radius={[4, 4, 0, 0]}
+              >
+                {chartData.map((entry, index) => (
+                  <Cell
+                    key={`cell-b-${index}`}
+                    fill={
+                      (entry[resultB.portfolioName] ?? 0) >= 0
+                        ? COLORS.b
+                        : "#fda4af"
+                    }
+                  />
+                ))}
+              </Bar>
+            )}
           </BarChart>
         </ResponsiveContainer>
       </div>

@@ -109,8 +109,8 @@ export function RollingReturnsChart({ results, isLoading }: RollingReturnsChartP
     );
   }
 
-  // Verificar que tenemos resultados válidos
-  if (!results.resultA || !results.resultB) {
+  // Verificar que tenemos al menos un resultado válido
+  if (!results.resultA && !results.resultB) {
     return (
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
         <h3 className="text-lg font-semibold text-slate-900 mb-4">
@@ -121,7 +121,6 @@ export function RollingReturnsChart({ results, isLoading }: RollingReturnsChartP
     );
   }
 
-  // Destructurar después de la verificación de null (ahora TypeScript sabe que no son null)
   const resultA = results.resultA;
   const resultB = results.resultB;
 
@@ -130,43 +129,47 @@ export function RollingReturnsChart({ results, isLoading }: RollingReturnsChartP
     switch (window) {
       case "1":
         return {
-          a: resultA.rollingReturns.oneYear,
-          b: resultB.rollingReturns.oneYear,
+          a: resultA?.rollingReturns.oneYear ?? [],
+          b: resultB?.rollingReturns.oneYear ?? [],
         };
       case "3":
         return {
-          a: resultA.rollingReturns.threeYear,
-          b: resultB.rollingReturns.threeYear,
+          a: resultA?.rollingReturns.threeYear ?? [],
+          b: resultB?.rollingReturns.threeYear ?? [],
         };
       case "5":
         return {
-          a: resultA.rollingReturns.fiveYear,
-          b: resultB.rollingReturns.fiveYear,
+          a: resultA?.rollingReturns.fiveYear ?? [],
+          b: resultB?.rollingReturns.fiveYear ?? [],
         };
     }
   };
 
   const windowData = getWindowData(selectedWindow);
 
-  // Combinar datos de ambas carteras por fecha
+  // Combinar datos de las carteras disponibles por fecha
   const dataMap = new Map<string, Record<string, number | string>>();
 
-  for (const point of windowData.a) {
-    dataMap.set(point.date, {
-      date: point.date,
-      [resultA.portfolioName]: point.value * 100, // Convertir a porcentaje
-    });
-  }
-
-  for (const point of windowData.b) {
-    const entry = dataMap.get(point.date);
-    if (entry) {
-      entry[resultB.portfolioName] = point.value * 100;
-    } else {
+  if (resultA) {
+    for (const point of windowData.a) {
       dataMap.set(point.date, {
         date: point.date,
-        [resultB.portfolioName]: point.value * 100,
+        [resultA.portfolioName]: point.value * 100, // Convertir a porcentaje
       });
+    }
+  }
+
+  if (resultB) {
+    for (const point of windowData.b) {
+      const entry = dataMap.get(point.date);
+      if (entry) {
+        entry[resultB.portfolioName] = point.value * 100;
+      } else {
+        dataMap.set(point.date, {
+          date: point.date,
+          [resultB.portfolioName]: point.value * 100,
+        });
+      }
     }
   }
 
@@ -297,24 +300,28 @@ export function RollingReturnsChart({ results, isLoading }: RollingReturnsChartP
               )}
             />
             <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1} strokeDasharray="3 3" />
-            <Line
-              type="monotone"
-              dataKey={resultA.portfolioName}
-              name={resultA.portfolioName}
-              stroke={COLORS.a}
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4, fill: COLORS.a }}
-            />
-            <Line
-              type="monotone"
-              dataKey={resultB.portfolioName}
-              name={resultB.portfolioName}
-              stroke={COLORS.b}
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4, fill: COLORS.b }}
-            />
+            {resultA && (
+              <Line
+                type="monotone"
+                dataKey={resultA.portfolioName}
+                name={resultA.portfolioName}
+                stroke={COLORS.a}
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 4, fill: COLORS.a }}
+              />
+            )}
+            {resultB && (
+              <Line
+                type="monotone"
+                dataKey={resultB.portfolioName}
+                name={resultB.portfolioName}
+                stroke={COLORS.b}
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 4, fill: COLORS.b }}
+              />
+            )}
           </LineChart>
         </ResponsiveContainer>
       </div>

@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { DM_Sans } from "next/font/google";
+import { Poppins } from "next/font/google";
 import "./globals.css";
 
-const dmSans = DM_Sans({
+const poppins = Poppins({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-dm-sans",
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-poppins",
 });
 
 export const metadata: Metadata = {
@@ -67,9 +67,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" className={dmSans.variable} suppressHydrationWarning>
+    <html lang="es" className={poppins.variable} suppressHydrationWarning>
       <body
-        className={`${dmSans.className} min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 antialiased`}
+        className={`${poppins.className} min-h-screen bg-brand-bg antialiased`}
       >
         {children}
       </body>
