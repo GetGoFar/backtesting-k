@@ -241,10 +241,10 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                 </div>
               </div>
 
-              {/* Carteras K Simples (Indexadas) */}
+              {/* Carteras Tradicionales (Indexadas) */}
               <div className="p-2 border-b border-slate-100">
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-2 py-1">
-                  Carteras K Simples
+                  Carteras Tradicionales
                 </p>
                 {indexPresets.map((preset) => (
                   <button

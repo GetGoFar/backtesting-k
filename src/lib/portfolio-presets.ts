@@ -218,7 +218,7 @@ const K_INBESTME_PRESETS: PortfolioPreset[] = [
 ];
 
 // -----------------------------------------------------------------------------
-// Carteras K Simples (para comparación)
+// Carteras Tradicionales (para comparación)
 // -----------------------------------------------------------------------------
 
 const K_PRESETS: PortfolioPreset[] = [
