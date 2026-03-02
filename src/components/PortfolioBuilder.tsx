@@ -41,9 +41,9 @@ const SIDE_COLORS = {
 
 export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   const [allocations, setAllocations] = useState<FundAllocation[]>([]);
-  const [name, setName] = useState(
-    side === "a" ? "Cartera 1" : "Cartera 2"
-  );
+  const defaultName = side === "a" ? "Cartera A" : "Cartera B";
+  const [name, setName] = useState(defaultName);
+  const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [showPresetDropdown, setShowPresetDropdown] = useState(false);
 
@@ -72,28 +72,47 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
     notifyUpdate();
   }, [notifyUpdate]);
 
+  // Auto-nombre: si el usuario no editó manualmente, actualizar según contexto
+  const updateAutoName = useCallback(
+    (allocs: FundAllocation[], presetId: string | null) => {
+      if (nameManuallyEdited) return;
+      if (presetId) {
+        const preset = presets.find((p) => p.id === presetId);
+        if (preset) {
+          setName(preset.name);
+          return;
+        }
+      }
+      if (allocs.length === 1 && allocs[0]) {
+        setName(allocs[0].fund.shortName || allocs[0].fund.name);
+        return;
+      }
+      setName(defaultName);
+    },
+    [nameManuallyEdited, presets, defaultName]
+  );
+
   // Marcar como personalizada cuando se modifica manualmente
   const markAsCustom = () => {
     if (selectedPresetId !== null) {
       setSelectedPresetId(null);
-      // Solo cambiar nombre si no fue editado manualmente
-      const currentPreset = presets.find((p) => p.id === selectedPresetId);
-      if (currentPreset && name === currentPreset.name) {
-        setName("Cartera Personalizada");
-      }
     }
   };
 
   const handleAddFund = (fund: Fund) => {
     // Evitar duplicados
     if (allocations.some((a) => a.fund.id === fund.id)) return;
-    setAllocations([...allocations, { fund, weight: 0 }]);
+    const newAllocs = [...allocations, { fund, weight: 0 }];
+    setAllocations(newAllocs);
     markAsCustom();
+    updateAutoName(newAllocs, null);
   };
 
   const handleRemoveFund = (fundId: string) => {
-    setAllocations(allocations.filter((a) => a.fund.id !== fundId));
+    const newAllocs = allocations.filter((a) => a.fund.id !== fundId);
+    setAllocations(newAllocs);
     markAsCustom();
+    updateAutoName(newAllocs, null);
   };
 
   const handleWeightChange = (fundId: string, weight: number) => {
@@ -129,18 +148,16 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
     }
 
     setAllocations(newAllocations);
-    setName(preset.name);
     setSelectedPresetId(preset.id);
     setShowPresetDropdown(false);
+    // Reset manual edit flag — preset name takes over
+    setNameManuallyEdited(false);
+    setName(preset.name);
   };
 
   const handleNameChange = (newName: string) => {
     setName(newName);
-    // Marcar como personalizada si el nombre difiere del preset
-    const currentPreset = presets.find((p) => p.id === selectedPresetId);
-    if (currentPreset && newName !== currentPreset.name) {
-      setSelectedPresetId(null);
-    }
+    setNameManuallyEdited(true);
   };
 
   // Calcular TER medio ponderado
@@ -173,9 +190,13 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
               type="text"
               value={name}
               onChange={(e) => handleNameChange(e.target.value)}
-              className="font-semibold text-white bg-transparent border-b border-transparent hover:border-white/50 focus:border-white focus:outline-none px-1 placeholder-white/60"
+              className="font-semibold text-white bg-transparent border-b border-dashed border-white/30 hover:border-white/60 focus:border-white focus:outline-none px-1 placeholder-white/60 max-w-[200px]"
               placeholder="Nombre de la cartera"
+              title="Haz clic para editar el nombre"
             />
+            <svg className="w-3.5 h-3.5 text-white/40 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
           </div>
           {selectedPresetId && (
             <span className="text-xs text-white/70 bg-white/10 px-2 py-1 rounded">
