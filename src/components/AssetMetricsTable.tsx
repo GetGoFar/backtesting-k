@@ -237,7 +237,7 @@ export function AssetMetricsTable({ results, isLoading }: AssetMetricsTableProps
                 </Tooltip>
               </th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                <Tooltip content="Volatilidad anualizada (desviaci&oacute;n est&aacute;ndar de retornos mensuales &times; &radic;12)">
+                <Tooltip content="Volatilidad anualizada del periodo seleccionado (desviaci&oacute;n est&aacute;ndar de retornos mensuales &times; &radic;12). Puede diferir de Morningstar, que usa solo los &uacute;ltimos 3 o 5 a&ntilde;os.">
                   <span className="cursor-help">Volatilidad</span>
                 </Tooltip>
               </th>
@@ -383,7 +383,7 @@ export function AssetMetricsTable({ results, isLoading }: AssetMetricsTableProps
             </div>
             <div>
               <dt className="font-medium text-slate-600 inline">Volatilidad: </dt>
-              <dd className="inline">Medida de la variaci&oacute;n del precio. A mayor volatilidad, mayor riesgo.</dd>
+              <dd className="inline">Variaci&oacute;n anualizada del precio durante el periodo del backtest. Puede diferir de Morningstar (que usa 3a o 5a fijos).</dd>
             </div>
             <div>
               <dt className="font-medium text-slate-600 inline">Max DD: </dt>
