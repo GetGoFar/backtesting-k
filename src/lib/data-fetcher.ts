@@ -21,20 +21,14 @@
 // -----------------------------------------------------------------------------
 
 import { promises as fs } from "fs";
-import path from "path";
+import { join } from "path";
 import { getFundById } from "./fund-database";
+import { getCachedPrices, setCachedPrices } from "./kv-cache";
+import { validatePriceData, cleanPriceData } from "./data-validator";
 import type { MonthlyPrice } from "./types";
 
-// Directorio de caché
-const CACHE_DIR = path.join(process.cwd(), ".cache");
-const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 días - datos históricos no cambian
-
-// Caché en memoria para evitar lecturas repetidas del disco durante una sesión
-const memoryCache = new Map<string, { data: MonthlyPrice[]; timestamp: number }>();
-const MEMORY_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutos en memoria
-
 // Ruta al CSV de fondos españoles
-const SPANISH_FUNDS_CSV = path.join(process.cwd(), "src", "data", "spanish-funds.csv");
+const SPANISH_FUNDS_CSV = join(process.cwd(), "src", "data", "spanish-funds.csv");
 
 // -----------------------------------------------------------------------------
 // Interfaces internas
@@ -57,60 +51,38 @@ interface YahooChartResponse {
   };
 }
 
-interface CacheEntry {
-  timestamp: number;
-  data: MonthlyPrice[];
-}
-
 // -----------------------------------------------------------------------------
 // Función principal
 // -----------------------------------------------------------------------------
 
 /**
  * Obtiene los precios mensuales de un fondo por su ID
- * @param fundId - ID del fondo (ej: "vanguard-global", "caixabank-global")
- * @param yahooTicker - Ticker de Yahoo Finance (opcional, para fondos dinámicos)
- * @returns Map de fecha (YYYY-MM) a precio de cierre
+ * Estrategia de cache: Memoria -> Redis (Upstash) -> Yahoo Finance/CSV
  */
 export async function getMonthlyPrices(fundId: string, yahooTicker?: string): Promise<Map<string, number>> {
   console.log(`[DataFetcher] Obteniendo precios para: ${fundId}`);
 
-  // Buscar en base de datos local
   const fund = getFundById(fundId);
-
-  // Si no está en la base de datos pero tenemos ticker de Yahoo, usarlo directamente
   const ticker = fund?.yahooTicker || yahooTicker;
-  const isLocalFund = !!fund;
 
   if (!fund && !yahooTicker) {
-    const error = `Fondo no encontrado: ${fundId}`;
-    console.error(`[DataFetcher] ERROR: ${error}`);
-    throw new Error(error);
+    throw new Error(`Fondo no encontrado: ${fundId}`);
   }
 
-  // 1. Intentar caché en memoria primero (más rápido)
-  const memCached = memoryCache.get(fundId);
-  if (memCached && Date.now() - memCached.timestamp < MEMORY_CACHE_TTL_MS) {
-    console.log(`[DataFetcher] Usando caché en memoria para ${fundId} (${memCached.data.length} registros)`);
-    return monthlyPricesToMap(memCached.data);
+  // 1. Intentar cache (memoria -> Redis)
+  const cached = await getCachedPrices(fundId);
+  if (cached) {
+    console.log(`[DataFetcher] Cache hit: ${fundId} (${cached.length} meses)`);
+    return monthlyPricesToMap(cached);
   }
 
-  // 2. Intentar cargar desde caché en disco
-  const cachedData = await loadFromCache(fundId);
-  if (cachedData) {
-    // Guardar en memoria para accesos futuros
-    memoryCache.set(fundId, { data: cachedData, timestamp: Date.now() });
-    console.log(`[DataFetcher] Usando caché de disco para ${fundId} (${cachedData.length} registros)`);
-    return monthlyPricesToMap(cachedData);
-  }
-
-  // Obtener datos según el tipo de fondo
+  // 2. Obtener datos del origen
   let prices: MonthlyPrice[];
 
   if (ticker) {
     console.log(`[DataFetcher] Descargando de Yahoo Finance: ${ticker}`);
     prices = await fetchFromYahooFinance(ticker);
-  } else if (isLocalFund && fund) {
+  } else if (fund) {
     console.log(`[DataFetcher] Leyendo CSV para fondo bancario: ${fund.isin}`);
     prices = await readFromCSV(fund.isin);
   } else {
@@ -119,17 +91,24 @@ export async function getMonthlyPrices(fundId: string, yahooTicker?: string): Pr
 
   if (prices.length === 0) {
     const name = fund?.name || fundId;
-    const error = `No hay datos disponibles para el fondo: ${fundId} (${name})`;
-    console.error(`[DataFetcher] ERROR: ${error}`);
-    throw new Error(error);
+    throw new Error(`No hay datos disponibles para: ${fundId} (${name})`);
   }
 
-  // Guardar en caché (disco y memoria)
-  await saveToCache(fundId, prices);
-  memoryCache.set(fundId, { data: prices, timestamp: Date.now() });
-  console.log(`[DataFetcher] Guardado en caché: ${fundId} (${prices.length} registros)`);
+  // 3. Validar y limpiar datos
+  const quality = validatePriceData(fundId, prices);
+  console.log(`[DataFetcher] Calidad ${fundId}: score=${quality.qualityScore}, gaps=${quality.gaps.length}, saltos=${quality.suspiciousJumps.length}`);
 
-  return monthlyPricesToMap(prices);
+  if (!quality.isUsable) {
+    throw new Error(`Datos de ${fund?.name || fundId} no son usables (score: ${quality.qualityScore}).`);
+  }
+
+  const cleanPrices = cleanPriceData(prices);
+
+  // 4. Guardar en cache (memoria + Redis)
+  await setCachedPrices(fundId, cleanPrices);
+  console.log(`[DataFetcher] Cacheado: ${fundId} (${cleanPrices.length} meses)`);
+
+  return monthlyPricesToMap(cleanPrices);
 }
 
 // -----------------------------------------------------------------------------
@@ -335,97 +314,6 @@ function parseCSVDate(dateStr: string): string | null {
   return null;
 }
 
-// -----------------------------------------------------------------------------
-// Sistema de caché
-// -----------------------------------------------------------------------------
-
-/**
- * Carga datos desde el caché si existe y no ha expirado
- */
-async function loadFromCache(fundId: string): Promise<MonthlyPrice[] | null> {
-  const cacheFile = getCacheFilePath(fundId);
-
-  try {
-    await fs.access(cacheFile);
-    const content = await fs.readFile(cacheFile, "utf-8");
-    const entry: CacheEntry = JSON.parse(content);
-
-    // Verificar TTL
-    const age = Date.now() - entry.timestamp;
-    if (age < CACHE_TTL_MS) {
-      const hoursOld = Math.round(age / (60 * 60 * 1000));
-      console.log(`[DataFetcher] Caché válido para ${fundId} (${hoursOld}h de antigüedad)`);
-      return entry.data;
-    }
-
-    console.log(`[DataFetcher] Caché expirado para ${fundId}`);
-    return null;
-  } catch {
-    // Archivo no existe o error al leer
-    return null;
-  }
-}
-
-/**
- * Guarda datos en el caché
- */
-async function saveToCache(fundId: string, data: MonthlyPrice[]): Promise<void> {
-  const cacheFile = getCacheFilePath(fundId);
-
-  try {
-    // Crear directorio de caché si no existe
-    await fs.mkdir(CACHE_DIR, { recursive: true });
-
-    const entry: CacheEntry = {
-      timestamp: Date.now(),
-      data,
-    };
-
-    await fs.writeFile(cacheFile, JSON.stringify(entry, null, 2), "utf-8");
-  } catch (error) {
-    console.error(`[DataFetcher] Error guardando caché para ${fundId}:`, error);
-    // No lanzar error, el caché es opcional
-  }
-}
-
-/**
- * Obtiene la ruta del archivo de caché para un fondo
- */
-function getCacheFilePath(fundId: string): string {
-  // Sanitizar el fundId para uso como nombre de archivo
-  const safeId = fundId.replace(/[^a-zA-Z0-9-_]/g, "_");
-  return path.join(CACHE_DIR, `prices_${safeId}.json`);
-}
-
-/**
- * Limpia el caché de un fondo específico
- */
-export async function clearCache(fundId: string): Promise<void> {
-  const cacheFile = getCacheFilePath(fundId);
-  try {
-    await fs.unlink(cacheFile);
-    console.log(`[DataFetcher] Caché eliminado para ${fundId}`);
-  } catch {
-    // Ignorar si no existe
-  }
-}
-
-/**
- * Limpia todo el caché
- */
-export async function clearAllCache(): Promise<void> {
-  try {
-    const files = await fs.readdir(CACHE_DIR);
-    for (const file of files) {
-      if (file.startsWith("prices_") && file.endsWith(".json")) {
-        await fs.unlink(path.join(CACHE_DIR, file));
-      }
-    }
-    console.log(`[DataFetcher] Todo el caché ha sido eliminado`);
-  } catch {
-    // Ignorar si el directorio no existe
-  }
-}
 
 // -----------------------------------------------------------------------------
 // Utilidades

@@ -56,6 +56,10 @@ export interface Fund {
   bank?: string;
   /** Divisa del fondo */
   currency: string;
+  /** Fuente del valor TER */
+  terSource?: "curated" | "morningstar" | "user" | "estimated";
+  /** Si el TER esta verificado como correcto */
+  terConfirmed?: boolean;
 }
 
 // -----------------------------------------------------------------------------
@@ -201,9 +205,21 @@ export interface BacktestResult {
 /** Aviso sobre datos o configuración */
 export interface BacktestWarning {
   /** Tipo de aviso */
-  type: "data_range" | "weight_normalized" | "info";
+  type:
+    | "data_range"
+    | "weight_normalized"
+    | "info"
+    | "ter_unknown"
+    | "ter_estimated"
+    | "asset_excluded"
+    | "data_quality"
+    | "data_gap";
   /** Mensaje descriptivo */
   message: string;
+  /** Severidad: info < warning < error */
+  severity?: "info" | "warning" | "error";
+  /** ID del fondo relacionado (si aplica) */
+  fundId?: string;
 }
 
 /** Entrada de correlación entre dos activos */

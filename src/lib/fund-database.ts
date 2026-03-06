@@ -19,6 +19,8 @@ const INDEXED_FUNDS: Fund[] = [
     category: "RV Global",
     type: "index",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   {
     id: "ishares-msci-world",
@@ -30,6 +32,8 @@ const INDEXED_FUNDS: Fund[] = [
     category: "RV Global",
     type: "index",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   {
     id: "vanguard-sp500",
@@ -41,6 +45,8 @@ const INDEXED_FUNDS: Fund[] = [
     category: "RV EEUU",
     type: "index",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   {
     id: "amundi-emerging",
@@ -52,6 +58,8 @@ const INDEXED_FUNDS: Fund[] = [
     category: "RV Emergentes",
     type: "index",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   {
     id: "vanguard-eur-bond",
@@ -63,6 +71,8 @@ const INDEXED_FUNDS: Fund[] = [
     category: "RF EUR Gov",
     type: "index",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   // VGEA.AS no funciona en Yahoo Finance, usamos VETY.AS como alternativa
   // El fondo vanguard-eur-bond ya cubre esta categoría
@@ -76,6 +86,8 @@ const INDEXED_FUNDS: Fund[] = [
     category: "RF EUR Gov",
     type: "index",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   {
     id: "ishares-europe",
@@ -87,6 +99,8 @@ const INDEXED_FUNDS: Fund[] = [
     category: "RV Europa",
     type: "index",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   // ---------------------------------------------------------------------------
   // ETFs Carteras K Inbestme - Renta Variable Sectorial
@@ -101,6 +115,8 @@ const INDEXED_FUNDS: Fund[] = [
     category: "RV Sectorial",
     type: "index",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   {
     id: "xtrackers-utilities",
@@ -112,6 +128,8 @@ const INDEXED_FUNDS: Fund[] = [
     category: "RV Sectorial",
     type: "index",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   {
     id: "xtrackers-healthcare",
@@ -123,6 +141,8 @@ const INDEXED_FUNDS: Fund[] = [
     category: "RV Sectorial",
     type: "index",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   {
     id: "xtrackers-technology",
@@ -134,6 +154,8 @@ const INDEXED_FUNDS: Fund[] = [
     category: "RV Sectorial",
     type: "index",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   {
     id: "xtrackers-energy",
@@ -145,6 +167,8 @@ const INDEXED_FUNDS: Fund[] = [
     category: "RV Sectorial",
     type: "index",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   {
     id: "hsbc-reits",
@@ -156,6 +180,8 @@ const INDEXED_FUNDS: Fund[] = [
     category: "RV REITs",
     type: "index",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   // ---------------------------------------------------------------------------
   // ETFs Carteras K Inbestme - Renta Fija
@@ -170,6 +196,8 @@ const INDEXED_FUNDS: Fund[] = [
     category: "RF EUR Gov Largo",
     type: "index",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   {
     id: "amundi-gov-7-10y",
@@ -181,6 +209,8 @@ const INDEXED_FUNDS: Fund[] = [
     category: "RF EUR Gov Medio",
     type: "index",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   {
     id: "xtrackers-gov-5-7y",
@@ -192,6 +222,8 @@ const INDEXED_FUNDS: Fund[] = [
     category: "RF EUR Gov Medio",
     type: "index",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   {
     id: "ishares-usd-treasury-hedged",
@@ -214,6 +246,8 @@ const INDEXED_FUNDS: Fund[] = [
     category: "RF EUR Gov Corto",
     type: "index",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   {
     id: "amundi-gov-0-1y",
@@ -225,6 +259,8 @@ const INDEXED_FUNDS: Fund[] = [
     category: "RF EUR Gov Corto",
     type: "index",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   {
     id: "vanguard-eur-corp",
@@ -236,6 +272,8 @@ const INDEXED_FUNDS: Fund[] = [
     category: "RF EUR Corp",
     type: "index",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   {
     id: "ishares-hy-esg",
@@ -247,6 +285,8 @@ const INDEXED_FUNDS: Fund[] = [
     category: "RF EUR Corp",
     type: "index",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   // ---------------------------------------------------------------------------
   // ETFs Carteras K Inbestme - Oro
@@ -261,6 +301,8 @@ const INDEXED_FUNDS: Fund[] = [
     category: "Oro",
     type: "index",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
 ];
 
@@ -279,6 +321,8 @@ const ACTIVE_FUNDS: Fund[] = [
     type: "active",
     bank: "CaixaBank",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   {
     id: "santander-espana",
@@ -290,6 +334,8 @@ const ACTIVE_FUNDS: Fund[] = [
     type: "active",
     bank: "Santander",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   {
     id: "bbva-sostenible",
@@ -301,6 +347,8 @@ const ACTIVE_FUNDS: Fund[] = [
     type: "active",
     bank: "BBVA",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   {
     id: "santander-rf",
@@ -312,6 +360,8 @@ const ACTIVE_FUNDS: Fund[] = [
     type: "active",
     bank: "Santander",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   {
     id: "caixabank-rf",
@@ -323,6 +373,8 @@ const ACTIVE_FUNDS: Fund[] = [
     type: "active",
     bank: "CaixaBank",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
   {
     id: "bankinter-espana",
@@ -334,6 +386,8 @@ const ACTIVE_FUNDS: Fund[] = [
     type: "active",
     bank: "Bankinter",
     currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
   },
 ];
 

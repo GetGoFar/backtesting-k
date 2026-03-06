@@ -131,6 +131,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       });
     }
 
+    // Merge engine warnings with API-level warnings
+    if (result.warnings) {
+      warnings.push(...result.warnings);
+    }
+
     return NextResponse.json({
       resultA: result.a,
       resultB: result.b,

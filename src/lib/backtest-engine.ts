@@ -10,6 +10,7 @@
 import type {
   BacktestConfig,
   BacktestResult,
+  BacktestWarning,
   Portfolio,
   PortfolioHolding,
   TimeSeriesPoint,
@@ -26,6 +27,7 @@ import type {
 } from "./types";
 import { getFundById } from "./fund-database";
 import { getMonthlyPrices } from "./data-fetcher";
+import { getExcludedAssetWarnings, getTerWarnings } from "./data-warnings";
 
 // -----------------------------------------------------------------------------
 // Constantes
@@ -45,11 +47,14 @@ const RISK_FREE_RATE = 0.01;
  */
 export async function runBacktest(
   config: BacktestConfig
-): Promise<{ a: BacktestResult | null; b: BacktestResult | null; correlation?: number; commonDateRange?: { start: string; end: string }; correlationMatrix?: CorrelationMatrix; assetMetrics?: AssetMetrics[] }> {
+): Promise<{ a: BacktestResult | null; b: BacktestResult | null; correlation?: number; commonDateRange?: { start: string; end: string }; correlationMatrix?: CorrelationMatrix; assetMetrics?: AssetMetrics[]; warnings?: BacktestWarning[] }> {
   console.log("[BacktestEngine] Iniciando backtest...");
   console.log(`[BacktestEngine] Período: ${config.startDate} - ${config.endDate}`);
   console.log(`[BacktestEngine] Inversión inicial: ${config.initialAmount}€`);
   console.log(`[BacktestEngine] Usar rango común: ${config.useCommonDateRange ?? false}`);
+
+  // Coleccionar warnings del engine
+  const engineWarnings: BacktestWarning[] = [];
 
   let effectiveStartDate = config.startDate;
   let effectiveEndDate = config.endDate;
@@ -138,7 +143,38 @@ export async function runBacktest(
     }
   }
 
-  return { a: resultA, b: resultB, correlation, commonDateRange, correlationMatrix, assetMetrics };
+  // Generar warnings de TER no confirmado
+  const allHoldingsForWarnings = [
+    ...(config.portfolioA?.holdings ?? []),
+    ...(config.portfolioB?.holdings ?? []),
+  ];
+  engineWarnings.push(...getTerWarnings(allHoldingsForWarnings));
+
+  // Generar warnings de activos excluidos de la correlación
+  if (correlationMatrix && allHoldings.length > 0) {
+    const includedInCorr = new Set(correlationMatrix.fundIds);
+    engineWarnings.push(
+      ...getExcludedAssetWarnings(allHoldings, includedInCorr, "correlation")
+    );
+  }
+
+  // Generar warnings de activos excluidos de las métricas
+  if (assetMetrics && allHoldings.length > 0) {
+    const includedInMetrics = new Set(assetMetrics.map((m) => m.fundId));
+    engineWarnings.push(
+      ...getExcludedAssetWarnings(allHoldings, includedInMetrics, "metrics")
+    );
+  }
+
+  return {
+    a: resultA,
+    b: resultB,
+    correlation,
+    commonDateRange,
+    correlationMatrix,
+    assetMetrics,
+    warnings: engineWarnings.length > 0 ? engineWarnings : undefined,
+  };
 }
 
 // -----------------------------------------------------------------------------

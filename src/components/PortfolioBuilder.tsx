@@ -381,10 +381,26 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                           Number(e.target.value)
                         )
                       }
-                      className="w-14 px-1 py-0.5 text-xs text-right border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-brand-coral"
-                      title="Editar TER"
+                      className={`w-14 px-1 py-0.5 text-xs text-right border rounded focus:outline-none focus:ring-1 focus:ring-brand-coral ${
+                        allocation.fund.terConfirmed === false
+                          ? "border-amber-400 bg-amber-50"
+                          : "border-slate-200"
+                      }`}
+                      title={
+                        allocation.fund.terConfirmed === false
+                          ? "TER no confirmado — edita el valor correcto"
+                          : "Editar TER"
+                      }
                     />
                     <span className="text-xs text-slate-500">%</span>
+                    {allocation.fund.terConfirmed === false && (
+                      <span
+                        className="text-amber-500 cursor-help text-xs font-bold"
+                        title="TER no confirmado. Morningstar no devolvió dato fiable. Edita el campo con el valor real."
+                      >
+                        ⚠
+                      </span>
+                    )}
                   </div>
                 </div>
 

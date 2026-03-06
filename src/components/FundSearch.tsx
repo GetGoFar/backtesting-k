@@ -97,16 +97,19 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
 
   const handleSelectYahoo = (result: YahooResult) => {
     // Convertir resultado de Yahoo a Fund
+    const hasTer = result.ter != null && result.ter > 0;
     const fund: Fund = {
       id: `yahoo-${result.symbol.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
       name: result.name,
       shortName: result.shortName,
       isin: result.symbol, // Usamos el símbolo como identificador
       yahooTicker: result.symbol,
-      ter: result.ter ?? 0.2, // TER real de Morningstar, o 0.2% por defecto
+      ter: hasTer ? result.ter! : 0,
       category: "RV Global", // Categoría por defecto
       type: "index", // Asumimos indexado por defecto para ETFs
       currency: "EUR",
+      terSource: hasTer ? "morningstar" : "estimated",
+      terConfirmed: hasTer,
     };
     onSelect(fund);
     setQuery("");
