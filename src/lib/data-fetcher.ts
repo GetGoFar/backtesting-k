@@ -435,9 +435,27 @@ export async function clearAllCache(): Promise<void> {
  * Formatea una fecha como YYYY-MM
  */
 function formatYearMonth(date: Date): string {
-  const year = date.getFullYear();
-  const month = (date.getMonth() + 1).toString().padStart(2, "0");
-  return `${year}-${month}`;
+  // Yahoo Finance monthly data timestamps represent the 1st trading day
+  // of each month, but in the exchange's local timezone. Due to timezone
+  // differences (e.g. CET vs UTC), a timestamp meant for Jan 1 00:00 CET
+  // becomes Dec 31 23:00 UTC. This causes misalignment between European
+  // and US funds, breaking correlation calculations.
+  //
+  // Fix: if the UTC day is > 15, it's a timezone artifact — advance to next month.
+  // For interval=1mo data, timestamps are always within the first ~5 days.
+  const day = date.getUTCDate();
+  let year = date.getUTCFullYear();
+  let month = date.getUTCMonth() + 1; // 1-indexed
+
+  if (day > 15) {
+    month++;
+    if (month > 12) {
+      month = 1;
+      year++;
+    }
+  }
+
+  return `${year}-${month.toString().padStart(2, "0")}`;
 }
 
 /**
