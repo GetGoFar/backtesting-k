@@ -107,6 +107,7 @@ interface PortfolioState {
   name: string;
   holdings: PortfolioHolding[];
   isValid: boolean;
+  managementFee: number;
 }
 
 export default function Home() {
@@ -118,11 +119,13 @@ export default function Home() {
     name: "Cartera 1",
     holdings: [],
     isValid: false,
+    managementFee: 0,
   });
   const [portfolioB, setPortfolioB] = useState<PortfolioState>({
     name: "Cartera 2",
     holdings: [],
     isValid: false,
+    managementFee: 0,
   });
 
   // Estado de configuración - usar fechas dinámicas
@@ -199,6 +202,7 @@ export default function Home() {
         payload.portfolioA = {
           name: portfolioA.name,
           holdings: portfolioA.holdings,
+          managementFee: portfolioA.managementFee || undefined,
         };
       }
 
@@ -206,6 +210,7 @@ export default function Home() {
         payload.portfolioB = {
           name: portfolioB.name,
           holdings: portfolioB.holdings,
+          managementFee: portfolioB.managementFee || undefined,
         };
       }
 
@@ -250,7 +255,7 @@ export default function Home() {
                 <span className="text-2xl font-bold text-white">K</span>
               </div>
               <div>
-                <h1 className="text-lg font-bold text-brand-navy group-hover:text-brand-coral transition-colors">
+                <h1 className="text-lg font-semibold text-brand-navy group-hover:text-brand-coral transition-colors font-serif">
                   Backtesting Tool
                 </h1>
                 <p className="text-xs text-brand-tertiary hidden sm:block">El Proyecto K</p>
@@ -275,7 +280,7 @@ export default function Home() {
       <main className="flex-1 container mx-auto px-4 sm:px-6 py-8 sm:py-12 max-w-[1320px]">
         {/* Intro — hero style */}
         <div className="mb-10 sm:mb-14 text-center max-w-3xl mx-auto">
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-brand-navy mb-4 sm:mb-5 tracking-tight">
+          <h2 className="text-4xl sm:text-5xl md:text-6xl font-normal text-brand-navy mb-4 sm:mb-5 tracking-tight font-serif">
             Compara carteras de inversión
           </h2>
           <p className="text-base sm:text-lg text-brand-secondary leading-relaxed max-w-2xl mx-auto">
@@ -688,7 +693,14 @@ export default function Home() {
 
               {/* 5. Matriz de correlaciones entre activos */}
               {results.correlationMatrix && results.correlationMatrix.fundIds.length >= 2 && (
-                <CorrelationMatrix results={results} isLoading={false} />
+                <CorrelationMatrix
+                  results={results}
+                  isLoading={false}
+                  portfolioAFundIds={portfolioA.holdings.map(h => h.fundId)}
+                  portfolioBFundIds={portfolioB.holdings.map(h => h.fundId)}
+                  portfolioAName={portfolioA.name}
+                  portfolioBName={portfolioB.name}
+                />
               )}
 
               {/* 6. Gráficos secundarios en grid */}

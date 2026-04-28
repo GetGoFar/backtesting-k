@@ -10,6 +10,7 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: ["var(--font-poppins)", "Poppins", "sans-serif"],
+        serif: ["var(--font-source-serif)", "Source Serif Pro", "Georgia", "serif"],
       },
       colors: {
         brand: {

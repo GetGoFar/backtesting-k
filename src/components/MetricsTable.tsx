@@ -185,8 +185,8 @@ function HeroStatCard({
   const winner = hasTwo ? getWinner(valueA!, valueB!, higherIsBetter) : "tie";
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
-      <div className="flex items-center gap-2 mb-3">
+    <div className="bg-white rounded-2xl border border-slate-100 p-5 sm:p-7 shadow-sm hover:shadow-md transition-shadow">
+      <div className="flex items-center gap-2 mb-4">
         <span className="text-sm font-medium text-brand-tertiary uppercase tracking-wide">
           {label}
         </span>
@@ -199,11 +199,11 @@ function HeroStatCard({
 
       {/* Valores */}
       {hasTwo ? (
-        <div className="space-y-2">
+        <div className="space-y-3">
           <div className="flex items-baseline justify-between">
-            <span className={`text-2xl sm:text-3xl font-bold tracking-tight ${
+            <span className={`text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight font-serif ${
               winner === "a" ? "text-brand-navy" : "text-slate-400"
-            }`}>
+            }`} style={{ fontVariantNumeric: "tabular-nums" }}>
               {format(valueA!)}
             </span>
             {winner === "a" && (
@@ -211,22 +211,22 @@ function HeroStatCard({
             )}
           </div>
           <div className="flex items-baseline justify-between">
-            <span className={`text-2xl sm:text-3xl font-bold tracking-tight ${
+            <span className={`text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight font-serif ${
               winner === "b" ? "text-brand-navy" : "text-slate-400"
-            }`}>
+            }`} style={{ fontVariantNumeric: "tabular-nums" }}>
               {format(valueB!)}
             </span>
             {winner === "b" && (
               <span className="text-xs font-semibold text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full">MEJOR</span>
             )}
           </div>
-          <div className="flex justify-between pt-1 border-t border-slate-100">
+          <div className="flex justify-between pt-2 border-t border-slate-100">
             <span className="text-xs text-blue-600 font-medium">{nameA}</span>
             <span className="text-xs text-rose-600 font-medium">{nameB}</span>
           </div>
         </div>
       ) : (
-        <div className="text-3xl sm:text-4xl font-bold text-brand-navy tracking-tight">
+        <div className="text-4xl sm:text-5xl lg:text-6xl font-bold text-brand-navy tracking-tight font-serif" style={{ fontVariantNumeric: "tabular-nums" }}>
           {format(valueA ?? valueB ?? 0)}
         </div>
       )}
@@ -290,7 +290,7 @@ export function MetricsTable({ results, isLoading }: MetricsTableProps) {
         <div className="flex items-center justify-center">
           <div className="inline-flex items-center gap-3 px-6 py-3 bg-white rounded-full border border-slate-100 shadow-sm">
             <span className="text-sm font-medium text-brand-secondary">Correlación entre carteras</span>
-            <span className={`text-xl font-bold ${
+            <span className={`text-2xl sm:text-3xl font-bold font-serif ${
               Math.abs(correlation) > 0.7 ? "text-amber-600" :
               Math.abs(correlation) > 0.3 ? "text-blue-600" :
               "text-emerald-600"

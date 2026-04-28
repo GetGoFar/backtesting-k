@@ -33,6 +33,7 @@ interface TooltipPayload {
   dataKey: string;
   color: string;
   name: string;
+  payload?: Record<string, number | string>;
 }
 
 interface CustomTooltipProps {
@@ -44,10 +45,14 @@ interface CustomTooltipProps {
 function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   if (!active || !payload || !payload.length) return null;
 
+  // Usar exactDate del primer payload entry si está disponible
+  const exactDate = payload[0]?.payload?.exactDate as string | undefined;
+  const displayDate = exactDate || label || "";
+
   return (
     <div className="bg-white rounded-lg shadow-xl border border-slate-200 p-3 min-w-[200px]">
       <p className="text-sm font-medium text-slate-600 mb-2 border-b border-slate-100 pb-2">
-        {formatDateLabel(label || "")}
+        {formatDateLabel(displayDate, true)}
       </p>
       <div className="space-y-1.5">
         {payload.map((entry, index) => (
@@ -107,6 +112,7 @@ export function PerformanceChart({ results, isLoading }: PerformanceChartProps) 
     for (const point of resultA.timeSeries) {
       dataMap.set(point.date, {
         date: point.date,
+        exactDate: point.exactDate || point.date,
         [resultA.portfolioName]: point.value,
       });
     }
@@ -120,6 +126,7 @@ export function PerformanceChart({ results, isLoading }: PerformanceChartProps) 
       } else {
         dataMap.set(point.date, {
           date: point.date,
+          exactDate: point.exactDate || point.date,
           [resultB.portfolioName]: point.value,
         });
       }

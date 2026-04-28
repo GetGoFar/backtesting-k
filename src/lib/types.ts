@@ -82,6 +82,8 @@ export interface Portfolio {
   name: string;
   /** Lista de posiciones con sus pesos */
   holdings: PortfolioHolding[];
+  /** Comisión de gestión adicional anual en % (ej: 0.40 para 0.40%) — se descuenta del valor de la cartera */
+  managementFee?: number;
 }
 
 // -----------------------------------------------------------------------------
@@ -114,10 +116,12 @@ export interface BacktestConfig {
 
 /** Punto en la serie temporal de valores */
 export interface TimeSeriesPoint {
-  /** Fecha en formato YYYY-MM */
+  /** Fecha en formato YYYY-MM (para cálculos y ejes) */
   date: string;
   /** Valor del patrimonio en EUR */
   value: number;
+  /** Fecha exacta en formato YYYY-MM-DD (día real de cotización, para tooltips) */
+  exactDate?: string;
 }
 
 /** Rentabilidad anual */
@@ -134,6 +138,8 @@ export interface DrawdownPoint {
   date: string;
   /** Drawdown en porcentaje (valor negativo, ej: -15.3 para -15.3%) */
   drawdown: number;
+  /** Fecha exacta en formato YYYY-MM-DD (para tooltips) */
+  exactDate?: string;
 }
 
 /** Métricas de rendimiento de una cartera */
@@ -161,11 +167,11 @@ export interface Metrics {
 /** Rolling returns para diferentes periodos */
 export interface RollingReturns {
   /** Rentabilidades anualizadas en ventanas de 1 año */
-  oneYear: Array<{ date: string; value: number }>;
+  oneYear: Array<{ date: string; value: number; exactDate?: string }>;
   /** Rentabilidades anualizadas en ventanas de 3 años */
-  threeYear: Array<{ date: string; value: number }>;
+  threeYear: Array<{ date: string; value: number; exactDate?: string }>;
   /** Rentabilidades anualizadas en ventanas de 5 años */
-  fiveYear: Array<{ date: string; value: number }>;
+  fiveYear: Array<{ date: string; value: number; exactDate?: string }>;
 }
 
 /** Desglose de comisiones pagadas */
@@ -176,6 +182,10 @@ export interface FeesSummary {
   feesAsPercentage: number;
   /** TER promedio ponderado de la cartera */
   weightedTer: number;
+  /** Comisión de gestión adicional anual en % (ej: 0.40) */
+  managementFee?: number;
+  /** Total pagado en comisiones de gestión en EUR */
+  managementFeePaid?: number;
 }
 
 /** Resultado completo del backtest para una cartera */
@@ -315,6 +325,8 @@ export interface MonthlyPrice {
   month: string;
   /** Precio de cierre del mes */
   closePrice: number;
+  /** Fecha exacta del dato en formato YYYY-MM-DD */
+  exactDate?: string;
 }
 
 // -----------------------------------------------------------------------------

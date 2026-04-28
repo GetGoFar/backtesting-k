@@ -84,12 +84,17 @@
 
 /* Stat number — los números grandes que se quedan en la retina */
 .stat-number {
-  @apply text-4xl sm:text-5xl font-bold tracking-tight text-brand-navy;
+  @apply text-5xl sm:text-6xl font-bold tracking-tight text-brand-navy font-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-number-lg {
+  @apply text-4xl sm:text-5xl font-bold tracking-tight text-brand-navy font-serif;
   font-variant-numeric: tabular-nums;
 }
 
 .stat-number-sm {
-  @apply text-2xl sm:text-3xl font-bold tracking-tight text-brand-navy;
+  @apply text-3xl sm:text-4xl font-bold tracking-tight text-brand-navy font-serif;
   font-variant-numeric: tabular-nums;
 }
 

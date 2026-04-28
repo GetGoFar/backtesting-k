@@ -198,6 +198,7 @@ async function runPortfolioBacktest(
   const fundPrices = new Map<string, Map<string, number>>();
   const fundTers = new Map<string, number>();
   const fundTypes = new Map<string, FundType>();
+  const allExactDates = new Map<string, string>(); // YYYY-MM → YYYY-MM-DD (merged)
 
   for (const holding of portfolio.holdings) {
     // Usar fondo de la base de datos local o el fondo dinámico del holding
@@ -209,10 +210,16 @@ async function runPortfolioBacktest(
 
     try {
       // Pasar el yahooTicker para fondos dinámicos que no están en la BD local
-      const prices = await getMonthlyPrices(holding.fundId, fund.yahooTicker);
+      const { prices, exactDates } = await getMonthlyPrices(holding.fundId, fund.yahooTicker);
       fundPrices.set(holding.fundId, prices);
       fundTers.set(holding.fundId, fund.ter);
       fundTypes.set(holding.fundId, fund.type);
+      // Merge exact dates (use first fund's dates as reference)
+      for (const [month, exactDate] of exactDates) {
+        if (!allExactDates.has(month)) {
+          allExactDates.set(month, exactDate);
+        }
+      }
       console.log(`[BacktestEngine] ${fund.name}: ${prices.size} meses de datos, TER=${fund.ter}%`);
     } catch (error) {
       console.error(`[BacktestEngine] Error obteniendo precios para ${holding.fundId}:`, error);
@@ -246,7 +253,9 @@ async function runPortfolioBacktest(
     commonDates,
     initialAmount,
     rebalanceFrequency,
-    monthlyContribution
+    monthlyContribution,
+    portfolio.managementFee ?? 0,
+    allExactDates
   );
 
   if (simulation.timeSeries.length === 0) {
@@ -280,10 +289,13 @@ async function runPortfolioBacktest(
   const portfolioType = determinePortfolioType(portfolio.holdings, fundTypes);
 
   // 9. Resumen de comisiones
+  const mgmtFee = portfolio.managementFee ?? 0;
   const fees: FeesSummary = {
-    totalFees: simulation.totalFeesPaid,
-    feesAsPercentage: finalValue > 0 ? (simulation.totalFeesPaid / finalValue) * 100 : 0,
+    totalFees: simulation.totalFeesPaid + simulation.totalManagementFeePaid,
+    feesAsPercentage: finalValue > 0 ? ((simulation.totalFeesPaid + simulation.totalManagementFeePaid) / finalValue) * 100 : 0,
     weightedTer: calculateWeightedTer(portfolio.holdings, fundTers),
+    managementFee: mgmtFee > 0 ? mgmtFee : undefined,
+    managementFeePaid: mgmtFee > 0 ? simulation.totalManagementFeePaid : undefined,
   };
 
   return {
@@ -308,6 +320,7 @@ interface SimulationResult {
   timeSeries: TimeSeriesPoint[];
   monthlyReturns: number[];
   totalFeesPaid: number;
+  totalManagementFeePaid: number;
   totalContributions: number;
 }
 
@@ -321,7 +334,9 @@ function simulatePortfolio(
   dates: string[],
   initialAmount: number,
   rebalanceFrequency: RebalanceFrequency,
-  monthlyContribution: number
+  monthlyContribution: number,
+  managementFee: number = 0,
+  exactDates?: Map<string, string>
 ): SimulationResult {
   const timeSeries: TimeSeriesPoint[] = [];
   const monthlyReturns: number[] = [];
@@ -337,13 +352,15 @@ function simulatePortfolio(
 
   let totalContributions = initialAmount;
   let totalFeesPaid = 0;
+  let totalManagementFeePaid = 0;
   let lastRebalanceIndex = 0;
+  const monthlyMgmtRate = managementFee / 12 / 100; // Tasa mensual de la comisión de gestión
 
   // Registrar valor inicial
   const initialValue = sumPositions(positionValues);
   const firstDate = dates[0];
   if (firstDate) {
-    timeSeries.push({ date: firstDate, value: initialValue });
+    timeSeries.push({ date: firstDate, value: initialValue, exactDate: exactDates?.get(firstDate) });
   }
 
   // Simular cada mes a partir del segundo
@@ -382,6 +399,16 @@ function simulatePortfolio(
       positionValues.set(holding.fundId, newPositionValue);
     }
 
+    // Comisión de gestión — se descuenta del valor real de la cartera
+    if (monthlyMgmtRate > 0) {
+      for (const holding of holdings) {
+        const currentValue = positionValues.get(holding.fundId) ?? 0;
+        const mgmtFeeAmount = currentValue * monthlyMgmtRate;
+        totalManagementFeePaid += mgmtFeeAmount;
+        positionValues.set(holding.fundId, currentValue - mgmtFeeAmount);
+      }
+    }
+
     // Aportación mensual (si aplica)
     if (monthlyContribution > 0) {
       totalContributions += monthlyContribution;
@@ -400,7 +427,7 @@ function simulatePortfolio(
 
     // Registrar valor total de la cartera
     const portfolioValue = sumPositions(positionValues);
-    timeSeries.push({ date: currentDate, value: portfolioValue });
+    timeSeries.push({ date: currentDate, value: portfolioValue, exactDate: exactDates?.get(currentDate) });
 
     // Calcular retorno mensual de la cartera (para métricas)
     const previousTotalValue = timeSeries[timeSeries.length - 2]?.value ?? 0;
@@ -416,6 +443,7 @@ function simulatePortfolio(
     timeSeries,
     monthlyReturns,
     totalFeesPaid,
+    totalManagementFeePaid,
     totalContributions,
   };
 }
@@ -653,7 +681,7 @@ function calculateDrawdowns(timeSeries: TimeSeriesPoint[]): DrawdownPoint[] {
       peak = point.value;
     }
     const drawdown = peak > 0 ? ((point.value - peak) / peak) * 100 : 0;
-    drawdowns.push({ date: point.date, drawdown });
+    drawdowns.push({ date: point.date, drawdown, exactDate: point.exactDate });
   }
 
   return drawdowns;
@@ -683,8 +711,8 @@ function calculateRollingReturns(timeSeries: TimeSeriesPoint[]): RollingReturns 
 function calculateRollingReturnSeries(
   timeSeries: TimeSeriesPoint[],
   months: number
-): Array<{ date: string; value: number }> {
-  const result: Array<{ date: string; value: number }> = [];
+): Array<{ date: string; value: number; exactDate?: string }> {
+  const result: Array<{ date: string; value: number; exactDate?: string }> = [];
 
   if (timeSeries.length < months + 1) {
     return result;
@@ -703,7 +731,7 @@ function calculateRollingReturnSeries(
       // Rentabilidad anualizada: (valor_final / valor_inicial)^(12/meses) - 1
       const years = months / 12;
       const annualizedReturn = Math.pow(endValue / startValue, 1 / years) - 1;
-      result.push({ date: endPoint.date, value: annualizedReturn });
+      result.push({ date: endPoint.date, value: annualizedReturn, exactDate: endPoint.exactDate });
     }
   }
 
@@ -736,7 +764,7 @@ async function findCommonDateRangeForPortfolios(
     if (!fund) continue;
 
     try {
-      const prices = await getMonthlyPrices(holding.fundId, fund.yahooTicker);
+      const { prices } = await getMonthlyPrices(holding.fundId, fund.yahooTicker);
       if (prices.size > 0) {
         allDateSets.push(new Set(prices.keys()));
         console.log(`[BacktestEngine] ${fund.shortName}: ${prices.size} meses disponibles`);
@@ -965,7 +993,7 @@ async function calculateIndividualAssetMetrics(
     if (!fund) continue;
 
     try {
-      const prices = await getMonthlyPrices(holding.fundId, fund.yahooTicker);
+      const { prices } = await getMonthlyPrices(holding.fundId, fund.yahooTicker);
       if (prices.size < 3) continue;
 
       // Filtrar precios al rango de fechas
@@ -1073,7 +1101,7 @@ async function calculateAssetCorrelationMatrix(
     if (!fund) continue;
 
     try {
-      const prices = await getMonthlyPrices(holding.fundId, fund.yahooTicker);
+      const { prices } = await getMonthlyPrices(holding.fundId, fund.yahooTicker);
       if (prices.size < 3) continue;
 
       // Calcular retornos mensuales

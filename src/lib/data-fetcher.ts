@@ -3,22 +3,13 @@
 // =============================================================================
 //
 // Este módulo obtiene precios históricos mensuales de fondos de inversión.
-// - Fondos indexados: Yahoo Finance API
-// - Fondos bancarios españoles: CSV local
+// Fuentes de datos (en orden de prioridad):
+//   1. Cache (memoria → Redis)
+//   2. EODHD API (principal) — https://eodhd.com/
+//   3. Yahoo Finance API (fallback)
+//   4. CSV local (fondos bancarios españoles)
 //
-// -----------------------------------------------------------------------------
-// ENDPOINTS DE YAHOO FINANCE (pueden cambiar, mantener actualizado):
-// -----------------------------------------------------------------------------
-// Principal (v8 - actual):
-//   https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?range=max&interval=1mo
-//
-// Alternativos:
-//   https://query2.finance.yahoo.com/v8/finance/chart/{ticker}?range=max&interval=1mo
-//   https://query1.finance.yahoo.com/v7/finance/download/{ticker}?period1=0&period2=9999999999&interval=1mo
-//   https://finance.yahoo.com/quote/{ticker}/history (requiere scraping)
-//
-// Si v8 deja de funcionar, probar con query2 o el endpoint v7 de descarga CSV.
-// -----------------------------------------------------------------------------
+// =============================================================================
 
 import { promises as fs } from "fs";
 import { join } from "path";
@@ -29,6 +20,10 @@ import type { MonthlyPrice } from "./types";
 
 // Ruta al CSV de fondos españoles
 const SPANISH_FUNDS_CSV = join(process.cwd(), "src", "data", "spanish-funds.csv");
+
+// EODHD API configuration
+const EODHD_API_TOKEN = process.env.EODHD_API_TOKEN || "";
+const EODHD_BASE_URL = "https://eodhd.com/api";
 
 // -----------------------------------------------------------------------------
 // Interfaces internas
@@ -51,15 +46,32 @@ interface YahooChartResponse {
   };
 }
 
+/** Respuesta de EODHD EOD endpoint */
+interface EODHDPricePoint {
+  date: string;        // "2024-01-02"
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  adjusted_close: number;
+  volume: number;
+}
+
 // -----------------------------------------------------------------------------
 // Función principal
 // -----------------------------------------------------------------------------
 
+/** Resultado de getMonthlyPrices: precios + fechas exactas */
+export interface MonthlyPricesResult {
+  prices: Map<string, number>;
+  exactDates: Map<string, string>; // YYYY-MM → YYYY-MM-DD
+}
+
 /**
  * Obtiene los precios mensuales de un fondo por su ID
- * Estrategia de cache: Memoria -> Redis (Upstash) -> Yahoo Finance/CSV
+ * Estrategia: Cache → EODHD → Yahoo Finance → CSV
  */
-export async function getMonthlyPrices(fundId: string, yahooTicker?: string): Promise<Map<string, number>> {
+export async function getMonthlyPrices(fundId: string, yahooTicker?: string): Promise<MonthlyPricesResult> {
   console.log(`[DataFetcher] Obteniendo precios para: ${fundId}`);
 
   const fund = getFundById(fundId);
@@ -73,20 +85,35 @@ export async function getMonthlyPrices(fundId: string, yahooTicker?: string): Pr
   const cached = await getCachedPrices(fundId);
   if (cached) {
     console.log(`[DataFetcher] Cache hit: ${fundId} (${cached.length} meses)`);
-    return monthlyPricesToMap(cached);
+    return monthlyPricesToMaps(cached);
   }
 
   // 2. Obtener datos del origen
-  let prices: MonthlyPrice[];
+  let prices: MonthlyPrice[] = [];
 
-  if (ticker) {
-    console.log(`[DataFetcher] Descargando de Yahoo Finance: ${ticker}`);
+  // 2a. Intentar EODHD primero (si hay API key y ticker)
+  if (EODHD_API_TOKEN && EODHD_API_TOKEN !== "demo" && ticker) {
+    const eodhTicker = yahooTickerToEODHD(ticker);
+    console.log(`[DataFetcher] Intentando EODHD: ${eodhTicker} (desde Yahoo: ${ticker})`);
+    prices = await fetchFromEODHD(eodhTicker);
+
+    // Si EODHD falló, intentar con el ISIN en EUFUND
+    if (prices.length === 0 && fund?.isin) {
+      console.log(`[DataFetcher] EODHD ticker falló, intentando ISIN: ${fund.isin}.EUFUND`);
+      prices = await fetchFromEODHD(`${fund.isin}.EUFUND`);
+    }
+  }
+
+  // 2b. Fallback a Yahoo Finance
+  if (prices.length === 0 && ticker) {
+    console.log(`[DataFetcher] Fallback a Yahoo Finance: ${ticker}`);
     prices = await fetchFromYahooFinance(ticker);
-  } else if (fund) {
+  }
+
+  // 2c. Fallback a CSV (fondos bancarios españoles)
+  if (prices.length === 0 && fund) {
     console.log(`[DataFetcher] Leyendo CSV para fondo bancario: ${fund.isin}`);
     prices = await readFromCSV(fund.isin);
-  } else {
-    prices = [];
   }
 
   if (prices.length === 0) {
@@ -108,11 +135,107 @@ export async function getMonthlyPrices(fundId: string, yahooTicker?: string): Pr
   await setCachedPrices(fundId, cleanPrices);
   console.log(`[DataFetcher] Cacheado: ${fundId} (${cleanPrices.length} meses)`);
 
-  return monthlyPricesToMap(cleanPrices);
+  return monthlyPricesToMaps(cleanPrices);
 }
 
 // -----------------------------------------------------------------------------
-// Yahoo Finance
+// EODHD API
+// -----------------------------------------------------------------------------
+
+/**
+ * Convierte un ticker de Yahoo Finance al formato EODHD
+ * Yahoo: IWDA.AS, XDWS.DE, IBTS.L, SGLD.MI
+ * EODHD: IWDA.AS, XDWS.XETRA, IBTS.LSE, SGLD.MI
+ */
+function yahooTickerToEODHD(yahooTicker: string): string {
+  const exchangeMap: Record<string, string> = {
+    ".DE": ".XETRA",    // Frankfurt/Xetra
+    ".F": ".F",          // Frankfurt
+    ".L": ".LSE",        // London
+    ".AS": ".AS",        // Amsterdam (same)
+    ".PA": ".PA",        // Paris (same)
+    ".MI": ".MI",        // Milan (same)
+    ".MC": ".MC",        // Madrid (same)
+    ".BR": ".BR",        // Brussels (same)
+    ".ST": ".ST",        // Stockholm (same)
+  };
+
+  for (const [yahooSuffix, eodhSuffix] of Object.entries(exchangeMap)) {
+    if (yahooTicker.endsWith(yahooSuffix)) {
+      return yahooTicker.replace(yahooSuffix, eodhSuffix);
+    }
+  }
+
+  // Fondos mutuos con tickers complejos (ej: 0P0000YXJO.L)
+  // Intentar como está
+  return yahooTicker;
+}
+
+/**
+ * Descarga precios mensuales desde EODHD API
+ * Usa period=m para obtener datos mensuales directamente
+ */
+async function fetchFromEODHD(ticker: string): Promise<MonthlyPrice[]> {
+  try {
+    // EODHD endpoint: period=m devuelve datos mensuales
+    const url = `${EODHD_BASE_URL}/eod/${encodeURIComponent(ticker)}?period=m&fmt=json&order=a&api_token=${EODHD_API_TOKEN}`;
+    console.log(`[DataFetcher] EODHD GET: ${ticker}`);
+
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!response.ok) {
+      console.error(`[DataFetcher] EODHD respondió ${response.status} para ${ticker}`);
+      return [];
+    }
+
+    const data: EODHDPricePoint[] = await response.json();
+
+    if (!Array.isArray(data) || data.length === 0) {
+      console.warn(`[DataFetcher] EODHD devolvió respuesta vacía para ${ticker}`);
+      return [];
+    }
+
+    // Convertir a MonthlyPrice — EODHD ya devuelve datos mensuales con dates exactas
+    const prices: MonthlyPrice[] = [];
+    const seenMonths = new Set<string>();
+
+    for (const point of data) {
+      if (!point.date || point.adjusted_close == null) continue;
+
+      // La fecha de EODHD es YYYY-MM-DD
+      const month = point.date.substring(0, 7); // YYYY-MM
+      const adjustedClose = point.adjusted_close;
+
+      if (adjustedClose <= 0) continue;
+
+      // Deduplicar por mes (quedarse con el último)
+      if (seenMonths.has(month)) {
+        // Buscar y reemplazar
+        const idx = prices.findIndex(p => p.month === month);
+        if (idx >= 0) {
+          prices[idx] = { month, closePrice: adjustedClose, exactDate: point.date };
+        }
+      } else {
+        seenMonths.add(month);
+        prices.push({ month, closePrice: adjustedClose, exactDate: point.date });
+      }
+    }
+
+    prices.sort((a, b) => a.month.localeCompare(b.month));
+
+    console.log(`[DataFetcher] EODHD devolvió ${prices.length} meses para ${ticker}`);
+    return prices;
+  } catch (error) {
+    console.error(`[DataFetcher] Error en fetch a EODHD:`, error);
+    return [];
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Yahoo Finance (fallback)
 // -----------------------------------------------------------------------------
 
 /**
@@ -144,13 +267,14 @@ async function attemptYahooFetch(
   attempt: number
 ): Promise<MonthlyPrice[]> {
   try {
-    console.log(`[DataFetcher] Intento ${attempt} - GET ${url}`);
+    console.log(`[DataFetcher] Yahoo Intento ${attempt} - GET ${url}`);
 
     const response = await fetch(url, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         Accept: "application/json",
       },
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!response.ok) {
@@ -177,6 +301,7 @@ async function attemptYahooFetch(
 
     // Deduplicar por mes: quedarse con el último precio válido de cada mes
     const monthlyMap = new Map<string, number>();
+    const monthlyExactDates = new Map<string, string>();
 
     for (let i = 0; i < timestamps.length; i++) {
       const timestamp = timestamps[i];
@@ -185,13 +310,15 @@ async function attemptYahooFetch(
       if (timestamp !== undefined && closePrice !== null && closePrice !== undefined) {
         const date = new Date(timestamp * 1000);
         const month = formatYearMonth(date);
-        monthlyMap.set(month, closePrice); // sobrescribe con el último del mes
+        monthlyMap.set(month, closePrice);
+        const exactDate = formatExactDate(date, month);
+        monthlyExactDates.set(month, exactDate);
       }
     }
 
     const prices: MonthlyPrice[] = [];
     for (const [month, closePrice] of monthlyMap) {
-      prices.push({ month, closePrice });
+      prices.push({ month, closePrice, exactDate: monthlyExactDates.get(month) });
     }
     prices.sort((a, b) => a.month.localeCompare(b.month));
 
@@ -320,7 +447,23 @@ function parseCSVDate(dateStr: string): string | null {
 // -----------------------------------------------------------------------------
 
 /**
- * Formatea una fecha como YYYY-MM
+ * Formatea una fecha como YYYY-MM-DD respetando el mes ajustado por timezone
+ * Si el timestamp se ajustó al mes siguiente, usar el día 1 de ese mes
+ */
+function formatExactDate(date: Date, adjustedMonth: string): string {
+  const day = date.getUTCDate();
+  const originalMonth = `${date.getUTCFullYear()}-${(date.getUTCMonth() + 1).toString().padStart(2, "0")}`;
+
+  if (originalMonth !== adjustedMonth) {
+    // El mes fue ajustado (timezone artifact), usar día 1 del mes ajustado
+    return `${adjustedMonth}-01`;
+  }
+  // Usar la fecha real
+  return `${adjustedMonth}-${day.toString().padStart(2, "0")}`;
+}
+
+/**
+ * Formatea una fecha como YYYY-MM (para Yahoo Finance timestamps)
  */
 function formatYearMonth(date: Date): string {
   // Yahoo Finance monthly data timestamps represent the 1st trading day
@@ -330,10 +473,9 @@ function formatYearMonth(date: Date): string {
   // and US funds, breaking correlation calculations.
   //
   // Fix: if the UTC day is > 15, it's a timezone artifact — advance to next month.
-  // For interval=1mo data, timestamps are always within the first ~5 days.
   const day = date.getUTCDate();
   let year = date.getUTCFullYear();
-  let month = date.getUTCMonth() + 1; // 1-indexed
+  let month = date.getUTCMonth() + 1;
 
   if (day > 15) {
     month++;
@@ -347,14 +489,18 @@ function formatYearMonth(date: Date): string {
 }
 
 /**
- * Convierte array de MonthlyPrice a Map
+ * Convierte array de MonthlyPrice a Maps de precios y fechas exactas
  */
-function monthlyPricesToMap(prices: MonthlyPrice[]): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const { month, closePrice } of prices) {
-    map.set(month, closePrice);
+function monthlyPricesToMaps(prices: MonthlyPrice[]): MonthlyPricesResult {
+  const priceMap = new Map<string, number>();
+  const exactDatesMap = new Map<string, string>();
+  for (const { month, closePrice, exactDate } of prices) {
+    priceMap.set(month, closePrice);
+    if (exactDate) {
+      exactDatesMap.set(month, exactDate);
+    }
   }
-  return map;
+  return { prices: priceMap, exactDates: exactDatesMap };
 }
 
 // -----------------------------------------------------------------------------
@@ -363,12 +509,10 @@ function monthlyPricesToMap(prices: MonthlyPrice[]): Map<string, number> {
 
 /**
  * Obtiene el rango de fechas disponibles para un fondo
- * @param fundId - ID del fondo
- * @returns Objeto con firstDate y lastDate en formato YYYY-MM, o null si no hay datos
  */
 export async function getDataRange(fundId: string): Promise<{ firstDate: string; lastDate: string } | null> {
   try {
-    const prices = await getMonthlyPrices(fundId);
+    const { prices } = await getMonthlyPrices(fundId);
     if (prices.size === 0) return null;
 
     const dates = Array.from(prices.keys()).sort();
@@ -382,7 +526,7 @@ export async function getDataRange(fundId: string): Promise<{ firstDate: string;
 }
 
 // -----------------------------------------------------------------------------
-// Función legacy para compatibilidad (usada por backtest-engine.ts)
+// Función legacy para compatibilidad
 // -----------------------------------------------------------------------------
 
 /**
@@ -394,7 +538,6 @@ export async function fetchPrices(
   startDate?: string,
   endDate?: string
 ): Promise<Array<{ date: string; nav: number }>> {
-  // Buscar el fondo por ISIN para obtener su ID
   const { getFundByIsin } = await import("./fund-database");
   const fund = getFundByIsin(isin);
 
@@ -404,24 +547,18 @@ export async function fetchPrices(
   }
 
   try {
-    const monthlyPrices = await getMonthlyPrices(fund.id);
+    const { prices: monthlyPrices } = await getMonthlyPrices(fund.id);
 
-    // Convertir Map a array de precios diarios (usando el primer día del mes)
     const prices: Array<{ date: string; nav: number }> = [];
 
     for (const [month, closePrice] of monthlyPrices) {
       const date = `${month}-01`;
-
-      // Filtrar por rango de fechas si se especifica
       if (startDate && date < startDate) continue;
       if (endDate && date > endDate) continue;
-
       prices.push({ date, nav: closePrice });
     }
 
-    // Ordenar por fecha
     prices.sort((a, b) => a.date.localeCompare(b.date));
-
     return prices;
   } catch (error) {
     console.error(`[DataFetcher] Error obteniendo precios para ${isin}:`, error);

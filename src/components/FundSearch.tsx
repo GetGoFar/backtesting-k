@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import type { Fund } from "@/lib/types";
 
-// Resultado de Yahoo Finance
+// Resultado de Yahoo Finance + datos Morningstar
 interface YahooResult {
   symbol: string;
   name: string;
@@ -12,6 +12,7 @@ interface YahooResult {
   type: string;
   typeDisplay: string;
   ter?: number | null; // TER real de Morningstar (puede ser null si no se encontró)
+  isin?: string | null; // ISIN real de Morningstar
 }
 
 interface FundSearchProps {
@@ -98,11 +99,13 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
   const handleSelectYahoo = (result: YahooResult) => {
     // Convertir resultado de Yahoo a Fund
     const hasTer = result.ter != null && result.ter > 0;
+    // Usar ISIN real de Morningstar si está disponible, si no el símbolo
+    const realIsin = result.isin && /^[A-Z]{2}[A-Z0-9]{10}$/.test(result.isin) ? result.isin : null;
     const fund: Fund = {
       id: `yahoo-${result.symbol.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
       name: result.name,
       shortName: result.shortName,
-      isin: result.symbol, // Usamos el símbolo como identificador
+      isin: realIsin || result.symbol,
       yahooTicker: result.symbol,
       ter: hasTer ? result.ter! : 0,
       category: "RV Global", // Categoría por defecto
@@ -228,6 +231,12 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
                           {result.shortName}
                         </p>
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 mt-0.5">
+                          {result.isin && /^[A-Z]{2}[A-Z0-9]{10}$/.test(result.isin) && (
+                            <>
+                              <span className="font-mono text-emerald-600">{result.isin}</span>
+                              <span className="text-slate-300">•</span>
+                            </>
+                          )}
                           <span className="font-mono text-indigo-600">{result.symbol}</span>
                           <span className="text-slate-300">•</span>
                           <span>{result.exchange}</span>

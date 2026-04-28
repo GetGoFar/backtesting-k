@@ -50,6 +50,7 @@ interface TooltipPayload {
   dataKey: string;
   color: string;
   name: string;
+  payload?: Record<string, number | string>;
 }
 
 interface CustomTooltipProps {
@@ -62,10 +63,13 @@ interface CustomTooltipProps {
 function CustomTooltip({ active, payload, label, window }: CustomTooltipProps) {
   if (!active || !payload || !payload.length) return null;
 
+  const exactDate = payload[0]?.payload?.exactDate as string | undefined;
+  const displayDate = exactDate || label || "";
+
   return (
     <div className="bg-white rounded-lg shadow-xl border border-slate-200 p-3 min-w-[220px]">
       <p className="text-sm font-medium text-slate-600 mb-2 border-b border-slate-100 pb-2">
-        {formatDateLabel(label || "")} — Ventana {window} año{window !== "1" ? "s" : ""}
+        {formatDateLabel(displayDate, true)} — Ventana {window} año{window !== "1" ? "s" : ""}
       </p>
       <div className="space-y-1.5">
         {payload.map((entry, index) => (
@@ -154,6 +158,7 @@ export function RollingReturnsChart({ results, isLoading }: RollingReturnsChartP
     for (const point of windowData.a) {
       dataMap.set(point.date, {
         date: point.date,
+        exactDate: point.exactDate || point.date,
         [resultA.portfolioName]: point.value * 100, // Convertir a porcentaje
       });
     }
@@ -167,6 +172,7 @@ export function RollingReturnsChart({ results, isLoading }: RollingReturnsChartP
       } else {
         dataMap.set(point.date, {
           date: point.date,
+          exactDate: point.exactDate || point.date,
           [resultB.portfolioName]: point.value * 100,
         });
       }

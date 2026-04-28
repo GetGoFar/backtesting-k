@@ -61,26 +61,39 @@ export function formatRatio(value: number): string {
 }
 
 /**
- * Convierte fecha YYYY-MM a formato legible en español
- * @param dateStr - Fecha en formato YYYY-MM
+ * Convierte fecha YYYY-MM o YYYY-MM-DD a formato legible en español
+ * @param dateStr - Fecha en formato YYYY-MM o YYYY-MM-DD
  * @param full - Si mostrar mes completo (default: false)
  */
 export function formatDateLabel(dateStr: string, full = false): string {
-  const [year, month] = dateStr.split("-");
+  const parts = dateStr.split("-");
+  const year = parts[0];
+  const month = parts[1];
+  const day = parts[2]; // puede ser undefined si es YYYY-MM
   const monthIndex = parseInt(month || "1", 10) - 1;
 
-  if (full) {
-    const monthNames = [
-      "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-    ];
-    return `${monthNames[monthIndex]} ${year}`;
-  }
-
+  const monthNames = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+  ];
   const shortMonthNames = [
     "Ene", "Feb", "Mar", "Abr", "May", "Jun",
     "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"
   ];
+
+  // Si tenemos día (YYYY-MM-DD), mostrarlo
+  if (day) {
+    const dayNum = parseInt(day, 10);
+    if (full) {
+      return `${dayNum} de ${monthNames[monthIndex]} ${year}`;
+    }
+    return `${dayNum} ${shortMonthNames[monthIndex]} ${year}`;
+  }
+
+  // Solo YYYY-MM
+  if (full) {
+    return `${monthNames[monthIndex]} ${year}`;
+  }
   return `${shortMonthNames[monthIndex]} ${year}`;
 }
 

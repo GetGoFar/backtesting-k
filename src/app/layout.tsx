@@ -1,11 +1,17 @@
 import type { Metadata } from "next";
-import { Poppins } from "next/font/google";
+import { Poppins, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 
 const poppins = Poppins({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
   variable: "--font-poppins",
+});
+
+const sourceSerif = Source_Serif_4({
+  subsets: ["latin"],
+  weight: ["300", "400", "600", "700"],
+  variable: "--font-source-serif",
 });
 
 export const metadata: Metadata = {
@@ -67,7 +73,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" className={poppins.variable} suppressHydrationWarning>
+    <html lang="es" className={`${poppins.variable} ${sourceSerif.variable}`} suppressHydrationWarning>
       <body
         className={`${poppins.className} min-h-screen bg-brand-bg antialiased`}
       >

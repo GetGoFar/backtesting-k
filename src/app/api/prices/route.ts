@@ -87,7 +87,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     // Obtener precios usando el data-fetcher con caché
-    const pricesMap = await getMonthlyPrices(fundId);
+    const { prices: pricesMap } = await getMonthlyPrices(fundId);
 
     // Convertir Map a array y filtrar por rango de fechas
     let prices: Array<{ date: string; price: number }> = [];

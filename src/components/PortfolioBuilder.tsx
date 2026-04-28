@@ -18,6 +18,7 @@ interface PortfolioBuilderProps {
     name: string;
     holdings: PortfolioHolding[];
     isValid: boolean;
+    managementFee: number;
   }) => void;
 }
 
@@ -46,6 +47,7 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [showPresetDropdown, setShowPresetDropdown] = useState(false);
+  const [managementFee, setManagementFee] = useState(0);
 
   const presets = getAllPresets();
   const colors = SIDE_COLORS[side];
@@ -65,8 +67,9 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
         fund: a.fund.id.startsWith("yahoo-") ? a.fund : undefined,
       })),
       isValid,
+      managementFee,
     });
-  }, [name, allocations, isValid, onUpdate]);
+  }, [name, allocations, isValid, managementFee, onUpdate]);
 
   useEffect(() => {
     notifyUpdate();
@@ -84,7 +87,13 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
         }
       }
       if (allocs.length === 1 && allocs[0]) {
-        setName(allocs[0].fund.shortName || allocs[0].fund.name);
+        // Preferir el nombre completo del fondo; si es demasiado largo, usar shortName
+        // pero nunca usar shortName si parece un ticker (contiene puntos o es solo mayúsculas/números)
+        const fund = allocs[0].fund;
+        const looksLikeTicker = /^[A-Z0-9.]{2,15}$/.test(fund.shortName);
+        const displayName = looksLikeTicker ? fund.name : (fund.shortName || fund.name);
+        // Truncar a 40 chars para que quepa en el header
+        setName(displayName.length > 40 ? displayName.substring(0, 37) + "..." : displayName);
         return;
       }
       setName(defaultName);
@@ -363,9 +372,12 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                       ? allocation.fund.name
                       : allocation.fund.shortName}
                   </p>
-                  {allocation.fund.yahooTicker && (
-                    <p className="text-xs text-slate-400 truncate">{allocation.fund.yahooTicker}</p>
-                  )}
+                  <p className="text-xs text-slate-400 truncate">
+                    {/* Mostrar ISIN si es un ISIN real (2 letras + 10 chars), si no el ticker */}
+                    {/^[A-Z]{2}[A-Z0-9]{10}$/.test(allocation.fund.isin)
+                      ? allocation.fund.isin
+                      : allocation.fund.yahooTicker || allocation.fund.isin}
+                  </p>
                   {/* TER editable */}
                   <div className="flex items-center gap-1 mt-0.5">
                     <span className="text-xs text-slate-500">TER:</span>
@@ -442,6 +454,27 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
           )}
         </div>
 
+        {/* Botón vaciar cartera */}
+        {allocations.length > 0 && (
+          <div className="flex justify-end">
+            <button
+              onClick={() => {
+                setAllocations([]);
+                setSelectedPresetId(null);
+                setNameManuallyEdited(false);
+                setName(defaultName);
+                setManagementFee(0);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg border border-red-200 hover:border-red-300 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Vaciar cartera
+            </button>
+          </div>
+        )}
+
         {/* Resumen de peso y TER */}
         {allocations.length > 0 && (
           <div className="pt-3 border-t border-slate-200 space-y-2">
@@ -497,6 +530,43 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                 {weightedTer.toFixed(2)}%
               </span>
             </div>
+
+            {/* Comisión de gestión adicional */}
+            <div className="flex justify-between items-center text-sm">
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-600">Comisión de gestión:</span>
+                <span
+                  className="text-slate-400 cursor-help"
+                  title="Comisión adicional del gestor/robo-advisor/banco sobre el total de la cartera (se descuenta mensualmente del valor). Ejemplos: Inbestme ~0.40%, Indexa ~0.44%, Banco ~0.50-1.00%"
+                >
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
+                  </svg>
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min="0"
+                  max="5"
+                  step="0.01"
+                  value={managementFee}
+                  onChange={(e) => setManagementFee(Math.max(0, Number(e.target.value)))}
+                  className="w-16 px-1.5 py-0.5 text-xs text-right border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-brand-coral"
+                />
+                <span className="text-xs text-slate-500">%</span>
+              </div>
+            </div>
+
+            {/* Coste total */}
+            {managementFee > 0 && (
+              <div className="flex justify-between items-center text-sm pt-1 border-t border-dashed border-slate-200">
+                <span className="text-slate-700 font-medium">Coste total anual:</span>
+                <span className={`font-bold ${(weightedTer + managementFee) < 0.8 ? "text-emerald-600" : "text-amber-600"}`}>
+                  {(weightedTer + managementFee).toFixed(2)}%
+                </span>
+              </div>
+            )}
           </div>
         )}
       </div>

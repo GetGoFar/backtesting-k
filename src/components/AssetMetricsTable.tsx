@@ -286,8 +286,12 @@ export function AssetMetricsTable({ results, isLoading }: AssetMetricsTableProps
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                       </a>
-                      {asset.yahooTicker && (
-                        <span className="text-xs text-slate-400">{asset.yahooTicker}{asset.isin && asset.isin !== asset.yahooTicker ? ` \u00B7 ${asset.isin}` : ''}</span>
+                      {(asset.isin || asset.yahooTicker) && (
+                        <span className="text-xs text-slate-400">
+                          {asset.isin && /^[A-Z]{2}[A-Z0-9]{10}$/.test(asset.isin)
+                            ? `${asset.isin}${asset.yahooTicker ? ` · ${asset.yahooTicker}` : ''}`
+                            : asset.yahooTicker || asset.isin}
+                        </span>
                       )}
                     </div>
                   </td>

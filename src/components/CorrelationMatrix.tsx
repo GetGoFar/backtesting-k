@@ -1,19 +1,26 @@
 "use client";
 
-import { useMemo } from "react";
-import type { BacktestResponse } from "@/lib/types";
+import { useState, useMemo } from "react";
+import type { BacktestResponse, CorrelationMatrix as CorrelationMatrixType } from "@/lib/types";
 import { Tooltip } from "./Tooltip";
 
 interface CorrelationMatrixProps {
   results: BacktestResponse;
   isLoading?: boolean;
+  /** Fund IDs in portfolio A */
+  portfolioAFundIds?: string[];
+  /** Fund IDs in portfolio B */
+  portfolioBFundIds?: string[];
+  /** Name of portfolio A */
+  portfolioAName?: string;
+  /** Name of portfolio B */
+  portfolioBName?: string;
 }
+
+type ViewMode = "all" | "portfolioA" | "portfolioB";
 
 /**
  * Obtiene el color de fondo según el valor de correlación
- * - Verde: correlación baja (buena diversificación)
- * - Amarillo: correlación media
- * - Rojo: correlación alta (poca diversificación)
  */
 function getCorrelationColor(corr: number): string {
   const absCorr = Math.abs(corr);
@@ -85,41 +92,219 @@ function MatrixCell({
 }
 
 /**
+ * Filtra la matriz de correlaciones para mostrar solo los fondos indicados
+ */
+function filterMatrix(
+  matrix: CorrelationMatrixType,
+  fundIds: string[]
+): CorrelationMatrixType | null {
+  // Encontrar los índices de los fondos solicitados que existen en la matriz
+  const indices: number[] = [];
+  const filteredFundIds: string[] = [];
+  const filteredFundNames: string[] = [];
+
+  for (const fid of fundIds) {
+    const idx = matrix.fundIds.indexOf(fid);
+    if (idx !== -1) {
+      indices.push(idx);
+      filteredFundIds.push(matrix.fundIds[idx]!);
+      filteredFundNames.push(matrix.fundNames[idx]!);
+    }
+  }
+
+  if (indices.length < 2) return null;
+
+  // Construir sub-matriz
+  const filteredMatrixData: number[][] = [];
+  for (const i of indices) {
+    const row: number[] = [];
+    for (const j of indices) {
+      row.push(matrix.matrix[i]![j]!);
+    }
+    filteredMatrixData.push(row);
+  }
+
+  // Construir entries filtrados
+  const filteredEntries = matrix.entries.filter(
+    (e) => fundIds.includes(e.fundId1) && fundIds.includes(e.fundId2)
+  );
+
+  return {
+    fundIds: filteredFundIds,
+    fundNames: filteredFundNames,
+    matrix: filteredMatrixData,
+    entries: filteredEntries,
+  };
+}
+
+/**
+ * Renderiza una tabla de correlaciones
+ */
+function MatrixTable({ matrix }: { matrix: CorrelationMatrixType }) {
+  const n = matrix.fundIds.length;
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="border-collapse border border-slate-300">
+        <thead>
+          <tr>
+            <th className="min-w-[200px] sm:min-w-[280px] border border-slate-300 bg-slate-50"></th>
+            {matrix.fundNames.map((name, i) => (
+              <th
+                key={`col-${i}`}
+                className="border border-slate-300 bg-slate-50 p-1 align-bottom"
+                style={{ minWidth: "56px", width: "56px", height: "120px" }}
+              >
+                <Tooltip content={name}>
+                  <div
+                    className="text-xs font-medium text-slate-600 cursor-help text-center leading-tight"
+                    style={{
+                      writingMode: "vertical-rl",
+                      textOrientation: "mixed",
+                      transform: "rotate(180deg)",
+                      maxHeight: "112px",
+                      overflow: "hidden"
+                    }}
+                  >
+                    {name}
+                  </div>
+                </Tooltip>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {matrix.fundNames.map((rowName, i) => (
+            <tr key={`row-${i}`}>
+              <td className="p-2 pr-3 text-right border border-slate-300 bg-slate-50" style={{ maxWidth: "260px" }}>
+                <Tooltip content={rowName}>
+                  <span className="text-xs font-medium text-slate-600 cursor-help leading-snug block">
+                    {rowName}
+                  </span>
+                </Tooltip>
+              </td>
+              {matrix.matrix[i]!.map((value, j) => (
+                <td key={`cell-${i}-${j}`} className="p-1 border border-slate-300" style={{ width: "52px", height: "44px" }}>
+                  <MatrixCell
+                    value={value}
+                    isDiagonal={i === j}
+                    fundName1={matrix.fundNames[i]!}
+                    fundName2={matrix.fundNames[j]!}
+                  />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/**
+ * Resumen estadístico de una matriz de correlaciones
+ */
+function MatrixSummary({ matrix }: { matrix: CorrelationMatrixType }) {
+  const avgCorrelation = useMemo(() => {
+    if (matrix.entries.length === 0) return 0;
+    const sum = matrix.entries.reduce((acc, e) => acc + e.correlation, 0);
+    return sum / matrix.entries.length;
+  }, [matrix]);
+
+  const { minPair, maxPair } = useMemo(() => {
+    if (matrix.entries.length === 0) return { minPair: null, maxPair: null };
+    let min = matrix.entries[0]!;
+    let max = matrix.entries[0]!;
+    for (const entry of matrix.entries) {
+      if (entry.correlation < min.correlation) min = entry;
+      if (entry.correlation > max.correlation) max = entry;
+    }
+    return { minPair: min, maxPair: max };
+  }, [matrix]);
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+      <div className="flex flex-col">
+        <span className="text-slate-500">Correlación promedio</span>
+        <span className={`font-semibold ${avgCorrelation > 0.7 ? "text-red-600" : avgCorrelation > 0.5 ? "text-amber-600" : "text-emerald-600"}`}>
+          {avgCorrelation.toFixed(2)}
+        </span>
+      </div>
+      {minPair && (
+        <div className="flex flex-col">
+          <span className="text-slate-500">Menor correlación</span>
+          <span className="font-semibold text-emerald-600">
+            {minPair.correlation.toFixed(2)}
+          </span>
+          <span className="text-xs text-slate-500 leading-snug">
+            {minPair.name1}
+          </span>
+          <span className="text-xs text-slate-500 leading-snug">
+            {minPair.name2}
+          </span>
+        </div>
+      )}
+      {maxPair && (
+        <div className="flex flex-col">
+          <span className="text-slate-500">Mayor correlación</span>
+          <span className={`font-semibold ${maxPair.correlation > 0.8 ? "text-red-600" : "text-amber-600"}`}>
+            {maxPair.correlation.toFixed(2)}
+          </span>
+          <span className="text-xs text-slate-500 leading-snug">
+            {maxPair.name1}
+          </span>
+          <span className="text-xs text-slate-500 leading-snug">
+            {maxPair.name2}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * Componente principal de la matriz de correlaciones
  */
-export function CorrelationMatrix({ results, isLoading }: CorrelationMatrixProps) {
-  const matrix = results.correlationMatrix;
+export function CorrelationMatrix({
+  results,
+  isLoading,
+  portfolioAFundIds = [],
+  portfolioBFundIds = [],
+  portfolioAName = "Cartera A",
+  portfolioBName = "Cartera B",
+}: CorrelationMatrixProps) {
+  const fullMatrix = results.correlationMatrix;
+  const [viewMode, setViewMode] = useState<ViewMode>("all");
 
-  // Filtrar warnings de activos excluidos de la correlación
+  // Determinar qué tabs mostrar
+  const hasTwoPortfolios = portfolioAFundIds.length >= 2 && portfolioBFundIds.length >= 2;
+  const hasPortfolioA = portfolioAFundIds.length >= 2;
+  const hasPortfolioB = portfolioBFundIds.length >= 2;
+
+  // Filtrar warnings de activos excluidos
   const excludedWarnings = useMemo(() => {
     return (results.warnings || []).filter(
       (w) => w.type === "asset_excluded" && w.message.includes("correlaciones")
     );
   }, [results.warnings]);
 
-  // Calcular la correlación promedio (excluyendo diagonal)
-  const avgCorrelation = useMemo(() => {
-    if (!matrix || matrix.entries.length === 0) return 0;
-    const sum = matrix.entries.reduce((acc, e) => acc + e.correlation, 0);
-    return sum / matrix.entries.length;
-  }, [matrix]);
+  // Matrices filtradas por cartera
+  const matrixA = useMemo(() => {
+    if (!fullMatrix || !hasPortfolioA) return null;
+    return filterMatrix(fullMatrix, portfolioAFundIds);
+  }, [fullMatrix, portfolioAFundIds, hasPortfolioA]);
 
-  // Encontrar pares con menor y mayor correlación
-  const { minPair, maxPair } = useMemo(() => {
-    if (!matrix || matrix.entries.length === 0) {
-      return { minPair: null, maxPair: null };
-    }
+  const matrixB = useMemo(() => {
+    if (!fullMatrix || !hasPortfolioB) return null;
+    return filterMatrix(fullMatrix, portfolioBFundIds);
+  }, [fullMatrix, portfolioBFundIds, hasPortfolioB]);
 
-    let min = matrix.entries[0]!;
-    let max = matrix.entries[0]!;
-
-    for (const entry of matrix.entries) {
-      if (entry.correlation < min.correlation) min = entry;
-      if (entry.correlation > max.correlation) max = entry;
-    }
-
-    return { minPair: min, maxPair: max };
-  }, [matrix]);
+  // Matriz activa según el tab
+  const activeMatrix = useMemo(() => {
+    if (viewMode === "portfolioA" && matrixA) return matrixA;
+    if (viewMode === "portfolioB" && matrixB) return matrixB;
+    return fullMatrix;
+  }, [viewMode, matrixA, matrixB, fullMatrix]);
 
   // Loading state
   if (isLoading) {
@@ -133,18 +318,16 @@ export function CorrelationMatrix({ results, isLoading }: CorrelationMatrixProps
     );
   }
 
-  // No mostrar si no hay matriz o tiene menos de 2 activos
-  if (!matrix || matrix.fundIds.length < 2) {
-    return null;
-  }
+  if (!fullMatrix || fullMatrix.fundIds.length < 2) return null;
+  if (!activeMatrix) return null;
 
-  const n = matrix.fundIds.length;
+  const showTabs = hasPortfolioA || hasPortfolioB;
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       {/* Header */}
       <div className="px-4 sm:px-6 py-4 border-b border-slate-200">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-2">
             <svg
               className="w-5 h-5 text-slate-600"
@@ -177,69 +360,54 @@ export function CorrelationMatrix({ results, isLoading }: CorrelationMatrixProps
             </Tooltip>
           </div>
           <span className="text-sm text-slate-500">
-            {n} activos analizados
+            {activeMatrix.fundIds.length} activos analizados
           </span>
         </div>
+
+        {/* Tabs de vista */}
+        {showTabs && (
+          <div className="flex gap-1 mt-3 bg-slate-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode("all")}
+              className={`flex-1 px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
+                viewMode === "all"
+                  ? "bg-white text-brand-navy shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Todas
+            </button>
+            {hasPortfolioA && (
+              <button
+                onClick={() => setViewMode("portfolioA")}
+                className={`flex-1 px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
+                  viewMode === "portfolioA"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                {portfolioAName.length > 20 ? portfolioAName.substring(0, 18) + "..." : portfolioAName}
+              </button>
+            )}
+            {hasPortfolioB && (
+              <button
+                onClick={() => setViewMode("portfolioB")}
+                className={`flex-1 px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
+                  viewMode === "portfolioB"
+                    ? "bg-white text-rose-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                {portfolioBName.length > 20 ? portfolioBName.substring(0, 18) + "..." : portfolioBName}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Matriz */}
-      <div className="p-4 sm:p-6 overflow-x-auto">
-        <table className="border-collapse border border-slate-300">
-          <thead>
-            <tr>
-              {/* Celda vacía esquina superior izquierda */}
-              <th className="min-w-[160px] sm:min-w-[220px] border border-slate-300 bg-slate-50"></th>
-              {/* Headers de columnas */}
-              {matrix.fundNames.map((name, i) => (
-                <th
-                  key={`col-${i}`}
-                  className="border border-slate-300 bg-slate-50 p-1 align-bottom"
-                  style={{ minWidth: "56px", width: "56px", height: "100px" }}
-                >
-                  <Tooltip content={name}>
-                    <div
-                      className="text-xs font-medium text-slate-600 cursor-help text-center leading-tight"
-                      style={{
-                        writingMode: "vertical-rl",
-                        textOrientation: "mixed",
-                        transform: "rotate(180deg)",
-                        maxHeight: "92px",
-                        overflow: "hidden"
-                      }}
-                    >
-                      {name.length > 25 ? `${name.substring(0, 25)}...` : name}
-                    </div>
-                  </Tooltip>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {matrix.fundNames.map((rowName, i) => (
-              <tr key={`row-${i}`}>
-                {/* Header de fila - nombre completo alineado a la derecha */}
-                <td className="p-2 pr-3 text-right border border-slate-300 bg-slate-50">
-                  <Tooltip content={rowName}>
-                    <span className="text-xs font-medium text-slate-600 cursor-help whitespace-nowrap">
-                      {rowName.length > 30 ? `${rowName.substring(0, 30)}...` : rowName}
-                    </span>
-                  </Tooltip>
-                </td>
-                {/* Celdas de correlación */}
-                {matrix.matrix[i]!.map((value, j) => (
-                  <td key={`cell-${i}-${j}`} className="p-1 border border-slate-300" style={{ width: "52px", height: "44px" }}>
-                    <MatrixCell
-                      value={value}
-                      isDiagonal={i === j}
-                      fundName1={matrix.fundNames[i]!}
-                      fundName2={matrix.fundNames[j]!}
-                    />
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="p-4 sm:p-6">
+        <MatrixTable matrix={activeMatrix} />
 
         {/* Leyenda de colores */}
         <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-xs text-slate-600">
@@ -268,44 +436,10 @@ export function CorrelationMatrix({ results, isLoading }: CorrelationMatrixProps
 
       {/* Resumen de correlaciones */}
       <div className="px-4 sm:px-6 py-4 bg-slate-50 border-t border-slate-200">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-          {/* Correlación promedio */}
-          <div className="flex flex-col">
-            <span className="text-slate-500">Correlación promedio</span>
-            <span className={`font-semibold ${avgCorrelation > 0.7 ? "text-red-600" : avgCorrelation > 0.5 ? "text-amber-600" : "text-emerald-600"}`}>
-              {avgCorrelation.toFixed(2)}
-            </span>
-          </div>
-
-          {/* Par con menor correlación */}
-          {minPair && (
-            <div className="flex flex-col">
-              <span className="text-slate-500">Menor correlación</span>
-              <span className="font-semibold text-emerald-600">
-                {minPair.correlation.toFixed(2)}
-              </span>
-              <span className="text-xs text-slate-400 truncate" title={`${minPair.name1} / ${minPair.name2}`}>
-                {minPair.name1} / {minPair.name2}
-              </span>
-            </div>
-          )}
-
-          {/* Par con mayor correlación */}
-          {maxPair && (
-            <div className="flex flex-col">
-              <span className="text-slate-500">Mayor correlación</span>
-              <span className={`font-semibold ${maxPair.correlation > 0.8 ? "text-red-600" : "text-amber-600"}`}>
-                {maxPair.correlation.toFixed(2)}
-              </span>
-              <span className="text-xs text-slate-400 truncate" title={`${maxPair.name1} / ${maxPair.name2}`}>
-                {maxPair.name1} / {maxPair.name2}
-              </span>
-            </div>
-          )}
-        </div>
+        <MatrixSummary matrix={activeMatrix} />
 
         {/* Avisos de activos excluidos */}
-        {excludedWarnings.length > 0 && (
+        {excludedWarnings.length > 0 && viewMode === "all" && (
           <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
             <div className="flex gap-2">
               <svg className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
