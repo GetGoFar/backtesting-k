@@ -120,8 +120,9 @@ async function searchEODHD(query: string): Promise<EODHDSearchResult[]> {
   }
 
   try {
-    // Buscar ETFs y fondos
-    const url = `${EODHD_BASE_URL}/search/${encodeURIComponent(query)}?api_token=${EODHD_API_TOKEN}&type=etf,fund&limit=20`;
+    // NOTA: No usar &type=etf,fund porque causa 422 en muchas búsquedas.
+    // Filtramos los resultados manualmente después.
+    const url = `${EODHD_BASE_URL}/search/${encodeURIComponent(query)}?api_token=${EODHD_API_TOKEN}&limit=20`;
     const response = await fetch(url, {
       signal: AbortSignal.timeout(8000),
     });
@@ -132,7 +133,16 @@ async function searchEODHD(query: string): Promise<EODHDSearchResult[]> {
     }
 
     const data: EODHDSearchResult[] = await response.json();
-    return Array.isArray(data) ? data : [];
+    if (!Array.isArray(data)) return [];
+
+    // Filtrar solo ETFs y fondos (el filtro server-side causa 422)
+    return data.filter(
+      (r) =>
+        r.Type === "ETF" ||
+        r.Type === "Fund" ||
+        r.Type === "FUND" ||
+        r.Exchange === "EUFUND"
+    );
   } catch (error) {
     console.error("[EODHD Search] Error:", error);
     return [];
@@ -201,7 +211,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         name: r.Name,
         shortName: r.Name.length > 50 ? r.Name.substring(0, 47) + "..." : r.Name,
         exchange: r.Exchange,
-        type: r.Type === "ETF" ? "ETF" : r.Type === "Fund" ? "MUTUALFUND" : r.Type,
+        type: r.Type === "ETF" ? "ETF" : (r.Type === "Fund" || r.Type === "FUND") ? "MUTUALFUND" : r.Type,
         typeDisplay: r.Type,
         isin: r.ISIN || null,
         ter: null as number | null, // Se enriquecerá con Morningstar
