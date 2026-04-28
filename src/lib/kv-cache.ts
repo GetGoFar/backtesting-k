@@ -10,13 +10,13 @@
 // Upstash free tier: 10K comandos/dia
 // Con ~30 fondos y TTL de 30 dias, uso estimado: ~100 comandos/dia
 
-import type { MonthlyPrice } from "./types";
+import type { DailyPrice } from "./types";
 
 // --- In-memory cache (tier 1) ---
 // Clave incluye versión para invalidar datos viejos (ej: Yahoo → EODHD)
 const memoryCache = new Map<
   string,
-  { data: MonthlyPrice[]; timestamp: number }
+  { data: DailyPrice[]; timestamp: number }
 >();
 const MEMORY_TTL_MS = 30 * 60 * 1000; // 30 minutos
 
@@ -53,7 +53,8 @@ async function getRedis(): Promise<import("@upstash/redis").Redis | null> {
 
 // Versión de cache: cambiar al migrar de fuente de datos para invalidar entradas viejas
 // v2 = migración de Yahoo Finance a EODHD (abril 2026)
-const CACHE_VERSION = "v2";
+// v3 = migración de datos mensuales a diarios (abril 2026)
+const CACHE_VERSION = "v3";
 
 function makeKey(fundId: string): string {
   return `${CACHE_VERSION}:prices:${fundId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
@@ -63,7 +64,7 @@ function makeKey(fundId: string): string {
 
 export async function getCachedPrices(
   fundId: string
-): Promise<MonthlyPrice[] | null> {
+): Promise<DailyPrice[] | null> {
   // Tier 1: memoria (clave incluye versión para invalidar datos viejos)
   const memKey = `${CACHE_VERSION}:${fundId}`;
   const mem = memoryCache.get(memKey);
@@ -75,11 +76,11 @@ export async function getCachedPrices(
   try {
     const redis = await getRedis();
     if (redis) {
-      const cached = await redis.get<MonthlyPrice[]>(makeKey(fundId));
+      const cached = await redis.get<DailyPrice[]>(makeKey(fundId));
       if (cached && Array.isArray(cached) && cached.length > 0) {
         // Promover a cache de memoria
         memoryCache.set(memKey, { data: cached, timestamp: Date.now() });
-        console.log(`[Cache] Redis hit: ${fundId} (${cached.length} meses)`);
+        console.log(`[Cache] Redis hit: ${fundId} (${cached.length} días)`);
         return cached;
       }
     }
@@ -92,7 +93,7 @@ export async function getCachedPrices(
 
 export async function setCachedPrices(
   fundId: string,
-  data: MonthlyPrice[]
+  data: DailyPrice[]
 ): Promise<void> {
   // Siempre guardar en memoria (con clave versionada)
   const memKey = `${CACHE_VERSION}:${fundId}`;
@@ -103,7 +104,7 @@ export async function setCachedPrices(
     const redis = await getRedis();
     if (redis) {
       await redis.set(makeKey(fundId), data, { ex: REDIS_TTL_SECONDS });
-      console.log(`[Cache] Redis write: ${fundId} (${data.length} meses)`);
+      console.log(`[Cache] Redis write: ${fundId} (${data.length} días)`);
     }
   } catch (error) {
     console.warn(`[Cache] Error escribiendo Redis para ${fundId}:`, error);

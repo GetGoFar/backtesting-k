@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { BacktestResponse, BacktestResult } from "@/lib/types";
+import type { BacktestResponse, BacktestResult, DisplayGranularity } from "@/lib/types";
 import { formatEUR, formatPct, formatPctNoSign, formatRatio } from "@/lib/formatters";
 import { Tooltip } from "./Tooltip";
 
@@ -110,7 +110,7 @@ const METRICS_CONFIG: MetricConfig[] = [
   },
   {
     key: "bestMonth",
-    label: "Mejor mes",
+    label: "Mejor periodo",
     getValue: (r) => r.metrics.bestMonth,
     format: (v) => formatPct(v, 1),
     higherIsBetter: true,
@@ -118,7 +118,7 @@ const METRICS_CONFIG: MetricConfig[] = [
   },
   {
     key: "worstMonth",
-    label: "Peor mes",
+    label: "Peor periodo",
     getValue: (r) => r.metrics.worstMonth,
     format: (v) => formatPct(v, 1),
     higherIsBetter: true,
@@ -126,7 +126,7 @@ const METRICS_CONFIG: MetricConfig[] = [
   },
   {
     key: "positiveMonthsRatio",
-    label: "% Meses positivos",
+    label: "% Periodos positivos",
     getValue: (r) => r.metrics.positiveMonthsRatio,
     format: (v) => formatPctNoSign(v),
     higherIsBetter: true,

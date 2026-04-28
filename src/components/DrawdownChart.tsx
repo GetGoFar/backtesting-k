@@ -153,14 +153,14 @@ export function DrawdownChart({ results, isLoading }: DrawdownChartProps) {
   ];
   const minDrawdown = Math.min(...allDrawdowns, 0);
 
-  // Determinar qué años mostrar en el eje X
+  // Determinar qué años mostrar en el eje X (primer punto de cada año)
   const yearTicks: string[] = [];
   const seenYears = new Set<string>();
   chartData.forEach((point) => {
     const year = getYear(point.date as string);
     if (!seenYears.has(year)) {
       seenYears.add(year);
-      yearTicks.push(`${year}-01`);
+      yearTicks.push(point.date as string);
     }
   });
 

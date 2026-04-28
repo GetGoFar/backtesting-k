@@ -5,10 +5,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runBacktest } from "@/lib/backtest-engine";
 import { getFundById } from "@/lib/fund-database";
-import type { BacktestConfig, Portfolio, PortfolioHolding, BacktestWarning } from "@/lib/types";
+import type { BacktestConfig, Portfolio, PortfolioHolding, BacktestWarning, DisplayGranularity } from "@/lib/types";
 
-// Timeout máximo para el backtest (30 segundos)
-const BACKTEST_TIMEOUT_MS = 30000;
+// Timeout máximo para el backtest (60 segundos — datos diarios requieren más tiempo)
+const BACKTEST_TIMEOUT_MS = 60000;
 
 // Tolerancia para la suma de pesos (permite 90-110%, se normaliza después)
 const WEIGHT_TOLERANCE = 10;
@@ -47,6 +47,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         },
         { status: 400 }
       );
+    }
+
+    // Validar y normalizar displayGranularity
+    const validGranularities: DisplayGranularity[] = ["daily", "monthly", "quarterly"];
+    if (config.displayGranularity && !validGranularities.includes(config.displayGranularity)) {
+      config.displayGranularity = "monthly";
+    }
+    if (!config.displayGranularity) {
+      config.displayGranularity = "monthly";
     }
 
     // Validar estructura básica
@@ -145,6 +154,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         initialAmount: config.initialAmount,
         rebalanceFrequency: config.rebalanceFrequency,
         monthlyContribution: config.monthlyContribution ?? 0,
+        displayGranularity: config.displayGranularity,
       },
       effectiveDateRange: effectiveStart && effectiveEnd ? {
         startDate: effectiveStart,
@@ -154,6 +164,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       correlation: result.correlation,
       correlationMatrix: result.correlationMatrix,
       assetMetrics: result.assetMetrics,
+      displayGranularity: config.displayGranularity,
     });
   } catch (error) {
     console.error("[API /backtest] Error:", error);

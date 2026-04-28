@@ -9,6 +9,7 @@ import { AccessGate } from "@/components/AccessGate";
 import type {
   BacktestResponse,
   RebalanceFrequency,
+  DisplayGranularity,
   PortfolioHolding,
   BacktestWarning,
 } from "@/lib/types";
@@ -137,6 +138,8 @@ export default function Home() {
   const [monthlyContribution, setMonthlyContribution] = useState(0);
   const [rebalanceFrequency, setRebalanceFrequency] =
     useState<RebalanceFrequency>("annual");
+  const [displayGranularity, setDisplayGranularity] =
+    useState<DisplayGranularity>("monthly");
   const [useCommonDateRange, setUseCommonDateRange] = useState(true);
 
   // Estado de resultados y UI
@@ -195,6 +198,7 @@ export default function Home() {
         initialAmount: initialInvestment,
         monthlyContribution,
         rebalanceFrequency,
+        displayGranularity,
         useCommonDateRange,
       };
 
@@ -437,6 +441,34 @@ export default function Home() {
                     }
                     className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-all ${
                       rebalanceFrequency === option.value
+                        ? "bg-brand-coral text-white shadow-md"
+                        : "bg-slate-100 text-brand-secondary hover:bg-slate-200"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Granularidad de datos */}
+            <div className="mt-4 sm:mt-6">
+              <label className="block text-sm font-medium text-brand-navy mb-2 sm:mb-3">
+                Granularidad de datos
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: "daily", label: "Diario" },
+                  { value: "monthly", label: "Mensual" },
+                  { value: "quarterly", label: "Trimestral" },
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() =>
+                      setDisplayGranularity(option.value as DisplayGranularity)
+                    }
+                    className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-all ${
+                      displayGranularity === option.value
                         ? "bg-brand-coral text-white shadow-md"
                         : "bg-slate-100 text-brand-secondary hover:bg-slate-200"
                     }`}

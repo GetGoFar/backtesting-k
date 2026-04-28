@@ -146,14 +146,14 @@ export function PerformanceChart({ results, isLoading }: PerformanceChartProps) 
   const maxValue = Math.max(...allValues);
   const padding = (maxValue - minValue) * 0.05;
 
-  // Determinar qué años mostrar en el eje X (solo enero de cada año)
+  // Determinar qué años mostrar en el eje X (primer punto de cada año)
   const yearTicks: string[] = [];
   const seenYears = new Set<string>();
   chartData.forEach((point) => {
     const year = getYear(point.date as string);
     if (!seenYears.has(year)) {
       seenYears.add(year);
-      yearTicks.push(`${year}-01`);
+      yearTicks.push(point.date as string); // usar la fecha real del primer punto del año
     }
   });
 

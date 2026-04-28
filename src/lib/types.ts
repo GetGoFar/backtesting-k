@@ -30,6 +30,9 @@ export type FundCategory =
 /** Frecuencia de rebalanceo de la cartera */
 export type RebalanceFrequency = "monthly" | "quarterly" | "annual" | "none";
 
+/** Granularidad de visualización de datos */
+export type DisplayGranularity = "daily" | "monthly" | "quarterly";
+
 // -----------------------------------------------------------------------------
 // Fondos
 // -----------------------------------------------------------------------------
@@ -108,6 +111,8 @@ export interface BacktestConfig {
   monthlyContribution?: number;
   /** Usar rango de fechas común donde ambas carteras tienen datos */
   useCommonDateRange?: boolean;
+  /** Granularidad de visualización: daily, monthly (default), quarterly */
+  displayGranularity?: DisplayGranularity;
 }
 
 // -----------------------------------------------------------------------------
@@ -305,6 +310,8 @@ export interface BacktestResponse {
   correlationMatrix?: CorrelationMatrix;
   /** Métricas individuales de cada activo */
   assetMetrics?: AssetMetrics[];
+  /** Granularidad de visualización utilizada */
+  displayGranularity?: DisplayGranularity;
 }
 
 // -----------------------------------------------------------------------------
@@ -327,6 +334,14 @@ export interface MonthlyPrice {
   closePrice: number;
   /** Fecha exacta del dato en formato YYYY-MM-DD */
   exactDate?: string;
+}
+
+/** Precio diario de cierre */
+export interface DailyPrice {
+  /** Fecha en formato YYYY-MM-DD */
+  date: string;
+  /** Precio de cierre ajustado del día */
+  closePrice: number;
 }
 
 // -----------------------------------------------------------------------------

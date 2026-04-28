@@ -5,7 +5,7 @@
 // Acepta fondos locales (por fundId) y fondos externos (por yahooTicker + isin).
 
 import { NextRequest, NextResponse } from "next/server";
-import { getMonthlyPrices } from "@/lib/data-fetcher";
+import { getDailyPrices } from "@/lib/data-fetcher";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
@@ -21,17 +21,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const { prices } = await getMonthlyPrices(fundId, yahooTicker, isin);
+    const { prices } = await getDailyPrices(fundId, yahooTicker, isin);
 
     if (prices.size === 0) {
       return NextResponse.json({ firstDate: null, lastDate: null, months: 0 });
     }
 
     const dates = Array.from(prices.keys()).sort();
+    // Calcular meses únicos
+    const uniqueMonths = new Set(dates.map((d) => d.substring(0, 7)));
     return NextResponse.json({
       firstDate: dates[0],
       lastDate: dates[dates.length - 1],
-      months: dates.length,
+      months: uniqueMonths.size,
     });
   } catch (error) {
     console.error("[API /data-range] Error:", error);

@@ -2,15 +2,15 @@
 // VALIDACION DE DATOS - Backtesting Tool El Proyecto K
 // =============================================================================
 
-import type { MonthlyPrice } from "./types";
+import type { DailyPrice } from "./types";
 
 export interface DataQualityReport {
   fundId: string;
-  totalMonths: number;
-  gaps: string[]; // YYYY-MM meses faltantes
-  negativeOrZeroPrices: string[]; // meses con precios invalidos
+  totalDays: number;
+  gaps: string[]; // Descripciones de gaps significativos
+  negativeOrZeroPrices: string[]; // fechas con precios invalidos
   suspiciousJumps: Array<{
-    month: string;
+    date: string;
     changePercent: number;
   }>;
   qualityScore: number; // 0-100
@@ -18,22 +18,22 @@ export interface DataQualityReport {
 }
 
 /**
- * Valida datos de precios mensuales y devuelve un informe de calidad
+ * Valida datos de precios diarios y devuelve un informe de calidad
  */
 export function validatePriceData(
   fundId: string,
-  prices: MonthlyPrice[]
+  prices: DailyPrice[]
 ): DataQualityReport {
-  const sorted = [...prices].sort((a, b) => a.month.localeCompare(b.month));
+  const sorted = [...prices].sort((a, b) => a.date.localeCompare(b.date));
 
   const gaps: string[] = [];
   const negativeOrZeroPrices: string[] = [];
-  const suspiciousJumps: Array<{ month: string; changePercent: number }> = [];
+  const suspiciousJumps: Array<{ date: string; changePercent: number }> = [];
 
   // Precios no positivos
   for (const p of sorted) {
     if (p.closePrice <= 0) {
-      negativeOrZeroPrices.push(p.month);
+      negativeOrZeroPrices.push(p.date);
     }
   }
 
@@ -42,40 +42,39 @@ export function validatePriceData(
     const prev = sorted[i - 1]!;
     const curr = sorted[i]!;
 
-    // Gaps (meses faltantes)
-    const expectedNext = getNextMonth(prev.month);
-    if (curr.month !== expectedNext) {
-      let gapMonth = expectedNext;
-      while (gapMonth < curr.month) {
-        gaps.push(gapMonth);
-        gapMonth = getNextMonth(gapMonth);
-      }
+    // Gaps: más de 10 días calendario sin datos (excluye fines de semana y festivos normales)
+    const prevDate = new Date(prev.date);
+    const currDate = new Date(curr.date);
+    const calendarDays = Math.round((currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (calendarDays > 10) {
+      gaps.push(`${prev.date} → ${curr.date} (${calendarDays} días)`);
     }
 
-    // Saltos sospechosos (>200% cambio mensual)
+    // Saltos sospechosos: >30% cambio diario (muy inusual para ETFs/fondos)
     if (prev.closePrice > 0 && curr.closePrice > 0) {
       const change = Math.abs(curr.closePrice / prev.closePrice - 1) * 100;
-      if (change > 200) {
-        suspiciousJumps.push({ month: curr.month, changePercent: Math.round(change) });
+      if (change > 30) {
+        suspiciousJumps.push({ date: curr.date, changePercent: Math.round(change) });
       }
     }
   }
 
   // Quality score (0-100)
   let score = 100;
-  score -= gaps.length * 5; // -5 por gap
+  score -= gaps.length * 3; // -3 por gap significativo
   score -= negativeOrZeroPrices.length * 20; // -20 por precio invalido
   score -= suspiciousJumps.length * 15; // -15 por salto sospechoso
   score = Math.max(0, Math.min(100, score));
 
   const isUsable =
-    sorted.length >= 3 &&
+    sorted.length >= 10 &&
     negativeOrZeroPrices.length === 0 &&
     score >= 30;
 
   return {
     fundId,
-    totalMonths: sorted.length,
+    totalDays: sorted.length,
     gaps,
     negativeOrZeroPrices,
     suspiciousJumps,
@@ -85,19 +84,8 @@ export function validatePriceData(
 }
 
 /**
- * Filtra precios invalidos (<=0) de un array de precios
+ * Filtra precios invalidos (<=0) de un array de precios diarios
  */
-export function cleanPriceData(prices: MonthlyPrice[]): MonthlyPrice[] {
+export function cleanPriceData(prices: DailyPrice[]): DailyPrice[] {
   return prices.filter((p) => p.closePrice > 0);
-}
-
-function getNextMonth(yyyyMM: string): string {
-  const parts = yyyyMM.split("-");
-  let year = parseInt(parts[0]!, 10);
-  let month = parseInt(parts[1]!, 10) + 1;
-  if (month > 12) {
-    month = 1;
-    year++;
-  }
-  return `${year}-${month.toString().padStart(2, "0")}`;
 }
