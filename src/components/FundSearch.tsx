@@ -207,12 +207,12 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
             </>
           )}
 
-          {/* Resultados de Yahoo Finance */}
+          {/* Resultados externos (EODHD / Yahoo Finance fallback) */}
           {yahooResults.length > 0 && (
             <>
               <div className="px-3 py-2 bg-indigo-50 border-b border-indigo-200">
                 <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wide">
-                  Yahoo Finance
+                  Resultados externos
                 </span>
               </div>
               <ul>

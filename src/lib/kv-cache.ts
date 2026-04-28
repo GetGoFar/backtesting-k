@@ -13,6 +13,7 @@
 import type { MonthlyPrice } from "./types";
 
 // --- In-memory cache (tier 1) ---
+// Clave incluye versión para invalidar datos viejos (ej: Yahoo → EODHD)
 const memoryCache = new Map<
   string,
   { data: MonthlyPrice[]; timestamp: number }
@@ -50,8 +51,12 @@ async function getRedis(): Promise<import("@upstash/redis").Redis | null> {
   }
 }
 
+// Versión de cache: cambiar al migrar de fuente de datos para invalidar entradas viejas
+// v2 = migración de Yahoo Finance a EODHD (abril 2026)
+const CACHE_VERSION = "v2";
+
 function makeKey(fundId: string): string {
-  return `prices:${fundId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+  return `${CACHE_VERSION}:prices:${fundId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 }
 
 // --- Public API ---
@@ -59,8 +64,9 @@ function makeKey(fundId: string): string {
 export async function getCachedPrices(
   fundId: string
 ): Promise<MonthlyPrice[] | null> {
-  // Tier 1: memoria
-  const mem = memoryCache.get(fundId);
+  // Tier 1: memoria (clave incluye versión para invalidar datos viejos)
+  const memKey = `${CACHE_VERSION}:${fundId}`;
+  const mem = memoryCache.get(memKey);
   if (mem && Date.now() - mem.timestamp < MEMORY_TTL_MS) {
     return mem.data;
   }
@@ -72,7 +78,7 @@ export async function getCachedPrices(
       const cached = await redis.get<MonthlyPrice[]>(makeKey(fundId));
       if (cached && Array.isArray(cached) && cached.length > 0) {
         // Promover a cache de memoria
-        memoryCache.set(fundId, { data: cached, timestamp: Date.now() });
+        memoryCache.set(memKey, { data: cached, timestamp: Date.now() });
         console.log(`[Cache] Redis hit: ${fundId} (${cached.length} meses)`);
         return cached;
       }
@@ -88,8 +94,9 @@ export async function setCachedPrices(
   fundId: string,
   data: MonthlyPrice[]
 ): Promise<void> {
-  // Siempre guardar en memoria
-  memoryCache.set(fundId, { data, timestamp: Date.now() });
+  // Siempre guardar en memoria (con clave versionada)
+  const memKey = `${CACHE_VERSION}:${fundId}`;
+  memoryCache.set(memKey, { data, timestamp: Date.now() });
 
   // Intentar Redis
   try {
@@ -101,4 +108,14 @@ export async function setCachedPrices(
   } catch (error) {
     console.warn(`[Cache] Error escribiendo Redis para ${fundId}:`, error);
   }
+}
+
+/**
+ * Limpia toda la caché en memoria (fuerza re-descarga de datos)
+ */
+export function clearMemoryCache(): number {
+  const count = memoryCache.size;
+  memoryCache.clear();
+  console.log(`[Cache] Memoria limpiada: ${count} entradas eliminadas`);
+  return count;
 }
