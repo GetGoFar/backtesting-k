@@ -2,7 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Colores personalizados para El Proyecto K */
+/* ============================================================================
+   EL PROYECTO K — Design System
+   ============================================================================ */
+
 :root {
   /* Marca */
   --color-coral: #E24E42;
@@ -23,7 +26,99 @@
   --color-negative: #dc2626;
 }
 
-/* Animación de carga */
+/* ============================================================================
+   BASE TYPOGRAPHY — tamaños más grandes y legibles
+   ============================================================================ */
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply text-brand-navy bg-brand-bg;
+  }
+}
+
+/* ============================================================================
+   COMPONENTS
+   ============================================================================ */
+
+/* Gradiente K — púrpura a cian (del sitio web) */
+.gradient-k {
+  background: linear-gradient(135deg, hsla(259, 84%, 78%, 1) 0%, hsla(206, 67%, 75%, 1) 100%);
+}
+
+/* Gradiente texto K */
+.gradient-k-text {
+  background: linear-gradient(135deg, hsla(259, 84%, 78%, 1) 0%, hsla(206, 67%, 75%, 1) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Botón CTA estilo El Proyecto K */
+.btn-coral {
+  @apply bg-brand-coral text-white font-semibold rounded-pill transition-all duration-200;
+}
+.btn-coral:hover {
+  @apply bg-brand-coral-dark shadow-lg shadow-brand-coral/25;
+  transform: translateY(-1px);
+}
+.btn-coral:active {
+  transform: translateY(0) scale(0.98);
+}
+.btn-coral:disabled {
+  @apply bg-slate-200 text-slate-400 cursor-not-allowed shadow-none;
+  transform: none;
+}
+
+/* Cards con hover sutil */
+.card {
+  @apply bg-white rounded-2xl border border-slate-100 shadow-sm transition-shadow;
+}
+.card:hover {
+  @apply shadow-md;
+}
+
+/* Stat number — los números grandes que se quedan en la retina */
+.stat-number {
+  @apply text-4xl sm:text-5xl font-bold tracking-tight text-brand-navy;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-number-sm {
+  @apply text-2xl sm:text-3xl font-bold tracking-tight text-brand-navy;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================================
+   SCROLLBAR — minimalista
+   ============================================================================ */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ============================================================================
+   ANIMATIONS
+   ============================================================================ */
+
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
@@ -33,58 +128,23 @@
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* Tooltip personalizado */
-.tooltip {
-  @apply invisible opacity-0 absolute z-50 bg-gray-900 text-white text-xs rounded-lg py-2 px-3 max-w-xs transition-all duration-200;
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.tooltip-trigger:hover .tooltip {
-  @apply visible opacity-100;
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out forwards;
 }
 
-/* Gradiente K — púrpura a cian (del sitio web) */
-.gradient-k {
-  background: linear-gradient(90deg, hsla(259, 84%, 78%, 1) 0%, hsla(206, 67%, 75%, 1) 100%);
-}
-
-/* Gradiente texto K */
-.gradient-k-text {
-  background: linear-gradient(90deg, hsla(259, 84%, 78%, 1) 0%, hsla(206, 67%, 75%, 1) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* Scrollbar personalizado */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-/* Botón CTA estilo El Proyecto K */
-.btn-coral {
-  @apply bg-brand-coral text-white font-medium rounded-pill transition-all;
-}
-.btn-coral:hover {
-  @apply bg-brand-coral-dark shadow-lg;
-}
-.btn-coral:active {
-  transform: scale(0.98);
-}
-.btn-coral:disabled {
-  @apply bg-slate-200 text-slate-400 cursor-not-allowed shadow-none;
-}
+/* Staggered animation for stat cards */
+.stagger-1 { animation-delay: 0ms; }
+.stagger-2 { animation-delay: 75ms; }
+.stagger-3 { animation-delay: 150ms; }
+.stagger-4 { animation-delay: 225ms; }

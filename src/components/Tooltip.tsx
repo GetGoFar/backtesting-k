@@ -1,35 +1,78 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 
-// Componente de tooltip informativo
+// ============================================================================
+// TOOLTIP — Redesign con portal para evitar clipping
+// ============================================================================
 
 interface TooltipProps {
   content: string;
   children: React.ReactNode;
+  wide?: boolean;
 }
 
-export function Tooltip({ content, children }: TooltipProps) {
+export function Tooltip({ content, children, wide }: TooltipProps) {
   const [isVisible, setIsVisible] = useState(false);
+  const [coords, setCoords] = useState({ x: 0, y: 0 });
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const show = useCallback(() => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setCoords({
+        x: rect.left + rect.width / 2,
+        y: rect.top,
+      });
+    }
+    setIsVisible(true);
+  }, []);
+
+  const hide = useCallback(() => {
+    setIsVisible(false);
+  }, []);
+
+  const maxWidth = wide ? "max-w-md" : "max-w-sm";
 
   return (
-    <div className="relative inline-flex items-center">
+    <>
       <div
-        onMouseEnter={() => setIsVisible(true)}
-        onMouseLeave={() => setIsVisible(false)}
-        className="cursor-help"
+        ref={triggerRef}
+        onMouseEnter={show}
+        onMouseLeave={hide}
+        onFocus={show}
+        onBlur={hide}
+        className="relative inline-flex items-center cursor-help"
       >
         {children}
       </div>
-      {isVisible && (
-        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg max-w-xs whitespace-normal shadow-lg">
-          {content}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1">
-            <div className="border-4 border-transparent border-t-gray-900" />
-          </div>
-        </div>
-      )}
-    </div>
+      {mounted &&
+        isVisible &&
+        createPortal(
+          <div
+            className={`fixed z-[9999] ${maxWidth} w-max pointer-events-none`}
+            style={{
+              left: `${coords.x}px`,
+              top: `${coords.y}px`,
+              transform: "translate(-50%, -100%) translateY(-10px)",
+            }}
+          >
+            <div className="bg-brand-navy text-white text-sm leading-relaxed rounded-xl px-4 py-3 shadow-2xl border border-white/10">
+              {content}
+            </div>
+            <div className="flex justify-center -mt-1">
+              <div className="w-3 h-3 bg-brand-navy rotate-45 rounded-sm" />
+            </div>
+          </div>,
+          document.body
+        )}
+    </>
   );
 }
 
@@ -40,7 +83,7 @@ export function InfoIcon({ className = "" }: { className?: string }) {
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 20 20"
       fill="currentColor"
-      className={`w-4 h-4 text-gray-400 hover:text-gray-600 ${className}`}
+      className={`w-4 h-4 text-slate-400 hover:text-brand-coral transition-colors ${className}`}
     >
       <path
         fillRule="evenodd"

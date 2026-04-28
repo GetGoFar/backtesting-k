@@ -242,16 +242,15 @@ export default function Home() {
     <AccessGate>
     <div className="min-h-screen flex flex-col">
       {/* Header — estilo elproyectok.com */}
-      <header className="sticky top-0 z-50 bg-white border-b border-brand-border shadow-sm">
+      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-brand-border">
         <div className="container mx-auto px-4 sm:px-6 py-3 max-w-[1320px]">
           <div className="flex items-center justify-between">
             <a href="https://elproyectok.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 group">
-              {/* Logo K con gradiente púrpura-cian del sitio web */}
-              <div className="w-10 h-10 rounded-lg gradient-k flex items-center justify-center shadow-md">
+              <div className="w-10 h-10 rounded-xl gradient-k flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow">
                 <span className="text-2xl font-bold text-white">K</span>
               </div>
               <div>
-                <h1 className="text-lg font-semibold text-brand-navy group-hover:text-brand-coral transition-colors">
+                <h1 className="text-lg font-bold text-brand-navy group-hover:text-brand-coral transition-colors">
                   Backtesting Tool
                 </h1>
                 <p className="text-xs text-brand-tertiary hidden sm:block">El Proyecto K</p>
@@ -261,7 +260,7 @@ export default function Home() {
               href="https://elproyectok.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-brand-secondary hover:text-brand-coral transition-colors hidden sm:flex items-center gap-1.5"
+              className="text-sm font-medium text-brand-secondary hover:text-brand-coral transition-colors hidden sm:flex items-center gap-1.5"
             >
               <span>elproyectok.com</span>
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -273,13 +272,13 @@ export default function Home() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 container mx-auto px-4 sm:px-6 py-6 sm:py-10 max-w-[1320px]">
-        {/* Intro */}
-        <div className="mb-8 sm:mb-10 text-center max-w-2xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl md:text-[42px] md:leading-tight font-bold text-brand-navy mb-3 sm:mb-4">
+      <main className="flex-1 container mx-auto px-4 sm:px-6 py-8 sm:py-12 max-w-[1320px]">
+        {/* Intro — hero style */}
+        <div className="mb-10 sm:mb-14 text-center max-w-3xl mx-auto">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-brand-navy mb-4 sm:mb-5 tracking-tight">
             Compara carteras de inversión
           </h2>
-          <p className="text-sm sm:text-base text-brand-secondary">
+          <p className="text-base sm:text-lg text-brand-secondary leading-relaxed max-w-2xl mx-auto">
             Analiza el rendimiento histórico de carteras indexadas frente a
             fondos de gestión activa bancaria. Descubre el impacto real de las
             comisiones en tu patrimonio.

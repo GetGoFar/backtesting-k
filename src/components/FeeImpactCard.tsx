@@ -11,9 +11,9 @@ interface FeeImpactCardProps {
 export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
   if (isLoading) {
     return (
-      <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border border-amber-200 shadow-sm p-6">
+      <div className="rounded-2xl border border-slate-100 shadow-sm p-8 bg-white">
         <div className="h-32 flex items-center justify-center">
-          <div className="w-8 h-8 border-2 border-amber-300 border-t-amber-600 rounded-full animate-spin" />
+          <div className="w-10 h-10 border-3 border-brand-coral/30 border-t-brand-coral rounded-full animate-spin" />
         </div>
       </div>
     );
@@ -21,197 +21,162 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
 
   const { resultA, resultB, config } = results;
 
-  // Verificar que tenemos al menos un resultado válido
   if (!resultA && !resultB) {
-    return (
-      <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border border-amber-200 shadow-sm p-6">
-        <p className="text-amber-800 text-center">No hay datos suficientes para mostrar el impacto de comisiones.</p>
-      </div>
-    );
+    return null;
   }
 
   const initialAmount = config.initialAmount;
   const isSinglePortfolio = !resultA || !resultB;
   const singleResult = resultA || resultB;
 
-  // Modo single portfolio
+  // =========================================================================
+  // MODO SINGLE PORTFOLIO
+  // =========================================================================
   if (isSinglePortfolio && singleResult) {
     const fees = singleResult.fees.totalFees;
-    const feesPercentOfInitial = (fees / initialAmount) * 100;
+    const profit = singleResult.finalValue - singleResult.totalContributions;
 
     return (
-      <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border border-amber-200 shadow-sm overflow-hidden">
-        <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4">
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-            <span className="text-2xl">💰</span>
-            Comisiones estimadas — {singleResult.portfolioName}
-          </h3>
-        </div>
-        <div className="p-6">
-          <div className="grid gap-4 sm:grid-cols-3 mb-6">
-            <div className="bg-white/70 rounded-lg p-4 border border-amber-100">
-              <p className="text-xs font-medium text-slate-600 mb-1">
-                Comisiones totales
+      <div className="rounded-2xl border border-slate-100 shadow-sm overflow-hidden bg-white">
+        <div className="p-6 sm:p-8">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 rounded-xl bg-brand-navy flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-brand-navy">{singleResult.portfolioName}</h3>
+              <p className="text-sm text-brand-tertiary">Resumen financiero</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="rounded-xl bg-slate-50 p-5">
+              <p className="text-xs font-medium text-brand-tertiary uppercase tracking-wider mb-2">Beneficio neto</p>
+              <p className={`text-3xl sm:text-4xl font-bold tracking-tight ${profit >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                {formatEUR(profit)}
               </p>
-              <p className="text-2xl font-bold text-slate-900">
+            </div>
+            <div className="rounded-xl bg-slate-50 p-5">
+              <p className="text-xs font-medium text-brand-tertiary uppercase tracking-wider mb-2">Comisiones pagadas</p>
+              <p className="text-3xl sm:text-4xl font-bold tracking-tight text-brand-navy">
                 {formatEUR(fees)}
               </p>
             </div>
-            <div className="bg-white/70 rounded-lg p-4 border border-amber-100">
-              <p className="text-xs font-medium text-slate-600 mb-1">
-                TER medio ponderado
-              </p>
-              <p className="text-2xl font-bold text-slate-900">
+            <div className="rounded-xl bg-slate-50 p-5">
+              <p className="text-xs font-medium text-brand-tertiary uppercase tracking-wider mb-2">TER ponderado</p>
+              <p className="text-3xl sm:text-4xl font-bold tracking-tight text-brand-navy">
                 {singleResult.fees.weightedTer.toFixed(2)}%
               </p>
             </div>
-            <div className="bg-white/70 rounded-lg p-4 border border-amber-100">
-              <p className="text-xs font-medium text-slate-600 mb-1">
-                % sobre inversión inicial
-              </p>
-              <p className="text-2xl font-bold text-amber-600">
-                {feesPercentOfInitial.toFixed(1)}%
-              </p>
-            </div>
-          </div>
-          <div className="bg-amber-100/50 rounded-lg p-4 border border-amber-200">
-            <p className="text-amber-900 font-medium">
-              Has pagado un total de{" "}
-              <span className="font-bold">{formatEUR(fees)}</span> en comisiones
-              durante el periodo analizado.
-            </p>
-            <p className="text-amber-800 text-sm mt-2">
-              Añade una segunda cartera para comparar el impacto de las comisiones entre ambas.
-            </p>
           </div>
         </div>
       </div>
     );
   }
 
-  // Modo comparación (dos carteras)
+  // =========================================================================
+  // MODO COMPARACIÓN
+  // =========================================================================
   const feesA = resultA!.fees.totalFees;
   const feesB = resultB!.fees.totalFees;
   const feeDifference = Math.abs(feesA - feesB);
   const cheaperName = feesA < feesB ? resultA!.portfolioName : resultB!.portfolioName;
   const expensiveName = feesA < feesB ? resultB!.portfolioName : resultA!.portfolioName;
 
+  const valueDifference = Math.abs(resultA!.finalValue - resultB!.finalValue);
+  const betterPortfolio = resultA!.finalValue > resultB!.finalValue ? resultA! : resultB!;
+
   const maxFees = Math.max(feesA, feesB);
   const feesPercentOfInitial = (maxFees / initialAmount) * 100;
-  const showExtraWarning = feesPercentOfInitial > 20;
-
-  const valueDifference = Math.abs(resultA!.finalValue - resultB!.finalValue);
-  const betterPortfolioValue = resultA!.finalValue > resultB!.finalValue ? resultA! : resultB!;
 
   return (
-    <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border border-amber-200 shadow-sm overflow-hidden">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4">
-        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-          <span className="text-2xl">💰</span>
-          Impacto de las comisiones
-        </h3>
-      </div>
+    <div className="rounded-2xl border border-slate-100 shadow-sm overflow-hidden bg-white">
+      <div className="p-6 sm:p-8">
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-10 h-10 rounded-xl bg-brand-coral flex items-center justify-center">
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-brand-navy">Impacto de las comisiones</h3>
+            <p className="text-sm text-brand-tertiary">Dinero que sale de tu bolsillo</p>
+          </div>
+        </div>
 
-      <div className="p-6">
-        {/* Grid de comisiones */}
-        <div className="grid gap-4 sm:grid-cols-3 mb-6">
-          {/* Cartera A */}
-          <div className="bg-white/70 rounded-lg p-4 border border-amber-100">
-            <p className="text-xs font-medium text-blue-600 mb-1">
+        {/* Stats comparativos grandes */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+          <div className="rounded-xl bg-blue-50/50 border border-blue-100/50 p-5">
+            <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-2">
               {resultA!.portfolioName}
             </p>
-            <p className="text-2xl font-bold text-slate-900">
+            <p className="text-3xl sm:text-4xl font-bold tracking-tight text-brand-navy">
               {formatEUR(feesA)}
             </p>
-            <p className="text-xs text-slate-500 mt-1">
-              TER medio: {resultA!.fees.weightedTer.toFixed(2)}%
+            <p className="text-sm text-brand-tertiary mt-1">
+              TER: {resultA!.fees.weightedTer.toFixed(2)}%
             </p>
           </div>
 
-          {/* Cartera B */}
-          <div className="bg-white/70 rounded-lg p-4 border border-amber-100">
-            <p className="text-xs font-medium text-rose-600 mb-1">
+          <div className="rounded-xl bg-rose-50/50 border border-rose-100/50 p-5">
+            <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider mb-2">
               {resultB!.portfolioName}
             </p>
-            <p className="text-2xl font-bold text-slate-900">
+            <p className="text-3xl sm:text-4xl font-bold tracking-tight text-brand-navy">
               {formatEUR(feesB)}
             </p>
-            <p className="text-xs text-slate-500 mt-1">
-              TER medio: {resultB!.fees.weightedTer.toFixed(2)}%
+            <p className="text-sm text-brand-tertiary mt-1">
+              TER: {resultB!.fees.weightedTer.toFixed(2)}%
             </p>
           </div>
 
-          {/* Diferencia */}
-          <div className="bg-white/70 rounded-lg p-4 border border-amber-100">
-            <p className="text-xs font-medium text-slate-600 mb-1">
-              Diferencia
+          <div className="rounded-xl bg-brand-navy p-5 text-white">
+            <p className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-2">
+              Te ahorras
             </p>
-            <p className="text-2xl font-bold text-amber-600">
+            <p className="text-3xl sm:text-4xl font-bold tracking-tight">
               {formatEUR(feeDifference)}
             </p>
-            <p className="text-xs text-slate-500 mt-1">
-              Ahorro con {cheaperName}
+            <p className="text-sm text-white/70 mt-1">
+              con {cheaperName}
             </p>
           </div>
         </div>
 
-        {/* Mensaje principal */}
-        <div className="bg-amber-100/50 rounded-lg p-4 border border-amber-200">
-          <p className="text-amber-900 font-medium">
-            La diferencia en comisiones de{" "}
-            <span className="font-bold">{formatEUR(feeDifference)}</span> es
-            dinero que sale de <span className="uppercase font-bold">TU</span>{" "}
-            bolsillo y va al banco.
+        {/* Mensaje de impacto */}
+        <div className="rounded-xl bg-slate-50 border border-slate-100 p-5">
+          <p className="text-brand-navy font-medium leading-relaxed">
+            Invirtiendo con <strong>{cheaperName}</strong> en vez de{" "}
+            <strong>{expensiveName}</strong>, te ahorras{" "}
+            <strong className="text-brand-coral">{formatEUR(feeDifference)}</strong> en comisiones.
+            El resultado: <strong className="text-emerald-600">{formatEUR(valueDifference)}</strong> más
+            en tu bolsillo gracias al interés compuesto.
           </p>
-
-          {feeDifference > 0 && (
-            <p className="text-amber-800 text-sm mt-2">
-              Con <strong>{cheaperName}</strong> pagas{" "}
-              <strong>{formatEUR(feeDifference)}</strong> menos en comisiones
-              que con <strong>{expensiveName}</strong> durante el periodo analizado.
-            </p>
-          )}
         </div>
 
-        {/* Aviso extra si las comisiones superan el 20% */}
-        {showExtraWarning && (
-          <div className="mt-4 bg-red-50 rounded-lg p-4 border border-red-200">
+        {/* Warning si las comisiones son excesivas */}
+        {feesPercentOfInitial > 20 && (
+          <div className="mt-4 rounded-xl bg-red-50 border border-red-100 p-5">
             <div className="flex items-start gap-3">
-              <span className="text-xl">⚠️</span>
+              <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
               <div>
-                <p className="text-red-800 font-medium">
-                  Las comisiones se han comido un{" "}
-                  <span className="font-bold">
-                    {feesPercentOfInitial.toFixed(1)}%
-                  </span>{" "}
-                  de tu inversión inicial.
+                <p className="text-red-800 font-semibold">
+                  Las comisiones se han comido un {feesPercentOfInitial.toFixed(0)}% de tu inversión
                 </p>
                 <p className="text-red-700 text-sm mt-1">
-                  De los {formatEUR(initialAmount)} que invertiste inicialmente,{" "}
-                  {formatEUR(maxFees)} se han ido en comisiones. Esto reduce
-                  significativamente el poder del interés compuesto.
+                  De los {formatEUR(initialAmount)} que invertiste, {formatEUR(maxFees)} se evaporaron en comisiones.
                 </p>
               </div>
             </div>
           </div>
         )}
-
-        {/* Comparativa de valor final */}
-        <div className="mt-4 pt-4 border-t border-amber-200">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-600">
-              Diferencia en valor final:
-            </span>
-            <span className="font-bold text-emerald-600">
-              {formatEUR(valueDifference)} a favor de {betterPortfolioValue.portfolioName}
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 mt-2">
-            Esta diferencia incluye el efecto de las comisiones más bajas componiéndose
-            a lo largo del tiempo (interés compuesto).
-          </p>
-        </div>
       </div>
     </div>
   );

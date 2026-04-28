@@ -26,14 +26,27 @@ const config: Config = {
           // Links
           link: "#444CE7",
           // Fondos
-          bg: "#F9FAFB",
+          bg: "#FAFBFC",
           "bg-warm": "#f4f3ef",
           // Bordes sutiles
-          border: "hsla(0, 0%, 7%, 0.11)",
+          border: "hsla(0, 0%, 7%, 0.08)",
         },
       },
       borderRadius: {
-        "pill": "35px",
+        pill: "35px",
+        "2xl": "16px",
+        "3xl": "24px",
+      },
+      boxShadow: {
+        sm: "0 1px 2px 0 rgba(0, 0, 0, 0.03)",
+        md: "0 4px 6px -1px rgba(0, 0, 0, 0.04), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+        lg: "0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03)",
+        xl: "0 20px 25px -5px rgba(0, 0, 0, 0.06), 0 10px 10px -5px rgba(0, 0, 0, 0.02)",
+      },
+      fontSize: {
+        "stat-xl": ["3.5rem", { lineHeight: "1", fontWeight: "700" }],
+        "stat-lg": ["2.5rem", { lineHeight: "1.1", fontWeight: "700" }],
+        "stat-md": ["2rem", { lineHeight: "1.2", fontWeight: "700" }],
       },
     },
   },
