@@ -71,11 +71,12 @@ export interface MonthlyPricesResult {
  * Obtiene los precios mensuales de un fondo por su ID
  * Estrategia: Cache → EODHD → Yahoo Finance → CSV
  */
-export async function getMonthlyPrices(fundId: string, yahooTicker?: string): Promise<MonthlyPricesResult> {
+export async function getMonthlyPrices(fundId: string, yahooTicker?: string, isin?: string): Promise<MonthlyPricesResult> {
   console.log(`[DataFetcher] Obteniendo precios para: ${fundId}`);
 
   const fund = getFundById(fundId);
   const ticker = fund?.yahooTicker || yahooTicker;
+  const effectiveIsin = fund?.isin || isin;
 
   if (!fund && !yahooTicker) {
     throw new Error(`Fondo no encontrado: ${fundId}`);
@@ -97,17 +98,26 @@ export async function getMonthlyPrices(fundId: string, yahooTicker?: string): Pr
     console.log(`[DataFetcher] Intentando EODHD: ${eodhTicker} (desde Yahoo: ${ticker})`);
     prices = await fetchFromEODHD(eodhTicker);
 
-    // Si EODHD falló, intentar con el ISIN en EUFUND
-    if (prices.length === 0 && fund?.isin) {
-      console.log(`[DataFetcher] EODHD ticker falló, intentando ISIN: ${fund.isin}.EUFUND`);
-      prices = await fetchFromEODHD(`${fund.isin}.EUFUND`);
+    // Si EODHD falló con el ticker, intentar con el ISIN en EUFUND
+    if (prices.length === 0 && effectiveIsin) {
+      console.log(`[DataFetcher] EODHD ticker falló, intentando ISIN: ${effectiveIsin}.EUFUND`);
+      prices = await fetchFromEODHD(`${effectiveIsin}.EUFUND`);
     }
   }
 
-  // 2b. Fallback a Yahoo Finance
+  // 2a-bis. Si no hay ticker pero sí ISIN, intentar EODHD con ISIN directamente
+  if (prices.length === 0 && EODHD_API_TOKEN && EODHD_API_TOKEN !== "demo" && !ticker && effectiveIsin) {
+    console.log(`[DataFetcher] Intentando EODHD con ISIN directo: ${effectiveIsin}.EUFUND`);
+    prices = await fetchFromEODHD(`${effectiveIsin}.EUFUND`);
+  }
+
+  // 2b. Fallback a Yahoo Finance (último recurso para APIs online)
   if (prices.length === 0 && ticker) {
-    console.log(`[DataFetcher] Fallback a Yahoo Finance: ${ticker}`);
+    console.log(`[DataFetcher] ⚠️ EODHD no tuvo datos, fallback a Yahoo Finance: ${ticker}`);
     prices = await fetchFromYahooFinance(ticker);
+    if (prices.length > 0) {
+      console.log(`[DataFetcher] ⚠️ Datos obtenidos de Yahoo Finance (fallback) para ${ticker}`);
+    }
   }
 
   // 2c. Fallback a CSV (fondos bancarios españoles)

@@ -209,8 +209,8 @@ async function runPortfolioBacktest(
     }
 
     try {
-      // Pasar el yahooTicker para fondos dinámicos que no están en la BD local
-      const { prices, exactDates } = await getMonthlyPrices(holding.fundId, fund.yahooTicker);
+      // Pasar el yahooTicker e ISIN para fondos dinámicos que no están en la BD local
+      const { prices, exactDates } = await getMonthlyPrices(holding.fundId, fund.yahooTicker, fund.isin);
       fundPrices.set(holding.fundId, prices);
       fundTers.set(holding.fundId, fund.ter);
       fundTypes.set(holding.fundId, fund.type);
@@ -764,7 +764,7 @@ async function findCommonDateRangeForPortfolios(
     if (!fund) continue;
 
     try {
-      const { prices } = await getMonthlyPrices(holding.fundId, fund.yahooTicker);
+      const { prices } = await getMonthlyPrices(holding.fundId, fund.yahooTicker, fund.isin);
       if (prices.size > 0) {
         allDateSets.push(new Set(prices.keys()));
         console.log(`[BacktestEngine] ${fund.shortName}: ${prices.size} meses disponibles`);
@@ -993,7 +993,7 @@ async function calculateIndividualAssetMetrics(
     if (!fund) continue;
 
     try {
-      const { prices } = await getMonthlyPrices(holding.fundId, fund.yahooTicker);
+      const { prices } = await getMonthlyPrices(holding.fundId, fund.yahooTicker, fund.isin);
       if (prices.size < 3) continue;
 
       // Filtrar precios al rango de fechas
@@ -1101,7 +1101,7 @@ async function calculateAssetCorrelationMatrix(
     if (!fund) continue;
 
     try {
-      const { prices } = await getMonthlyPrices(holding.fundId, fund.yahooTicker);
+      const { prices } = await getMonthlyPrices(holding.fundId, fund.yahooTicker, fund.isin);
       if (prices.size < 3) continue;
 
       // Calcular retornos mensuales
