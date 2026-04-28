@@ -296,7 +296,7 @@ const INDEXED_FUNDS: Fund[] = [
     name: "Invesco Physical Gold ETC",
     shortName: "Invesco Gold EUR",
     isin: "IE00B579F325",
-    yahooTicker: "SGLD.MI",
+    yahooTicker: "SGLD.AS", // Amsterdam (EUR) — SGLD.MI no existe en EODHD
     ter: 0.12,
     category: "Oro",
     type: "index",
