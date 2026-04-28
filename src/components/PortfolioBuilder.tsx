@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { FundSearch } from "./FundSearch";
+import { FundDataRange } from "./FundDataRange";
 import type { Fund, PortfolioPreset, PortfolioHolding } from "@/lib/types";
 import { getAllPresets } from "@/lib/portfolio-presets";
 import { getFundById } from "@/lib/fund-database";
@@ -378,6 +379,7 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                       ? allocation.fund.isin
                       : allocation.fund.yahooTicker || allocation.fund.isin}
                   </p>
+                  <FundDataRange fund={allocation.fund} />
                   {/* TER editable */}
                   <div className="flex items-center gap-1 mt-0.5">
                     <span className="text-xs text-slate-500">TER:</span>

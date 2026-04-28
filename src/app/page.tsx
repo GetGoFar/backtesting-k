@@ -350,7 +350,7 @@ export default function Home() {
                   type="month"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  min="2010-01"
+                  min="2000-01"
                   max={previousMonth}
                   className="w-full px-3 py-2 text-sm sm:text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral transition-colors"
                 />
@@ -365,7 +365,7 @@ export default function Home() {
                   type="month"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  min="2010-02"
+                  min="2000-02"
                   max={currentMonth}
                   className="w-full px-3 py-2 text-sm sm:text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral transition-colors"
                 />

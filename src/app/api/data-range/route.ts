@@ -1,0 +1,41 @@
+// =============================================================================
+// API ROUTE: /api/data-range - Rango de fechas disponible para un fondo
+// =============================================================================
+// Devuelve la primera y última fecha de datos disponibles.
+// Acepta fondos locales (por fundId) y fondos externos (por yahooTicker + isin).
+
+import { NextRequest, NextResponse } from "next/server";
+import { getMonthlyPrices } from "@/lib/data-fetcher";
+
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  try {
+    const { searchParams } = new URL(request.url);
+    const fundId = searchParams.get("fundId") || "dynamic-fund";
+    const yahooTicker = searchParams.get("yahooTicker") || undefined;
+    const isin = searchParams.get("isin") || undefined;
+
+    if (!yahooTicker && fundId === "dynamic-fund") {
+      return NextResponse.json(
+        { error: "Se requiere yahooTicker o un fundId válido" },
+        { status: 400 }
+      );
+    }
+
+    const { prices } = await getMonthlyPrices(fundId, yahooTicker, isin);
+
+    if (prices.size === 0) {
+      return NextResponse.json({ firstDate: null, lastDate: null, months: 0 });
+    }
+
+    const dates = Array.from(prices.keys()).sort();
+    return NextResponse.json({
+      firstDate: dates[0],
+      lastDate: dates[dates.length - 1],
+      months: dates.length,
+    });
+  } catch (error) {
+    console.error("[API /data-range] Error:", error);
+    const msg = error instanceof Error ? error.message : "Error desconocido";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
