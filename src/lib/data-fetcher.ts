@@ -252,12 +252,23 @@ async function fetchDailyFromEODHD(ticker: string): Promise<DailyPrice[]> {
 
     const prices: DailyPrice[] = [];
     for (const point of data) {
-      if (!point.date || point.adjusted_close == null) continue;
-      if (point.adjusted_close <= 0) continue;
+      if (!point.date || point.close == null) continue;
+      if (point.close <= 0) continue;
+
+      // Usar close en vez de adjusted_close:
+      // - Nuestros ETFs son acumulativos (no distribuyen dividendos)
+      // - adjusted_close a veces aplica ajustes de splits incorrectos (ej: SGLD.AS)
+      // - Si close y adjusted_close difieren mucho, el adjusted_close puede ser erróneo
+      const price = point.close;
+
+      // Log warning si hay diferencia significativa (posible split incorrecto)
+      if (point.adjusted_close != null && Math.abs(point.close - point.adjusted_close) / point.close > 0.01) {
+        console.warn(`[EODHD] ${ticker} ${point.date}: close=${point.close} vs adjusted_close=${point.adjusted_close} (diff > 1%)`);
+      }
 
       prices.push({
         date: point.date,
-        closePrice: point.adjusted_close,
+        closePrice: price,
       });
     }
 

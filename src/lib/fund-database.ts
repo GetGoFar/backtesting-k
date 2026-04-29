@@ -295,8 +295,8 @@ const INDEXED_FUNDS: Fund[] = [
     id: "ishares-gold",
     name: "Invesco Physical Gold ETC",
     shortName: "Invesco Gold EUR",
-    isin: "IE00B579F325",
-    yahooTicker: "SGLD.AS", // Amsterdam (EUR) — SGLD.MI no existe en EODHD
+    isin: "DE000A1MECS1",
+    yahooTicker: "8PSG.DE", // Xetra (EUR) — datos más fiables que SGLD.AS
     ter: 0.12,
     category: "Oro",
     type: "index",

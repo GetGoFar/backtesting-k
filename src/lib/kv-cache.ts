@@ -54,7 +54,8 @@ async function getRedis(): Promise<import("@upstash/redis").Redis | null> {
 // Versión de cache: cambiar al migrar de fuente de datos para invalidar entradas viejas
 // v2 = migración de Yahoo Finance a EODHD (abril 2026)
 // v3 = migración de datos mensuales a diarios (abril 2026)
-const CACHE_VERSION = "v3";
+// v4 = usar close en vez de adjusted_close (corrige datos incorrectos de SGLD.AS etc.)
+const CACHE_VERSION = "v4";
 
 function makeKey(fundId: string): string {
   return `${CACHE_VERSION}:prices:${fundId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
