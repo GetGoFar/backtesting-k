@@ -264,22 +264,25 @@ async function runPortfolioBacktest(
 
   if (timeSeries.length === 0) return null;
 
-  // 5. Calcular métricas (SIEMPRE desde retornos diarios para máxima precisión)
-  const values = simulation.dailyTimeSeries.map((p) => p.value);
-  const finalValue = values[values.length - 1] ?? 0;
+  // 5. Calcular métricas según la granularidad seleccionada
+  const dailyValues = simulation.dailyTimeSeries.map((p) => p.value);
+  const finalValue = dailyValues[dailyValues.length - 1] ?? 0;
   const tradingDays = commonDates.length - 1;
   const years = tradingDays / TRADING_DAYS_PER_YEAR;
 
-  // Agregar retornos diarios al periodo de display para best/worst period
+  // Agregar retornos diarios al periodo de display
   const periodReturns = aggregateDailyReturns(simulation.dailyReturns, displayGranularity);
 
+  // Valores y retornos según la granularidad para volatilidad y drawdown
+  const periodValues = timeSeries.map((p) => p.value);
+
   const metrics = calculateMetrics(
-    values,
-    simulation.dailyReturns.map((r) => r.returnValue),
+    periodValues,
     periodReturns.map((r) => r.returnValue),
     simulation.totalContributions,
     finalValue,
-    years
+    years,
+    displayGranularity
   );
 
   // 6. Rentabilidades anuales, drawdowns, rolling returns
@@ -466,32 +469,48 @@ function sumPositions(positionValues: Map<string, number>): number {
 // Cálculo de métricas
 // -----------------------------------------------------------------------------
 
+/**
+ * Periodos por año según la granularidad, para anualizar volatilidad.
+ */
+function getPeriodsPerYear(granularity: DisplayGranularity): number {
+  switch (granularity) {
+    case "daily":
+      return TRADING_DAYS_PER_YEAR; // 252
+    case "monthly":
+      return 12;
+    case "quarterly":
+      return 4;
+  }
+}
+
 function calculateMetrics(
-  values: number[],
-  dailyReturns: number[],
+  periodValues: number[],
   periodReturns: number[],
   totalContributions: number,
   finalValue: number,
-  years: number
+  years: number,
+  granularity: DisplayGranularity
 ): Metrics {
   const totalReturn = totalContributions > 0
     ? (finalValue - totalContributions) / totalContributions
     : 0;
 
-  const initialValue = values[0] ?? totalContributions;
+  const initialValue = periodValues[0] ?? totalContributions;
   const cagr = calculateCAGR(initialValue, finalValue, years);
 
-  // Volatilidad: calculada desde retornos diarios, anualizada con √252
-  const volatility = calculateDailyVolatility(dailyReturns);
+  // Volatilidad: calculada desde retornos del periodo, anualizada con √(periodos/año)
+  const periodsPerYear = getPeriodsPerYear(granularity);
+  const volatility = calculatePeriodVolatility(periodReturns, periodsPerYear);
 
   // Sharpe y Sortino
   const sharpe = volatility > 0 ? (cagr - RISK_FREE_RATE) / volatility : 0;
-  const downsideDeviation = calculateDailyDownsideDeviation(dailyReturns);
+  const downsideDeviation = calculatePeriodDownsideDeviation(periodReturns, periodsPerYear);
   const sortino = downsideDeviation > 0 ? (cagr - RISK_FREE_RATE) / downsideDeviation : 0;
 
-  const maxDrawdown = calculateMaxDrawdown(values);
+  // Max Drawdown: calculado desde los valores del periodo (no diarios)
+  const maxDrawdown = calculateMaxDrawdown(periodValues);
 
-  // Best/worst period (usa retornos agregados al periodo de display)
+  // Best/worst period
   const bestMonth = periodReturns.length > 0 ? Math.max(...periodReturns) : 0;
   const worstMonth = periodReturns.length > 0 ? Math.min(...periodReturns) : 0;
 
@@ -518,31 +537,31 @@ function calculateCAGR(initialValue: number, finalValue: number, years: number):
   return Math.pow(finalValue / initialValue, 1 / years) - 1;
 }
 
-/** Volatilidad anualizada desde retornos diarios: std(daily) × √252 */
-function calculateDailyVolatility(dailyReturns: number[]): number {
-  if (dailyReturns.length < 2) return 0;
+/** Volatilidad anualizada desde retornos del periodo: std(period) × √(periodsPerYear) */
+function calculatePeriodVolatility(returns: number[], periodsPerYear: number): number {
+  if (returns.length < 2) return 0;
 
-  const mean = dailyReturns.reduce((sum, r) => sum + r, 0) / dailyReturns.length;
-  const squaredDiffs = dailyReturns.map((r) => Math.pow(r - mean, 2));
-  const variance = squaredDiffs.reduce((sum, d) => sum + d, 0) / (dailyReturns.length - 1);
+  const mean = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+  const squaredDiffs = returns.map((r) => Math.pow(r - mean, 2));
+  const variance = squaredDiffs.reduce((sum, d) => sum + d, 0) / (returns.length - 1);
   const stdDev = Math.sqrt(variance);
 
-  return stdDev * Math.sqrt(TRADING_DAYS_PER_YEAR);
+  return stdDev * Math.sqrt(periodsPerYear);
 }
 
-/** Downside deviation anualizada desde retornos diarios */
-function calculateDailyDownsideDeviation(dailyReturns: number[]): number {
-  if (dailyReturns.length < 2) return 0;
+/** Downside deviation anualizada desde retornos del periodo */
+function calculatePeriodDownsideDeviation(returns: number[], periodsPerYear: number): number {
+  if (returns.length < 2) return 0;
 
   const target = 0;
-  const downsideReturns = dailyReturns
+  const downsideReturns = returns
     .map((r) => Math.min(r - target, 0))
     .map((r) => r * r);
 
-  const meanSquaredDownside = downsideReturns.reduce((sum, d) => sum + d, 0) / dailyReturns.length;
+  const meanSquaredDownside = downsideReturns.reduce((sum, d) => sum + d, 0) / returns.length;
   const downsideStdDev = Math.sqrt(meanSquaredDownside);
 
-  return downsideStdDev * Math.sqrt(TRADING_DAYS_PER_YEAR);
+  return downsideStdDev * Math.sqrt(periodsPerYear);
 }
 
 function calculateMaxDrawdown(values: number[]): number {
