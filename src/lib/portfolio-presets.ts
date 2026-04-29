@@ -502,10 +502,55 @@ const BANK_PRESETS: PortfolioPreset[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// Cartera Banca Privada (multigestor activo)
+// Pesos originales (~62% total — el resto era liquidez/otros)
+// El motor normaliza a 100% para el backtest
+// -----------------------------------------------------------------------------
+
+const BANCA_PRIVADA_PRESETS: PortfolioPreset[] = [
+  {
+    id: "banca-privada",
+    name: "Banca Privada",
+    description: "25% RV activa + 37% RF activa — Cartera multigestor conservadora",
+    type: "active",
+    holdings: [
+      // Renta Variable (24.88%)
+      { fundId: "bp-bgf-energy", weight: 1.86 },
+      { fundId: "bp-bl-japan", weight: 1.95 },
+      { fundId: "bp-bnp-smallcap", weight: 1.83 },
+      { fundId: "bp-exane-europe", weight: 2.25 },
+      { fundId: "bp-fidelity-asia", weight: 1.42 },
+      { fundId: "bp-franklin-tech", weight: 2.41 },
+      { fundId: "bp-gqg-global", weight: 1.68 },
+      { fundId: "bp-heptagon-us", weight: 1.61 },
+      { fundId: "bp-ishares-stoxx50", weight: 0.71 },
+      { fundId: "bp-ishares-sp500", weight: 0.69 },
+      { fundId: "bp-magallanes-europe", weight: 3.64 },
+      { fundId: "bp-pictet-water", weight: 1.55 },
+      { fundId: "bp-robeco-conservative", weight: 3.29 },
+      // Renta Fija (37.10%)
+      { fundId: "bp-aegon-abs", weight: 2.13 },
+      { fundId: "bp-eurizon-short", weight: 4.62 },
+      { fundId: "bp-eurizon-medium", weight: 3.94 },
+      { fundId: "bp-groupama-ust", weight: 0.96 },
+      { fundId: "bp-lord-abbett", weight: 2.48 },
+      { fundId: "bp-mfs-usgov", weight: 3.01 },
+      { fundId: "bp-natixis-credit", weight: 1.89 },
+      { fundId: "bp-nordea-lowdur", weight: 2.37 },
+      { fundId: "bp-nordea-covered", weight: 3.50 },
+      { fundId: "bp-pimco-credit", weight: 2.93 },
+      { fundId: "bp-robeco-fibd", weight: 2.70 },
+      { fundId: "bp-schroder-catbond", weight: 3.01 },
+      { fundId: "bp-schroder-eurocorp", weight: 3.56 },
+    ],
+  },
+];
+
+// -----------------------------------------------------------------------------
 // Todos los presets combinados
 // -----------------------------------------------------------------------------
 
-const ALL_PRESETS: PortfolioPreset[] = [...K_INBESTME_PRESETS, ...INDEXA_PRESETS, ...K_PRESETS, ...BANK_PRESETS];
+const ALL_PRESETS: PortfolioPreset[] = [...K_INBESTME_PRESETS, ...INDEXA_PRESETS, ...K_PRESETS, ...BANK_PRESETS, ...BANCA_PRIVADA_PRESETS];
 
 // Mapa para búsqueda rápida por ID
 const PRESETS_BY_ID = new Map<string, PortfolioPreset>(

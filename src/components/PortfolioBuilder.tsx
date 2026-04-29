@@ -184,7 +184,8 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   const inbestmePresets = presets.filter((p) => p.id.startsWith("k-inbestme"));
   const indexaPresets = presets.filter((p) => p.id.startsWith("indexa-"));
   const indexPresets = presets.filter((p) => p.type === "index" && !p.id.startsWith("k-inbestme") && !p.id.startsWith("indexa-"));
-  const activePresets = presets.filter((p) => p.type === "active");
+  const bancaPrivadaPresets = presets.filter((p) => p.id.startsWith("banca-privada"));
+  const activePresets = presets.filter((p) => p.type === "active" && !p.id.startsWith("banca-privada"));
 
   return (
     <div
@@ -323,6 +324,34 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                   </button>
                 ))}
               </div>
+
+              {/* Banca Privada */}
+              {bancaPrivadaPresets.length > 0 && (
+              <div className="p-2 border-b border-slate-100">
+                <p className="text-xs font-semibold text-amber-600 uppercase tracking-wider px-2 py-1">
+                  Banca Privada
+                </p>
+                {bancaPrivadaPresets.map((preset) => (
+                  <button
+                    key={preset.id}
+                    onClick={() => handlePresetSelect(preset)}
+                    className={`w-full text-left px-3 py-2 rounded-lg hover:bg-amber-50 transition-colors ${
+                      selectedPresetId === preset.id ? "bg-amber-50" : ""
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                      <span className="font-medium text-sm text-slate-800">
+                        {preset.name}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 ml-4 mt-0.5">
+                      {preset.description}
+                    </p>
+                  </button>
+                ))}
+              </div>
+              )}
 
               {/* Carteras Bancarias */}
               <div className="p-2">
