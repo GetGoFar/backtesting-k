@@ -42,12 +42,13 @@ export function validatePriceData(
     const prev = sorted[i - 1]!;
     const curr = sorted[i]!;
 
-    // Gaps: más de 10 días calendario sin datos (excluye fines de semana y festivos normales)
+    // Gaps: más de 35 días calendario sin datos
+    // Umbral 35 (no 10) para tolerar fondos EUFUND que tienen datos mensuales en su histórico temprano
     const prevDate = new Date(prev.date);
     const currDate = new Date(curr.date);
     const calendarDays = Math.round((currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24));
 
-    if (calendarDays > 10) {
+    if (calendarDays > 35) {
       gaps.push(`${prev.date} → ${curr.date} (${calendarDays} días)`);
     }
 
