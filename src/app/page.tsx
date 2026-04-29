@@ -730,6 +730,8 @@ export default function Home() {
                   isLoading={false}
                   portfolioAFundIds={portfolioA.holdings.map(h => h.fundId)}
                   portfolioBFundIds={portfolioB.holdings.map(h => h.fundId)}
+                  portfolioAHoldings={portfolioA.holdings}
+                  portfolioBHoldings={portfolioB.holdings}
                   portfolioAName={portfolioA.name}
                   portfolioBName={portfolioB.name}
                 />
