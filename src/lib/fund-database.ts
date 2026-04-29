@@ -473,7 +473,7 @@ const BANCA_PRIVADA_FUNDS: Fund[] = [
     name: "BGF World Energy Hedged A2 EUR",
     shortName: "BGF Energy Hdg",
     isin: "LU0326422176",
-    yahooTicker: "H2Z6.F", // Frankfurt — fallback si ISIN.EUFUND falla
+    // EODHD EUFUND funciona con ISIN directamente — sin yahooTicker para evitar 404 innecesario
     ter: 1.83,
     category: "RV Sectorial",
     type: "active",
@@ -529,7 +529,7 @@ const BANCA_PRIVADA_FUNDS: Fund[] = [
     name: "Franklin Technology A Acc EUR",
     shortName: "Franklin Tech",
     isin: "LU0260870158",
-    yahooTicker: "0P00006B6D.F", // Frankfurt Morningstar ID — fallback
+    // EODHD EUFUND funciona con ISIN directamente — sin yahooTicker para evitar 404 innecesario
     ter: 1.82,
     category: "RV Sectorial",
     type: "active",
@@ -723,7 +723,7 @@ const BANCA_PRIVADA_FUNDS: Fund[] = [
     name: "PIMCO GIS Global Investment Grade Credit E EUR Hedged Acc",
     shortName: "PIMCO Inv Grade",
     isin: "IE00B11XZ434",
-    yahooTicker: "0P00005XM6.F", // Frankfurt Morningstar ID — fallback
+    // EODHD EUFUND funciona con ISIN directamente — sin yahooTicker para evitar 404 innecesario
     ter: 0.79,
     category: "RF EUR Corp",
     type: "active",

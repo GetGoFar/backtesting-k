@@ -61,7 +61,8 @@ async function getRedis(): Promise<import("@upstash/redis").Redis | null> {
 // v8 = migración distributing → acumulación (VUSA→VUAA, VETY→DBXN, IBCI→XEIN)
 // v9 = IMEU.AS→IMAE.AS (iShares Europe distribución → acumulación)
 // v10 = XDJP.DE→DBXJ.DE (Japan: era Nikkei 225 1D, ahora MSCI Japan 1C acc)
-const CACHE_VERSION = "v10";
+// v11 = BGF/Franklin/PIMCO: eliminar yahooTicker .F → usar ISIN.EUFUND directo
+const CACHE_VERSION = "v11";
 
 function makeKey(fundId: string): string {
   return `${CACHE_VERSION}:prices:${fundId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
