@@ -306,8 +306,8 @@ function validatePortfolio(portfolio: Portfolio, label: string): string | null {
     return `La cartera ${label} debe tener al menos un fondo.`;
   }
 
-  if (portfolio.holdings.length > 20) {
-    return `La cartera ${label} no puede tener más de 20 fondos.`;
+  if (portfolio.holdings.length > 30) {
+    return `La cartera ${label} no puede tener más de 30 fondos.`;
   }
 
   // Validar cada holding
