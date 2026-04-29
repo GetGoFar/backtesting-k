@@ -33,7 +33,7 @@ const METRIC_TOOLTIPS = {
   positiveMonthsRatio:
     "Porcentaje de meses con rentabilidad positiva. Mayor porcentaje indica más consistencia.",
   totalFees:
-    "Total de comisiones pagadas durante todo el periodo. Estimado a partir del TER de cada fondo aplicado mensualmente.",
+    "Total de comisiones pagadas durante todo el periodo. Incluye el TER de cada fondo y la comisión de gestión de la cartera.",
 } as const;
 
 // Definición de métricas con dirección
@@ -135,7 +135,7 @@ const METRICS_CONFIG: MetricConfig[] = [
   {
     key: "totalFees",
     label: "Comisiones pagadas",
-    getValue: (r) => r.fees.totalFees,
+    getValue: (r) => r.fees.totalFees + (r.fees.managementFeePaid || 0),
     format: formatEUR,
     higherIsBetter: false,
     tooltip: METRIC_TOOLTIPS.totalFees,
