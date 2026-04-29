@@ -40,7 +40,7 @@ const INDEXED_FUNDS: Fund[] = [
     name: "Vanguard S&P 500 UCITS ETF Acc",
     shortName: "Vanguard S&P500 Acc",
     isin: "IE00BFMXXD54",
-    yahooTicker: "VUAA.AS", // Acumulación (VUSA.AS era distribución — no capturaba dividendos)
+    yahooTicker: "VUAA.DE", // Acumulación Xetra (VUSA.AS era distribución — no capturaba dividendos)
     ter: 0.07,
     category: "RV EEUU",
     type: "index",
