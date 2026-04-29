@@ -206,25 +206,34 @@ async function runPortfolioBacktest(
 
   const failedFundIds = new Set<string>();
 
-  for (const holding of portfolio.holdings) {
-    const fund = getFundById(holding.fundId) || holding.fund;
-    if (!fund) {
-      console.warn(`[BacktestEngine] Fondo no encontrado: ${holding.fundId}`);
-      failedFundIds.add(holding.fundId);
-      continue;
-    }
+  // Descargar datos de todos los fondos EN PARALELO (crítico para carteras con muchos fondos)
+  const holdingsWithFunds = portfolio.holdings.map((holding) => ({
+    holding,
+    fund: getFundById(holding.fundId) || holding.fund,
+  }));
 
-    try {
+  const fetchResults = await Promise.allSettled(
+    holdingsWithFunds.map(async ({ holding, fund }) => {
+      if (!fund) throw new Error(`Fondo no encontrado: ${holding.fundId}`);
       const { prices } = await getDailyPrices(holding.fundId, fund.yahooTicker, fund.isin);
-      fundPrices.set(holding.fundId, prices);
-      fundTers.set(holding.fundId, fund.ter);
-      fundTypes.set(holding.fundId, fund.type);
-      console.log(`[BacktestEngine] ${fund.name}: ${prices.size} días de datos, TER=${fund.ter}%`);
-    } catch (error) {
-      console.error(`[BacktestEngine] Error obteniendo precios para ${holding.fundId}:`, error);
+      return { holding, fund, prices };
+    })
+  );
+
+  for (let i = 0; i < fetchResults.length; i++) {
+    const result = fetchResults[i]!;
+    const { holding, fund } = holdingsWithFunds[i]!;
+
+    if (result.status === "fulfilled") {
+      fundPrices.set(holding.fundId, result.value.prices);
+      fundTers.set(holding.fundId, result.value.fund.ter);
+      fundTypes.set(holding.fundId, result.value.fund.type);
+      console.log(`[BacktestEngine] ${result.value.fund.name}: ${result.value.prices.size} días de datos, TER=${result.value.fund.ter}%`);
+    } else {
+      console.error(`[BacktestEngine] Error obteniendo precios para ${holding.fundId}:`, result.reason);
       failedFundIds.add(holding.fundId);
       if (warnings) {
-        const name = fund.shortName || fund.name || holding.fundId;
+        const name = fund?.shortName || fund?.name || holding.fundId;
         warnings.push({
           type: "data_missing",
           severity: "error",
