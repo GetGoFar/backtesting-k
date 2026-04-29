@@ -55,7 +55,13 @@ async function getRedis(): Promise<import("@upstash/redis").Redis | null> {
 // v2 = migración de Yahoo Finance a EODHD (abril 2026)
 // v3 = migración de datos mensuales a diarios (abril 2026)
 // v4 = usar close en vez de adjusted_close (corrige datos incorrectos de SGLD.AS etc.)
-const CACHE_VERSION = "v4";
+// v5 = volver a adjusted_close (SGLD.AS reemplazado por 8PSG.DE; ETFs con splits reales necesitan adjusted_close)
+// v6 = close + splits manuales (adjusted_close incluye dividendos incorrectos para ETFs acumulativos)
+// v7 = close + splits para acumulativos, adjusted_close para distributing (captura dividendos correctamente)
+// v8 = migración distributing → acumulación (VUSA→VUAA, VETY→DBXN, IBCI→XEIN)
+// v9 = IMEU.AS→IMAE.AS (iShares Europe distribución → acumulación)
+// v10 = XDJP.DE→DBXJ.DE (Japan: era Nikkei 225 1D, ahora MSCI Japan 1C acc)
+const CACHE_VERSION = "v10";
 
 function makeKey(fundId: string): string {
   return `${CACHE_VERSION}:prices:${fundId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;

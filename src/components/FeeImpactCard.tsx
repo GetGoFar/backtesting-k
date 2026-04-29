@@ -33,7 +33,7 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
   // MODO SINGLE PORTFOLIO
   // =========================================================================
   if (isSinglePortfolio && singleResult) {
-    const fees = singleResult.fees.totalFees;
+    const fees = singleResult.fees.totalFees + (singleResult.fees.managementFeePaid || 0);
     const profit = singleResult.finalValue - singleResult.totalContributions;
 
     return (
@@ -88,8 +88,8 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
   // =========================================================================
   // MODO COMPARACIÓN
   // =========================================================================
-  const feesA = resultA!.fees.totalFees;
-  const feesB = resultB!.fees.totalFees;
+  const feesA = resultA!.fees.totalFees + (resultA!.fees.managementFeePaid || 0);
+  const feesB = resultB!.fees.totalFees + (resultB!.fees.managementFeePaid || 0);
   const feeDifference = Math.abs(feesA - feesB);
   const cheaperName = feesA < feesB ? resultA!.portfolioName : resultB!.portfolioName;
 

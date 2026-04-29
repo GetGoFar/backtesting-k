@@ -218,6 +218,202 @@ const K_INBESTME_PRESETS: PortfolioPreset[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// Carteras Indexa Capital UCITS (1-10) — Cartera mediana (10k-100k)
+// Proxies ETF de los fondos Vanguard Ins Plus que usa Indexa
+// Fuente: https://indexacapital.com/es/esp/model
+// -----------------------------------------------------------------------------
+
+const INDEXA_PRESETS: PortfolioPreset[] = [
+  {
+    id: "indexa-1",
+    name: "Indexa 1/10",
+    description: "10% RV / 90% RF — Muy conservadora",
+    type: "index",
+    holdings: [
+      // RV (10%)
+      { fundId: "ishares-europe", weight: 4 },
+      { fundId: "vanguard-sp500", weight: 6 },
+      // RF (90%)
+      { fundId: "vanguard-eur-corp", weight: 16 },
+      { fundId: "vanguard-eur-bond", weight: 25 },
+      { fundId: "indexa-eur-inflation", weight: 9 },
+      { fundId: "indexa-us-gov-hedged", weight: 24 },
+      { fundId: "indexa-us-corp-hedged", weight: 16 },
+    ],
+  },
+  {
+    id: "indexa-2",
+    name: "Indexa 2/10",
+    description: "20% RV / 80% RF — Conservadora",
+    type: "index",
+    holdings: [
+      // RV (20%)
+      { fundId: "ishares-europe", weight: 7 },
+      { fundId: "vanguard-sp500", weight: 10 },
+      { fundId: "amundi-emerging", weight: 3 },
+      // RF (80%)
+      { fundId: "vanguard-eur-corp", weight: 14 },
+      { fundId: "vanguard-eur-bond", weight: 22 },
+      { fundId: "indexa-eur-inflation", weight: 8 },
+      { fundId: "indexa-us-gov-hedged", weight: 22 },
+      { fundId: "indexa-us-corp-hedged", weight: 14 },
+    ],
+  },
+  {
+    id: "indexa-3",
+    name: "Indexa 3/10",
+    description: "30% RV / 70% RF — Moderada-conservadora",
+    type: "index",
+    holdings: [
+      // RV (30%)
+      { fundId: "ishares-europe", weight: 8 },
+      { fundId: "vanguard-sp500", weight: 13 },
+      { fundId: "amundi-emerging", weight: 3 },
+      { fundId: "indexa-japan", weight: 3 },
+      { fundId: "indexa-small-cap", weight: 3 },
+      // RF (70%)
+      { fundId: "vanguard-eur-corp", weight: 13 },
+      { fundId: "vanguard-eur-bond", weight: 19 },
+      { fundId: "indexa-eur-inflation", weight: 7 },
+      { fundId: "indexa-us-gov-hedged", weight: 19 },
+      { fundId: "indexa-us-corp-hedged", weight: 12 },
+    ],
+  },
+  {
+    id: "indexa-4",
+    name: "Indexa 4/10",
+    description: "40% RV / 60% RF — Moderada",
+    type: "index",
+    holdings: [
+      // RV (40%)
+      { fundId: "ishares-europe", weight: 11 },
+      { fundId: "vanguard-sp500", weight: 18 },
+      { fundId: "amundi-emerging", weight: 4 },
+      { fundId: "indexa-japan", weight: 3 },
+      { fundId: "indexa-small-cap", weight: 4 },
+      // RF (60%)
+      { fundId: "vanguard-eur-corp", weight: 11 },
+      { fundId: "vanguard-eur-bond", weight: 16 },
+      { fundId: "indexa-eur-inflation", weight: 6 },
+      { fundId: "indexa-us-gov-hedged", weight: 16 },
+      { fundId: "indexa-us-corp-hedged", weight: 11 },
+    ],
+  },
+  {
+    id: "indexa-5",
+    name: "Indexa 5/10",
+    description: "50% RV / 50% RF — Equilibrada",
+    type: "index",
+    holdings: [
+      // RV (50%)
+      { fundId: "ishares-europe", weight: 14 },
+      { fundId: "vanguard-sp500", weight: 22 },
+      { fundId: "amundi-emerging", weight: 5 },
+      { fundId: "indexa-japan", weight: 4 },
+      { fundId: "indexa-small-cap", weight: 5 },
+      // RF (50%)
+      { fundId: "vanguard-eur-corp", weight: 9 },
+      { fundId: "vanguard-eur-bond", weight: 14 },
+      { fundId: "indexa-eur-inflation", weight: 5 },
+      { fundId: "indexa-us-gov-hedged", weight: 14 },
+      { fundId: "indexa-us-corp-hedged", weight: 8 },
+    ],
+  },
+  {
+    id: "indexa-6",
+    name: "Indexa 6/10",
+    description: "60% RV / 40% RF — Moderada-agresiva",
+    type: "index",
+    holdings: [
+      // RV (60%)
+      { fundId: "ishares-europe", weight: 16 },
+      { fundId: "vanguard-sp500", weight: 27 },
+      { fundId: "amundi-emerging", weight: 6 },
+      { fundId: "indexa-japan", weight: 5 },
+      { fundId: "indexa-small-cap", weight: 6 },
+      // RF (40%)
+      { fundId: "vanguard-eur-corp", weight: 7 },
+      { fundId: "vanguard-eur-bond", weight: 11 },
+      { fundId: "indexa-eur-inflation", weight: 4 },
+      { fundId: "indexa-us-gov-hedged", weight: 11 },
+      { fundId: "indexa-us-corp-hedged", weight: 7 },
+    ],
+  },
+  {
+    id: "indexa-7",
+    name: "Indexa 7/10",
+    description: "70% RV / 30% RF — Agresiva",
+    type: "index",
+    holdings: [
+      // RV (70%)
+      { fundId: "ishares-europe", weight: 19 },
+      { fundId: "vanguard-sp500", weight: 31 },
+      { fundId: "amundi-emerging", weight: 7 },
+      { fundId: "indexa-japan", weight: 6 },
+      { fundId: "indexa-small-cap", weight: 7 },
+      // RF (30%)
+      { fundId: "vanguard-eur-corp", weight: 5 },
+      { fundId: "vanguard-eur-bond", weight: 9 },
+      { fundId: "indexa-eur-inflation", weight: 3 },
+      { fundId: "indexa-us-gov-hedged", weight: 8 },
+      { fundId: "indexa-us-corp-hedged", weight: 5 },
+    ],
+  },
+  {
+    id: "indexa-8",
+    name: "Indexa 8/10",
+    description: "80% RV / 20% RF — Muy agresiva",
+    type: "index",
+    holdings: [
+      // RV (80%)
+      { fundId: "ishares-europe", weight: 22 },
+      { fundId: "vanguard-sp500", weight: 35 },
+      { fundId: "amundi-emerging", weight: 9 },
+      { fundId: "indexa-japan", weight: 6 },
+      { fundId: "indexa-small-cap", weight: 8 },
+      // RF (20%)
+      { fundId: "vanguard-eur-corp", weight: 4 },
+      { fundId: "vanguard-eur-bond", weight: 5 },
+      { fundId: "indexa-eur-inflation", weight: 3 },
+      { fundId: "indexa-us-gov-hedged", weight: 4 },
+      { fundId: "indexa-us-corp-hedged", weight: 4 },
+    ],
+  },
+  {
+    id: "indexa-9",
+    name: "Indexa 9/10",
+    description: "90% RV / 10% RF — Máxima agresividad con RF",
+    type: "index",
+    holdings: [
+      // RV (90%)
+      { fundId: "ishares-europe", weight: 24 },
+      { fundId: "vanguard-sp500", weight: 40 },
+      { fundId: "amundi-emerging", weight: 10 },
+      { fundId: "indexa-japan", weight: 7 },
+      { fundId: "indexa-small-cap", weight: 9 },
+      // RF (10%)
+      { fundId: "vanguard-eur-corp", weight: 3 },
+      { fundId: "vanguard-eur-bond", weight: 4 },
+      { fundId: "indexa-eur-inflation", weight: 3 },
+    ],
+  },
+  {
+    id: "indexa-10",
+    name: "Indexa 10/10",
+    description: "100% RV — Máxima agresividad",
+    type: "index",
+    holdings: [
+      // RV (100%)
+      { fundId: "ishares-europe", weight: 27 },
+      { fundId: "vanguard-sp500", weight: 44 },
+      { fundId: "amundi-emerging", weight: 11 },
+      { fundId: "indexa-japan", weight: 8 },
+      { fundId: "indexa-small-cap", weight: 10 },
+    ],
+  },
+];
+
+// -----------------------------------------------------------------------------
 // Carteras Tradicionales (para comparación)
 // -----------------------------------------------------------------------------
 
@@ -309,7 +505,7 @@ const BANK_PRESETS: PortfolioPreset[] = [
 // Todos los presets combinados
 // -----------------------------------------------------------------------------
 
-const ALL_PRESETS: PortfolioPreset[] = [...K_INBESTME_PRESETS, ...K_PRESETS, ...BANK_PRESETS];
+const ALL_PRESETS: PortfolioPreset[] = [...K_INBESTME_PRESETS, ...INDEXA_PRESETS, ...K_PRESETS, ...BANK_PRESETS];
 
 // Mapa para búsqueda rápida por ID
 const PRESETS_BY_ID = new Map<string, PortfolioPreset>(
@@ -353,6 +549,13 @@ export function getKPresets(): PortfolioPreset[] {
  */
 export function getKInbestmePresets(): PortfolioPreset[] {
   return K_INBESTME_PRESETS;
+}
+
+/**
+ * Obtiene presets de carteras Indexa Capital (1-10)
+ */
+export function getIndexaPresets(): PortfolioPreset[] {
+  return INDEXA_PRESETS;
 }
 
 /**

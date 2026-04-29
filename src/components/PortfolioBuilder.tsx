@@ -182,7 +182,8 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
 
   // Agrupar presets por tipo
   const inbestmePresets = presets.filter((p) => p.id.startsWith("k-inbestme"));
-  const indexPresets = presets.filter((p) => p.type === "index" && !p.id.startsWith("k-inbestme"));
+  const indexaPresets = presets.filter((p) => p.id.startsWith("indexa-"));
+  const indexPresets = presets.filter((p) => p.type === "index" && !p.id.startsWith("k-inbestme") && !p.id.startsWith("indexa-"));
   const activePresets = presets.filter((p) => p.type === "active");
 
   return (
@@ -265,6 +266,31 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                         <span className="w-2 h-2 rounded-full bg-indigo-500" />
                         <span className="font-medium text-xs text-slate-800">
                           {preset.name.replace("Cartera ", "")}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Carteras Indexa Capital (1-10) */}
+              <div className="p-2 border-b border-slate-100">
+                <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider px-2 py-1">
+                  Indexa Capital (1-10)
+                </p>
+                <div className="grid grid-cols-2 gap-1">
+                  {indexaPresets.map((preset) => (
+                    <button
+                      key={preset.id}
+                      onClick={() => handlePresetSelect(preset)}
+                      className={`text-left px-2 py-1.5 rounded-lg hover:bg-emerald-50 transition-colors ${
+                        selectedPresetId === preset.id ? "bg-emerald-50" : ""
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                        <span className="font-medium text-xs text-slate-800">
+                          {preset.name}
                         </span>
                       </div>
                     </button>

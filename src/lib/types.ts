@@ -16,6 +16,8 @@ export type FundCategory =
   | "RV Europa"
   | "RV España"
   | "RV Emergentes"
+  | "RV Japón"
+  | "RV Small Cap"
   | "RV Sectorial"
   | "RV REITs"
   | "RF EUR Gov"
@@ -24,6 +26,9 @@ export type FundCategory =
   | "RF EUR Gov Largo"
   | "RF EUR Corp"
   | "RF EUR"
+  | "RF Inflation EUR"
+  | "RF USD Gov"
+  | "RF USD Corp"
   | "RF Flexible"
   | "Oro";
 
@@ -59,6 +64,8 @@ export interface Fund {
   bank?: string;
   /** Divisa del fondo */
   currency: string;
+  /** Si el ETF/fondo reparte dividendos (distributing vs accumulating) */
+  distributing?: boolean;
   /** Fuente del valor TER */
   terSource?: "curated" | "morningstar" | "user" | "estimated";
   /** Si el TER esta verificado como correcto */
@@ -228,7 +235,8 @@ export interface BacktestWarning {
     | "ter_estimated"
     | "asset_excluded"
     | "data_quality"
-    | "data_gap";
+    | "data_gap"
+    | "data_missing";
   /** Mensaje descriptivo */
   message: string;
   /** Severidad: info < warning < error */

@@ -99,24 +99,25 @@ export async function getDailyPrices(fundId: string, yahooTicker?: string, isin?
 
   // 2. Obtener datos del origen
   let prices: DailyPrice[] = [];
+  const isDistributing = fund?.distributing ?? false;
 
   // 2a. Intentar EODHD primero (si hay API key y ticker)
   if (EODHD_API_TOKEN && EODHD_API_TOKEN !== "demo" && ticker) {
     const eodhTicker = yahooTickerToEODHD(ticker);
-    console.log(`[DataFetcher] Intentando EODHD diario: ${eodhTicker} (desde Yahoo: ${ticker})`);
-    prices = await fetchDailyFromEODHD(eodhTicker);
+    console.log(`[DataFetcher] Intentando EODHD diario: ${eodhTicker} (desde Yahoo: ${ticker}, distributing: ${isDistributing})`);
+    prices = await fetchDailyFromEODHD(eodhTicker, isDistributing);
 
     // Si EODHD falló con el ticker, intentar con el ISIN en EUFUND
     if (prices.length === 0 && effectiveIsin) {
       console.log(`[DataFetcher] EODHD ticker falló, intentando ISIN: ${effectiveIsin}.EUFUND`);
-      prices = await fetchDailyFromEODHD(`${effectiveIsin}.EUFUND`);
+      prices = await fetchDailyFromEODHD(`${effectiveIsin}.EUFUND`, isDistributing);
     }
   }
 
   // 2a-bis. Si no hay ticker pero sí ISIN, intentar EODHD con ISIN directamente
   if (prices.length === 0 && EODHD_API_TOKEN && EODHD_API_TOKEN !== "demo" && !ticker && effectiveIsin) {
     console.log(`[DataFetcher] Intentando EODHD con ISIN directo: ${effectiveIsin}.EUFUND`);
-    prices = await fetchDailyFromEODHD(`${effectiveIsin}.EUFUND`);
+    prices = await fetchDailyFromEODHD(`${effectiveIsin}.EUFUND`, isDistributing);
   }
 
   // 2b. Fallback a Yahoo Finance (último recurso para APIs online)
@@ -225,57 +226,170 @@ function yahooTickerToEODHD(yahooTicker: string): string {
 }
 
 /**
- * Descarga precios DIARIOS desde EODHD API
+ * Descarga datos de SPLITS desde EODHD API.
+ * Devuelve array de eventos de split: {date, factor}.
+ * Factor = denominator/numerator → multiplicador para ajustar precios históricos.
+ * Ejemplo: split "1/10" (reverse 10:1) → factor = 10 (precios antiguos × 10)
+ * Ejemplo: split "2/1" (forward 2:1) → factor = 0.5 (precios antiguos × 0.5)
  */
-async function fetchDailyFromEODHD(ticker: string): Promise<DailyPrice[]> {
+interface SplitEvent {
+  date: string;
+  factor: number;
+}
+
+async function fetchSplitsFromEODHD(ticker: string): Promise<SplitEvent[]> {
   try {
-    // period=d para datos diarios
-    const url = `${EODHD_BASE_URL}/eod/${encodeURIComponent(ticker)}?period=d&fmt=json&order=a&api_token=${EODHD_API_TOKEN}`;
-    console.log(`[DataFetcher] EODHD GET (daily): ${ticker}`);
+    const url = `${EODHD_BASE_URL}/splits/${encodeURIComponent(ticker)}?fmt=json&api_token=${EODHD_API_TOKEN}`;
+    console.log(`[DataFetcher] EODHD GET (splits): ${ticker}`);
 
     const response = await fetch(url, {
       headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(30000), // 30s para datos diarios (más grandes)
+      signal: AbortSignal.timeout(10000),
     });
 
     if (!response.ok) {
-      console.error(`[DataFetcher] EODHD respondió ${response.status} para ${ticker}`);
+      console.warn(`[DataFetcher] EODHD splits respondió ${response.status} para ${ticker}`);
       return [];
     }
 
-    const data: EODHDPricePoint[] = await response.json();
+    const data = await response.json();
+    if (!Array.isArray(data)) return [];
+
+    const splits: SplitEvent[] = [];
+    for (const item of data) {
+      if (!item.date || !item.split) continue;
+      const parts = String(item.split).split("/");
+      const numerator = parseFloat(parts[0] || "1");
+      const denominator = parseFloat(parts[1] || "1");
+      if (numerator > 0 && denominator > 0 && numerator !== denominator) {
+        splits.push({
+          date: item.date,
+          factor: denominator / numerator,
+        });
+        console.log(`[DataFetcher] Split ${ticker} el ${item.date}: ${item.split} → factor histórico ×${(denominator / numerator).toFixed(4)}`);
+      }
+    }
+
+    return splits.sort((a, b) => a.date.localeCompare(b.date));
+  } catch (error) {
+    console.warn(`[DataFetcher] Error obteniendo splits para ${ticker}:`, error);
+    return [];
+  }
+}
+
+/**
+ * Aplica ajustes de splits a precios close.
+ * Para cada precio anterior a un split, multiplica por el factor del split.
+ * Esto da: close ajustado por splits, SIN ajuste de dividendos.
+ * Es lo que PV usa para ETFs acumulativos.
+ */
+function applySplitAdjustments(prices: DailyPrice[], splits: SplitEvent[]): DailyPrice[] {
+  if (splits.length === 0) return prices;
+
+  return prices.map((p) => {
+    let cumulativeFactor = 1;
+    for (const split of splits) {
+      if (p.date < split.date) {
+        cumulativeFactor *= split.factor;
+      }
+    }
+    if (cumulativeFactor === 1) return p;
+    return {
+      date: p.date,
+      closePrice: p.closePrice * cumulativeFactor,
+    };
+  });
+}
+
+/**
+ * Descarga precios DIARIOS desde EODHD API.
+ *
+ * Dos modos según el tipo de fondo:
+ * - ETFs acumulativos (distributing=false): close + splits manuales
+ *   Los dividendos se reinvierten en el NAV → el precio ya lo refleja.
+ *   adjusted_close de EODHD resta dividendos "fantasma" → distorsiona.
+ *
+ * - ETFs de distribución (distributing=true): adjusted_close directamente
+ *   Los dividendos se pagan al inversor y el precio cae en ex-dividend.
+ *   adjusted_close reinvierte esos dividendos → total return correcto.
+ */
+async function fetchDailyFromEODHD(ticker: string, distributing: boolean = false): Promise<DailyPrice[]> {
+  try {
+    if (distributing) {
+      // ETFs de distribución: usar adjusted_close (incluye dividendos + splits)
+      const response = await fetch(
+        `${EODHD_BASE_URL}/eod/${encodeURIComponent(ticker)}?period=d&fmt=json&order=a&api_token=${EODHD_API_TOKEN}`,
+        {
+          headers: { Accept: "application/json" },
+          signal: AbortSignal.timeout(30000),
+        }
+      );
+
+      console.log(`[DataFetcher] EODHD GET (daily, adjusted_close): ${ticker}`);
+
+      if (!response.ok) {
+        console.error(`[DataFetcher] EODHD respondió ${response.status} para ${ticker}`);
+        return [];
+      }
+
+      const data: EODHDPricePoint[] = await response.json();
+      if (!Array.isArray(data) || data.length === 0) {
+        console.warn(`[DataFetcher] EODHD devolvió respuesta vacía para ${ticker}`);
+        return [];
+      }
+
+      const prices: DailyPrice[] = [];
+      for (const point of data) {
+        if (!point.date || point.adjusted_close == null) continue;
+        if (point.adjusted_close <= 0) continue;
+        prices.push({ date: point.date, closePrice: point.adjusted_close });
+      }
+
+      prices.sort((a, b) => a.date.localeCompare(b.date));
+      console.log(`[DataFetcher] EODHD devolvió ${prices.length} días para ${ticker} (adjusted_close, distributing)`);
+      return prices;
+    }
+
+    // ETFs acumulativos: close + splits manuales
+    const [pricesResponse, splits] = await Promise.all([
+      fetch(
+        `${EODHD_BASE_URL}/eod/${encodeURIComponent(ticker)}?period=d&fmt=json&order=a&api_token=${EODHD_API_TOKEN}`,
+        {
+          headers: { Accept: "application/json" },
+          signal: AbortSignal.timeout(30000),
+        }
+      ),
+      fetchSplitsFromEODHD(ticker),
+    ]);
+
+    console.log(`[DataFetcher] EODHD GET (daily, close+splits): ${ticker}`);
+
+    if (!pricesResponse.ok) {
+      console.error(`[DataFetcher] EODHD respondió ${pricesResponse.status} para ${ticker}`);
+      return [];
+    }
+
+    const data: EODHDPricePoint[] = await pricesResponse.json();
 
     if (!Array.isArray(data) || data.length === 0) {
       console.warn(`[DataFetcher] EODHD devolvió respuesta vacía para ${ticker}`);
       return [];
     }
 
-    const prices: DailyPrice[] = [];
+    const rawPrices: DailyPrice[] = [];
     for (const point of data) {
       if (!point.date || point.close == null) continue;
       if (point.close <= 0) continue;
-
-      // Usar close en vez de adjusted_close:
-      // - Nuestros ETFs son acumulativos (no distribuyen dividendos)
-      // - adjusted_close a veces aplica ajustes de splits incorrectos (ej: SGLD.AS)
-      // - Si close y adjusted_close difieren mucho, el adjusted_close puede ser erróneo
-      const price = point.close;
-
-      // Log warning si hay diferencia significativa (posible split incorrecto)
-      if (point.adjusted_close != null && Math.abs(point.close - point.adjusted_close) / point.close > 0.01) {
-        console.warn(`[EODHD] ${ticker} ${point.date}: close=${point.close} vs adjusted_close=${point.adjusted_close} (diff > 1%)`);
-      }
-
-      prices.push({
-        date: point.date,
-        closePrice: price,
-      });
+      rawPrices.push({ date: point.date, closePrice: point.close });
     }
 
-    prices.sort((a, b) => a.date.localeCompare(b.date));
+    rawPrices.sort((a, b) => a.date.localeCompare(b.date));
 
-    console.log(`[DataFetcher] EODHD devolvió ${prices.length} días para ${ticker}`);
-    return prices;
+    // Aplicar ajustes de splits manualmente (sin dividendos)
+    const adjustedPrices = applySplitAdjustments(rawPrices, splits);
+
+    console.log(`[DataFetcher] EODHD devolvió ${adjustedPrices.length} días para ${ticker} (${splits.length} splits aplicados)`);
+    return adjustedPrices;
   } catch (error) {
     console.error(`[DataFetcher] Error en fetch a EODHD:`, error);
     return [];

@@ -104,7 +104,8 @@ export async function runBacktest(
         config.initialAmount,
         config.rebalanceFrequency,
         config.monthlyContribution ?? 0,
-        displayGranularity
+        displayGranularity,
+        engineWarnings
       )
     : Promise.resolve(null);
 
@@ -116,7 +117,8 @@ export async function runBacktest(
         config.initialAmount,
         config.rebalanceFrequency,
         config.monthlyContribution ?? 0,
-        displayGranularity
+        displayGranularity,
+        engineWarnings
       )
     : Promise.resolve(null);
 
@@ -129,10 +131,21 @@ export async function runBacktest(
   }
 
   // Métricas individuales de activos y matriz de correlaciones
+  // Usar el rango de fechas REAL del backtest (no el del config, que puede ser más amplio)
   const allHoldings = [
     ...(config.portfolioA?.holdings ?? []),
     ...(config.portfolioB?.holdings ?? []),
   ];
+
+  // Extraer rango real de la serie temporal del backtest
+  const tsA = resultA?.timeSeries;
+  const tsB = resultB?.timeSeries;
+  const actualStartDate =
+    tsA?.[0]?.exactDate || tsB?.[0]?.exactDate || effectiveStartDate;
+  const actualEndDate =
+    tsA?.[tsA.length - 1]?.exactDate ||
+    tsB?.[tsB.length - 1]?.exactDate ||
+    effectiveEndDate;
 
   let correlationMatrix: CorrelationMatrix | undefined;
   let assetMetrics: AssetMetrics[] | undefined;
@@ -140,9 +153,9 @@ export async function runBacktest(
   if (allHoldings.length > 0) {
     [correlationMatrix, assetMetrics] = await Promise.all([
       allHoldings.length >= 2
-        ? calculateAssetCorrelationMatrix(allHoldings, effectiveStartDate, effectiveEndDate)
+        ? calculateAssetCorrelationMatrix(allHoldings, actualStartDate, actualEndDate)
         : Promise.resolve(undefined),
-      calculateIndividualAssetMetrics(allHoldings, effectiveStartDate, effectiveEndDate),
+      calculateIndividualAssetMetrics(allHoldings, actualStartDate, actualEndDate),
     ]);
   }
 
@@ -181,7 +194,8 @@ async function runPortfolioBacktest(
   initialAmount: number,
   rebalanceFrequency: RebalanceFrequency,
   monthlyContribution: number,
-  displayGranularity: DisplayGranularity
+  displayGranularity: DisplayGranularity,
+  warnings?: BacktestWarning[]
 ): Promise<BacktestResult | null> {
   console.log(`[BacktestEngine] Procesando cartera: ${portfolio.name}`);
 
@@ -190,10 +204,13 @@ async function runPortfolioBacktest(
   const fundTers = new Map<string, number>();
   const fundTypes = new Map<string, FundType>();
 
+  const failedFundIds = new Set<string>();
+
   for (const holding of portfolio.holdings) {
     const fund = getFundById(holding.fundId) || holding.fund;
     if (!fund) {
       console.warn(`[BacktestEngine] Fondo no encontrado: ${holding.fundId}`);
+      failedFundIds.add(holding.fundId);
       continue;
     }
 
@@ -205,6 +222,16 @@ async function runPortfolioBacktest(
       console.log(`[BacktestEngine] ${fund.name}: ${prices.size} días de datos, TER=${fund.ter}%`);
     } catch (error) {
       console.error(`[BacktestEngine] Error obteniendo precios para ${holding.fundId}:`, error);
+      failedFundIds.add(holding.fundId);
+      if (warnings) {
+        const name = fund.shortName || fund.name || holding.fundId;
+        warnings.push({
+          type: "data_missing",
+          severity: "error",
+          message: `No se pudieron obtener datos históricos de "${name}". Este fondo ha sido excluido del backtest. Su peso se ha redistribuido entre los demás fondos.`,
+          fundId: holding.fundId,
+        });
+      }
     }
   }
 
@@ -213,8 +240,22 @@ async function runPortfolioBacktest(
     return null;
   }
 
-  // 2. Encontrar el rango de fechas diarias común
-  const { commonDates, startDay, endDay } = findCommonDailyDateRange(
+  // Filtrar holdings sin datos y redistribuir pesos
+  const activeHoldings = failedFundIds.size > 0
+    ? (() => {
+        const filtered = portfolio.holdings.filter((h) => !failedFundIds.has(h.fundId));
+        const totalActiveWeight = filtered.reduce((sum, h) => sum + h.weight, 0);
+        if (totalActiveWeight <= 0) return filtered;
+        // Normalizar pesos para que sumen 100%
+        return filtered.map((h) => ({
+          ...h,
+          weight: (h.weight / totalActiveWeight) * 100,
+        }));
+      })()
+    : portfolio.holdings;
+
+  // 2. Encontrar el rango de fechas diarias (unión + forward-fill + intersección)
+  const { commonDates, intersectionDates, startDay, endDay } = findCommonDailyDateRange(
     fundPrices,
     startDate,
     endDate
@@ -227,9 +268,9 @@ async function runPortfolioBacktest(
 
   console.log(`[BacktestEngine] Rango diario: ${startDay} - ${endDay} (${commonDates.length} días)`);
 
-  // 3. Simular la cartera día a día
+  // 3. Simular la cartera día a día (usando solo holdings con datos disponibles)
   const simulation = simulatePortfolioDaily(
-    portfolio.holdings,
+    activeHoldings,
     fundPrices,
     fundTers,
     commonDates,
@@ -264,37 +305,63 @@ async function runPortfolioBacktest(
 
   if (timeSeries.length === 0) return null;
 
-  // 5. Calcular métricas según la granularidad seleccionada
+  // 5. Calcular métricas — dependen de la granularidad seleccionada
+  // "Cuanto menos mires la cartera, menos sufrirás": en mensual/trimestral
+  // se suavizan la volatilidad y los drawdowns intra-periodo.
   const dailyValues = simulation.dailyTimeSeries.map((p) => p.value);
   const finalValue = dailyValues[dailyValues.length - 1] ?? 0;
-  const tradingDays = commonDates.length - 1;
-  const years = tradingDays / TRADING_DAYS_PER_YEAR;
 
-  // Agregar retornos diarios al periodo de display
+  // Calcular años usando fechas calendario reales
+  const firstDate = new Date(commonDates[0]!);
+  const lastDate = new Date(commonDates[commonDates.length - 1]!);
+  const calendarDays = (lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24);
+  const years = calendarDays / 365.25;
+
+  // Retornos y valores según la granularidad seleccionada
   const periodReturns = aggregateDailyReturns(simulation.dailyReturns, displayGranularity);
-
-  // Valores y retornos según la granularidad para volatilidad y drawdown
   const periodValues = timeSeries.map((p) => p.value);
 
+  // Para diario: filtrar retornos "limpios" (solo días donde TODOS los fondos cotizaron)
+  // Evita artefactos del forward-fill (0% un día → salto doble al siguiente por festivos
+  // de bolsas diferentes), que inflan artificialmente la volatilidad medida.
+  let volatilityReturns: number[];
+  if (displayGranularity === "daily") {
+    const cleanDailyReturns = simulation.dailyReturns.filter((r, i) => {
+      if (!intersectionDates.has(r.date)) return false;
+      if (i === 0) return true;
+      const prevDate = simulation.dailyTimeSeries[i]?.date;
+      return prevDate ? intersectionDates.has(prevDate) : false;
+    });
+    volatilityReturns = cleanDailyReturns.map((r) => r.returnValue);
+  } else {
+    // Mensual/trimestral: el forward-fill no afecta a nivel de periodo agregado
+    volatilityReturns = periodReturns.map((r) => r.returnValue);
+  }
+
+  // Para CAGR: usar el valor inicial real (día 1) y final real (último día)
+  const dailyInitialValue = dailyValues[0] ?? simulation.totalContributions;
+
   const metrics = calculateMetrics(
-    periodValues,
-    periodReturns.map((r) => r.returnValue),
+    periodValues,                                  // valores del periodo para max drawdown
+    volatilityReturns,                             // retornos limpios para volatilidad
+    periodReturns.map((r) => r.returnValue),       // retornos del periodo para best/worst
     simulation.totalContributions,
     finalValue,
     years,
-    displayGranularity
+    displayGranularity,
+    dailyInitialValue
   );
 
   // 6. Rentabilidades anuales, drawdowns, rolling returns
-  const annualReturns = calculateAnnualReturns(timeSeries);
+  const annualReturns = calculateAnnualReturns(timeSeries, dailyInitialValue);
   const drawdowns = calculateDrawdowns(timeSeries);
 
   // Rolling returns: usar la serie de output (mensual o trimestral tiene más sentido para rolling)
   const rollingReturns = calculateRollingReturns(timeSeries, displayGranularity);
 
-  // 7. Comisiones
-  const weightedTer = calculateWeightedTer(portfolio.holdings, fundTers);
-  const portfolioType = determinePortfolioType(portfolio.holdings, fundTypes);
+  // 7. Comisiones (usar activeHoldings para calcular TER solo de fondos con datos)
+  const weightedTer = calculateWeightedTer(activeHoldings, fundTers);
+  const portfolioType = determinePortfolioType(activeHoldings, fundTypes);
 
   const fees: FeesSummary = {
     totalFees: simulation.totalFeesPaid,
@@ -472,51 +539,48 @@ function sumPositions(positionValues: Map<string, number>): number {
 /**
  * Periodos por año según la granularidad, para anualizar volatilidad.
  */
-function getPeriodsPerYear(granularity: DisplayGranularity): number {
-  switch (granularity) {
-    case "daily":
-      return TRADING_DAYS_PER_YEAR; // 252
-    case "monthly":
-      return 12;
-    case "quarterly":
-      return 4;
-  }
-}
-
 function calculateMetrics(
   periodValues: number[],
-  periodReturns: number[],
+  volatilityReturns: number[],
+  displayReturns: number[],
   totalContributions: number,
   finalValue: number,
   years: number,
-  granularity: DisplayGranularity
+  granularity: DisplayGranularity,
+  dailyInitialValue?: number
 ): Metrics {
   const totalReturn = totalContributions > 0
     ? (finalValue - totalContributions) / totalContributions
     : 0;
 
-  const initialValue = periodValues[0] ?? totalContributions;
+  // Usar el valor inicial diario real (día 1) para CAGR
+  const initialValue = dailyInitialValue ?? periodValues[0] ?? totalContributions;
   const cagr = calculateCAGR(initialValue, finalValue, years);
 
-  // Volatilidad: calculada desde retornos del periodo, anualizada con √(periodos/año)
-  const periodsPerYear = getPeriodsPerYear(granularity);
-  const volatility = calculatePeriodVolatility(periodReturns, periodsPerYear);
+  // Volatilidad: depende de la granularidad seleccionada
+  // Diario: ×√252, Mensual: ×√12, Trimestral: ×√4
+  // "Cuanto menos mires, menos sufrirás" — la volatilidad percibida baja con periodos más largos
+  const periodsPerYear = granularity === "daily" ? TRADING_DAYS_PER_YEAR
+    : granularity === "quarterly" ? 4
+    : 12;
+  const volatility = calculatePeriodVolatility(volatilityReturns, periodsPerYear);
 
   // Sharpe y Sortino
   const sharpe = volatility > 0 ? (cagr - RISK_FREE_RATE) / volatility : 0;
-  const downsideDeviation = calculatePeriodDownsideDeviation(periodReturns, periodsPerYear);
+  const downsideDeviation = calculatePeriodDownsideDeviation(volatilityReturns, periodsPerYear);
   const sortino = downsideDeviation > 0 ? (cagr - RISK_FREE_RATE) / downsideDeviation : 0;
 
-  // Max Drawdown: calculado desde los valores del periodo (no diarios)
+  // Max Drawdown: desde los valores del periodo seleccionado
+  // En diario captura el peor día, en mensual el peor cierre de mes, etc.
   const maxDrawdown = calculateMaxDrawdown(periodValues);
 
   // Best/worst period
-  const bestMonth = periodReturns.length > 0 ? Math.max(...periodReturns) : 0;
-  const worstMonth = periodReturns.length > 0 ? Math.min(...periodReturns) : 0;
+  const bestMonth = displayReturns.length > 0 ? Math.max(...displayReturns) : 0;
+  const worstMonth = displayReturns.length > 0 ? Math.min(...displayReturns) : 0;
 
-  const positiveMonths = periodReturns.filter((r) => r > 0).length;
-  const positiveMonthsRatio = periodReturns.length > 0
-    ? positiveMonths / periodReturns.length
+  const positiveMonths = displayReturns.filter((r) => r > 0).length;
+  const positiveMonthsRatio = displayReturns.length > 0
+    ? positiveMonths / displayReturns.length
     : 0;
 
   return {
@@ -583,7 +647,7 @@ function calculateMaxDrawdown(values: number[]): number {
 // Rentabilidades anuales
 // -----------------------------------------------------------------------------
 
-function calculateAnnualReturns(timeSeries: TimeSeriesPoint[]): AnnualReturn[] {
+function calculateAnnualReturns(timeSeries: TimeSeriesPoint[], initialPortfolioValue?: number): AnnualReturn[] {
   if (timeSeries.length === 0) return [];
 
   const yearlyData = new Map<number, { start: number; end: number }>();
@@ -607,7 +671,9 @@ function calculateAnnualReturns(timeSeries: TimeSeriesPoint[]): AnnualReturn[] {
     const data = yearlyData.get(year);
     if (!data) continue;
 
-    const startValue = previousYearEnd ?? data.start;
+    // Para el primer año: usar el valor inicial real (día 1, ej: 10.000€)
+    // en vez del valor del primer periodo agregado (fin de enero, ej: ~10.200€)
+    const startValue = previousYearEnd ?? initialPortfolioValue ?? data.start;
     const returnPct = startValue > 0 ? ((data.end - startValue) / startValue) * 100 : 0;
     returns.push({ year, returnPct });
     previousYearEnd = data.end;
@@ -687,39 +753,77 @@ function findCommonDailyDateRange(
   fundPrices: Map<string, Map<string, number>>,
   requestedStart: string,
   requestedEnd: string
-): { commonDates: string[]; startDay: string; endDay: string } {
-  const allDateSets: Set<string>[] = [];
+): { commonDates: string[]; intersectionDates: Set<string>; startDay: string; endDay: string } {
+  if (fundPrices.size === 0) {
+    return { commonDates: [], intersectionDates: new Set(), startDay: "", endDay: "" };
+  }
+
+  // Recopilar fechas originales de cada fondo (antes de forward-fill)
+  const originalDateSets: Set<string>[] = [];
+  const allDatesSet = new Set<string>();
   for (const prices of fundPrices.values()) {
-    allDateSets.push(new Set(prices.keys()));
-  }
-
-  if (allDateSets.length === 0) {
-    return { commonDates: [], startDay: "", endDay: "" };
-  }
-
-  // Intersección de todas las fechas
-  let commonDates = allDateSets[0] ? new Set(allDateSets[0]) : new Set<string>();
-  for (let i = 1; i < allDateSets.length; i++) {
-    const dateSet = allDateSets[i];
-    if (!dateSet) continue;
-    commonDates = new Set([...commonDates].filter((date) => dateSet.has(date)));
+    const fundDates = new Set(prices.keys());
+    originalDateSets.push(fundDates);
+    for (const date of fundDates) {
+      allDatesSet.add(date);
+    }
   }
 
   // Filtrar por rango solicitado
-  // requestedStart/End puede ser YYYY-MM-DD o YYYY-MM
   const startPrefix = requestedStart.substring(0, 7); // YYYY-MM
   const endPrefix = requestedEnd.substring(0, 7);
 
-  let sortedDates = Array.from(commonDates).sort();
+  let sortedDates = Array.from(allDatesSet).sort();
 
-  // Filtrar: incluir fechas cuyo mes YYYY-MM esté en el rango
   sortedDates = sortedDates.filter((date) => {
     const month = date.substring(0, 7);
     return month >= startPrefix && month <= endPrefix;
   });
 
+  // Solo incluir fechas desde el primer día en que TODOS los fondos tienen al menos un dato
+  const fundFirstDates: string[] = [];
+  for (const prices of fundPrices.values()) {
+    const dates = Array.from(prices.keys()).sort();
+    if (dates[0]) fundFirstDates.push(dates[0]);
+  }
+  const latestFirstDate = fundFirstDates.sort().pop() ?? "";
+
+  if (latestFirstDate) {
+    sortedDates = sortedDates.filter((date) => date >= latestFirstDate);
+  }
+
+  // Calcular intersección: fechas donde TODOS los fondos tienen cotización real
+  // (no forward-filled). Se usa para calcular volatilidad sin artefactos.
+  const intersectionDates = new Set<string>();
+  for (const date of sortedDates) {
+    let allHaveData = true;
+    for (const fundDates of originalDateSets) {
+      if (!fundDates.has(date)) {
+        allHaveData = false;
+        break;
+      }
+    }
+    if (allHaveData) intersectionDates.add(date);
+  }
+
+  // Forward-fill: rellenar precios faltantes con el último precio conocido
+  for (const [, prices] of fundPrices) {
+    let lastKnownPrice: number | undefined;
+    for (const date of sortedDates) {
+      const price = prices.get(date);
+      if (price !== undefined) {
+        lastKnownPrice = price;
+      } else if (lastKnownPrice !== undefined) {
+        prices.set(date, lastKnownPrice);
+      }
+    }
+  }
+
+  console.log(`[BacktestEngine] Fechas: ${sortedDates.length} union, ${intersectionDates.size} intersección (${((intersectionDates.size / sortedDates.length) * 100).toFixed(1)}%)`);
+
   return {
     commonDates: sortedDates,
+    intersectionDates,
     startDay: sortedDates[0] ?? "",
     endDay: sortedDates[sortedDates.length - 1] ?? "",
   };
@@ -753,21 +857,30 @@ async function findCommonDateRangeForPortfolios(
 
   if (allDateSets.length === 0) return null;
 
-  let commonDates = allDateSets[0] ? new Set(allDateSets[0]) : new Set<string>();
-  for (let i = 1; i < allDateSets.length; i++) {
-    const dateSet = allDateSets[i];
-    if (!dateSet) continue;
-    commonDates = new Set([...commonDates].filter((date) => dateSet.has(date)));
+  // Unión de todas las fechas (forward fill cubrirá huecos en la simulación)
+  const allDatesUnion = new Set<string>();
+  for (const dateSet of allDateSets) {
+    for (const date of dateSet) {
+      allDatesUnion.add(date);
+    }
   }
+
+  // Solo desde el día en que TODOS los fondos tienen al menos un dato
+  const fundFirstDates: string[] = [];
+  for (const dateSet of allDateSets) {
+    const sorted = Array.from(dateSet).sort();
+    if (sorted[0]) fundFirstDates.push(sorted[0]);
+  }
+  const latestFirstDate = fundFirstDates.sort().pop() ?? "";
 
   const startPrefix = requestedStart.substring(0, 7);
   const endPrefix = requestedEnd.substring(0, 7);
 
-  const sortedDates = Array.from(commonDates)
+  const sortedDates = Array.from(allDatesUnion)
     .sort()
     .filter((date) => {
       const month = date.substring(0, 7);
-      return month >= startPrefix && month <= endPrefix;
+      return month >= startPrefix && month <= endPrefix && date >= latestFirstDate;
     });
 
   if (sortedDates.length < 2) {
@@ -778,7 +891,6 @@ async function findCommonDateRangeForPortfolios(
   const firstDate = sortedDates[0]!;
   const lastDate = sortedDates[sortedDates.length - 1]!;
 
-  // Devolver como YYYY-MM-DD
   console.log(`[BacktestEngine] Rango común: ${firstDate} - ${lastDate} (${sortedDates.length} días)`);
 
   return {
@@ -850,7 +962,7 @@ function pearsonCorrelation(a: number[], b: number[]): number {
 }
 
 // -----------------------------------------------------------------------------
-// Métricas individuales de activos (usa datos mensuales para eficiencia)
+// Métricas individuales de activos (usa datos DIARIOS — ya cacheados)
 // -----------------------------------------------------------------------------
 
 async function calculateIndividualAssetMetrics(
@@ -866,54 +978,69 @@ async function calculateIndividualAssetMetrics(
   }
 
   const results: AssetMetrics[] = [];
-  const startMonth = startDate.substring(0, 7);
-  const endMonth = endDate.substring(0, 7);
+  // Usar prefijo de mes para filtrar fechas diarias (YYYY-MM-DD >= YYYY-MM)
+  const startPrefix = startDate.substring(0, 7);
+  const endPrefix = endDate.substring(0, 7);
 
   for (const holding of uniqueHoldings.values()) {
     const fund = getFundById(holding.fundId) || holding.fund;
     if (!fund) continue;
 
     try {
-      // Usar getMonthlyPrices (wrapper) para métricas individuales — más eficiente
-      const { prices } = await getMonthlyPrices(holding.fundId, fund.yahooTicker, fund.isin);
-      if (prices.size < 3) continue;
+      // Usar datos diarios (ya están cacheados desde el backtest)
+      const { prices } = await getDailyPrices(holding.fundId, fund.yahooTicker, fund.isin);
+      if (prices.size < 20) continue;
 
       const sortedDates = Array.from(prices.keys())
-        .filter((date) => date >= startMonth && date <= endMonth)
+        .filter((date) => {
+          const month = date.substring(0, 7);
+          return month >= startPrefix && month <= endPrefix;
+        })
         .sort();
 
-      if (sortedDates.length < 3) continue;
+      if (sortedDates.length < 20) continue;
 
-      const values: number[] = [];
+      // Calcular valores normalizados desde el primer día
       const firstPrice = prices.get(sortedDates[0]!);
-      if (!firstPrice) continue;
+      if (!firstPrice || firstPrice <= 0) continue;
 
+      const dailyValues: number[] = [];
       for (const date of sortedDates) {
         const price = prices.get(date);
-        if (price) values.push((price / firstPrice) * 100);
+        if (price) dailyValues.push((price / firstPrice) * 100);
       }
 
-      const monthlyReturns: number[] = [];
-      for (let i = 1; i < values.length; i++) {
-        const prevValue = values[i - 1];
-        const currValue = values[i];
+      // Retornos diarios
+      const dailyReturns: number[] = [];
+      for (let i = 1; i < dailyValues.length; i++) {
+        const prevValue = dailyValues[i - 1];
+        const currValue = dailyValues[i];
         if (prevValue && currValue && prevValue > 0) {
-          monthlyReturns.push((currValue - prevValue) / prevValue);
+          dailyReturns.push((currValue - prevValue) / prevValue);
         }
       }
 
-      if (monthlyReturns.length < 2) continue;
+      if (dailyReturns.length < 10) continue;
 
-      const initialValue = values[0] ?? 100;
-      const finalValue = values[values.length - 1] ?? 100;
-      const years = (sortedDates.length - 1) / 12;
+      const initialValue = dailyValues[0] ?? 100;
+      const finalValue = dailyValues[dailyValues.length - 1] ?? 100;
+
+      // Años calendario reales
+      const firstDateObj = new Date(sortedDates[0]!);
+      const lastDateObj = new Date(sortedDates[sortedDates.length - 1]!);
+      const calendarDays = (lastDateObj.getTime() - firstDateObj.getTime()) / (1000 * 60 * 60 * 24);
+      const years = calendarDays / 365.25;
 
       const totalReturn = (finalValue - initialValue) / initialValue;
       const cagr = years > 0 ? Math.pow(finalValue / initialValue, 1 / years) - 1 : 0;
-      // Volatilidad mensual anualizada para asset metrics
-      const volatility = calculateMonthlyVolatility(monthlyReturns);
-      const maxDrawdown = calculateMaxDrawdown(values);
+
+      // Volatilidad: diaria anualizada (×√252)
+      const volatility = calculatePeriodVolatility(dailyReturns, TRADING_DAYS_PER_YEAR);
+      const maxDrawdown = calculateMaxDrawdown(dailyValues);
       const sharpe = volatility > 0 ? (cagr - RISK_FREE_RATE) / volatility : 0;
+
+      // Calcular número de meses cubiertos
+      const monthsSet = new Set(sortedDates.map((d) => d.substring(0, 7)));
 
       results.push({
         fundId: holding.fundId,
@@ -926,7 +1053,7 @@ async function calculateIndividualAssetMetrics(
         maxDrawdown,
         sharpe,
         totalReturn,
-        months: sortedDates.length,
+        months: monthsSet.size,
       });
     } catch (error) {
       console.warn(`[AssetMetrics] Error calculando métricas para ${holding.fundId}:`, error);
@@ -935,15 +1062,6 @@ async function calculateIndividualAssetMetrics(
 
   results.sort((a, b) => b.cagr - a.cagr);
   return results;
-}
-
-/** Volatilidad mensual anualizada: std(monthly) × √12 */
-function calculateMonthlyVolatility(monthlyReturns: number[]): number {
-  if (monthlyReturns.length < 2) return 0;
-  const mean = monthlyReturns.reduce((sum, r) => sum + r, 0) / monthlyReturns.length;
-  const squaredDiffs = monthlyReturns.map((r) => Math.pow(r - mean, 2));
-  const variance = squaredDiffs.reduce((sum, d) => sum + d, 0) / (monthlyReturns.length - 1);
-  return Math.sqrt(variance) * Math.sqrt(12);
 }
 
 // -----------------------------------------------------------------------------
