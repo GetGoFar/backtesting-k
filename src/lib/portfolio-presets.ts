@@ -15,7 +15,7 @@ import type { PortfolioPreset, FundType } from "./types";
 const K_INBESTME_PRESETS: PortfolioPreset[] = [
   {
     id: "k-inbestme-1",
-    name: "Cartera K Inbestme 1",
+    name: "Cartera K1 Inbestme",
     description: "10% RV Sectorial + 75% RF + 15% Oro",
     type: "index",
     holdings: [
@@ -37,7 +37,7 @@ const K_INBESTME_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "k-inbestme-2",
-    name: "Cartera K Inbestme 2",
+    name: "Cartera K2 Inbestme",
     description: "15% RV Sectorial + 70% RF + 15% Oro",
     type: "index",
     holdings: [
@@ -59,7 +59,7 @@ const K_INBESTME_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "k-inbestme-3",
-    name: "Cartera K Inbestme 3",
+    name: "Cartera K3 Inbestme",
     description: "25% RV Sectorial + 60% RF + 15% Oro",
     type: "index",
     holdings: [
@@ -81,7 +81,7 @@ const K_INBESTME_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "k-inbestme-4",
-    name: "Cartera K Inbestme 4",
+    name: "Cartera K4 Inbestme",
     description: "35% RV Sectorial + 50% RF + 15% Oro",
     type: "index",
     holdings: [
@@ -103,7 +103,7 @@ const K_INBESTME_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "k-inbestme-5",
-    name: "Cartera K Inbestme 5",
+    name: "Cartera K5 Inbestme",
     description: "45% RV Sectorial + 35% RF + 20% Oro",
     type: "index",
     holdings: [
@@ -124,7 +124,7 @@ const K_INBESTME_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "k-inbestme-6",
-    name: "Cartera K Inbestme 6",
+    name: "Cartera K6 Inbestme",
     description: "60% RV Sectorial + 20% RF + 20% Oro",
     type: "index",
     holdings: [
@@ -143,7 +143,7 @@ const K_INBESTME_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "k-inbestme-7",
-    name: "Cartera K Inbestme 7",
+    name: "Cartera K7 Inbestme",
     description: "65% RV Sectorial + 15% RF + 20% Oro",
     type: "index",
     holdings: [
@@ -162,7 +162,7 @@ const K_INBESTME_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "k-inbestme-8",
-    name: "Cartera K Inbestme 8",
+    name: "Cartera K8 Inbestme",
     description: "70% RV Sectorial + 10% RF + 20% Oro",
     type: "index",
     holdings: [
@@ -181,7 +181,7 @@ const K_INBESTME_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "k-inbestme-9",
-    name: "Cartera K Inbestme 9",
+    name: "Cartera K9 Inbestme",
     description: "75% RV Sectorial + 5% RF + 20% Oro",
     type: "index",
     holdings: [
@@ -200,7 +200,7 @@ const K_INBESTME_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "k-inbestme-10",
-    name: "Cartera K Inbestme 10",
+    name: "Cartera K10 Inbestme",
     description: "80% RV Sectorial + 0% RF + 20% Oro",
     type: "index",
     holdings: [
@@ -224,7 +224,7 @@ const K_INBESTME_PRESETS: PortfolioPreset[] = [
 const K_PRESETS: PortfolioPreset[] = [
   {
     id: "k-conservadora",
-    name: "Cartera K Conservadora",
+    name: "Tradicional Conservadora",
     description: "30% RV Global Indexada + 70% RF EUR Indexada",
     type: "index",
     holdings: [
@@ -234,7 +234,7 @@ const K_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "k-moderada",
-    name: "Cartera K Moderada",
+    name: "Tradicional Moderada",
     description: "60% RV Global Indexada + 40% RF EUR Indexada",
     type: "index",
     holdings: [
@@ -244,7 +244,7 @@ const K_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "k-agresiva",
-    name: "Cartera K Agresiva",
+    name: "Tradicional Agresiva",
     description: "80% RV Global + 10% RV EEUU + 10% RF EUR",
     type: "index",
     holdings: [
@@ -255,7 +255,7 @@ const K_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "k-100rv",
-    name: "Cartera K 100% RV",
+    name: "Tradicional 100% RV",
     description: "70% RV Global + 20% RV EEUU + 10% RV Emergentes",
     type: "index",
     holdings: [
@@ -273,7 +273,7 @@ const K_PRESETS: PortfolioPreset[] = [
 const BANK_PRESETS: PortfolioPreset[] = [
   {
     id: "banco-conservadora",
-    name: "Cartera Banco Conservadora",
+    name: "Tradicional Banco Conservadora",
     description: "30% CaixaBank Global + 70% Santander RF",
     type: "active",
     holdings: [
@@ -283,7 +283,7 @@ const BANK_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "banco-moderada",
-    name: "Cartera Banco Moderada",
+    name: "Tradicional Banco Moderada",
     description: "50% CaixaBank Global + 20% Santander España + 30% Santander RF",
     type: "active",
     holdings: [
@@ -294,7 +294,7 @@ const BANK_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "banco-agresiva",
-    name: "Cartera Banco Agresiva",
+    name: "Tradicional Banco Agresiva",
     description: "60% CaixaBank Global + 25% Santander España + 15% BBVA Sostenible",
     type: "active",
     holdings: [

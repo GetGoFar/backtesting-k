@@ -264,7 +264,7 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                       <div className="flex items-center gap-1.5">
                         <span className="w-2 h-2 rounded-full bg-indigo-500" />
                         <span className="font-medium text-xs text-slate-800">
-                          {preset.name.replace("Cartera K Inbestme ", "K")}
+                          {preset.name.replace("Cartera ", "")}
                         </span>
                       </div>
                     </button>
