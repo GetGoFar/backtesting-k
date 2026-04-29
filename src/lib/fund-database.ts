@@ -364,8 +364,8 @@ const INDEXED_FUNDS: Fund[] = [
     id: "ishares-gold",
     name: "Invesco Physical Gold ETC",
     shortName: "Invesco Gold EUR",
-    isin: "DE000A1MECS1",
-    yahooTicker: "8PSG.DE", // Xetra (EUR) — datos más fiables que SGLD.AS
+    isin: "IE00B579F325",
+    yahooTicker: "8PSG.F", // Frankfurt (EUR) — datos desde 2012 (Xetra solo desde 2020)
     ter: 0.12,
     category: "Oro",
     type: "index",
