@@ -37,10 +37,10 @@ const INDEXED_FUNDS: Fund[] = [
   },
   {
     id: "vanguard-sp500",
-    name: "Vanguard S&P 500 UCITS ETF Acc",
-    shortName: "Vanguard S&P500 Acc",
-    isin: "IE00BFMXXD54",
-    yahooTicker: "VUAA.DE", // Acumulación Xetra (VUSA.AS era distribución — no capturaba dividendos)
+    name: "iShares Core S&P 500 UCITS ETF Acc",
+    shortName: "iShares S&P500 Acc",
+    isin: "IE00B5BMR087",
+    yahooTicker: "SXR8.DE", // Xetra — datos desde 2010 (VUAA.DE solo desde 2020)
     ter: 0.07,
     category: "RV EEUU",
     type: "index",
