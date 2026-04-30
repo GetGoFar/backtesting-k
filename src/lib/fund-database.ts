@@ -307,11 +307,10 @@ const INDEXED_FUNDS: Fund[] = [
   },
   {
     id: "indexa-small-cap",
-    name: "iShares MSCI World Small Cap UCITS ETF",
-    shortName: "iShares World Small Cap",
-    isin: "IE00BF4RFH31",
-    yahooTicker: "IUSN.DE",
-    ter: 0.35,
+    name: "Vanguard Global Small Cap Index Fund EUR Acc",
+    shortName: "Vanguard Small Cap",
+    isin: "IE00BFRTDD83", // Fondo institucional Vanguard (el que usa Indexa Capital) — EUFUND desde 2013-12
+    ter: 0.29,
     category: "RV Small Cap",
     type: "index",
     currency: "EUR",
