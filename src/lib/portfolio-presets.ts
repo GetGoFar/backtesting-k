@@ -547,10 +547,204 @@ const BANCA_PRIVADA_PRESETS: PortfolioPreset[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// Carteras K Sectorial USA (1-10) — Asset Class Allocation desde Portfolio Visualizer
+// Usa clases de activos geográficas (US Large Cap, Intl Developed, EM) en vez de sectores
+// RF: mezcla de duración corta/media/larga + corporate + high yield
+// -----------------------------------------------------------------------------
+
+const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
+  {
+    id: "k-sectorial-usa-1",
+    name: "Cartera K1 Sectorial USA",
+    description: "10% RV + 75% RF + 15% Oro — Muy conservadora",
+    type: "index",
+    holdings: [
+      // RV (10%)
+      { fundId: "vanguard-sp500", weight: 6.70 },
+      { fundId: "ishares-europe", weight: 2.60 },
+      { fundId: "amundi-emerging", weight: 0.70 },
+      // RF (75%)
+      { fundId: "amundi-gov-10-15y", weight: 4.50 },
+      { fundId: "xtrackers-gov-5-7y", weight: 6.50 },
+      { fundId: "amundi-gov-0-1y", weight: 33.50 },
+      { fundId: "vanguard-eur-corp", weight: 22.50 },
+      { fundId: "ishares-hy-esg", weight: 8.00 },
+      // Oro (15%)
+      { fundId: "ishares-gold", weight: 15.00 },
+    ],
+  },
+  {
+    id: "k-sectorial-usa-2",
+    name: "Cartera K2 Sectorial USA",
+    description: "15% RV + 70% RF + 15% Oro — Conservadora",
+    type: "index",
+    holdings: [
+      // RV (15%)
+      { fundId: "vanguard-sp500", weight: 10.00 },
+      { fundId: "ishares-europe", weight: 3.90 },
+      { fundId: "amundi-emerging", weight: 1.10 },
+      // RF (70%)
+      { fundId: "amundi-gov-10-15y", weight: 4.00 },
+      { fundId: "xtrackers-gov-5-7y", weight: 8.00 },
+      { fundId: "amundi-gov-0-1y", weight: 29.00 },
+      { fundId: "vanguard-eur-corp", weight: 18.00 },
+      { fundId: "ishares-hy-esg", weight: 11.00 },
+      // Oro (15%)
+      { fundId: "ishares-gold", weight: 15.00 },
+    ],
+  },
+  {
+    id: "k-sectorial-usa-3",
+    name: "Cartera K3 Sectorial USA",
+    description: "25% RV + 60% RF + 15% Oro — Moderada-conservadora",
+    type: "index",
+    holdings: [
+      // RV (25%)
+      { fundId: "vanguard-sp500", weight: 16.70 },
+      { fundId: "ishares-europe", weight: 6.50 },
+      { fundId: "amundi-emerging", weight: 1.80 },
+      // RF (60%)
+      { fundId: "amundi-gov-10-15y", weight: 5.00 },
+      { fundId: "xtrackers-gov-5-7y", weight: 9.00 },
+      { fundId: "amundi-gov-0-1y", weight: 22.00 },
+      { fundId: "vanguard-eur-corp", weight: 15.00 },
+      { fundId: "ishares-hy-esg", weight: 9.00 },
+      // Oro (15%)
+      { fundId: "ishares-gold", weight: 15.00 },
+    ],
+  },
+  {
+    id: "k-sectorial-usa-4",
+    name: "Cartera K4 Sectorial USA",
+    description: "35% RV + 50% RF + 15% Oro — Moderada",
+    type: "index",
+    holdings: [
+      // RV (35%)
+      { fundId: "vanguard-sp500", weight: 23.50 },
+      { fundId: "ishares-europe", weight: 9.00 },
+      { fundId: "amundi-emerging", weight: 2.50 },
+      // RF (50%)
+      { fundId: "amundi-gov-10-15y", weight: 5.00 },
+      { fundId: "xtrackers-gov-5-7y", weight: 9.00 },
+      { fundId: "amundi-gov-0-1y", weight: 21.00 },
+      { fundId: "vanguard-eur-corp", weight: 10.00 },
+      { fundId: "ishares-hy-esg", weight: 5.00 },
+      // Oro (15%)
+      { fundId: "ishares-gold", weight: 15.00 },
+    ],
+  },
+  {
+    id: "k-sectorial-usa-5",
+    name: "Cartera K5 Sectorial USA",
+    description: "45% RV + 35% RF + 20% Oro — Equilibrada",
+    type: "index",
+    holdings: [
+      // RV (45%)
+      { fundId: "vanguard-sp500", weight: 30.00 },
+      { fundId: "ishares-europe", weight: 12.00 },
+      { fundId: "amundi-emerging", weight: 3.00 },
+      // RF (35%)
+      { fundId: "xtrackers-gov-5-7y", weight: 16.00 },
+      { fundId: "amundi-gov-0-1y", weight: 12.00 },
+      { fundId: "vanguard-eur-corp", weight: 5.00 },
+      { fundId: "ishares-hy-esg", weight: 2.00 },
+      // Oro (20%)
+      { fundId: "ishares-gold", weight: 20.00 },
+    ],
+  },
+  {
+    id: "k-sectorial-usa-6",
+    name: "Cartera K6 Sectorial USA",
+    description: "55% RV + 25% RF + 20% Oro — Moderada-agresiva",
+    type: "index",
+    holdings: [
+      // RV (55%)
+      { fundId: "vanguard-sp500", weight: 36.80 },
+      { fundId: "ishares-europe", weight: 14.30 },
+      { fundId: "amundi-emerging", weight: 3.90 },
+      // RF (25%)
+      { fundId: "amundi-gov-10-15y", weight: 7.50 },
+      { fundId: "xtrackers-gov-5-7y", weight: 5.00 },
+      { fundId: "amundi-gov-0-1y", weight: 12.50 },
+      // Oro (20%)
+      { fundId: "ishares-gold", weight: 20.00 },
+    ],
+  },
+  {
+    id: "k-sectorial-usa-7",
+    name: "Cartera K7 Sectorial USA",
+    description: "65% RV + 15% RF + 20% Oro — Agresiva",
+    type: "index",
+    holdings: [
+      // RV (65%)
+      { fundId: "vanguard-sp500", weight: 43.60 },
+      { fundId: "ishares-europe", weight: 16.80 },
+      { fundId: "amundi-emerging", weight: 4.60 },
+      // RF (15%)
+      { fundId: "amundi-gov-10-15y", weight: 4.50 },
+      { fundId: "xtrackers-gov-5-7y", weight: 4.50 },
+      { fundId: "amundi-gov-0-1y", weight: 6.00 },
+      // Oro (20%)
+      { fundId: "ishares-gold", weight: 20.00 },
+    ],
+  },
+  {
+    id: "k-sectorial-usa-8",
+    name: "Cartera K8 Sectorial USA",
+    description: "70% RV + 10% RF + 20% Oro — Muy agresiva",
+    type: "index",
+    holdings: [
+      // RV (70%)
+      { fundId: "vanguard-sp500", weight: 47.00 },
+      { fundId: "ishares-europe", weight: 18.00 },
+      { fundId: "amundi-emerging", weight: 5.00 },
+      // RF (10%)
+      { fundId: "amundi-gov-10-15y", weight: 4.00 },
+      { fundId: "xtrackers-gov-5-7y", weight: 3.00 },
+      { fundId: "amundi-gov-0-1y", weight: 3.00 },
+      // Oro (20%)
+      { fundId: "ishares-gold", weight: 20.00 },
+    ],
+  },
+  {
+    id: "k-sectorial-usa-9",
+    name: "Cartera K9 Sectorial USA",
+    description: "74% RV + 6% RF + 20% Oro — Máxima agresividad con RF",
+    type: "index",
+    holdings: [
+      // RV (74%)
+      { fundId: "vanguard-sp500", weight: 50.00 },
+      { fundId: "ishares-europe", weight: 19.00 },
+      { fundId: "amundi-emerging", weight: 5.00 },
+      // RF (6%)
+      { fundId: "amundi-gov-10-15y", weight: 2.00 },
+      { fundId: "xtrackers-gov-5-7y", weight: 2.00 },
+      { fundId: "amundi-gov-0-1y", weight: 2.00 },
+      // Oro (20%)
+      { fundId: "ishares-gold", weight: 20.00 },
+    ],
+  },
+  {
+    id: "k-sectorial-usa-10",
+    name: "Cartera K10 Sectorial USA",
+    description: "80% RV + 0% RF + 20% Oro — Máxima agresividad",
+    type: "index",
+    holdings: [
+      // RV (80%)
+      { fundId: "vanguard-sp500", weight: 53.60 },
+      { fundId: "ishares-europe", weight: 20.80 },
+      { fundId: "amundi-emerging", weight: 5.60 },
+      // Oro (20%)
+      { fundId: "ishares-gold", weight: 20.00 },
+    ],
+  },
+];
+
+// -----------------------------------------------------------------------------
 // Todos los presets combinados
 // -----------------------------------------------------------------------------
 
-const ALL_PRESETS: PortfolioPreset[] = [...K_INBESTME_PRESETS, ...INDEXA_PRESETS, ...K_PRESETS, ...BANK_PRESETS, ...BANCA_PRIVADA_PRESETS];
+const ALL_PRESETS: PortfolioPreset[] = [...K_INBESTME_PRESETS, ...K_SECTORIAL_USA_PRESETS, ...INDEXA_PRESETS, ...K_PRESETS, ...BANK_PRESETS, ...BANCA_PRIVADA_PRESETS];
 
 // Mapa para búsqueda rápida por ID
 const PRESETS_BY_ID = new Map<string, PortfolioPreset>(
@@ -594,6 +788,13 @@ export function getKPresets(): PortfolioPreset[] {
  */
 export function getKInbestmePresets(): PortfolioPreset[] {
   return K_INBESTME_PRESETS;
+}
+
+/**
+ * Obtiene presets de carteras K Sectorial USA (1-10)
+ */
+export function getKSectorialUSAPresets(): PortfolioPreset[] {
+  return K_SECTORIAL_USA_PRESETS;
 }
 
 /**
