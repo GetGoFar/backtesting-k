@@ -333,11 +333,10 @@ const INDEXED_FUNDS: Fund[] = [
   },
   {
     id: "indexa-us-gov-hedged",
-    name: "Vanguard USD Treasury Bond UCITS ETF EUR Hedged Acc",
-    shortName: "Vanguard US Treasury Hdg",
-    isin: "IE00BZ163M45",
-    yahooTicker: "VDTA.L",
-    ter: 0.12,
+    name: "Vanguard US Government Bond Index Fund EUR Hedged Acc",
+    shortName: "Vanguard US Gov Hdg",
+    isin: "IE00BF6T7R10", // Fondo institucional Vanguard (el que usa Indexa Capital) — EUFUND desde 2017-11
+    ter: 0.10,
     category: "RF USD Gov",
     type: "index",
     currency: "EUR",

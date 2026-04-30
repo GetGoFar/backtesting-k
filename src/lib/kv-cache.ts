@@ -64,7 +64,8 @@ async function getRedis(): Promise<import("@upstash/redis").Redis | null> {
 // v11 = BGF/Franklin/PIMCO: eliminar yahooTicker .F → usar ISIN.EUFUND directo
 // v12 = Invesco Gold: 8PSG.DE(Xetra, desde 2020) → 8PSG.F(Frankfurt, desde 2012)
 // v13 = S&P500: VUAA.DE(desde 2020) → SXR8.DE/iShares Core S&P500 Acc(desde 2010)
-const CACHE_VERSION = "v13";
+// v14 = US Gov Bond: VDTA.L/ETF(desde 2019) → IE00BF6T7R10.EUFUND/fondo institucional Vanguard(desde 2017-11)
+const CACHE_VERSION = "v14";
 
 function makeKey(fundId: string): string {
   return `${CACHE_VERSION}:prices:${fundId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
