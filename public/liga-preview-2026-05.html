@@ -1,19 +1,10 @@
 <!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Liga de Fondos Basura - Preview con datos automatizados</title>
-<style>
-  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#0f0f1e; color:#e0e0e0; }
-  .preview-banner { background:#1d4ed8; color:#fff; padding:10px 16px; font-size:13px; text-align:center; line-height:1.5; }
-  .preview-banner code { background:rgba(255,255,255,.15); padding:2px 6px; border-radius:3px; font-family:'SF Mono','Monaco',monospace; font-size:12px; }
-</style>
-</head>
-<body>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Liga de Fondos Basura - Preview</title>
+<style>body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f0f1e;color:#e0e0e0}.preview-banner{background:#1d4ed8;color:#fff;padding:10px 16px;font-size:13px;text-align:center;line-height:1.5}.preview-banner code{background:rgba(255,255,255,.15);padding:2px 6px;border-radius:3px;font-family:'SF Mono','Monaco',monospace;font-size:12px}</style>
+</head><body>
 <div class="preview-banner">
-  Preview del redise&ntilde;o din&aacute;mico - datos servidos por <code>/api/liga/snapshot</code> en backtesting-k.<br>
-  Nueva columna <strong>Tend.</strong> al final de cada fila (&#9650;&#9660;=&#9733; vs snapshot mes anterior). Cron mensual d&iacute;a 1 a las 06:00 UTC.
+  Preview din&aacute;mico - Calculadora con clasificador autom&aacute;tico de fondos por ISIN. Cron mensual d&iacute;a 1 a las 06:00 UTC.
 </div>
 <style>.liga-wrapper *:not(nav):not(nav *){box-sizing:border-box}
 .liga-wrapper{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:linear-gradient(135deg,#0f0f1e,#1a1a2e);color:#e0e0e0;padding:20px;border-radius:12px}
@@ -647,6 +638,7 @@
 </div>
 <script>
 window.__LIGA_SNAPSHOT_URL_OVERRIDE = "/api/liga/snapshot?bootstrap=1";
+window.__LIGA_CLASSIFY_URL_OVERRIDE = "/api/liga/classify";
 var LIGA_DQ10 = [81440,75946,65093,65016,57124,53593,53242,51654,50338,47386,47048,45909,43802,43023,42721,40691,40629,37557,37097,36435,36102,35363,35228,33931,33862,33239,33170,33100,32751,32541,31977,30909,30838,29462,29462,29243,29023,28876,28876,28359,28211,27913,27165,26864,26334,25953,25800,25186,25032,24723,24568,24568,22764,22526,21487,21164,21164,21003,20760,20435,20027,19945,19699,19617,18376,17287,16099,15327,14896,14896,14809,14636,13414,13150,13062,12176,11909,10562,10290,9653,9562,9379,8367,8367,7439,7158,6971,5556,598,-401,-2120,-3041,-11892,-23341,-24068,-35439,-67445,-68401,-153308,-234088];
 var LIGA_TOTAL = 100;
 var LIGA_ISIN = {"ES0174930000":{"n":"Santander GO RV Norteamerica A","b":"Santander"},"ES0114277033":{"n":"BBVA Megatendencia Demografía","b":"BBVA"},"ES0181407000":{"n":"Unicaja Renta Variable USA A","b":"Unicaja"},"ES0174979007":{"n":"Santander Future Wealth A","b":"Santander"},"ES0113607008":{"n":"Santander Sostenible Acciones A","b":"Santander"},"IE00BG0D0J96":{"n":"Mediolanum BB Innovative Thematic Opportunities L","b":"Mediolanum"},"ES0114222039":{"n":"Kutxabank Bolsa Nueva Economía Estándar","b":"Kutxabank"},"ES0107764039":{"n":"Santander Future Us Tech A","b":"Santander"},"ES0106949037":{"n":"Abanca Renta Variable Crecimiento Minorista","b":"Abanca"},"ES0113191037":{"n":"Kutxabank Bolsa EEUU Estándar","b":"Kutxabank"},"ES0112617016":{"n":"B&H Acciones C FI","b":"Buy&Hold"},"ES0162948006":{"n":"Abanca Renta Variable Dividendo Minorista","b":"Abanca"},"ES0114237037":{"n":"Kutxabank Bolsa Sectorial Estándar","b":"Kutxabank"},"ES0183339037":{"n":"Sabadell Europa Bolsa Futuro Base","b":"Sabadell"},"ES0147644035":{"n":"Ibercaja Tecnológico A","b":"Ibercaja"},"IE00BJYLJ823":{"n":"Mediolanum BB Global Leaders Fund LA","b":"Mediolanum"},"ES0113987038":{"n":"Kutxabank Bolsa Internacional Estándar","b":"Kutxabank"},"ES0114805031":{"n":"Bankinter Finanzas Globales R","b":"Bankinter"},"ES0172243000":{"n":"BBVA Megatendencia Planeta Tierra ISR A","b":"BBVA"},"ES0130705033":{"n":"Ibercaja Bolsa Europa A","b":"Ibercaja"},"ES0105930038":{"n":"Santander Acciones Latinoamericanas A","b":"Santander"},"ES0138172038":{"n":"CaixaBank Bolsa Selección Global Estándar","b":"CaixaBank"},"ES0114105036":{"n":"Bankinter EE.UU. Nasdaq 100 R","b":"Bankinter"},"IE0005380518":{"n":"Mediolanum BB Emerging Markets Collection L A","b":"Mediolanum"},"ES0138181039":{"n":"CaixaBank Bolsa Selección Europa Estándar","b":"CaixaBank"},"ES0113572004":{"n":"Bankinter Índice Global R","b":"Bankinter"},"ES0114233036":{"n":"Kutxabank Bolsa Emergentes Estándar","b":"Kutxabank"},"IE0032082988":{"n":"Mediolanum Challenge International Equity L","b":"Mediolanum"},"ES0180792006":{"n":"True Value FI","b":"True Value"},"IE0005372291":{"n":"Mediolanum BB European Collection L","b":"Mediolanum"},"ES0138068038":{"n":"CaixaBank Bolsa Gestión Europa Estándar","b":"CaixaBank"},"IE0032080495":{"n":"Mediolanum BB Dynamic Collection L A","b":"Mediolanum"},"IE0032080503":{"n":"Mediolanum BB Equity Power Coupon Collection LA","b":"Mediolanum"},"ES0110119031":{"n":"Quality Mejores Ideas","b":"BBVA"},"ES0138189032":{"n":"CaixaBank Bolsa Selección USA Estándar","b":"CaixaBank"},"ES0121092003":{"n":"Compromiso Mediolanum L","b":"Mediolanum"},"ES0147641031":{"n":"Ibercaja Bolsa Internacional A","b":"Ibercaja"},"ES0114371034":{"n":"BBVA Bolsa Europa A","b":"BBVA"},"ES0138861036":{"n":"BBVA Bolsa FI","b":"BBVA"},"ES0114763032":{"n":"Bankinter Índice América R","b":"Bankinter"},"ES0114202031":{"n":"Kutxabank Bolsa Small & Mid Caps Estándar","b":"Kutxabank"},"ES0111092039":{"n":"Sabadell España Bolsa Futuro Base","b":"Sabadell"},"ES0114221031":{"n":"Kutxabank Bolsa Eurozona Estándar","b":"Kutxabank"},"ES0110116037":{"n":"BBVA Bolsa Emergentes MF","b":"BBVA"},"ES0164853006":{"n":"CaixaBank Selección Tendencias Estándar","b":"CaixaBank"},"IE00B6SBTN25":{"n":"Mediolanum BB New Opportunities Collection LA","b":"Mediolanum"},"ES0138328036":{"n":"CaixaBank Bolsa Selección Emergente Estándar","b":"CaixaBank"},"ES0114388038":{"n":"Kutxabank Bolsa Estándar","b":"Kutxabank"},"IE0005372184":{"n":"Mediolanum BB US Collection L","b":"Mediolanum"},"ES0184923037":{"n":"CaixaBank Bolsa Dividendo Europa Estándar","b":"CaixaBank"},"IE0005372309":{"n":"Mediolanum BB Pacific Collection L","b":"Mediolanum"},"ES0114561006":{"n":"Bestinver Grandes Compañías FI","b":"Bestinver"},"ES0108929037":{"n":"BBVA Bolsa Asia MF","b":"BBVA"},"ES0147711032":{"n":"BBVA Megatendencia Tecnología A","b":"BBVA"},"ES0121761037":{"n":"Santander Acciones USA A","b":"Santander"},"ES0147034039":{"n":"Ibercaja Bolsa USA A","b":"Ibercaja"},"IE00BCZNHK63":{"n":"Mediolanum BB Socially Responsible Collection LA","b":"Mediolanum"},"ES0115157036":{"n":"Bankinter Sostenibilidad R","b":"Bankinter"},"ES0114764030":{"n":"Bankinter Pequeñas Compañías Europa R","b":"Bankinter"},"ES0114063037":{"n":"Santander Acciones Euro A","b":"Santander"},"ES0125621039":{"n":"Bankinter Bolsa España R","b":"Bankinter"},"ES0113571006":{"n":"Bankinter Emergentes R","b":"Bankinter"},"ES0159031030":{"n":"CaixaBank Bolsa Gestión Euro Estándar","b":"CaixaBank"},"ES0138893039":{"n":"CaixaBank Bolsa Improvers Estándar","b":"CaixaBank"},"ES0111011039":{"n":"Unicaja RV Europa Selección A","b":"Unicaja"},"ES0157663008":{"n":"Quality Inversión Decidida","b":"BBVA"},"ES0114802038":{"n":"Bankinter Dividendo Europa R","b":"Bankinter"},"ES0147186037":{"n":"Ibercaja Bolsa España A","b":"Ibercaja"},"ES0114081039":{"n":"Santander Go RV Asia A","b":"Santander"},"ES0114638036":{"n":"Bestinver Internacional FI","b":"Bestinver"},"ES0110057033":{"n":"CaixaBank Multisalud Estándar","b":"CaixaBank"},"ES0137878031":{"n":"CaixaBank Bolsa España 150 Estándar","b":"CaixaBank"},"ES0138823036":{"n":"Santander Acciones Españolas A","b":"Santander"},"ES0113536009":{"n":"BBVA Bolsa Plan Dividendo Europa","b":"BBVA"},"ES0138983038":{"n":"Sabadell Estados Unidos Bolsa Base","b":"Sabadell"},"ES0162956009":{"n":"Abanca Indice Renta Variable Global","b":"Abanca"},"ES0138615036":{"n":"CaixaBank Bolsa USA Estándar","b":"CaixaBank"},"ES0114794037":{"n":"Bankinter Indice Ibex R","b":"Bankinter"},"ES0113693032":{"n":"CaixaBank Comunicación Mundial Estándar","b":"CaixaBank"},"ES0114104039":{"n":"Bankinter Índice Japón R","b":"Bankinter"},"ES0110088038":{"n":"BBVA Bolsa Índice Japón (Cubierto)","b":"BBVA"},"ES0114754031":{"n":"Bankinter Índice Europeo R","b":"Bankinter"},"ES0110182039":{"n":"BBVA Bolsa Índice","b":"BBVA"},"ES0175083031":{"n":"Sabadell Bolsas Emergentes Base","b":"Sabadell"},"ES0138392032":{"n":"CaixaBank Bolsa Índice España Estándar","b":"CaixaBank"},"ES0114232038":{"n":"Kutxabank Bolsa Japón Estándar","b":"Kutxabank"},"ES0111149003":{"n":"Sabadell Selección Épsilon Base","b":"Sabadell"},"ES0110098037":{"n":"BBVA Bolsa Índice Euro","b":"BBVA"},"ES0138792033":{"n":"CaixaBank Bolsa Índice Euro Estándar","b":"CaixaBank"},"ES0156741029":{"n":"Bankinter Indice Salud R","b":"Bankinter"},"ES0173311103":{"n":"Numantia Patrimonio Global FI","b":"Numantia"},"ES0105182036":{"n":"CaixaBank Bolsa Gestión España Estándar","b":"CaixaBank"},"ES0159259011":{"n":"Magallanes European Equity M FI","b":"Magallanes"},"ES0112611001":{"n":"Azvalor Internacional FI","b":"AzValor"},"ES0131445076":{"n":"Gestión Boutique VIII Adarve Altea FI","b":"Adarve"},"ES0182769002":{"n":"Valentum E FI","b":"Valentum"},"LU0933684283":{"n":"Equam Global Value B FI","b":"Equam"},"ES0113728010":{"n":"Cobas Grandes Compañías D FI","b":"Cobas"},"ES0146309002":{"n":"Horos Value Internacional FI","b":"Horos"},"ES0119199000":{"n":"Cobas Internacional C FI","b":"Cobas"}};
@@ -1200,9 +1192,9 @@ function calcDQ() {
 			? ( delta >= 0 ? '+' : '' ) + Math.round( delta ).toLocaleString( 'es-ES' ) + ' €'
 			: '';
 		var iconos = {
-			mejorando:  { glyph: '▲', color: '#2a9d3f', label: 'Mejorando vs semana anterior' },
-			empeorando: { glyph: '▼', color: '#c62828', label: 'Empeorando vs semana anterior' },
-			estable:    { glyph: '=', color: '#888',    label: 'Estable vs semana anterior' },
+			mejorando:  { glyph: '▲', color: '#2a9d3f', label: 'Mejorando vs mes anterior' },
+			empeorando: { glyph: '▼', color: '#c62828', label: 'Empeorando vs mes anterior' },
+			estable:    { glyph: '=', color: '#888',    label: 'Estable vs mes anterior' },
 			nuevo:      { glyph: '★', color: '#1d4ed8', label: 'Nuevo en la liga' },
 			sin_ref:    { glyph: '·', color: '#bbb',    label: 'Sin referencia previa' }
 		};
@@ -1344,6 +1336,155 @@ function calcDQ() {
 				console.warn( '[liga-fetcher] usando datos hardcoded como fallback:', err );
 				setStatus( '' ); // mantener silencio para el usuario; los datos hardcoded se ven igual
 			} );
+
+		instalarClassifyEnDetectFund();
+	}
+
+	/* ---------------------------------------------------------------------------
+	 * detectFund() enriquecido: tras el lookup Morningstar, llama a
+	 * /api/liga/classify para mostrar la posición teórica del fondo en la liga.
+	 * ------------------------------------------------------------------------- */
+
+	// Override permite probar contra el dev server de Next.js
+	var CLASSIFY_URL = ( typeof window !== 'undefined' && window.__LIGA_CLASSIFY_URL_OVERRIDE )
+		|| '/api/liga/classify';
+	// Cuando estamos en el harness de pruebas, classify vive en el mismo Vercel
+	// que el snapshot. En producción Wordpress hay que apuntarlo a Vercel también
+	// (no tiene sentido proxiear esto por WP). Si __LIGA_VERCEL_BASE está definido
+	// se usa como prefijo absoluto.
+	var VERCEL_BASE = ( typeof window !== 'undefined' && window.__LIGA_VERCEL_BASE ) || '';
+
+	function urlClassify( isin ) {
+		var base = VERCEL_BASE || '';
+		var path = CLASSIFY_URL;
+		// Si CLASSIFY_URL es path relativo y tenemos VERCEL_BASE, anteponemos
+		if ( path.charAt( 0 ) === '/' && base ) path = base + path;
+		return path + '?isin=' + encodeURIComponent( isin );
+	}
+
+	function instalarClassifyEnDetectFund() {
+		// El detectFund() original vive en el window scope (lo crea el eval(atob)).
+		// Lo envolvemos en un wrapper que añade un fetch a /api/liga/classify
+		// cuando el ISIN es válido y el fondo NO está en la liga.
+		var debounceTimer = null;
+		var lastClassifiedIsin = '';
+
+		function isinValido( s ) {
+			return /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test( ( s || '' ).toUpperCase() );
+		}
+
+		function pintarClassify( box, datos ) {
+			if ( ! datos || datos.error ) {
+				var det = ( datos && datos.detalle ) || 'sin información';
+				var msg = '';
+				if ( datos && datos.error === 'no_eodhd' ) {
+					msg = 'No tenemos histórico suficiente de este fondo en EODHD. ' +
+						'Esto suele pasar con fondos muy nuevos o poco transparentes — ya es una primera mala señal.';
+				} else if ( datos && datos.error === 'no_morningstar' ) {
+					msg = 'No encontramos este fondo en Morningstar. Verifica el ISIN.';
+				} else if ( datos && datos.error === 'rango_corto' ) {
+					msg = 'Este fondo lleva menos de 1 año cotizando — no podemos calcular su alfa todavía.';
+				} else {
+					msg = 'No pudimos clasificarlo automáticamente: ' + det;
+				}
+				agregarBloqueClassify( box, '<div class="liga-classify-error">' + escapeHtml( msg ) + '</div>' );
+				return;
+			}
+
+			var dq5fmt = fmtEur( datos.dq5 );
+			var dq10fmt = fmtEur( datos.dq10 );
+			var alfaFmt = ( datos.alfa != null ) ? datos.alfa.toFixed( 2 ) + '%' : '—';
+			var benchTxt = datos.benchmarkUsado
+				? datos.benchmarkUsado.nombre + ' (' + datos.benchmarkUsado.ticker + ')'
+				: '— (en la liga, benchmark del CSV)';
+			var zonaLabel = {
+				champions: '🏆 Champions de la Basura',
+				europa: '🔥 Europa League',
+				permanencia: '😐 Zona Permanencia',
+				descenso: '📉 Zona Descenso'
+			}[ datos.zona ] || datos.zona || '—';
+			var zonaTooltip = {
+				champions: 'top 25% peor — los más caros y/o que más se han alejado del índice',
+				europa: 'cuartil 2 — significativamente peores que el benchmark',
+				permanencia: 'cuartil 3 — pierden poco contra el benchmark',
+				descenso: 'mejor 25% — los menos malos (o incluso ganadores netos contra benchmark)'
+			}[ datos.zona ] || '';
+			var aniosTxt = ( datos.anosObservados != null )
+				? datos.anosObservados.toFixed( 1 ) + ' años'
+				: 'N/A';
+
+			var html =
+				'<div class="liga-classify-result">' +
+				'<div class="lc-row lc-zona" title="' + escapeHtml( zonaTooltip ) + '"><strong>Posición teórica:</strong> ' +
+					'<span class="lc-pos">#' + datos.posicionTeorica + ' de ' + datos.totalEnLiga + '</span> · ' +
+					'<span class="lc-zona-tag">' + escapeHtml( zonaLabel ) + '</span></div>' +
+				'<div class="lc-row"><strong>Alfa anualizada:</strong> ' + alfaFmt +
+					' · <strong>Periodo:</strong> ' + aniosTxt + '</div>' +
+				'<div class="lc-row"><strong>Dinero quemado por 100k €:</strong> ' +
+					'5A ' + dq5fmt + ' · 10A ' + dq10fmt + '</div>' +
+				'<div class="lc-row lc-bench">Benchmark usado: ' + escapeHtml( benchTxt ) +
+					'<br><span class="lc-bench-note">¿Crees que no es justo? Cuéntanoslo.</span></div>' +
+				'</div>';
+			agregarBloqueClassify( box, html );
+		}
+
+		function agregarBloqueClassify( box, html ) {
+			// Quita bloques anteriores y añade el nuevo
+			var prev = box.querySelector( '.liga-classify-result, .liga-classify-error, .liga-classify-loading' );
+			if ( prev ) prev.remove();
+			box.insertAdjacentHTML( 'beforeend', html );
+		}
+
+		function dispararClassify() {
+			var input = document.getElementById( 'calc-isin' );
+			if ( ! input ) return;
+			var isin = ( input.value || '' ).trim().toUpperCase();
+			if ( ! isinValido( isin ) ) return;
+			if ( isin === lastClassifiedIsin ) return;
+			var box = document.getElementById( 'calc-fund-detected' );
+			if ( ! box ) return;
+
+			// Loading state inmediato
+			agregarBloqueClassify(
+				box,
+				'<div class="liga-classify-loading">⏳ Calculando posición en la liga…</div>'
+			);
+
+			fetch( urlClassify( isin ) )
+				.then( function ( r ) { return r.json(); } )
+				.then( function ( data ) {
+					var actual = ( document.getElementById( 'calc-isin' ).value || '' ).trim().toUpperCase();
+					if ( actual !== isin ) return;
+					lastClassifiedIsin = isin;
+					pintarClassify( box, data );
+				} )
+				.catch( function ( e ) {
+					console.warn( '[liga-fetcher] classify error', e );
+					pintarClassify( box, { error: 'interno', detalle: 'fallo de red' } );
+				} );
+		}
+
+		var input = document.getElementById( 'calc-isin' );
+		if ( ! input ) return;
+
+		input.addEventListener( 'input', function () {
+			clearTimeout( debounceTimer );
+			debounceTimer = setTimeout( dispararClassify, 700 );
+		} );
+
+		// Inyectar CSS mínimo para los bloques de classify
+		var style = document.createElement( 'style' );
+		style.textContent =
+			'.liga-classify-loading { margin-top: 8px; padding: 8px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: .85em; opacity: .8; }' +
+			'.liga-classify-error { margin-top: 8px; padding: 10px 12px; background: rgba(220,50,50,0.15); border-left: 3px solid #c62828; border-radius: 4px; font-size: .85em; line-height: 1.4; }' +
+			'.liga-classify-result { margin-top: 10px; padding: 10px 12px; background: rgba(29,78,216,0.12); border-left: 3px solid #1d4ed8; border-radius: 4px; font-size: .85em; line-height: 1.5; }' +
+			'.liga-classify-result .lc-row { margin-bottom: 4px; }' +
+			'.liga-classify-result .lc-zona { font-size: .9em; }' +
+			'.liga-classify-result .lc-pos { color: #fff; font-weight: 700; }' +
+			'.liga-classify-result .lc-zona-tag { font-weight: 600; }' +
+			'.liga-classify-result .lc-bench { color: #aab; font-size: .78em; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.08); }' +
+			'.liga-classify-result .lc-bench-note { color: #889; font-style: italic; }';
+		document.head.appendChild( style );
 	}
 
 	if ( document.readyState === 'loading' ) {
@@ -1354,5 +1495,4 @@ function calcDQ() {
 } )();
 
 </script>
-</body>
-</html>
+</body></html>

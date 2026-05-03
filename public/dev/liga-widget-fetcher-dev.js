@@ -100,9 +100,9 @@
 			? ( delta >= 0 ? '+' : '' ) + Math.round( delta ).toLocaleString( 'es-ES' ) + ' €'
 			: '';
 		var iconos = {
-			mejorando:  { glyph: '▲', color: '#2a9d3f', label: 'Mejorando vs semana anterior' },
-			empeorando: { glyph: '▼', color: '#c62828', label: 'Empeorando vs semana anterior' },
-			estable:    { glyph: '=', color: '#888',    label: 'Estable vs semana anterior' },
+			mejorando:  { glyph: '▲', color: '#2a9d3f', label: 'Mejorando vs mes anterior' },
+			empeorando: { glyph: '▼', color: '#c62828', label: 'Empeorando vs mes anterior' },
+			estable:    { glyph: '=', color: '#888',    label: 'Estable vs mes anterior' },
 			nuevo:      { glyph: '★', color: '#1d4ed8', label: 'Nuevo en la liga' },
 			sin_ref:    { glyph: '·', color: '#bbb',    label: 'Sin referencia previa' }
 		};
@@ -244,6 +244,155 @@
 				console.warn( '[liga-fetcher] usando datos hardcoded como fallback:', err );
 				setStatus( '' ); // mantener silencio para el usuario; los datos hardcoded se ven igual
 			} );
+
+		instalarClassifyEnDetectFund();
+	}
+
+	/* ---------------------------------------------------------------------------
+	 * detectFund() enriquecido: tras el lookup Morningstar, llama a
+	 * /api/liga/classify para mostrar la posición teórica del fondo en la liga.
+	 * ------------------------------------------------------------------------- */
+
+	// Override permite probar contra el dev server de Next.js
+	var CLASSIFY_URL = ( typeof window !== 'undefined' && window.__LIGA_CLASSIFY_URL_OVERRIDE )
+		|| '/api/liga/classify';
+	// Cuando estamos en el harness de pruebas, classify vive en el mismo Vercel
+	// que el snapshot. En producción Wordpress hay que apuntarlo a Vercel también
+	// (no tiene sentido proxiear esto por WP). Si __LIGA_VERCEL_BASE está definido
+	// se usa como prefijo absoluto.
+	var VERCEL_BASE = ( typeof window !== 'undefined' && window.__LIGA_VERCEL_BASE ) || '';
+
+	function urlClassify( isin ) {
+		var base = VERCEL_BASE || '';
+		var path = CLASSIFY_URL;
+		// Si CLASSIFY_URL es path relativo y tenemos VERCEL_BASE, anteponemos
+		if ( path.charAt( 0 ) === '/' && base ) path = base + path;
+		return path + '?isin=' + encodeURIComponent( isin );
+	}
+
+	function instalarClassifyEnDetectFund() {
+		// El detectFund() original vive en el window scope (lo crea el eval(atob)).
+		// Lo envolvemos en un wrapper que añade un fetch a /api/liga/classify
+		// cuando el ISIN es válido y el fondo NO está en la liga.
+		var debounceTimer = null;
+		var lastClassifiedIsin = '';
+
+		function isinValido( s ) {
+			return /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test( ( s || '' ).toUpperCase() );
+		}
+
+		function pintarClassify( box, datos ) {
+			if ( ! datos || datos.error ) {
+				var det = ( datos && datos.detalle ) || 'sin información';
+				var msg = '';
+				if ( datos && datos.error === 'no_eodhd' ) {
+					msg = 'No tenemos histórico suficiente de este fondo en EODHD. ' +
+						'Esto suele pasar con fondos muy nuevos o poco transparentes — ya es una primera mala señal.';
+				} else if ( datos && datos.error === 'no_morningstar' ) {
+					msg = 'No encontramos este fondo en Morningstar. Verifica el ISIN.';
+				} else if ( datos && datos.error === 'rango_corto' ) {
+					msg = 'Este fondo lleva menos de 1 año cotizando — no podemos calcular su alfa todavía.';
+				} else {
+					msg = 'No pudimos clasificarlo automáticamente: ' + det;
+				}
+				agregarBloqueClassify( box, '<div class="liga-classify-error">' + escapeHtml( msg ) + '</div>' );
+				return;
+			}
+
+			var dq5fmt = fmtEur( datos.dq5 );
+			var dq10fmt = fmtEur( datos.dq10 );
+			var alfaFmt = ( datos.alfa != null ) ? datos.alfa.toFixed( 2 ) + '%' : '—';
+			var benchTxt = datos.benchmarkUsado
+				? datos.benchmarkUsado.nombre + ' (' + datos.benchmarkUsado.ticker + ')'
+				: '— (en la liga, benchmark del CSV)';
+			var zonaLabel = {
+				champions: '🏆 Champions de la Basura',
+				europa: '🔥 Europa League',
+				permanencia: '😐 Zona Permanencia',
+				descenso: '📉 Zona Descenso'
+			}[ datos.zona ] || datos.zona || '—';
+			var zonaTooltip = {
+				champions: 'top 25% peor — los más caros y/o que más se han alejado del índice',
+				europa: 'cuartil 2 — significativamente peores que el benchmark',
+				permanencia: 'cuartil 3 — pierden poco contra el benchmark',
+				descenso: 'mejor 25% — los menos malos (o incluso ganadores netos contra benchmark)'
+			}[ datos.zona ] || '';
+			var aniosTxt = ( datos.anosObservados != null )
+				? datos.anosObservados.toFixed( 1 ) + ' años'
+				: 'N/A';
+
+			var html =
+				'<div class="liga-classify-result">' +
+				'<div class="lc-row lc-zona" title="' + escapeHtml( zonaTooltip ) + '"><strong>Posición teórica:</strong> ' +
+					'<span class="lc-pos">#' + datos.posicionTeorica + ' de ' + datos.totalEnLiga + '</span> · ' +
+					'<span class="lc-zona-tag">' + escapeHtml( zonaLabel ) + '</span></div>' +
+				'<div class="lc-row"><strong>Alfa anualizada:</strong> ' + alfaFmt +
+					' · <strong>Periodo:</strong> ' + aniosTxt + '</div>' +
+				'<div class="lc-row"><strong>Dinero quemado por 100k €:</strong> ' +
+					'5A ' + dq5fmt + ' · 10A ' + dq10fmt + '</div>' +
+				'<div class="lc-row lc-bench">Benchmark usado: ' + escapeHtml( benchTxt ) +
+					'<br><span class="lc-bench-note">¿Crees que no es justo? Cuéntanoslo.</span></div>' +
+				'</div>';
+			agregarBloqueClassify( box, html );
+		}
+
+		function agregarBloqueClassify( box, html ) {
+			// Quita bloques anteriores y añade el nuevo
+			var prev = box.querySelector( '.liga-classify-result, .liga-classify-error, .liga-classify-loading' );
+			if ( prev ) prev.remove();
+			box.insertAdjacentHTML( 'beforeend', html );
+		}
+
+		function dispararClassify() {
+			var input = document.getElementById( 'calc-isin' );
+			if ( ! input ) return;
+			var isin = ( input.value || '' ).trim().toUpperCase();
+			if ( ! isinValido( isin ) ) return;
+			if ( isin === lastClassifiedIsin ) return;
+			var box = document.getElementById( 'calc-fund-detected' );
+			if ( ! box ) return;
+
+			// Loading state inmediato
+			agregarBloqueClassify(
+				box,
+				'<div class="liga-classify-loading">⏳ Calculando posición en la liga…</div>'
+			);
+
+			fetch( urlClassify( isin ) )
+				.then( function ( r ) { return r.json(); } )
+				.then( function ( data ) {
+					var actual = ( document.getElementById( 'calc-isin' ).value || '' ).trim().toUpperCase();
+					if ( actual !== isin ) return;
+					lastClassifiedIsin = isin;
+					pintarClassify( box, data );
+				} )
+				.catch( function ( e ) {
+					console.warn( '[liga-fetcher] classify error', e );
+					pintarClassify( box, { error: 'interno', detalle: 'fallo de red' } );
+				} );
+		}
+
+		var input = document.getElementById( 'calc-isin' );
+		if ( ! input ) return;
+
+		input.addEventListener( 'input', function () {
+			clearTimeout( debounceTimer );
+			debounceTimer = setTimeout( dispararClassify, 700 );
+		} );
+
+		// Inyectar CSS mínimo para los bloques de classify
+		var style = document.createElement( 'style' );
+		style.textContent =
+			'.liga-classify-loading { margin-top: 8px; padding: 8px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: .85em; opacity: .8; }' +
+			'.liga-classify-error { margin-top: 8px; padding: 10px 12px; background: rgba(220,50,50,0.15); border-left: 3px solid #c62828; border-radius: 4px; font-size: .85em; line-height: 1.4; }' +
+			'.liga-classify-result { margin-top: 10px; padding: 10px 12px; background: rgba(29,78,216,0.12); border-left: 3px solid #1d4ed8; border-radius: 4px; font-size: .85em; line-height: 1.5; }' +
+			'.liga-classify-result .lc-row { margin-bottom: 4px; }' +
+			'.liga-classify-result .lc-zona { font-size: .9em; }' +
+			'.liga-classify-result .lc-pos { color: #fff; font-weight: 700; }' +
+			'.liga-classify-result .lc-zona-tag { font-weight: 600; }' +
+			'.liga-classify-result .lc-bench { color: #aab; font-size: .78em; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.08); }' +
+			'.liga-classify-result .lc-bench-note { color: #889; font-style: italic; }';
+		document.head.appendChild( style );
 	}
 
 	if ( document.readyState === 'loading' ) {
