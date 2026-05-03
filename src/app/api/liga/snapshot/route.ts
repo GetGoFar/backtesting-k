@@ -59,7 +59,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       }
     } else {
       return NextResponse.json(
-        { error: "snapshot todavía no generado", hint: "añade ?bootstrap=1 para auto-generarlo" },
+        {
+          error: "snapshot todavía no generado",
+          hint: "añade ?bootstrap=1 para auto-generarlo",
+          buildMarker: "DEPLOY-CHECK-2026-05-03-A",
+          eodhdConfigured: !!process.env.EODHD_API_TOKEN,
+          bootstrapRequested: bootstrap,
+        },
         { status: 503, headers: CORS_HEADERS },
       );
     }
