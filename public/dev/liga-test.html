@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Liga test page</title>
+<style>
+  body { font: 14px/1.4 -apple-system, sans-serif; max-width: 1100px; margin: 2rem auto; padding: 0 1rem; }
+  h1 { font-size: 1.4rem; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid #eee; text-align: left; font-size: 13px; }
+  th { background: #fafafa; }
+  .dq-pos { color: #2a9d3f; }
+  .dq-neg { color: #c62828; }
+  .impact-bar-wrap { width: 100px; height: 6px; background: #f0f0f0; border-radius: 3px; }
+  .impact-bar { height: 100%; border-radius: 3px; }
+  .type-badge { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: #ddd; margin-left: 4px; }
+  .type-bancario { background: #ffebee; color: #c62828; }
+  .type-independiente { background: #e8f5e9; color: #2a9d3f; }
+  .meta { color: #666; }
+  .stale { opacity: 0.5; }
+  .trend-icon { font-size: 14px; display: inline-block; min-width: 16px; text-align: center; }
+  .th-trend { width: 50px; }
+</style>
+</head>
+<body>
+<h1>Liga de Fondos Basura — test page</h1>
+<p class="meta">Última actualización: <span id="liga-updated-at">cargando...</span> · status: <span id="liga-snapshot-status"></span></p>
+<table id="ranking-table">
+  <thead>
+    <tr><th>#</th><th>Fondo</th><th>Gestora</th><th>ISIN</th><th>TER</th><th>DQ 3A</th><th>DQ 5A</th><th>DQ 10A</th><th>Impacto</th></tr>
+  </thead>
+  <tbody>
+    <!-- placeholder: el fetcher la rellena. Si el fetch falla, queda vacía. -->
+  </tbody>
+</table>
+
+<script>
+  // Esto sustituye al eval(atob) en este harness de prueba.
+  // Define lookups vacíos que el fetcher actualizará.
+  window.LIGA_ISIN = {};
+  window.LIGA_DQ10 = [];
+  window.LIGA_TOTAL = 0;
+  window.applyFilters = function(){ /* noop en este harness */ };
+</script>
+
+<!-- En la página real este script vendría desde wp-content/uploads/. Aquí lo incluimos directo desde el repo. -->
+<script>
+  // Servir el fetcher bajo URL del propio Next dev server: usar el snapshot endpoint local.
+  // Reescribimos SNAPSHOT_URL antes de inyectar el script para apuntar a /api/liga/snapshot
+</script>
+<script>
+  // Mini patch: definir una variable global que el fetcher leerá
+  window.__LIGA_SNAPSHOT_URL_OVERRIDE = '/api/liga/snapshot';
+</script>
+<script src="/dev/liga-widget-fetcher-dev.js"></script>
+</body>
+</html>

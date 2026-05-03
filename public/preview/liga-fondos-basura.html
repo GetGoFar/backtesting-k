@@ -1,0 +1,1358 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Liga de Fondos Basura - Preview con datos automatizados</title>
+<style>
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#0f0f1e; color:#e0e0e0; }
+  .preview-banner { background:#1d4ed8; color:#fff; padding:10px 16px; font-size:13px; text-align:center; line-height:1.5; }
+  .preview-banner code { background:rgba(255,255,255,.15); padding:2px 6px; border-radius:3px; font-family:'SF Mono','Monaco',monospace; font-size:12px; }
+</style>
+</head>
+<body>
+<div class="preview-banner">
+  Preview del redise&ntilde;o din&aacute;mico - datos servidos por <code>/api/liga/snapshot</code> en backtesting-k.<br>
+  Nueva columna <strong>Tend.</strong> al final de cada fila (&#9650;&#9660;=&#9733; vs snapshot semana anterior). Cron semanal lunes 06:00 UTC.
+</div>
+<style>.liga-wrapper *:not(nav):not(nav *){box-sizing:border-box}
+.liga-wrapper{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:linear-gradient(135deg,#0f0f1e,#1a1a2e);color:#e0e0e0;padding:20px;border-radius:12px}
+.liga-wrapper .container{max-width:1400px;margin:0 auto}
+
+/* Header */
+.liga-wrapper .liga-header{text-align:center;margin-bottom:40px;padding:40px 20px;background:linear-gradient(135deg,rgba(15,15,30,0.9),rgba(26,26,46,0.9));border-radius:10px;border-bottom:3px solid #ff4444}
+.liga-wrapper h1{font-size:3em;font-weight:700;margin-bottom:10px;background:linear-gradient(45deg,#ff4444,#ff8888);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.liga-wrapper .subtitle{font-size:1.2em;color:#a0a0a0;margin-bottom:8px}
+.liga-wrapper .tagline{font-size:0.95em;color:#777;font-style:italic}
+
+/* Dashboard cards */
+.liga-wrapper .dashboard{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:40px}
+.liga-wrapper .dash-card{background:linear-gradient(135deg,#1a1a2e,#2d2d4a);padding:28px 24px;border-radius:12px;border:1px solid #2d2d4a}
+.liga-wrapper .dash-card .dash-label{color:#a0a0a0;font-size:.8em;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;font-weight:600}
+.liga-wrapper .dash-big{font-size:2.8em;font-weight:700;color:#ff4444;line-height:1.1;margin-bottom:8px}
+.liga-wrapper .dash-big .fire{font-size:.8em}
+.liga-wrapper .dash-sub{color:#888;font-size:.88em;margin-bottom:16px}
+.liga-wrapper .progress-bar{height:10px;border-radius:5px;background:#1a1a2e;overflow:hidden;display:flex;margin-bottom:8px}
+.liga-wrapper .progress-bar .seg-bank{background:linear-gradient(90deg,#ff4444,#ff6b6b);border-radius:5px 0 0 5px}
+.liga-wrapper .progress-bar .seg-indep{background:linear-gradient(90deg,#66bb6a,#81c784);border-radius:0 5px 5px 0}
+.liga-wrapper .progress-legend{display:flex;gap:20px;font-size:.78em;color:#a0a0a0}
+.liga-wrapper .progress-legend .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:middle}
+.liga-wrapper .dot-bank{background:#ff4444}
+.liga-wrapper .dot-indep{background:#81c784}
+
+/* TER comparison */
+.liga-wrapper .ter-compare{display:flex;align-items:center;justify-content:center;gap:20px;margin-top:10px}
+.liga-wrapper .ter-box{text-align:center;flex:1}
+.liga-wrapper .ter-val{font-size:2.2em;font-weight:700;line-height:1.1}
+.liga-wrapper .ter-val.red{color:#ff4444}
+.liga-wrapper .ter-val.green{color:#81c784}
+.liga-wrapper .ter-label{color:#a0a0a0;font-size:.78em;text-transform:uppercase;letter-spacing:1px;margin-top:4px}
+.liga-wrapper .ter-vs{color:#ff8888;font-size:1.4em;font-weight:700}
+.liga-wrapper .ter-diff{text-align:center;margin-top:14px;padding:8px 16px;background:rgba(255,68,68,0.1);border-radius:6px;color:#ff8888;font-size:.85em;font-weight:600}
+
+/* Summary stats row */
+.liga-wrapper .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:20px;margin-bottom:40px}
+.liga-wrapper .stat{background:linear-gradient(135deg,#1a1a2e,#2d2d4a);padding:20px;border-radius:8px;border-left:4px solid #ff4444;text-align:center}
+.liga-wrapper .stat .label{color:#a0a0a0;font-size:0.85em;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.liga-wrapper .stat .val{font-size:1.6em;font-weight:700;color:#ff4444}
+.liga-wrapper .stat .val.green{color:#81c784}
+
+/* Zone separators */
+.liga-wrapper .zone-header{padding:14px 20px;margin:0;font-weight:700;font-size:1.05em;letter-spacing:0.5px;border-left:5px solid;text-align:left}
+.liga-wrapper .zone-header td{padding:14px 20px !important;border-bottom:none !important}
+.liga-wrapper .zone-champions td{background:linear-gradient(90deg,rgba(255,215,0,0.12),transparent);border-left-color:#ffd700;color:#ffd700}
+.liga-wrapper .zone-europa td{background:linear-gradient(90deg,rgba(255,100,50,0.12),transparent);border-left-color:#ff6432;color:#ff6432}
+.liga-wrapper .zone-permanencia td{background:linear-gradient(90deg,rgba(150,150,150,0.1),transparent);border-left-color:#999;color:#999}
+.liga-wrapper .zone-descenso td{background:linear-gradient(90deg,rgba(100,200,100,0.1),transparent);border-left-color:#64c864;color:#64c864}
+
+/* Zone legend */
+.liga-wrapper .zone-legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px;margin-bottom:30px}
+.liga-wrapper .zone-card{padding:15px 18px;border-radius:8px;border-left:4px solid;background:linear-gradient(135deg,#1a1a2e,#2d2d4a)}
+.liga-wrapper .zone-card .zone-count{float:right;background:rgba(255,255,255,0.08);padding:2px 10px;border-radius:12px;font-size:.85em;font-weight:600}
+.liga-wrapper .zone-card.zc-champions{border-left-color:#ffd700}.liga-wrapper .zone-card.zc-champions .zone-title{color:#ffd700}
+.liga-wrapper .zone-card.zc-europa{border-left-color:#ff6432}.liga-wrapper .zone-card.zc-europa .zone-title{color:#ff6432}
+.liga-wrapper .zone-card.zc-permanencia{border-left-color:#999}.liga-wrapper .zone-card.zc-permanencia .zone-title{color:#999}
+.liga-wrapper .zone-card.zc-descenso{border-left-color:#64c864}.liga-wrapper .zone-card.zc-descenso .zone-title{color:#64c864}
+.liga-wrapper .zone-title{font-weight:700;font-size:1.05em;margin-bottom:4px}
+.liga-wrapper .zone-desc{color:#888;font-size:.88em}
+
+/* Charts grid */
+.liga-wrapper .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:35px}
+.liga-wrapper .chart-card{background:linear-gradient(135deg,#1a1a2e,#2d2d4a);padding:20px;border-radius:12px;border:1px solid #2d2d4a;display:flex;align-items:center;justify-content:center}
+.liga-wrapper .chart-card svg{display:block}
+.liga-wrapper .chart-card circle{transition:opacity .2s}
+.liga-wrapper .chart-card circle:hover{opacity:1 !important;r:7}
+
+/* Filter bar */
+.liga-wrapper .filter-bar{display:flex;align-items:center;gap:12px;margin-bottom:25px;flex-wrap:wrap}
+.liga-wrapper .filter-bar label{color:#a0a0a0;font-size:.85em;text-transform:uppercase;letter-spacing:1px;font-weight:600}
+.liga-wrapper .filter-select{background:#1a1a2e;color:#e0e0e0;border:1px solid #3d3d5a;padding:10px 14px;border-radius:6px;font-size:.9em;cursor:pointer;min-width:180px;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23ff8888' stroke-width='2' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:36px}
+.liga-wrapper .filter-select:hover,.liga-wrapper .filter-select:focus{border-color:#ff4444;outline:none;box-shadow:0 0 0 2px rgba(255,68,68,0.2)}
+.liga-wrapper .filter-count{color:#ff8888;font-size:.85em;font-weight:600}
+.liga-wrapper .filter-count span{color:#ff4444}
+.liga-wrapper .search-input{background:#1a1a2e;color:#e0e0e0;border:1px solid #3d3d5a;padding:10px 16px 10px 38px;border-radius:6px;font-size:.9em;min-width:240px;transition:border-color .2s}
+.liga-wrapper .search-input:hover,.liga-wrapper .search-input:focus{border-color:#ff4444;outline:none;box-shadow:0 0 0 2px rgba(255,68,68,0.2)}
+.liga-wrapper .search-input::placeholder{color:#666}
+.liga-wrapper .search-wrap{position:relative;display:inline-block}
+.liga-wrapper .search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#666;font-size:.9em;pointer-events:none}
+.liga-wrapper .search-clear{position:absolute;right:10px;top:50%;transform:translateY(-50%);color:#666;cursor:pointer;font-size:1.1em;line-height:1;padding:2px 4px;border:none;background:none}
+.liga-wrapper .search-clear:hover{color:#ff4444}
+.liga-wrapper .highlight{background:rgba(255,68,68,0.25);border-radius:2px;padding:0 1px}
+
+/* Type toggle buttons */
+.liga-wrapper .type-toggle{display:flex;gap:0;border-radius:6px;overflow:hidden;border:1px solid #3d3d5a}
+.liga-wrapper .type-btn{padding:9px 16px;cursor:pointer;font-size:.85em;font-weight:600;text-transform:uppercase;letter-spacing:.5px;border:none;transition:all .2s;color:#888;background:#1a1a2e}
+.liga-wrapper .type-btn:hover{background:#2d2d4a;color:#e0e0e0}
+.liga-wrapper .type-btn.active{color:#fff}
+.liga-wrapper .type-btn.active[data-type="all"]{background:#3d3d5a}
+.liga-wrapper .type-btn.active[data-type="Bancario"]{background:#ff4444;color:#fff}
+.liga-wrapper .type-btn.active[data-type="Independiente"]{background:#27ae60;color:#fff}
+
+/* Tables */
+.liga-wrapper .tw{overflow-x:auto}
+.liga-wrapper table{width:100%;border-collapse:collapse;background:#1a1a2e;border-radius:8px;overflow:hidden;margin-bottom:30px}
+.liga-wrapper thead{background:linear-gradient(135deg,#2d2d4a,#3d3d5a);border-bottom:2px solid #ff4444}
+.liga-wrapper th{padding:14px 10px;text-align:left;color:#ff8888;font-weight:600;text-transform:uppercase;font-size:0.75em;letter-spacing:1px;white-space:nowrap}
+.liga-wrapper td{padding:11px 10px;border-bottom:1px solid #2d2d4a}
+.liga-wrapper tbody tr:hover{background:rgba(255,68,68,0.05)}
+.liga-wrapper tbody tr.zone-row:hover{background:inherit}
+.liga-wrapper .rank{font-weight:700;color:#ff4444;text-align:center;width:35px}
+.liga-wrapper .fname{font-weight:600;color:#e0e0e0;max-width:260px}
+.liga-wrapper .bname{color:#a0a0a0;font-size:.9em}
+.liga-wrapper .isin{color:#777;font-family:monospace;font-size:.8em}
+.liga-wrapper .ter{color:#ffb74d;font-weight:600}
+.liga-wrapper .na{color:#555;font-style:italic}
+
+/* Type badges */
+.liga-wrapper .type-badge{font-size:.68em;padding:2px 6px;border-radius:3px;font-weight:600;vertical-align:middle;margin-left:6px}
+.liga-wrapper .type-bancario{background:rgba(255,68,68,0.15);color:#ff6b6b}
+.liga-wrapper .type-independiente{background:rgba(129,199,132,0.15);color:#81c784}
+
+/* DQ colors */
+.liga-wrapper .dq-neg{color:#ff6b6b;font-weight:600}
+.liga-wrapper .dq-pos{color:#81c784;font-weight:600}
+.liga-wrapper .dq-neutral{color:#888}
+.liga-wrapper .proj{color:#ffb74d;font-size:.7em;vertical-align:super;margin-left:1px}
+
+/* Impact bar */
+.liga-wrapper .impact-bar-wrap{width:80px;height:8px;background:#1a1a2e;border-radius:4px;overflow:hidden;border:1px solid #2d2d4a}
+.liga-wrapper .impact-bar{height:100%;border-radius:4px;transition:width .3s}
+
+/* Sortable headers */
+.liga-wrapper .sortable{cursor:pointer;user-select:none;transition:color .2s}
+.liga-wrapper .sortable:hover{color:#ff4444}
+.liga-wrapper .sortable.active-sort{color:#ff4444}
+.liga-wrapper .sort-arrow{font-size:.7em;margin-left:3px;opacity:.4}
+.liga-wrapper .active-sort .sort-arrow{opacity:1}
+
+/* Footer */
+.liga-wrapper .liga-footer{margin-top:60px;padding:35px;background:linear-gradient(135deg,rgba(15,15,30,0.9),rgba(26,26,46,0.9));border-top:2px solid #ff4444;border-radius:8px;color:#a0a0a0;line-height:1.8;font-size:.92em}
+.liga-wrapper .liga-footer h3{font-size:1.3em;font-weight:700;color:#ff8888;margin-bottom:15px}
+.liga-wrapper .liga-footer p{margin-bottom:10px}
+.liga-wrapper .formula{background:#0f0f1e;padding:12px 15px;border-left:3px solid #ff4444;margin:12px 0;font-family:monospace;font-size:.88em;overflow-x:auto;border-radius:0 4px 4px 0}
+.liga-wrapper .liga-footer ul{margin-left:20px;margin-top:8px;margin-bottom:12px}
+.liga-wrapper .liga-footer li{margin-bottom:6px}
+.liga-wrapper .disclaimer{margin-top:25px;padding:20px;background:rgba(255,183,77,0.08);border-left:4px solid #ffb74d;border-radius:0 8px 8px 0;color:#ffb74d;font-weight:500}
+
+/* CTA bar */
+.liga-wrapper .cta-bar{background:linear-gradient(90deg,#ff4444,#ff6b6b);padding:14px 24px;border-radius:8px;display:flex;align-items:center;justify-content:space-between;margin-bottom:35px;flex-wrap:wrap;gap:10px}
+.liga-wrapper .cta-bar .cta-text{color:#fff;font-size:1.05em;font-weight:600}
+.liga-wrapper .cta-bar .cta-text span{opacity:.85;font-weight:400;font-size:.9em}
+.liga-wrapper .cta-btn{background:#fff;color:#ff4444;border:none;padding:10px 24px;border-radius:6px;font-weight:700;font-size:.9em;cursor:pointer;transition:transform .2s,box-shadow .2s;text-transform:uppercase;letter-spacing:.5px}
+.liga-wrapper .cta-btn:hover{transform:translateY(-1px);box-shadow:0 4px 15px rgba(0,0,0,0.3)}
+
+/* Calculator */
+.liga-wrapper .calc-section{background:linear-gradient(135deg,#1a1a2e,#2d2d4a);border:1px solid #2d2d4a;border-radius:12px;padding:35px;margin-top:40px;margin-bottom:40px}
+.liga-wrapper .calc-section h2{color:#ff8888;font-size:1.5em;font-weight:700;margin-bottom:6px}
+.liga-wrapper .calc-subtitle{color:#a0a0a0;font-size:.92em;margin-bottom:24px}
+.liga-wrapper .calc-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px}
+.liga-wrapper .calc-field{display:flex;flex-direction:column;gap:6px}
+.liga-wrapper .calc-field label{color:#a0a0a0;font-size:.82em;text-transform:uppercase;letter-spacing:1px;font-weight:600}
+.liga-wrapper .calc-field input,.liga-wrapper .calc-field select{background:#0f0f1e;color:#e0e0e0;border:1px solid #3d3d5a;padding:12px 14px;border-radius:6px;font-size:1em;transition:border-color .2s}
+.liga-wrapper .calc-field input:focus,.liga-wrapper .calc-field select:focus{border-color:#ff4444;outline:none;box-shadow:0 0 0 2px rgba(255,68,68,0.2)}
+.liga-wrapper .calc-field input::placeholder{color:#555}
+.liga-wrapper .calc-steps{display:flex;flex-direction:column;gap:24px}
+.liga-wrapper .calc-step{display:flex;gap:16px;align-items:flex-start}
+.liga-wrapper .calc-step-num{width:32px;height:32px;min-width:32px;border-radius:50%;background:linear-gradient(135deg,#ff4444,#ff6b6b);color:#fff;font-weight:700;font-size:.95em;display:flex;align-items:center;justify-content:center;margin-top:2px}
+.liga-wrapper .calc-step-content{flex:1}
+.liga-wrapper .calc-step-title{color:#e0e0e0;font-weight:600;font-size:1.05em}
+.liga-wrapper .calc-fund-detected{margin-top:8px;padding:10px 14px;border-radius:6px;font-size:.9em;line-height:1.4}
+.liga-wrapper .calc-fund-detected.found{background:rgba(255,68,68,0.08);border:1px solid rgba(255,68,68,0.2)}
+.liga-wrapper .calc-fund-detected.found .fund-name{color:#ff8888;font-weight:700}
+.liga-wrapper .calc-fund-detected.found .fund-bank{color:#a0a0a0;font-size:.85em}
+.liga-wrapper .calc-fund-detected.found .fund-in-liga{color:#ff6b6b;font-size:.78em;margin-top:4px}
+.liga-wrapper .calc-fund-detected.not-found{background:rgba(129,199,132,0.08);border:1px solid rgba(129,199,132,0.2);color:#81c784}
+.liga-wrapper .calc-fund-name-input{background:#0f0f1e;color:#e0e0e0;border:1px solid #3d3d5a;padding:8px 12px;border-radius:6px;font-size:.9em;width:100%;margin-top:6px}
+.liga-wrapper .calc-fund-name-input:focus{border-color:#ff4444;outline:none}
+.liga-wrapper .calc-hint{color:#888;font-size:.82em;margin-top:8px;line-height:1.5}
+.liga-wrapper .calc-hint strong{color:#ff8888}
+.liga-wrapper .calc-ms-btn{background:linear-gradient(90deg,#ff8844,#ffaa44);color:#fff;border:none;padding:10px 18px;border-radius:6px;font-weight:600;font-size:.88em;cursor:pointer;transition:transform .2s;white-space:nowrap}
+.liga-wrapper .calc-ms-btn:hover{transform:translateY(-1px);box-shadow:0 4px 15px rgba(255,136,68,0.3)}
+.liga-wrapper .calc-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.liga-wrapper .calc-go{background:linear-gradient(90deg,#ff4444,#ff6b6b);color:#fff;border:none;padding:12px 32px;border-radius:6px;font-weight:700;font-size:.95em;cursor:pointer;transition:transform .2s;text-transform:uppercase;letter-spacing:.5px}
+.liga-wrapper .calc-go:hover{transform:translateY(-1px);box-shadow:0 4px 15px rgba(255,68,68,0.3)}
+.liga-wrapper .calc-result{margin-top:24px;display:none}
+.liga-wrapper .calc-result.visible{display:block}
+.liga-wrapper .calc-result-card{background:linear-gradient(135deg,#0f0f1e,#1a1a2e);padding:24px;border-radius:10px;border-left:4px solid #ff4444}
+.liga-wrapper .calc-result-fund{font-size:1.2em;font-weight:700;color:#e0e0e0;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #2d2d4a}
+.liga-wrapper .calc-result-fund .fund-isin{font-size:.65em;font-weight:400;color:#777;font-family:monospace;margin-left:8px}
+.liga-wrapper .calc-result-title{color:#a0a0a0;font-size:.82em;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;font-weight:600}
+.liga-wrapper .calc-result-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.liga-wrapper .calc-result-item{text-align:center}
+.liga-wrapper .calc-result-item .calc-period{color:#888;font-size:.78em;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.liga-wrapper .calc-result-item .calc-amount{font-size:1.6em;font-weight:700;line-height:1.2}
+.liga-wrapper .calc-result-item .calc-amount.red{color:#ff6b6b}
+.liga-wrapper .calc-result-item .calc-amount.green{color:#81c784}
+.liga-wrapper .calc-result-item .calc-amount.neutral{color:#888}
+.liga-wrapper .calc-ranking{margin-top:20px;padding:20px;background:linear-gradient(135deg,#1a1a2e,#2d2d4a);border-radius:10px;text-align:center;border:1px solid #3d3d5a}
+.liga-wrapper .calc-ranking-pos{margin-bottom:8px}
+.liga-wrapper .calc-ranking-pos span:first-child{font-size:2.4em;font-weight:800;line-height:1}
+.liga-wrapper .calc-ranking-pos span:last-child{font-size:.9em;color:#888;margin-left:4px}
+.liga-wrapper .calc-ranking-zone{display:inline-block;padding:6px 18px;border-radius:20px;font-weight:700;font-size:.92em;letter-spacing:.5px}
+.liga-wrapper .calc-zone-champions{background:rgba(255,215,0,0.15);color:#ffd700;border:1px solid rgba(255,215,0,0.3)}
+.liga-wrapper .calc-zone-europa{background:rgba(255,100,50,0.15);color:#ff6432;border:1px solid rgba(255,100,50,0.3)}
+.liga-wrapper .calc-zone-permanencia{background:rgba(150,150,150,0.12);color:#aaa;border:1px solid rgba(150,150,150,0.3)}
+.liga-wrapper .calc-zone-descenso{background:rgba(100,200,100,0.15);color:#64c864;border:1px solid rgba(100,200,100,0.3)}
+.liga-wrapper .calc-result-note{margin-top:16px;color:#888;font-size:.82em;font-style:italic}
+
+/* Share buttons */
+.liga-wrapper .share-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.liga-wrapper .share-bar.header-share{margin-top:18px;justify-content:center}
+.liga-wrapper .share-bar.result-share{margin-top:18px}
+.liga-wrapper .share-label{color:#888;font-size:.78em;text-transform:uppercase;letter-spacing:1px;font-weight:600;margin-right:4px}
+.liga-wrapper .share-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:5px;border:none;font-size:.8em;font-weight:600;cursor:pointer;transition:transform .15s,opacity .15s;text-decoration:none;color:#fff}
+.liga-wrapper .share-btn:hover{transform:translateY(-1px);opacity:.9}
+.liga-wrapper .share-btn svg{width:14px;height:14px;fill:currentColor}
+.liga-wrapper .share-x{background:#000}
+.liga-wrapper .share-wa{background:#25D366}
+.liga-wrapper .share-li{background:#0A66C2}
+.liga-wrapper .share-tg{background:#26A5E4}
+
+/* Responsive */
+/* Tablet */
+@media(max-width:768px){
+  .liga-wrapper h1{font-size:2em}
+  .liga-wrapper .dashboard{grid-template-columns:1fr}
+  .liga-wrapper .charts-grid{grid-template-columns:1fr}
+  .liga-wrapper .stats{grid-template-columns:1fr 1fr}
+  .liga-wrapper .zone-legend{grid-template-columns:1fr 1fr}
+  .liga-wrapper th,.liga-wrapper td{padding:8px 6px;font-size:.82em}
+  .liga-wrapper .fname{max-width:150px;word-break:break-word}
+  .liga-wrapper .type-badge{display:block;margin:4px 0 0 0}
+  .liga-wrapper .filter-bar{flex-direction:column;align-items:stretch}
+  .liga-wrapper .search-input{min-width:auto;width:100%}
+  .liga-wrapper .ter-compare{flex-direction:column;gap:10px}
+  .liga-wrapper .dash-big{font-size:2em}
+  .liga-wrapper .cta-bar{flex-direction:column;text-align:center}
+  .liga-wrapper .calc-grid{grid-template-columns:1fr}
+  .liga-wrapper .calc-result-grid{grid-template-columns:1fr}
+}
+
+/* Mobile — versión limpia: solo búsqueda + filtros + ranking + calculadora */
+@media(max-width:640px){
+  .liga-wrapper{padding:8px}
+  .liga-wrapper h1{font-size:1.5em}
+  .liga-wrapper .subtitle{font-size:.95em}
+  .liga-wrapper .tagline{display:none}
+
+  /* Ocultar elementos pesados */
+  .liga-wrapper .dashboard{display:none}
+  .liga-wrapper .stats{display:none}
+  .liga-wrapper .charts-grid{display:none}
+  .liga-wrapper .zone-legend{display:none}
+  .liga-wrapper .cta-bar{display:none}
+
+  /* Header compacto */
+  .liga-wrapper .liga-header{padding:20px 14px;margin-bottom:20px}
+  .liga-wrapper .share-bar.header-share{margin-top:12px}
+  .liga-wrapper .share-btn{padding:6px 10px;font-size:.72em}
+
+  /* Filtros */
+  .liga-wrapper .filter-bar{flex-direction:column;align-items:stretch;gap:8px;margin-bottom:16px}
+  .liga-wrapper .search-input{min-width:auto;width:100%;font-size:.88em;padding:10px 14px 10px 34px}
+  .liga-wrapper .filter-select{min-width:auto;width:100%;font-size:.88em}
+  .liga-wrapper .type-toggle{width:100%;justify-content:center}
+  .liga-wrapper .type-btn{flex:1;text-align:center;padding:8px 8px;font-size:.78em}
+
+  /* Tabla — ocultar columnas secundarias */
+  .liga-wrapper th:nth-child(4),
+  .liga-wrapper td:nth-child(4),
+  .liga-wrapper th:nth-child(5),
+  .liga-wrapper td:nth-child(5),
+  .liga-wrapper th:nth-child(6),
+  .liga-wrapper td:nth-child(6),
+  .liga-wrapper th:nth-child(7),
+  .liga-wrapper td:nth-child(7),
+  .liga-wrapper th:nth-child(9),
+  .liga-wrapper td:nth-child(9){display:none}
+
+  /* Columnas visibles: #(1), Fondo(2), Gestora(3), DQ10(8) */
+  .liga-wrapper th,.liga-wrapper td{padding:8px 6px;font-size:.8em}
+  .liga-wrapper .rank{width:28px;font-size:.85em}
+  .liga-wrapper .fname{max-width:130px;word-break:break-word;font-size:.85em}
+  .liga-wrapper .bname{font-size:.78em}
+  .liga-wrapper .type-badge{display:none}
+
+  /* Zone separators compactos */
+  .liga-wrapper .zone-header td{padding:10px 12px !important;font-size:.9em}
+
+  /* Calculadora compacta */
+  .liga-wrapper .calc-section{padding:20px 14px;margin-top:24px;margin-bottom:24px}
+  .liga-wrapper .calc-section h2{font-size:1.2em}
+  .liga-wrapper .calc-grid{grid-template-columns:1fr}
+  .liga-wrapper .calc-result-grid{grid-template-columns:1fr}
+  .liga-wrapper .calc-step{gap:10px}
+  .liga-wrapper .calc-step-num{width:26px;height:26px;min-width:26px;font-size:.82em}
+  .liga-wrapper .calc-actions{flex-direction:column}
+  .liga-wrapper .calc-go{width:100%;text-align:center}
+  .liga-wrapper .calc-ms-btn{width:100%;text-align:center}
+
+  /* Footer compacto */
+  .liga-wrapper .liga-footer{padding:20px 14px;margin-top:30px;font-size:.85em}
+  .liga-wrapper .formula{font-size:.78em;padding:8px 10px}
+}
+
+/* Extra small */
+@media(max-width:380px){
+  .liga-wrapper{padding:4px}
+  .liga-wrapper h1{font-size:1.3em}
+  .liga-wrapper th,.liga-wrapper td{padding:6px 4px;font-size:.72em}
+  .liga-wrapper .fname{max-width:100px}
+
+  /* Ocultar también gestora en pantallas muy pequeñas */
+  .liga-wrapper th:nth-child(3),
+  .liga-wrapper td:nth-child(3){display:none}
+}</style>
+<div class="liga-wrapper">
+<div class="container">
+<div class="liga-header">
+  <h1>La Liga de los Fondos Basura</h1>
+  <p class="subtitle">¿Cuánto dinero quema tu fondo de inversión?</p>
+  <p class="tagline">87 fondos bancarios y 13 fondos de gestoras independientes analizados</p>
+  <div class="share-bar header-share">
+    <span class="share-label">Compartir:</span>
+    <a class="share-btn share-x" href="https://x.com/intent/tweet?text=%F0%9F%8F%86%20La%20Liga%20de%20los%20Fondos%20Basura%3A%20descubre%20cu%C3%A1nto%20dinero%20quema%20tu%20fondo%20de%20inversi%C3%B3n.%20100%20fondos%20analizados.&url=https%3A%2F%2Felproyectok.com%2Fla-liga-de-los-fondos-basura%2F" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>X</a>
+    <a class="share-btn share-wa" href="https://api.whatsapp.com/send?text=%F0%9F%8F%86%20La%20Liga%20de%20los%20Fondos%20Basura%3A%20descubre%20cu%C3%A1nto%20dinero%20quema%20tu%20fondo.%20https%3A%2F%2Felproyectok.com%2Fla-liga-de-los-fondos-basura%2F" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>WhatsApp</a>
+    <a class="share-btn share-li" href="https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Felproyectok.com%2Fla-liga-de-los-fondos-basura%2F" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>LinkedIn</a>
+    <a class="share-btn share-tg" href="https://t.me/share/url?url=https%3A%2F%2Felproyectok.com%2Fla-liga-de-los-fondos-basura%2F&text=%F0%9F%8F%86%20La%20Liga%20de%20los%20Fondos%20Basura%3A%20descubre%20cu%C3%A1nto%20dinero%20quema%20tu%20fondo." target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M11.944 0A12 12 0 000 12a12 12 0 0012 12 12 12 0 0012-12A12 12 0 0012 0a12 12 0 00-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 01.171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>Telegram</a>
+  </div>
+</div>
+
+<!-- CTA BAR -->
+<div class="cta-bar">
+  <div class="cta-text">¿Sabes cuánto dinero está quemando tu fondo? <span>Busca tu fondo en la liga o calcula tu pérdida personalizada</span></div>
+  <button class="cta-btn" onclick="document.getElementById('fund-search').scrollIntoView({behavior:'smooth',block:'center'});setTimeout(function(){document.getElementById('fund-search').focus()},500)">Buscar mi fondo</button>
+</div>
+
+<!-- DASHBOARD -->
+<div class="dashboard">
+  <div class="dash-card">
+    <div class="dash-label">🔥 Dinero Quemado Total Estimado (10 años)</div>
+    <div class="dash-big">€2,5 Millones</div>
+    <div class="dash-sub">Sobre una inversión de €100.000 por fondo</div>
+    <div class="progress-bar">
+      <div class="seg-bank" style="width:95%"></div>
+      <div class="seg-indep" style="width:5%"></div>
+    </div>
+    <div class="progress-legend">
+      <span><span class="dot dot-bank"></span>Bancarios 95%</span>
+      <span><span class="dot dot-indep"></span>Independientes 5%</span>
+    </div>
+  </div>
+  <div class="dash-card">
+    <div class="dash-label">TER Promedio: Bancario vs Independiente</div>
+    <div class="ter-compare">
+      <div class="ter-box"><div class="ter-val red">2.08%</div><div class="ter-label">Bancario</div></div>
+      <div class="ter-vs">vs</div>
+      <div class="ter-box"><div class="ter-val green">1.57%</div><div class="ter-label">Independiente</div></div>
+    </div>
+    <div class="ter-diff">Los bancarios cobran un 33% más en comisiones</div>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="label">Fondos Analizados</div><div class="val">100</div></div>
+  <div class="stat"><div class="label">Peor Fondo (10A)</div><div class="val">−81K €</div></div>
+  <div class="stat"><div class="label">Mejor Fondo (10A)</div><div class="val green">+234K €</div></div>
+</div>
+
+<div class="zone-legend">
+  <div class="zone-card zc-champions"><span class="zone-count">25</span><div class="zone-title">🏆 Champions de la Basura</div><div class="zone-desc">Los campeones absolutos quemando tu dinero</div></div>
+  <div class="zone-card zc-europa"><span class="zone-count">25</span><div class="zone-title">🔥 Europa League</div><div class="zone-desc">Basura continental de alto nivel</div></div>
+  <div class="zone-card zc-permanencia"><span class="zone-count">25</span><div class="zone-title">😐 Zona Permanencia</div><div class="zone-desc">Mediocridad pura y dura</div></div>
+  <div class="zone-card zc-descenso"><span class="zone-count">25</span><div class="zone-title">📉 Zona Descenso</div><div class="zone-desc">Descienden de la liga basura (los menos malos)</div></div>
+</div>
+
+<!-- CHARTS -->
+<div class="charts-grid">
+  <div class="chart-card">
+    <svg viewBox="0 0 700 400" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:700px;height:auto"><rect width="700" height="400" fill="#1a1a2e" rx="8"/><defs><style>text{font-family:-apple-system,sans-serif}</style></defs><line x1="70" y1="345" x2="670" y2="345" stroke="#2d2d4a" stroke-width="1"/><text x="62" y="349" fill="#888" font-size="10" text-anchor="end">+240K</text><line x1="70" y1="282" x2="670" y2="282" stroke="#2d2d4a" stroke-width="1"/><text x="62" y="286" fill="#888" font-size="10" text-anchor="end">+174K</text><line x1="70" y1="219" x2="670" y2="219" stroke="#2d2d4a" stroke-width="1"/><text x="62" y="223" fill="#888" font-size="10" text-anchor="end">+108K</text><line x1="70" y1="156" x2="670" y2="156" stroke="#2d2d4a" stroke-width="1"/><text x="62" y="160" fill="#888" font-size="10" text-anchor="end">+42K</text><line x1="70" y1="93" x2="670" y2="93" stroke="#2d2d4a" stroke-width="1"/><text x="62" y="97" fill="#888" font-size="10" text-anchor="end">-24K</text><line x1="70" y1="30" x2="670" y2="30" stroke="#2d2d4a" stroke-width="1"/><text x="62" y="34" fill="#888" font-size="10" text-anchor="end">-90K</text><line x1="70" y1="30" x2="70" y2="345" stroke="#2d2d4a" stroke-width="1"/><text x="70" y="363" fill="#888" font-size="10" text-anchor="middle">0.0%</text><line x1="155.71428571428572" y1="30" x2="155.71428571428572" y2="345" stroke="#2d2d4a" stroke-width="1"/><text x="155.71428571428572" y="363" fill="#888" font-size="10" text-anchor="middle">0.5%</text><line x1="241.42857142857142" y1="30" x2="241.42857142857142" y2="345" stroke="#2d2d4a" stroke-width="1"/><text x="241.42857142857142" y="363" fill="#888" font-size="10" text-anchor="middle">1.0%</text><line x1="327.1428571428571" y1="30" x2="327.1428571428571" y2="345" stroke="#2d2d4a" stroke-width="1"/><text x="327.1428571428571" y="363" fill="#888" font-size="10" text-anchor="middle">1.5%</text><line x1="412.85714285714283" y1="30" x2="412.85714285714283" y2="345" stroke="#2d2d4a" stroke-width="1"/><text x="412.85714285714283" y="363" fill="#888" font-size="10" text-anchor="middle">2.0%</text><line x1="498.57142857142856" y1="30" x2="498.57142857142856" y2="345" stroke="#2d2d4a" stroke-width="1"/><text x="498.57142857142856" y="363" fill="#888" font-size="10" text-anchor="middle">2.5%</text><line x1="584.2857142857142" y1="30" x2="584.2857142857142" y2="345" stroke="#2d2d4a" stroke-width="1"/><text x="584.2857142857142" y="363" fill="#888" font-size="10" text-anchor="middle">3.0%</text><line x1="670" y1="30" x2="670" y2="345" stroke="#2d2d4a" stroke-width="1"/><text x="670" y="363" fill="#888" font-size="10" text-anchor="middle">3.5%</text><line x1="70" y1="115.9090909090909" x2="670" y2="115.9090909090909" stroke="#555" stroke-width="1" stroke-dasharray="4,4"/><text x="674" y="118.9090909090909" fill="#888" font-size="9">0</text><text x="370" y="392" fill="#a0a0a0" font-size="12" text-anchor="middle">TER (%)</text><text x="15" y="187.5" fill="#a0a0a0" font-size="12" text-anchor="middle" transform="rotate(-90,15,187.5)">Dinero Quemado 10A (€)</text><text x="370" y="18" fill="#ff8888" font-size="13" font-weight="600" text-anchor="middle">TER vs Dinero Quemado (10 años)</text><circle cx="291.1" cy="181.2" r="5" fill="#81c784" opacity="0.85"><title>Cobas Grandes Compañías D FI\nTER: 1.29% | DQ: -68.401€</title></circle><circle cx="267.1" cy="138.9" r="5" fill="#81c784" opacity="0.85"><title>Gestión Boutique VIII Adarve Altea FI\nTER: 1.15% | DQ: -24.068€</title></circle><circle cx="344.3" cy="92.5" r="5" fill="#81c784" opacity="0.85"><title>Bestinver Grandes Compañías FI\nTER: 1.60% | DQ: 24.568€</title></circle><circle cx="303.1" cy="149.7" r="5" fill="#81c784" opacity="0.85"><title>Valentum E FI\nTER: 1.36% | DQ: -35.439€</title></circle><circle cx="447.1" cy="180.3" r="5" fill="#81c784" opacity="0.85"><title>Equam Global Value B FI\nTER: 2.20% | DQ: -67.445€</title></circle><circle cx="320.3" cy="84.6" r="5" fill="#81c784" opacity="0.85"><title>True Value FI\nTER: 1.46% | DQ: 32.751€</title></circle><circle cx="308.3" cy="117.9" r="5" fill="#81c784" opacity="0.85"><title>Numantia Patrimonio Global FI\nTER: 1.39% | DQ: -2120€</title></circle><circle cx="378.6" cy="101.7" r="5" fill="#81c784" opacity="0.85"><title>Bestinver Internacional FI\nTER: 1.80% | DQ: 14.896€</title></circle><circle cx="248.3" cy="71.0" r="5" fill="#81c784" opacity="0.85"><title>B&amp;H Acciones C FI\nTER: 1.04% | DQ: 47.048€</title></circle><circle cx="394.0" cy="138.2" r="5" fill="#81c784" opacity="0.85"><title>Azvalor Internacional FI\nTER: 1.89% | DQ: -23.341€</title></circle><circle cx="347.7" cy="339.4" r="5" fill="#81c784" opacity="0.85"><title>Cobas Internacional C FI\nTER: 1.62% | DQ: -234.088€</title></circle><circle cx="378.6" cy="127.3" r="5" fill="#81c784" opacity="0.85"><title>Magallanes European Equity M FI\nTER: 1.80% | DQ: -11.892€</title></circle><circle cx="378.6" cy="262.2" r="5" fill="#81c784" opacity="0.85"><title>Horos Value Internacional FI\nTER: 1.80% | DQ: -153.308€</title></circle><circle cx="248.3" cy="104.5" r="5" fill="#ff6b6b" opacity="0.6"><title>CaixaBank Bolsa USA Estándar\nTER: 1.04% | DQ: 11.909€</title></circle><circle cx="522.6" cy="90.8" r="5" fill="#ff6b6b" opacity="0.6"><title>CaixaBank Selección Tendencias Estándar\nTER: 2.64% | DQ: 26.334€</title></circle><circle cx="392.3" cy="106.1" r="5" fill="#ff6b6b" opacity="0.6"><title>CaixaBank Comunicación Mundial Estándar\nTER: 1.88% | DQ: 10.290€</title></circle><circle cx="390.6" cy="97.2" r="5" fill="#ff6b6b" opacity="0.6"><title>CaixaBank Bolsa Improvers Estándar\nTER: 1.87% | DQ: 19.617€</title></circle><circle cx="361.4" cy="101.9" r="5" fill="#ff6b6b" opacity="0.6"><title>CaixaBank Bolsa España 150 Estándar\nTER: 1.70% | DQ: 14.636€</title></circle><circle cx="548.3" cy="43.4" r="5" fill="#ff6b6b" opacity="0.6"><title>BBVA Megatendencia Demografía\nTER: 2.79% | DQ: 75.946€</title></circle><circle cx="510.6" cy="94.4" r="5" fill="#ff6b6b" opacity="0.6"><title>BBVA Megatendencia Tecnología A\nTER: 2.57% | DQ: 22.526€</title></circle><circle cx="484.9" cy="88.3" r="5" fill="#ff6b6b" opacity="0.6"><title>BBVA Bolsa Europa A\nTER: 2.42% | DQ: 28.876€</title></circle><circle cx="483.1" cy="88.3" r="5" fill="#ff6b6b" opacity="0.6"><title>BBVA Bolsa FI\nTER: 2.41% | DQ: 28.876€</title></circle><circle cx="412.9" cy="87.8" r="5" fill="#ff6b6b" opacity="0.6"><title>Quality Mejores Ideas\nTER: 2.00% | DQ: 29.462€</title></circle><circle cx="436.9" cy="99.4" r="5" fill="#ff6b6b" opacity="0.6"><title>Quality Inversión Decidida\nTER: 2.14% | DQ: 17.287€</title></circle><circle cx="531.1" cy="95.4" r="5" fill="#ff6b6b" opacity="0.6"><title>Santander Acciones USA A\nTER: 2.69% | DQ: 21.487€</title></circle><circle cx="472.9" cy="103.4" r="5" fill="#ff6b6b" opacity="0.6"><title>Sabadell Estados Unidos Bolsa Base\nTER: 2.35% | DQ: 13.062€</title></circle><circle cx="464.3" cy="109.3" r="5" fill="#ff6b6b" opacity="0.6"><title>Sabadell Selección Épsilon Base\nTER: 2.30% | DQ: 6971€</title></circle><circle cx="344.3" cy="88.0" r="5" fill="#ff6b6b" opacity="0.6"><title>Compromiso Mediolanum L\nTER: 1.60% | DQ: 29.243€</title></circle><circle cx="412.9" cy="91.9" r="5" fill="#ff6b6b" opacity="0.6"><title>Kutxabank Bolsa Estándar\nTER: 2.00% | DQ: 25.186€</title></circle><circle cx="412.9" cy="70.7" r="5" fill="#ff6b6b" opacity="0.6"><title>Kutxabank Bolsa EEUU Estándar\nTER: 2.00% | DQ: 47.386€</title></circle><circle cx="292.9" cy="82.3" r="5" fill="#ff6b6b" opacity="0.6"><title>Bankinter EE.UU. Nasdaq 100 R\nTER: 1.30% | DQ: 35.228€</title></circle><circle cx="346.0" cy="80.1" r="5" fill="#ff6b6b" opacity="0.6"><title>Bankinter Finanzas Globales R\nTER: 1.61% | DQ: 37.557€</title></circle><circle cx="584.3" cy="83.6" r="5" fill="#ff6b6b" opacity="0.6"><title>CaixaBank Bolsa Selección Europa Estándar\nTER: 3.00% | DQ: 33.862€</title></circle><circle cx="490.0" cy="97.1" r="5" fill="#ff6b6b" opacity="0.6"><title>CaixaBank Bolsa Gestión Euro Estándar\nTER: 2.45% | DQ: 19.699€</title></circle><circle cx="574.0" cy="91.3" r="5" fill="#ff6b6b" opacity="0.6"><title>CaixaBank Bolsa Selección Emergente Estándar\nTER: 2.94% | DQ: 25.800€</title></circle><circle cx="496.9" cy="85.4" r="5" fill="#ff6b6b" opacity="0.6"><title>CaixaBank Bolsa Gestión Europa Estándar\nTER: 2.49% | DQ: 31.977€</title></circle><circle cx="320.3" cy="108.8" r="5" fill="#ff6b6b" opacity="0.6"><title>CaixaBank Bolsa Índice España Estándar\nTER: 1.46% | DQ: 7439€</title></circle><circle cx="268.9" cy="115.3" r="5" fill="#ff6b6b" opacity="0.6"><title>CaixaBank Bolsa Índice Euro Estándar\nTER: 1.16% | DQ: 598€</title></circle><circle cx="526.0" cy="82.2" r="5" fill="#ff6b6b" opacity="0.6"><title>CaixaBank Bolsa Selección Global Estándar\nTER: 2.66% | DQ: 35.363€</title></circle><circle cx="548.3" cy="87.8" r="5" fill="#ff6b6b" opacity="0.6"><title>CaixaBank Bolsa Selección USA Estándar\nTER: 2.79% | DQ: 29.462€</title></circle><circle cx="508.9" cy="92.3" r="5" fill="#ff6b6b" opacity="0.6"><title>CaixaBank Bolsa Dividendo Europa Estándar\nTER: 2.56% | DQ: 24.723€</title></circle><circle cx="519.1" cy="118.8" r="5" fill="#ff6b6b" opacity="0.6"><title>CaixaBank Bolsa Gestión España Estándar\nTER: 2.62% | DQ: -3041€</title></circle><circle cx="402.6" cy="101.8" r="5" fill="#ff6b6b" opacity="0.6"><title>CaixaBank Multisalud Estándar\nTER: 1.94% | DQ: 14.809€</title></circle><circle cx="310.0" cy="107.9" r="5" fill="#ff6b6b" opacity="0.6"><title>BBVA Bolsa Índice\nTER: 1.40% | DQ: 8367€</title></circle><circle cx="490.0" cy="94.2" r="5" fill="#ff6b6b" opacity="0.6"><title>BBVA Bolsa Asia MF\nTER: 2.45% | DQ: 22.764€</title></circle><circle cx="280.9" cy="110.6" r="5" fill="#ff6b6b" opacity="0.6"><title>BBVA Bolsa Índice Euro\nTER: 1.23% | DQ: 5556€</title></circle><circle cx="466.0" cy="90.3" r="5" fill="#ff6b6b" opacity="0.6"><title>BBVA Bolsa Emergentes MF\nTER: 2.31% | DQ: 26.864€</title></circle><circle cx="382.0" cy="103.4" r="5" fill="#ff6b6b" opacity="0.6"><title>BBVA Bolsa Plan Dividendo Europa\nTER: 1.82% | DQ: 13.150€</title></circle><circle cx="275.7" cy="106.8" r="5" fill="#ff6b6b" opacity="0.6"><title>BBVA Bolsa Índice Japón (Cubierto)\nTER: 1.20% | DQ: 9562€</title></circle><circle cx="399.1" cy="80.5" r="5" fill="#ff6b6b" opacity="0.6"><title>BBVA Megatendencia Planeta Tierra ISR A\nTER: 1.92% | DQ: 37.097€</title></circle><circle cx="464.3" cy="96.4" r="5" fill="#ff6b6b" opacity="0.6"><title>Santander Acciones Euro A\nTER: 2.30% | DQ: 20.435€</title></circle><circle cx="459.1" cy="103.1" r="5" fill="#ff6b6b" opacity="0.6"><title>Santander Acciones Españolas A\nTER: 2.27% | DQ: 13.414€</title></circle><circle cx="527.7" cy="81.4" r="5" fill="#ff6b6b" opacity="0.6"><title>Santander Acciones Latinoamericanas A\nTER: 2.67% | DQ: 36.102€</title></circle><circle cx="361.4" cy="61.4" r="5" fill="#ff6b6b" opacity="0.6"><title>Santander Sostenible Acciones A\nTER: 1.70% | DQ: 57.124€</title></circle><circle cx="431.7" cy="38.2" r="5" fill="#ff6b6b" opacity="0.6"><title>Santander GO RV Norteamerica A\nTER: 2.11% | DQ: 81.440€</title></circle><circle cx="447.1" cy="101.7" r="5" fill="#ff6b6b" opacity="0.6"><title>Santander Go RV Asia A\nTER: 2.20% | DQ: 14.896€</title></circle><circle cx="443.7" cy="53.8" r="5" fill="#ff6b6b" opacity="0.6"><title>Santander Future Wealth A\nTER: 2.18% | DQ: 65.016€</title></circle><circle cx="349.4" cy="66.6" r="5" fill="#ff6b6b" opacity="0.6"><title>Santander Future Us Tech A\nTER: 1.63% | DQ: 51.654€</title></circle><circle cx="481.4" cy="74.1" r="5" fill="#ff6b6b" opacity="0.6"><title>Kutxabank Bolsa Sectorial Estándar\nTER: 2.40% | DQ: 43.802€</title></circle><circle cx="412.9" cy="109.1" r="5" fill="#ff6b6b" opacity="0.6"><title>Kutxabank Bolsa Japón Estándar\nTER: 2.00% | DQ: 7158€</title></circle><circle cx="515.7" cy="84.2" r="5" fill="#ff6b6b" opacity="0.6"><title>Kutxabank Bolsa Emergentes Estándar\nTER: 2.60% | DQ: 33.170€</title></circle><circle cx="412.9" cy="90.0" r="5" fill="#ff6b6b" opacity="0.6"><title>Kutxabank Bolsa Eurozona Estándar\nTER: 2.00% | DQ: 27.165€</title></circle><circle cx="481.4" cy="77.1" r="5" fill="#ff6b6b" opacity="0.6"><title>Kutxabank Bolsa Internacional Estándar\nTER: 2.40% | DQ: 40.629€</title></circle><circle cx="412.9" cy="65.1" r="5" fill="#ff6b6b" opacity="0.6"><title>Kutxabank Bolsa Nueva Economía Estándar\nTER: 2.00% | DQ: 53.242€</title></circle><circle cx="327.1" cy="89.0" r="5" fill="#ff6b6b" opacity="0.6"><title>Kutxabank Bolsa Small &amp; Mid Caps Estándar\nTER: 1.50% | DQ: 28.211€</title></circle><circle cx="481.4" cy="107.9" r="5" fill="#ff6b6b" opacity="0.6"><title>Sabadell Bolsas Emergentes Base\nTER: 2.40% | DQ: 8367€</title></circle><circle cx="448.9" cy="89.3" r="5" fill="#ff6b6b" opacity="0.6"><title>Sabadell España Bolsa Futuro Base\nTER: 2.21% | DQ: 27.913€</title></circle><circle cx="448.9" cy="74.8" r="5" fill="#ff6b6b" opacity="0.6"><title>Sabadell Europa Bolsa Futuro Base\nTER: 2.21% | DQ: 43.023€</title></circle><circle cx="361.4" cy="96.8" r="5" fill="#ff6b6b" opacity="0.6"><title>Bankinter Bolsa España R\nTER: 1.70% | DQ: 20.027€</title></circle><circle cx="361.4" cy="100.5" r="5" fill="#ff6b6b" opacity="0.6"><title>Bankinter Dividendo Europa R\nTER: 1.70% | DQ: 16.099€</title></circle><circle cx="289.4" cy="96.9" r="5" fill="#ff6b6b" opacity="0.6"><title>Bankinter Emergentes R\nTER: 1.28% | DQ: 19.945€</title></circle><circle cx="361.4" cy="95.9" r="5" fill="#ff6b6b" opacity="0.6"><title>Bankinter Sostenibilidad R\nTER: 1.70% | DQ: 21.003€</title></circle><circle cx="258.6" cy="88.8" r="5" fill="#ff6b6b" opacity="0.6"><title>Bankinter Índice América R\nTER: 1.10% | DQ: 28.359€</title></circle><circle cx="272.3" cy="107.0" r="5" fill="#ff6b6b" opacity="0.6"><title>Bankinter Índice Europeo R\nTER: 1.18% | DQ: 9379€</title></circle><circle cx="267.1" cy="84.2" r="5" fill="#ff6b6b" opacity="0.6"><title>Bankinter Índice Global R\nTER: 1.15% | DQ: 33.239€</title></circle><circle cx="263.7" cy="106.7" r="5" fill="#ff6b6b" opacity="0.6"><title>Bankinter Índice Japón R\nTER: 1.13% | DQ: 9653€</title></circle><circle cx="263.7" cy="105.8" r="5" fill="#ff6b6b" opacity="0.6"><title>Bankinter Indice Ibex R\nTER: 1.13% | DQ: 10.562€</title></circle><circle cx="246.6" cy="116.3" r="5" fill="#ff6b6b" opacity="0.6"><title>Bankinter Indice Salud R\nTER: 1.03% | DQ: -401€</title></circle><circle cx="363.1" cy="96.1" r="5" fill="#ff6b6b" opacity="0.6"><title>Bankinter Pequeñas Compañías Europa R\nTER: 1.71% | DQ: 20.760€</title></circle><circle cx="370.0" cy="101.3" r="5" fill="#ff6b6b" opacity="0.6"><title>Ibercaja Bolsa España A\nTER: 1.75% | DQ: 15.327€</title></circle><circle cx="368.3" cy="81.1" r="5" fill="#ff6b6b" opacity="0.6"><title>Ibercaja Bolsa Europa A\nTER: 1.74% | DQ: 36.435€</title></circle><circle cx="450.6" cy="95.7" r="5" fill="#ff6b6b" opacity="0.6"><title>Ibercaja Bolsa USA A\nTER: 2.22% | DQ: 21.164€</title></circle><circle cx="416.3" cy="88.2" r="5" fill="#ff6b6b" opacity="0.6"><title>Ibercaja Bolsa Internacional A\nTER: 2.02% | DQ: 29.023€</title></circle><circle cx="431.7" cy="75.1" r="5" fill="#ff6b6b" opacity="0.6"><title>Ibercaja Tecnológico A\nTER: 2.11% | DQ: 42.721€</title></circle><circle cx="472.9" cy="53.8" r="5" fill="#ff6b6b" opacity="0.6"><title>Unicaja Renta Variable USA A\nTER: 2.35% | DQ: 65.093€</title></circle><circle cx="397.4" cy="98.4" r="5" fill="#ff6b6b" opacity="0.6"><title>Unicaja RV Europa Selección A\nTER: 1.91% | DQ: 18.376€</title></circle><circle cx="366.6" cy="67.9" r="5" fill="#ff6b6b" opacity="0.6"><title>Abanca Renta Variable Crecimiento Minorista\nTER: 1.73% | DQ: 50.338€</title></circle><circle cx="363.1" cy="72.1" r="5" fill="#ff6b6b" opacity="0.6"><title>Abanca Renta Variable Dividendo Minorista\nTER: 1.71% | DQ: 45.909€</title></circle><circle cx="123.1" cy="104.3" r="5" fill="#ff6b6b" opacity="0.6"><title>Abanca Indice Renta Variable Global\nTER: 0.31% | DQ: 12.176€</title></circle><circle cx="526.0" cy="92.0" r="5" fill="#ff6b6b" opacity="0.6"><title>Mediolanum BB US Collection L\nTER: 2.66% | DQ: 25.032€</title></circle><circle cx="551.7" cy="84.8" r="5" fill="#ff6b6b" opacity="0.6"><title>Mediolanum BB European Collection L\nTER: 2.81% | DQ: 32.541€</title></circle><circle cx="577.4" cy="92.5" r="5" fill="#ff6b6b" opacity="0.6"><title>Mediolanum BB Pacific Collection L\nTER: 2.96% | DQ: 24.568€</title></circle><circle cx="620.3" cy="83.5" r="5" fill="#ff6b6b" opacity="0.6"><title>Mediolanum BB Emerging Markets Collection L A\nTER: 3.21% | DQ: 33.931€</title></circle><circle cx="543.1" cy="86.4" r="5" fill="#ff6b6b" opacity="0.6"><title>Mediolanum BB Dynamic Collection L A\nTER: 2.76% | DQ: 30.909€</title></circle><circle cx="570.6" cy="91.1" r="5" fill="#ff6b6b" opacity="0.6"><title>Mediolanum BB New Opportunities Collection LA\nTER: 2.92% | DQ: 25.953€</title></circle><circle cx="551.7" cy="64.8" r="5" fill="#ff6b6b" opacity="0.6"><title>Mediolanum BB Innovative Thematic Opportunities L\nTER: 2.81% | DQ: 53.593€</title></circle><circle cx="587.7" cy="77.1" r="5" fill="#ff6b6b" opacity="0.6"><title>Mediolanum BB Global Leaders Fund LA\nTER: 3.02% | DQ: 40.691€</title></circle><circle cx="565.4" cy="95.7" r="5" fill="#ff6b6b" opacity="0.6"><title>Mediolanum BB Socially Responsible Collection LA\nTER: 2.89% | DQ: 21.164€</title></circle><circle cx="546.6" cy="84.3" r="5" fill="#ff6b6b" opacity="0.6"><title>Mediolanum Challenge International Equity L\nTER: 2.78% | DQ: 33.100€</title></circle><circle cx="613.4" cy="86.5" r="5" fill="#ff6b6b" opacity="0.6"><title>Mediolanum BB Equity Power Coupon Collection LA\nTER: 3.17% | DQ: 30.838€</title></circle><circle cx="80" cy="42" r="5" fill="#ff6b6b" opacity="0.7"/><text x="90" y="46" fill="#a0a0a0" font-size="10">Bancario</text><circle cx="160" cy="42" r="5" fill="#81c784" opacity="0.85"/><text x="170" y="46" fill="#a0a0a0" font-size="10">Independiente</text></svg>
+  </div>
+  <div class="chart-card">
+    <svg viewBox="0 0 700 360" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:700px;height:auto"><rect width="700" height="360" fill="#1a1a2e" rx="8"/><defs><style>text{font-family:-apple-system,sans-serif}</style></defs><text x="350" y="22" fill="#ff8888" font-size="13" font-weight="600" text-anchor="middle">Dinero Quemado por Gestora (10 años)</text><rect x="30.0" y="40.0" width="175.5" height="157.7" fill="rgb(255,30,30)" rx="3" stroke="#1a1a2e" stroke-width="2"><title>Mediolanum: -382K€ (12 fondos)</title></rect><text x="118.7" y="115.8" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">Mediolanum</text><text x="118.7" y="129.8" fill="rgba(255,255,255,0.7)" font-size="9" text-anchor="middle">-382K€</text><rect x="207.5" y="40.0" width="166.2" height="157.7" fill="rgb(251,33,33)" rx="3" stroke="#1a1a2e" stroke-width="2"><title>Santander: -362K€ (9 fondos)</title></rect><text x="291.6" y="115.8" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">Santander</text><text x="291.6" y="129.8" fill="rgba(255,255,255,0.7)" font-size="9" text-anchor="middle">-362K€</text><rect x="375.6" y="40.0" width="149.8" height="157.7" fill="rgb(244,37,37)" rx="3" stroke="#1a1a2e" stroke-width="2"><title>BBVA: -326K€ (13 fondos)</title></rect><text x="451.5" y="115.8" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">BBVA</text><text x="451.5" y="129.8" fill="rgba(255,255,255,0.7)" font-size="9" text-anchor="middle">-326K€</text><rect x="527.4" y="40.0" width="140.6" height="157.7" fill="rgb(240,40,40)" rx="3" stroke="#1a1a2e" stroke-width="2"><title>CaixaBank: -307K€ (15 fondos)</title></rect><text x="598.7" y="115.8" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">CaixaBank</text><text x="598.7" y="129.8" fill="rgba(255,255,255,0.7)" font-size="9" text-anchor="middle">-307K€</text><rect x="30.0" y="199.7" width="236.5" height="93.3" fill="rgb(240,40,40)" rx="3" stroke="#1a1a2e" stroke-width="2"><title>Kutxabank: -306K€ (9 fondos)</title></rect><text x="149.3" y="243.3" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">Kutxabank</text><text x="149.3" y="257.3" fill="rgba(255,255,255,0.7)" font-size="9" text-anchor="middle">-306K€</text><rect x="268.5" y="199.7" width="202.1" height="93.3" fill="rgb(231,46,46)" rx="3" stroke="#1a1a2e" stroke-width="2"><title>Bankinter: -262K€ (12 fondos)</title></rect><text x="370.6" y="243.3" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">Bankinter</text><text x="370.6" y="257.3" fill="rgba(255,255,255,0.7)" font-size="9" text-anchor="middle">-262K€</text><rect x="472.7" y="199.7" width="110.8" height="93.3" fill="rgb(208,61,61)" rx="3" stroke="#1a1a2e" stroke-width="2"><title>Ibercaja: -145K€ (5 fondos)</title></rect><text x="529.1" y="243.3" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">Ibercaja</text><text x="529.1" y="257.3" fill="rgba(255,255,255,0.7)" font-size="9" text-anchor="middle">-145K€</text><rect x="585.5" y="199.7" width="82.5" height="93.3" fill="rgb(201,66,66)" rx="3" stroke="#1a1a2e" stroke-width="2"><title>Abanca: -108K€ (3 fondos)</title></rect><text x="627.7" y="243.3" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">Abanca</text><text x="627.7" y="257.3" fill="rgba(255,255,255,0.7)" font-size="9" text-anchor="middle">-108K€</text><rect x="30.0" y="294.9" width="234.1" height="29.3" fill="rgb(200,67,67)" rx="3" stroke="#1a1a2e" stroke-width="2"><title>Sabadell: -99K€ (5 fondos)</title></rect><text x="148.0" y="306.6" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">Sabadell</text><text x="148.0" y="320.6" fill="rgba(255,255,255,0.7)" font-size="9" text-anchor="middle">-99K€</text><rect x="266.1" y="294.9" width="196.4" height="29.3" fill="rgb(196,69,69)" rx="3" stroke="#1a1a2e" stroke-width="2"><title>Unicaja: -83K€ (2 fondos)</title></rect><text x="365.2" y="306.6" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">Unicaja</text><text x="365.2" y="320.6" fill="rgba(255,255,255,0.7)" font-size="9" text-anchor="middle">-83K€</text><rect x="464.4" y="294.9" width="109.8" height="29.3" fill="rgba(129,199,132,0.36)" rx="3" stroke="#1a1a2e" stroke-width="2"><title>Buy&amp;Hold: -47K€ (1 fondos)</title></rect><text x="520.3" y="306.6" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">Buy&Hold</text><text x="520.3" y="320.6" fill="rgba(255,255,255,0.7)" font-size="9" text-anchor="middle">-47K€</text><rect x="576.2" y="294.9" width="91.8" height="29.3" fill="rgba(129,199,132,0.35)" rx="3" stroke="#1a1a2e" stroke-width="2"><title>Bestinver: -39K€ (2 fondos)</title></rect><text x="623.1" y="306.6" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">Bestinver</text><text x="623.1" y="320.6" fill="rgba(255,255,255,0.7)" font-size="9" text-anchor="middle">-39K€</text><rect x="30.0" y="326.2" width="638.0" height="1.8" fill="rgba(129,199,132,0.34)" rx="3" stroke="#1a1a2e" stroke-width="2"><title>True Value: -33K€ (1 fondos)</title></rect></svg>
+  </div>
+</div>
+
+<!-- FILTERS -->
+<div class="filter-bar">
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" class="search-input" id="fund-search" placeholder="Buscar fondo, ISIN o gestora..." oninput="applyFilters()">
+    <button class="search-clear" id="search-clear" onclick="clearSearch()" style="display:none">&times;</button>
+  </div>
+  <div class="type-toggle">
+    <button class="type-btn active" data-type="all" onclick="setType('all')">Todos</button>
+    <button class="type-btn" data-type="Bancario" onclick="setType('Bancario')">Bancarios</button>
+    <button class="type-btn" data-type="Independiente" onclick="setType('Independiente')">Independientes</button>
+  </div>
+  <label>Gestora:</label>
+  <select class="filter-select" id="gestora-filter" onchange="applyFilters()">
+    <option value="">Todas</option>
+  </select>
+  <label>TER:</label>
+  <select class="filter-select" id="ter-filter" onchange="applyFilters()" style="min-width:120px">
+    <option value="">Todos</option>
+    <option value="0-1">< 1%</option>
+    <option value="1-2">1% - 2%</option>
+    <option value="2-3">2% - 3%</option>
+    <option value="3-99">> 3%</option>
+  </select>
+  <span class="filter-count" id="filter-count"></span>
+</div>
+
+<div class="tw">
+<table id="ranking-table">
+<thead><tr>
+  <th>#</th><th>Fondo</th><th>Gestora</th><th>ISIN</th><th>TER</th>
+  <th class="sortable" onclick="sortBy('dq3')">DQ 3A <span class="sort-arrow" id="arrow-dq3">▽</span></th>
+  <th class="sortable" onclick="sortBy('dq5')">DQ 5A <span class="sort-arrow" id="arrow-dq5">▽</span></th>
+  <th class="sortable active-sort" onclick="sortBy('dq10')">DQ 10A <span class="sort-arrow" id="arrow-dq10">▼</span></th>
+  <th>Impacto</th>
+</tr></thead>
+<tbody>
+<tr class="zone-row zone-champions"><td colspan="9" class="zone-header">🏆 Champions de la Basura <span style="font-weight:400;font-size:.85em;opacity:.7">(1 – 25)</span></td></tr>
+<tr data-orig-rank="1" data-bank="Santander" data-type="Bancario" data-ter="2.11" data-dq3="31899.253440799992" data-dq5="56919.221297187505" data-dq10="81440.46506359297"><td class="rank">1</td><td class="fname">Santander GO RV Norteamerica A <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Santander</td><td class="isin">ES0174930000</td><td class="ter">2.11%</td><td class="dq-value"><span class="dq-neg">−31.899 €</span></td><td class="dq-value"><span class="dq-neg">−56.919 €</span></td><td class="dq-value"><span class="dq-neg">−81.440 €<span class="proj">*</span></span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:100%;background:#ff4444"></div></div></td></tr>
+<tr data-orig-rank="2" data-bank="BBVA" data-type="Bancario" data-ter="2.79" data-dq3="21264.677509599995" data-dq5="26179.179648600093" data-dq10="75945.70172537283"><td class="rank">2</td><td class="fname">BBVA Megatendencia Demografía <span class="type-badge type-bancario">Bancario</span></td><td class="bname">BBVA</td><td class="isin">ES0114277033</td><td class="ter">2.79%</td><td class="dq-value"><span class="dq-neg">−21.265 €</span></td><td class="dq-value"><span class="dq-neg">−26.179 €</span></td><td class="dq-value"><span class="dq-neg">−75.946 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:93%;background:#ff4444"></div></div></td></tr>
+<tr data-orig-rank="3" data-bank="Unicaja" data-type="Bancario" data-ter="2.35" data-dq3="27075.697299900003" data-dq5="40918.18770918996" data-dq10="65093.39456433487"><td class="rank">3</td><td class="fname">Unicaja Renta Variable USA A <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Unicaja</td><td class="isin">ES0181407000</td><td class="ter">2.35%</td><td class="dq-value"><span class="dq-neg">−27.076 €</span></td><td class="dq-value"><span class="dq-neg">−40.918 €<span class="proj">*</span></span></td><td class="dq-value"><span class="dq-neg">−65.093 €<span class="proj">*</span></span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:80%;background:#ff4444"></div></div></td></tr>
+<tr data-orig-rank="4" data-bank="Santander" data-type="Bancario" data-ter="2.18" data-dq3="26074.6297912" data-dq5="40852.51936812636" data-dq10="65015.75534902132"><td class="rank">4</td><td class="fname">Santander Future Wealth A <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Santander</td><td class="isin">ES0174979007</td><td class="ter">2.18%</td><td class="dq-value"><span class="dq-neg">−26.075 €</span></td><td class="dq-value"><span class="dq-neg">−40.853 €</span></td><td class="dq-value"><span class="dq-neg">−65.016 €<span class="proj">*</span></span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:80%;background:#ff4444"></div></div></td></tr>
+<tr data-orig-rank="5" data-bank="Santander" data-type="Bancario" data-ter="1.7" data-dq3="17497.02530610001" data-dq5="34520.563606905576" data-dq10="57124.434096427"><td class="rank">5</td><td class="fname">Santander Sostenible Acciones A <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Santander</td><td class="isin">ES0113607008</td><td class="ter">1.70%</td><td class="dq-value"><span class="dq-neg">−17.497 €</span></td><td class="dq-value"><span class="dq-neg">−34.521 €</span></td><td class="dq-value"><span class="dq-neg">−57.124 €<span class="proj">*</span></span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:70%;background:#ff4444"></div></div></td></tr>
+<tr data-orig-rank="6" data-bank="Mediolanum" data-type="Bancario" data-ter="2.81" data-dq3="20340.201699999994" data-dq5="31877.68141704831" data-dq10="53593.49710882835"><td class="rank">6</td><td class="fname">Mediolanum BB Innovative Thematic Opportunities L <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Mediolanum</td><td class="isin">IE00BG0D0J96</td><td class="ter">2.81%</td><td class="dq-value"><span class="dq-neg">−20.340 €</span></td><td class="dq-value"><span class="dq-neg">−31.878 €</span></td><td class="dq-value"><span class="dq-neg">−53.593 €<span class="proj">*</span></span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:66%;background:#ff4444"></div></div></td></tr>
+<tr data-orig-rank="7" data-bank="Kutxabank" data-type="Bancario" data-ter="2" data-dq3="23519.4276375" data-dq5="39893.74845070053" data-dq10="53241.53439744115"><td class="rank">7</td><td class="fname">Kutxabank Bolsa Nueva Economía Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Kutxabank</td><td class="isin">ES0114222039</td><td class="ter">2.00%</td><td class="dq-value"><span class="dq-neg">−23.519 €</span></td><td class="dq-value"><span class="dq-neg">−39.894 €</span></td><td class="dq-value"><span class="dq-neg">−53.242 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:65%;background:#ff4444"></div></div></td></tr>
+<tr data-orig-rank="8" data-bank="Santander" data-type="Bancario" data-ter="1.63" data-dq3="26856.729899999988" data-dq5="38313.50699257933" data-dq10="51653.78521640718"><td class="rank">8</td><td class="fname">Santander Future Us Tech A <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Santander</td><td class="isin">ES0107764039</td><td class="ter">1.63%</td><td class="dq-value"><span class="dq-neg">−26.857 €</span></td><td class="dq-value"><span class="dq-neg">−38.314 €</span></td><td class="dq-value"><span class="dq-neg">−51.654 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:63%;background:#ff4444"></div></div></td></tr>
+<tr data-orig-rank="9" data-bank="Abanca" data-type="Bancario" data-ter="1.73" data-dq3="24194.84089680002" data-dq5="42765.36036695842" data-dq10="50338.1780552616"><td class="rank">9</td><td class="fname">Abanca Renta Variable Crecimiento Minorista <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Abanca</td><td class="isin">ES0106949037</td><td class="ter">1.73%</td><td class="dq-value"><span class="dq-neg">−24.195 €</span></td><td class="dq-value"><span class="dq-neg">−42.765 €</span></td><td class="dq-value"><span class="dq-neg">−50.338 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:62%;background:#ff4444"></div></div></td></tr>
+<tr data-orig-rank="10" data-bank="Kutxabank" data-type="Bancario" data-ter="2" data-dq3="21520.2008576" data-dq5="26843.523628556686" data-dq10="47385.88326538305"><td class="rank">10</td><td class="fname">Kutxabank Bolsa EEUU Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Kutxabank</td><td class="isin">ES0113191037</td><td class="ter">2.00%</td><td class="dq-value"><span class="dq-neg">−21.520 €</span></td><td class="dq-value"><span class="dq-neg">−26.844 €</span></td><td class="dq-value"><span class="dq-neg">−47.386 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:58%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="11" data-bank="Buy&Hold" data-type="Independiente" data-ter="1.04" data-dq3="17707.962818899992" data-dq5="12206.267590634823" data-dq10="47048.28981912443"><td class="rank">11</td><td class="fname">B&H Acciones C FI <span class="type-badge type-independiente">Independiente</span></td><td class="bname">Buy&Hold</td><td class="isin">ES0112617016</td><td class="ter">1.04%</td><td class="dq-value"><span class="dq-neg">−17.708 €</span></td><td class="dq-value"><span class="dq-neg">−12.206 €</span></td><td class="dq-value"><span class="dq-neg">−47.048 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:58%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="12" data-bank="Abanca" data-type="Bancario" data-ter="1.71" data-dq3="-3060.7060301000024" data-dq5="8542.206331414582" data-dq10="45908.851281580966"><td class="rank">12</td><td class="fname">Abanca Renta Variable Dividendo Minorista <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Abanca</td><td class="isin">ES0162948006</td><td class="ter">1.71%</td><td class="dq-value"><span class="dq-pos">+3061 €</span></td><td class="dq-value"><span class="dq-neg">−8542 €</span></td><td class="dq-value"><span class="dq-neg">−45.909 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:56%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="13" data-bank="Kutxabank" data-type="Bancario" data-ter="2.4" data-dq3="17285.7276397" data-dq5="27850.319820395296" data-dq10="43802.11865948278"><td class="rank">13</td><td class="fname">Kutxabank Bolsa Sectorial Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Kutxabank</td><td class="isin">ES0114237037</td><td class="ter">2.40%</td><td class="dq-value"><span class="dq-neg">−17.286 €</span></td><td class="dq-value"><span class="dq-neg">−27.850 €</span></td><td class="dq-value"><span class="dq-neg">−43.802 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:54%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="14" data-bank="Sabadell" data-type="Bancario" data-ter="2.21" data-dq3="13910.043130299988" data-dq5="17567.006121963248" data-dq10="43023.39354738008"><td class="rank">14</td><td class="fname">Sabadell Europa Bolsa Futuro Base <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Sabadell</td><td class="isin">ES0183339037</td><td class="ter">2.21%</td><td class="dq-value"><span class="dq-neg">−13.910 €</span></td><td class="dq-value"><span class="dq-neg">−17.567 €</span></td><td class="dq-value"><span class="dq-neg">−43.023 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:53%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="15" data-bank="Ibercaja" data-type="Bancario" data-ter="2.11" data-dq3="4316.363213599983" data-dq5="13416.022882014046" data-dq10="42721.307366019835"><td class="rank">15</td><td class="fname">Ibercaja Tecnológico A <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Ibercaja</td><td class="isin">ES0147644035</td><td class="ter">2.11%</td><td class="dq-value"><span class="dq-neg">−4316 €</span></td><td class="dq-value"><span class="dq-neg">−13.416 €</span></td><td class="dq-value"><span class="dq-neg">−42.721 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:52%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="16" data-bank="Mediolanum" data-type="Bancario" data-ter="3.02" data-dq3="17971.128711899986" data-dq5="22987.74024636089" data-dq10="40691.11847638017"><td class="rank">16</td><td class="fname">Mediolanum BB Global Leaders Fund LA <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Mediolanum</td><td class="isin">IE00BJYLJ823</td><td class="ter">3.02%</td><td class="dq-value"><span class="dq-neg">−17.971 €</span></td><td class="dq-value"><span class="dq-neg">−22.988 €</span></td><td class="dq-value"><span class="dq-neg">−40.691 €<span class="proj">*</span></span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:50%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="17" data-bank="Kutxabank" data-type="Bancario" data-ter="2.4" data-dq3="16197.1629248" data-dq5="28119.477354986877" data-dq10="40628.59923736742"><td class="rank">17</td><td class="fname">Kutxabank Bolsa Internacional Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Kutxabank</td><td class="isin">ES0113987038</td><td class="ter">2.40%</td><td class="dq-value"><span class="dq-neg">−16.197 €</span></td><td class="dq-value"><span class="dq-neg">−28.119 €</span></td><td class="dq-value"><span class="dq-neg">−40.629 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:50%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="18" data-bank="Bankinter" data-type="Bancario" data-ter="1.61" data-dq3="9155.450587499992" data-dq5="11980.762386354216" data-dq10="37557.001871275985"><td class="rank">18</td><td class="fname">Bankinter Finanzas Globales R <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Bankinter</td><td class="isin">ES0114805031</td><td class="ter">1.61%</td><td class="dq-value"><span class="dq-neg">−9155 €</span></td><td class="dq-value"><span class="dq-neg">−11.981 €</span></td><td class="dq-value"><span class="dq-neg">−37.557 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:46%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="19" data-bank="BBVA" data-type="Bancario" data-ter="1.92" data-dq3="-5249.260844800041" data-dq5="18844.220227371556" data-dq10="37097.30892317227"><td class="rank">19</td><td class="fname">BBVA Megatendencia Planeta Tierra ISR A <span class="type-badge type-bancario">Bancario</span></td><td class="bname">BBVA</td><td class="isin">ES0172243000</td><td class="ter">1.92%</td><td class="dq-value"><span class="dq-pos">+5249 €</span></td><td class="dq-value"><span class="dq-neg">−18.844 €</span></td><td class="dq-value"><span class="dq-neg">−37.097 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:46%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="20" data-bank="Ibercaja" data-type="Bancario" data-ter="1.74" data-dq3="14154.154393599994" data-dq5="30018.760040667126" data-dq10="36435.32071728992"><td class="rank">20</td><td class="fname">Ibercaja Bolsa Europa A <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Ibercaja</td><td class="isin">ES0130705033</td><td class="ter">1.74%</td><td class="dq-value"><span class="dq-neg">−14.154 €</span></td><td class="dq-value"><span class="dq-neg">−30.019 €</span></td><td class="dq-value"><span class="dq-neg">−36.435 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:45%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="21" data-bank="Santander" data-type="Bancario" data-ter="2.67" data-dq3="15796.533869299989" data-dq5="21680.677554733596" data-dq10="36101.98107995139"><td class="rank">21</td><td class="fname">Santander Acciones Latinoamericanas A <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Santander</td><td class="isin">ES0105930038</td><td class="ter">2.67%</td><td class="dq-value"><span class="dq-neg">−15.797 €</span></td><td class="dq-value"><span class="dq-neg">−21.681 €</span></td><td class="dq-value"><span class="dq-neg">−36.102 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:44%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="22" data-bank="CaixaBank" data-type="Bancario" data-ter="2.66" data-dq3="12435.6512737" data-dq5="19392.739135717675" data-dq10="35363.08962268924"><td class="rank">22</td><td class="fname">CaixaBank Bolsa Selección Global Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">CaixaBank</td><td class="isin">ES0138172038</td><td class="ter">2.66%</td><td class="dq-value"><span class="dq-neg">−12.436 €</span></td><td class="dq-value"><span class="dq-neg">−19.393 €</span></td><td class="dq-value"><span class="dq-neg">−35.363 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:43%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="23" data-bank="Bankinter" data-type="Bancario" data-ter="1.3" data-dq3="-2449.736144100001" data-dq5="23190.382644635778" data-dq10="35227.92256480054"><td class="rank">23</td><td class="fname">Bankinter EE.UU. Nasdaq 100 R <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Bankinter</td><td class="isin">ES0114105036</td><td class="ter">1.30%</td><td class="dq-value"><span class="dq-pos">+2450 €</span></td><td class="dq-value"><span class="dq-neg">−23.190 €</span></td><td class="dq-value"><span class="dq-neg">−35.228 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:43%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="24" data-bank="Mediolanum" data-type="Bancario" data-ter="3.21" data-dq3="9267.963175900008" data-dq5="18122.424912904167" data-dq10="33931.090092849714"><td class="rank">24</td><td class="fname">Mediolanum BB Emerging Markets Collection L A <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Mediolanum</td><td class="isin">IE0005380518</td><td class="ter">3.21%</td><td class="dq-value"><span class="dq-neg">−9268 €</span></td><td class="dq-value"><span class="dq-neg">−18.122 €</span></td><td class="dq-value"><span class="dq-neg">−33.931 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:42%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="25" data-bank="CaixaBank" data-type="Bancario" data-ter="3" data-dq3="10583.034789599988" data-dq5="17008.577253084022" data-dq10="33862.19296163026"><td class="rank">25</td><td class="fname">CaixaBank Bolsa Selección Europa Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">CaixaBank</td><td class="isin">ES0138181039</td><td class="ter">3.00%</td><td class="dq-value"><span class="dq-neg">−10.583 €</span></td><td class="dq-value"><span class="dq-neg">−17.009 €</span></td><td class="dq-value"><span class="dq-neg">−33.862 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:42%;background:#ff8844"></div></div></td></tr>
+<tr class="zone-row zone-europa"><td colspan="9" class="zone-header">🔥 Europa League <span style="font-weight:400;font-size:.85em;opacity:.7">(26 – 50)</span></td></tr>
+<tr data-orig-rank="26" data-bank="Bankinter" data-type="Bancario" data-ter="1.15" data-dq3="11664.568012499998" data-dq5="18292.7193112453" data-dq10="33239.20282449053"><td class="rank">26</td><td class="fname">Bankinter Índice Global R <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Bankinter</td><td class="isin">ES0113572004</td><td class="ter">1.15%</td><td class="dq-value"><span class="dq-neg">−11.665 €</span></td><td class="dq-value"><span class="dq-neg">−18.293 €</span></td><td class="dq-value"><span class="dq-neg">−33.239 €<span class="proj">*</span></span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:41%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="27" data-bank="Kutxabank" data-type="Bancario" data-ter="2.6" data-dq3="9745.105305599987" data-dq5="19812.65518805071" data-dq10="33169.656711462056"><td class="rank">27</td><td class="fname">Kutxabank Bolsa Emergentes Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Kutxabank</td><td class="isin">ES0114233036</td><td class="ter">2.60%</td><td class="dq-value"><span class="dq-neg">−9745 €</span></td><td class="dq-value"><span class="dq-neg">−19.813 €</span></td><td class="dq-value"><span class="dq-neg">−33.170 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:41%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="28" data-bank="Mediolanum" data-type="Bancario" data-ter="2.78" data-dq3="7911.667251100008" data-dq5="14568.332102415116" data-dq10="33100.045402353426"><td class="rank">28</td><td class="fname">Mediolanum Challenge International Equity L <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Mediolanum</td><td class="isin">IE0032082988</td><td class="ter">2.78%</td><td class="dq-value"><span class="dq-neg">−7912 €</span></td><td class="dq-value"><span class="dq-neg">−14.568 €</span></td><td class="dq-value"><span class="dq-neg">−33.100 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:41%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="29" data-bank="True Value" data-type="Independiente" data-ter="1.46" data-dq3="22890.478699999996" data-dq5="26179.179648600093" data-dq10="32751.009012966435"><td class="rank">29</td><td class="fname">True Value FI <span class="type-badge type-independiente">Independiente</span></td><td class="bname">True Value</td><td class="isin">ES0180792006</td><td class="ter">1.46%</td><td class="dq-value"><span class="dq-neg">−22.890 €</span></td><td class="dq-value"><span class="dq-neg">−26.179 €</span></td><td class="dq-value"><span class="dq-neg">−32.751 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:40%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="30" data-bank="Mediolanum" data-type="Bancario" data-ter="2.81" data-dq3="9548.838128900017" data-dq5="17695.446411548066" data-dq10="32540.801343687875"><td class="rank">30</td><td class="fname">Mediolanum BB European Collection L <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Mediolanum</td><td class="isin">IE0005372291</td><td class="ter">2.81%</td><td class="dq-value"><span class="dq-neg">−9549 €</span></td><td class="dq-value"><span class="dq-neg">−17.695 €</span></td><td class="dq-value"><span class="dq-neg">−32.541 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:40%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="31" data-bank="CaixaBank" data-type="Bancario" data-ter="2.49" data-dq3="6111.1078912000075" data-dq5="9976.26571264415" data-dq10="31977.3533419239"><td class="rank">31</td><td class="fname">CaixaBank Bolsa Gestión Europa Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">CaixaBank</td><td class="isin">ES0138068038</td><td class="ter">2.49%</td><td class="dq-value"><span class="dq-neg">−6111 €</span></td><td class="dq-value"><span class="dq-neg">−9976 €</span></td><td class="dq-value"><span class="dq-neg">−31.977 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:39%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="32" data-bank="Mediolanum" data-type="Bancario" data-ter="2.76" data-dq3="12737.3448384" data-dq5="17695.446411548066" data-dq10="30909.459559432817"><td class="rank">32</td><td class="fname">Mediolanum BB Dynamic Collection L A <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Mediolanum</td><td class="isin">IE0032080495</td><td class="ter">2.76%</td><td class="dq-value"><span class="dq-neg">−12.737 €</span></td><td class="dq-value"><span class="dq-neg">−17.695 €</span></td><td class="dq-value"><span class="dq-neg">−30.909 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:38%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="33" data-bank="Mediolanum" data-type="Bancario" data-ter="3.17" data-dq3="6971.416127200014" data-dq5="20647.237268315443" data-dq10="30837.733076899156"><td class="rank">33</td><td class="fname">Mediolanum BB Equity Power Coupon Collection LA <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Mediolanum</td><td class="isin">IE0032080503</td><td class="ter">3.17%</td><td class="dq-value"><span class="dq-neg">−6971 €</span></td><td class="dq-value"><span class="dq-neg">−20.647 €</span></td><td class="dq-value"><span class="dq-neg">−30.838 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:38%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="34" data-bank="BBVA" data-type="Bancario" data-ter="2" data-dq3="14829.819076100015" data-dq5="26375.073870841483" data-dq10="29462.134431392216"><td class="rank">34</td><td class="fname">Quality Mejores Ideas <span class="type-badge type-bancario">Bancario</span></td><td class="bname">BBVA</td><td class="isin">ES0110119031</td><td class="ter">2.00%</td><td class="dq-value"><span class="dq-neg">−14.830 €</span></td><td class="dq-value"><span class="dq-neg">−26.375 €</span></td><td class="dq-value"><span class="dq-neg">−29.462 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:36%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="35" data-bank="CaixaBank" data-type="Bancario" data-ter="2.79" data-dq3="15689.484237700002" data-dq5="17309.644493183685" data-dq10="29462.134431392216"><td class="rank">35</td><td class="fname">CaixaBank Bolsa Selección USA Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">CaixaBank</td><td class="isin">ES0138189032</td><td class="ter">2.79%</td><td class="dq-value"><span class="dq-neg">−15.689 €</span></td><td class="dq-value"><span class="dq-neg">−17.310 €</span></td><td class="dq-value"><span class="dq-neg">−29.462 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:36%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="36" data-bank="Mediolanum" data-type="Bancario" data-ter="1.6" data-dq3="7655.866472799999" data-dq5="15882.640375542413" data-dq10="29242.69809809672"><td class="rank">36</td><td class="fname">Compromiso Mediolanum L <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Mediolanum</td><td class="isin">ES0121092003</td><td class="ter">1.60%</td><td class="dq-value"><span class="dq-neg">−7656 €</span></td><td class="dq-value"><span class="dq-neg">−15.883 €</span></td><td class="dq-value"><span class="dq-neg">−29.243 €<span class="proj">*</span></span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:36%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="37" data-bank="Ibercaja" data-type="Bancario" data-ter="2.02" data-dq3="2528.386412499983" data-dq5="12386.338768630789" data-dq10="29022.647575530158"><td class="rank">37</td><td class="fname">Ibercaja Bolsa Internacional A <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Ibercaja</td><td class="isin">ES0147641031</td><td class="ter">2.02%</td><td class="dq-value"><span class="dq-neg">−2528 €</span></td><td class="dq-value"><span class="dq-neg">−12.386 €</span></td><td class="dq-value"><span class="dq-neg">−29.023 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:36%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="38" data-bank="BBVA" data-type="Bancario" data-ter="2.42" data-dq3="11968.031129599987" data-dq5="2426.1073610424287" data-dq10="28875.605256659353"><td class="rank">38</td><td class="fname">BBVA Bolsa Europa A <span class="type-badge type-bancario">Bancario</span></td><td class="bname">BBVA</td><td class="isin">ES0114371034</td><td class="ter">2.42%</td><td class="dq-value"><span class="dq-neg">−11.968 €</span></td><td class="dq-value"><span class="dq-neg">−2426 €</span></td><td class="dq-value"><span class="dq-neg">−28.876 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:35%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="39" data-bank="BBVA" data-type="Bancario" data-ter="2.41" data-dq3="5071.756844800002" data-dq5="5857.71765688321" data-dq10="28875.605256659353"><td class="rank">39</td><td class="fname">BBVA Bolsa FI <span class="type-badge type-bancario">Bancario</span></td><td class="bname">BBVA</td><td class="isin">ES0138861036</td><td class="ter">2.41%</td><td class="dq-value"><span class="dq-neg">−5072 €</span></td><td class="dq-value"><span class="dq-neg">−5858 €</span></td><td class="dq-value"><span class="dq-neg">−28.876 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:35%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="40" data-bank="Bankinter" data-type="Bancario" data-ter="1.1" data-dq3="5880.800000000008" data-dq5="17866.451034725083" data-dq10="28358.79557962564"><td class="rank">40</td><td class="fname">Bankinter Índice América R <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Bankinter</td><td class="isin">ES0114763032</td><td class="ter">1.10%</td><td class="dq-value"><span class="dq-neg">−5881 €</span></td><td class="dq-value"><span class="dq-neg">−17.866 €</span></td><td class="dq-value"><span class="dq-neg">−28.359 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:35%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="41" data-bank="Kutxabank" data-type="Bancario" data-ter="1.5" data-dq3="12243.302877599994" data-dq5="15402.619337897506" data-dq10="28210.51620649684"><td class="rank">41</td><td class="fname">Kutxabank Bolsa Small & Mid Caps Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Kutxabank</td><td class="isin">ES0114202031</td><td class="ter">1.50%</td><td class="dq-value"><span class="dq-neg">−12.243 €</span></td><td class="dq-value"><span class="dq-neg">−15.403 €</span></td><td class="dq-value"><span class="dq-neg">−28.211 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:35%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="42" data-bank="Sabadell" data-type="Bancario" data-ter="2.21" data-dq3="28811.725091099994" data-dq5="24277.29365584472" data-dq10="27913.12854133754"><td class="rank">42</td><td class="fname">Sabadell España Bolsa Futuro Base <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Sabadell</td><td class="isin">ES0111092039</td><td class="ter">2.21%</td><td class="dq-value"><span class="dq-neg">−28.812 €</span></td><td class="dq-value"><span class="dq-neg">−24.277 €</span></td><td class="dq-value"><span class="dq-neg">−27.913 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:34%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="43" data-bank="Kutxabank" data-type="Bancario" data-ter="2" data-dq3="15876.76160000001" data-dq5="22091.026239600465" data-dq10="27164.802642037288"><td class="rank">43</td><td class="fname">Kutxabank Bolsa Eurozona Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Kutxabank</td><td class="isin">ES0114221031</td><td class="ter">2.00%</td><td class="dq-value"><span class="dq-neg">−15.877 €</span></td><td class="dq-value"><span class="dq-neg">−22.091 €</span></td><td class="dq-value"><span class="dq-neg">−27.165 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:33%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="44" data-bank="BBVA" data-type="Bancario" data-ter="2.31" data-dq3="6398.464023200012" data-dq5="16533.700398185458" data-dq10="26863.519933644475"><td class="rank">44</td><td class="fname">BBVA Bolsa Emergentes MF <span class="type-badge type-bancario">Bancario</span></td><td class="bname">BBVA</td><td class="isin">ES0110116037</td><td class="ter">2.31%</td><td class="dq-value"><span class="dq-neg">−6398 €</span></td><td class="dq-value"><span class="dq-neg">−16.534 €</span></td><td class="dq-value"><span class="dq-neg">−26.864 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:33%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="45" data-bank="CaixaBank" data-type="Bancario" data-ter="2.64" data-dq3="16516.7496704" data-dq5="23311.763178766665" data-dq10="26333.57515761551"><td class="rank">45</td><td class="fname">CaixaBank Selección Tendencias Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">CaixaBank</td><td class="isin">ES0164853006</td><td class="ter">2.64%</td><td class="dq-value"><span class="dq-neg">−16.517 €</span></td><td class="dq-value"><span class="dq-neg">−23.312 €</span></td><td class="dq-value"><span class="dq-neg">−26.334 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:32%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="46" data-bank="Mediolanum" data-type="Bancario" data-ter="2.92" data-dq3="11526.400000000014" data-dq5="15926.170368205361" data-dq10="25952.929970847672"><td class="rank">46</td><td class="fname">Mediolanum BB New Opportunities Collection LA <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Mediolanum</td><td class="isin">IE00B6SBTN25</td><td class="ter">2.92%</td><td class="dq-value"><span class="dq-neg">−11.526 €</span></td><td class="dq-value"><span class="dq-neg">−15.926 €</span></td><td class="dq-value"><span class="dq-neg">−25.953 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:32%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="47" data-bank="CaixaBank" data-type="Bancario" data-ter="2.94" data-dq3="5332.309974100002" data-dq5="20355.927880154522" data-dq10="25800.176914511907"><td class="rank">47</td><td class="fname">CaixaBank Bolsa Selección Emergente Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">CaixaBank</td><td class="isin">ES0138328036</td><td class="ter">2.94%</td><td class="dq-value"><span class="dq-neg">−5332 €</span></td><td class="dq-value"><span class="dq-neg">−20.356 €</span></td><td class="dq-value"><span class="dq-neg">−25.800 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:32%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="48" data-bank="Kutxabank" data-type="Bancario" data-ter="2" data-dq3="8817.354812699996" data-dq5="13683.037410614917" data-dq10="25186.32453938603"><td class="rank">48</td><td class="fname">Kutxabank Bolsa Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Kutxabank</td><td class="isin">ES0114388038</td><td class="ter">2.00%</td><td class="dq-value"><span class="dq-neg">−8817 €</span></td><td class="dq-value"><span class="dq-neg">−13.683 €</span></td><td class="dq-value"><span class="dq-neg">−25.186 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:31%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="49" data-bank="Mediolanum" data-type="Bancario" data-ter="2.66" data-dq3="8081.938393299981" data-dq5="13371.456289836104" data-dq10="25032.149064320853"><td class="rank">49</td><td class="fname">Mediolanum BB US Collection L <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Mediolanum</td><td class="isin">IE0005372184</td><td class="ter">2.66%</td><td class="dq-value"><span class="dq-neg">−8082 €</span></td><td class="dq-value"><span class="dq-neg">−13.371 €</span></td><td class="dq-value"><span class="dq-neg">−25.032 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:31%;background:#ff8844"></div></div></td></tr>
+<tr data-orig-rank="50" data-bank="CaixaBank" data-type="Bancario" data-ter="2.56" data-dq3="4345.49065230001" data-dq5="9238.370201194457" data-dq10="24722.939965802816"><td class="rank">50</td><td class="fname">CaixaBank Bolsa Dividendo Europa Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">CaixaBank</td><td class="isin">ES0184923037</td><td class="ter">2.56%</td><td class="dq-value"><span class="dq-neg">−4345 €</span></td><td class="dq-value"><span class="dq-neg">−9238 €</span></td><td class="dq-value"><span class="dq-neg">−24.723 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:30%;background:#ffaa44"></div></div></td></tr>
+<tr class="zone-row zone-permanencia"><td colspan="9" class="zone-header">😐 Zona Permanencia <span style="font-weight:400;font-size:.85em;opacity:.7">(51 – 75)</span></td></tr>
+<tr data-orig-rank="51" data-bank="Mediolanum" data-type="Bancario" data-ter="2.96" data-dq3="10888.971263299985" data-dq5="16749.822238617606" data-dq10="24567.90539939503"><td class="rank">51</td><td class="fname">Mediolanum BB Pacific Collection L <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Mediolanum</td><td class="isin">IE0005372309</td><td class="ter">2.96%</td><td class="dq-value"><span class="dq-neg">−10.889 €</span></td><td class="dq-value"><span class="dq-neg">−16.750 €</span></td><td class="dq-value"><span class="dq-neg">−24.568 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:30%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="52" data-bank="Bestinver" data-type="Independiente" data-ter="1.6" data-dq3="13638.266133299992" data-dq5="19980.13078704849" data-dq10="24567.90539939503"><td class="rank">52</td><td class="fname">Bestinver Grandes Compañías FI <span class="type-badge type-independiente">Independiente</span></td><td class="bname">Bestinver</td><td class="isin">ES0114561006</td><td class="ter">1.60%</td><td class="dq-value"><span class="dq-neg">−13.638 €</span></td><td class="dq-value"><span class="dq-neg">−19.980 €</span></td><td class="dq-value"><span class="dq-neg">−24.568 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:30%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="53" data-bank="BBVA" data-type="Bancario" data-ter="2.45" data-dq3="7399.592427699997" data-dq5="12969.530548086372" data-dq10="22764.238190622986"><td class="rank">53</td><td class="fname">BBVA Bolsa Asia MF <span class="type-badge type-bancario">Bancario</span></td><td class="bname">BBVA</td><td class="isin">ES0108929037</td><td class="ter">2.45%</td><td class="dq-value"><span class="dq-neg">−7400 €</span></td><td class="dq-value"><span class="dq-neg">−12.970 €</span></td><td class="dq-value"><span class="dq-neg">−22.764 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:28%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="54" data-bank="BBVA" data-type="Bancario" data-ter="2.57" data-dq3="2203.6125223999893" data-dq5="9053.142446932505" data-dq10="22526.138099125637"><td class="rank">54</td><td class="fname">BBVA Megatendencia Tecnología A <span class="type-badge type-bancario">Bancario</span></td><td class="bname">BBVA</td><td class="isin">ES0147711032</td><td class="ter">2.57%</td><td class="dq-value"><span class="dq-neg">−2204 €</span></td><td class="dq-value"><span class="dq-neg">−9053 €</span></td><td class="dq-value"><span class="dq-neg">−22.526 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:28%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="55" data-bank="Santander" data-type="Bancario" data-ter="2.69" data-dq3="7826.452883200008" data-dq5="13816.297413884837" data-dq10="21486.718781395808"><td class="rank">55</td><td class="fname">Santander Acciones USA A <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Santander</td><td class="isin">ES0121761037</td><td class="ter">2.69%</td><td class="dq-value"><span class="dq-neg">−7826 €</span></td><td class="dq-value"><span class="dq-neg">−13.816 €</span></td><td class="dq-value"><span class="dq-neg">−21.487 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:26%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="56" data-bank="Ibercaja" data-type="Bancario" data-ter="2.22" data-dq3="5129.698802399996" data-dq5="11028.5746789325" data-dq10="21164.382038029995"><td class="rank">56</td><td class="fname">Ibercaja Bolsa USA A <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Ibercaja</td><td class="isin">ES0147034039</td><td class="ter">2.22%</td><td class="dq-value"><span class="dq-neg">−5130 €</span></td><td class="dq-value"><span class="dq-neg">−11.029 €</span></td><td class="dq-value"><span class="dq-neg">−21.164 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:26%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="57" data-bank="Mediolanum" data-type="Bancario" data-ter="2.89" data-dq3="8986.507362900009" data-dq5="19686.864565213447" data-dq10="21164.382038029995"><td class="rank">57</td><td class="fname">Mediolanum BB Socially Responsible Collection LA <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Mediolanum</td><td class="isin">IE00BCZNHK63</td><td class="ter">2.89%</td><td class="dq-value"><span class="dq-neg">−8987 €</span></td><td class="dq-value"><span class="dq-neg">−19.687 €</span></td><td class="dq-value"><span class="dq-neg">−21.164 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:26%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="58" data-bank="Bankinter" data-type="Bancario" data-ter="1.7" data-dq3="7570.494397900007" data-dq5="1589.792715604743" data-dq10="21002.767461038173"><td class="rank">58</td><td class="fname">Bankinter Sostenibilidad R <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Bankinter</td><td class="isin">ES0115157036</td><td class="ter">1.70%</td><td class="dq-value"><span class="dq-neg">−7570 €</span></td><td class="dq-value"><span class="dq-neg">−1590 €</span></td><td class="dq-value"><span class="dq-neg">−21.003 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:26%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="59" data-bank="Bankinter" data-type="Bancario" data-ter="1.71" data-dq3="15340.94640000001" data-dq5="1639.1458777430757" data-dq10="20759.786466597252"><td class="rank">59</td><td class="fname">Bankinter Pequeñas Compañías Europa R <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Bankinter</td><td class="isin">ES0114764030</td><td class="ter">1.71%</td><td class="dq-value"><span class="dq-neg">−15.341 €</span></td><td class="dq-value"><span class="dq-neg">−1639 €</span></td><td class="dq-value"><span class="dq-neg">−20.760 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:25%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="60" data-bank="Santander" data-type="Bancario" data-ter="2.3" data-dq3="7769.614109599987" data-dq5="12251.313116832875" data-dq10="20434.765532331367"><td class="rank">60</td><td class="fname">Santander Acciones Euro A <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Santander</td><td class="isin">ES0114063037</td><td class="ter">2.30%</td><td class="dq-value"><span class="dq-neg">−7770 €</span></td><td class="dq-value"><span class="dq-neg">−12.251 €</span></td><td class="dq-value"><span class="dq-neg">−20.435 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:25%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="61" data-bank="Bankinter" data-type="Bancario" data-ter="1.7" data-dq3="12270.798448299991" data-dq5="17180.722853895713" data-dq10="20026.80233520393"><td class="rank">61</td><td class="fname">Bankinter Bolsa España R <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Bankinter</td><td class="isin">ES0125621039</td><td class="ter">1.70%</td><td class="dq-value"><span class="dq-neg">−12.271 €</span></td><td class="dq-value"><span class="dq-neg">−17.181 €</span></td><td class="dq-value"><span class="dq-neg">−20.027 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:25%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="62" data-bank="Bankinter" data-type="Bancario" data-ter="1.28" data-dq3="6369.754831300012" data-dq5="10526.531387363213" data-dq10="19944.98414423499"><td class="rank">62</td><td class="fname">Bankinter Emergentes R <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Bankinter</td><td class="isin">ES0113571006</td><td class="ter">1.28%</td><td class="dq-value"><span class="dq-neg">−6370 €</span></td><td class="dq-value"><span class="dq-neg">−10.527 €</span></td><td class="dq-value"><span class="dq-neg">−19.945 €<span class="proj">*</span></span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:24%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="63" data-bank="CaixaBank" data-type="Bancario" data-ter="2.45" data-dq3="4549.217226399993" data-dq5="8309.204837883843" data-dq10="19699.077359918305"><td class="rank">63</td><td class="fname">CaixaBank Bolsa Gestión Euro Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">CaixaBank</td><td class="isin">ES0159031030</td><td class="ter">2.45%</td><td class="dq-value"><span class="dq-neg">−4549 €</span></td><td class="dq-value"><span class="dq-neg">−8309 €</span></td><td class="dq-value"><span class="dq-neg">−19.699 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:24%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="64" data-bank="CaixaBank" data-type="Bancario" data-ter="1.87" data-dq3="1966.9607496000108" data-dq5="17352.582676651673" data-dq10="19616.957489063512"><td class="rank">64</td><td class="fname">CaixaBank Bolsa Improvers Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">CaixaBank</td><td class="isin">ES0138893039</td><td class="ter">1.87%</td><td class="dq-value"><span class="dq-neg">−1967 €</span></td><td class="dq-value"><span class="dq-neg">−17.353 €</span></td><td class="dq-value"><span class="dq-neg">−19.617 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:24%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="65" data-bank="Unicaja" data-type="Bancario" data-ter="1.91" data-dq3="-8827.72736559998" data-dq5="-13638.410137491963" data-dq10="18376.05581353796"><td class="rank">65</td><td class="fname">Unicaja RV Europa Selección A <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Unicaja</td><td class="isin">ES0111011039</td><td class="ter">1.91%</td><td class="dq-value"><span class="dq-pos">+8828 €</span></td><td class="dq-value"><span class="dq-pos">+13.638 €</span></td><td class="dq-value"><span class="dq-neg">−18.376 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:23%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="66" data-bank="BBVA" data-type="Bancario" data-ter="2.14" data-dq3="6312.318837499986" data-dq5="6000.559450820997" data-dq10="17286.6910122205"><td class="rank">66</td><td class="fname">Quality Inversión Decidida <span class="type-badge type-bancario">Bancario</span></td><td class="bname">BBVA</td><td class="isin">ES0157663008</td><td class="ter">2.14%</td><td class="dq-value"><span class="dq-neg">−6312 €</span></td><td class="dq-value"><span class="dq-neg">−6001 €</span></td><td class="dq-value"><span class="dq-neg">−17.287 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:21%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="67" data-bank="Bankinter" data-type="Bancario" data-ter="1.7" data-dq3="9969.062758399994" data-dq5="6333.182756629308" data-dq10="16098.910967656777"><td class="rank">67</td><td class="fname">Bankinter Dividendo Europa R <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Bankinter</td><td class="isin">ES0114802038</td><td class="ter">1.70%</td><td class="dq-value"><span class="dq-neg">−9969 €</span></td><td class="dq-value"><span class="dq-neg">−6333 €</span></td><td class="dq-value"><span class="dq-neg">−16.099 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:20%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="68" data-bank="Ibercaja" data-type="Bancario" data-ter="1.75" data-dq3="6197.376393100007" data-dq5="9377.092861919356" data-dq10="15327.254378017375"><td class="rank">68</td><td class="fname">Ibercaja Bolsa España A <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Ibercaja</td><td class="isin">ES0147186037</td><td class="ter">1.75%</td><td class="dq-value"><span class="dq-neg">−6197 €</span></td><td class="dq-value"><span class="dq-neg">−9377 €</span></td><td class="dq-value"><span class="dq-neg">−15.327 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:19%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="69" data-bank="Santander" data-type="Bancario" data-ter="2.2" data-dq3="-3735.573086699984" data-dq5="2866.5545468315677" data-dq10="14895.801818995646"><td class="rank">69</td><td class="fname">Santander Go RV Asia A <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Santander</td><td class="isin">ES0114081039</td><td class="ter">2.20%</td><td class="dq-value"><span class="dq-pos">+3736 €</span></td><td class="dq-value"><span class="dq-neg">−2867 €</span></td><td class="dq-value"><span class="dq-neg">−14.896 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:18%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="70" data-bank="Bestinver" data-type="Independiente" data-ter="1.8" data-dq3="-1598.4418877000194" data-dq5="18122.424912904167" data-dq10="14895.801818995646"><td class="rank">70</td><td class="fname">Bestinver Internacional FI <span class="type-badge type-independiente">Independiente</span></td><td class="bname">Bestinver</td><td class="isin">ES0114638036</td><td class="ter">1.80%</td><td class="dq-value"><span class="dq-pos">+1598 €</span></td><td class="dq-value"><span class="dq-neg">−18.122 €</span></td><td class="dq-value"><span class="dq-neg">−14.896 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:18%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="71" data-bank="CaixaBank" data-type="Bancario" data-ter="1.94" data-dq3="5100.73077169999" data-dq5="-6093.305209559597" data-dq10="14809.274249551518"><td class="rank">71</td><td class="fname">CaixaBank Multisalud Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">CaixaBank</td><td class="isin">ES0110057033</td><td class="ter">1.94%</td><td class="dq-value"><span class="dq-neg">−5101 €</span></td><td class="dq-value"><span class="dq-pos">+6093 €</span></td><td class="dq-value"><span class="dq-neg">−14.809 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:18%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="72" data-bank="CaixaBank" data-type="Bancario" data-ter="1.7" data-dq3="6627.926317599986" data-dq5="9746.19086264683" data-dq10="14635.981538611497"><td class="rank">72</td><td class="fname">CaixaBank Bolsa España 150 Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">CaixaBank</td><td class="isin">ES0137878031</td><td class="ter">1.70%</td><td class="dq-value"><span class="dq-neg">−6628 €</span></td><td class="dq-value"><span class="dq-neg">−9746 €</span></td><td class="dq-value"><span class="dq-neg">−14.636 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:18%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="73" data-bank="Santander" data-type="Bancario" data-ter="2.27" data-dq3="2823.010737499987" data-dq5="1243.7656054784863" data-dq10="13414.022235398115"><td class="rank">73</td><td class="fname">Santander Acciones Españolas A <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Santander</td><td class="isin">ES0138823036</td><td class="ter">2.27%</td><td class="dq-value"><span class="dq-neg">−2823 €</span></td><td class="dq-value"><span class="dq-neg">−1244 €</span></td><td class="dq-value"><span class="dq-neg">−13.414 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:16%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="74" data-bank="BBVA" data-type="Bancario" data-ter="1.82" data-dq3="4491.039180799994" data-dq5="7935.414892895931" data-dq10="13150.134660302903"><td class="rank">74</td><td class="fname">BBVA Bolsa Plan Dividendo Europa <span class="type-badge type-bancario">Bancario</span></td><td class="bname">BBVA</td><td class="isin">ES0113536009</td><td class="ter">1.82%</td><td class="dq-value"><span class="dq-neg">−4491 €</span></td><td class="dq-value"><span class="dq-neg">−7935 €</span></td><td class="dq-value"><span class="dq-neg">−13.150 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:16%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="75" data-bank="Sabadell" data-type="Bancario" data-ter="2.35" data-dq3="2793.5750583999884" data-dq5="299.64021593522625" data-dq10="13062.011421536046"><td class="rank">75</td><td class="fname">Sabadell Estados Unidos Bolsa Base <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Sabadell</td><td class="isin">ES0138983038</td><td class="ter">2.35%</td><td class="dq-value"><span class="dq-neg">−2794 €</span></td><td class="dq-value"><span class="dq-neg">−300 €</span></td><td class="dq-value"><span class="dq-neg">−13.062 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:16%;background:#ffaa44"></div></div></td></tr>
+<tr class="zone-row zone-descenso"><td colspan="9" class="zone-header">📉 Zona Descenso <span style="font-weight:400;font-size:.85em;opacity:.7">(76 – 100)</span></td></tr>
+<tr data-orig-rank="76" data-bank="Abanca" data-type="Bancario" data-ter="0.31" data-dq3="3820.2916689000112" data-dq5="6285.722878579014" data-dq10="12176.342636095105"><td class="rank">76</td><td class="fname">Abanca Indice Renta Variable Global <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Abanca</td><td class="isin">ES0162956009</td><td class="ter">0.31%</td><td class="dq-value"><span class="dq-neg">−3820 €</span></td><td class="dq-value"><span class="dq-neg">−6286 €<span class="proj">*</span></span></td><td class="dq-value"><span class="dq-neg">−12.176 €<span class="proj">*</span></span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:15%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="77" data-bank="CaixaBank" data-type="Bancario" data-ter="1.04" data-dq3="2439.883136799992" data-dq5="1885.6147678224522" data-dq10="11909.063132089226"><td class="rank">77</td><td class="fname">CaixaBank Bolsa USA Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">CaixaBank</td><td class="isin">ES0138615036</td><td class="ter">1.04%</td><td class="dq-value"><span class="dq-neg">−2440 €</span></td><td class="dq-value"><span class="dq-neg">−1886 €</span></td><td class="dq-value"><span class="dq-neg">−11.909 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:15%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="78" data-bank="Bankinter" data-type="Bancario" data-ter="1.13" data-dq3="5909.609060100007" data-dq5="7701.177824173466" data-dq10="10561.651984529852"><td class="rank">78</td><td class="fname">Bankinter Indice Ibex R <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Bankinter</td><td class="isin">ES0114794037</td><td class="ter">1.13%</td><td class="dq-value"><span class="dq-neg">−5910 €</span></td><td class="dq-value"><span class="dq-neg">−7701 €</span></td><td class="dq-value"><span class="dq-neg">−10.562 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:13%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="79" data-bank="CaixaBank" data-type="Bancario" data-ter="1.88" data-dq3="-8036.140958100013" data-dq5="-1863.7407467774203" data-dq10="10289.954510905653"><td class="rank">79</td><td class="fname">CaixaBank Comunicación Mundial Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">CaixaBank</td><td class="isin">ES0113693032</td><td class="ter">1.88%</td><td class="dq-value"><span class="dq-pos">+8036 €</span></td><td class="dq-value"><span class="dq-pos">+1864 €</span></td><td class="dq-value"><span class="dq-neg">−10.290 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:13%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="80" data-bank="Bankinter" data-type="Bancario" data-ter="1.13" data-dq3="-11741.74526330003" data-dq5="-22427.601701920685" data-dq10="9653.102711539474"><td class="rank">80</td><td class="fname">Bankinter Índice Japón R <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Bankinter</td><td class="isin">ES0114104039</td><td class="ter">1.13%</td><td class="dq-value"><span class="dq-pos">+11.742 €</span></td><td class="dq-value"><span class="dq-pos">+22.428 €</span></td><td class="dq-value"><span class="dq-neg">−9653 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:12%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="81" data-bank="BBVA" data-type="Bancario" data-ter="1.2" data-dq3="-2327.8326533000104" data-dq5="648.3121955723093" data-dq10="9561.79249911956"><td class="rank">81</td><td class="fname">BBVA Bolsa Índice Japón (Cubierto) <span class="type-badge type-bancario">Bancario</span></td><td class="bname">BBVA</td><td class="isin">ES0110088038</td><td class="ter">1.20%</td><td class="dq-value"><span class="dq-pos">+2328 €</span></td><td class="dq-value"><span class="dq-neg">−648 €</span></td><td class="dq-value"><span class="dq-neg">−9562 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:12%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="82" data-bank="Bankinter" data-type="Bancario" data-ter="1.18" data-dq3="4083.1308072000083" data-dq5="4274.965643496176" data-dq10="9378.92286606794"><td class="rank">82</td><td class="fname">Bankinter Índice Europeo R <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Bankinter</td><td class="isin">ES0114754031</td><td class="ter">1.18%</td><td class="dq-value"><span class="dq-neg">−4083 €</span></td><td class="dq-value"><span class="dq-neg">−4275 €</span></td><td class="dq-value"><span class="dq-neg">−9379 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:12%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="83" data-bank="BBVA" data-type="Bancario" data-ter="1.4" data-dq3="2940.694029900004" data-dq5="6380.623404583441" data-dq10="8367.177974461625"><td class="rank">83</td><td class="fname">BBVA Bolsa Índice <span class="type-badge type-bancario">Bancario</span></td><td class="bname">BBVA</td><td class="isin">ES0110182039</td><td class="ter">1.40%</td><td class="dq-value"><span class="dq-neg">−2941 €</span></td><td class="dq-value"><span class="dq-neg">−6381 €</span></td><td class="dq-value"><span class="dq-neg">−8367 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:10%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="84" data-bank="Sabadell" data-type="Bancario" data-ter="2.4" data-dq3="12243.302877599994" data-dq5="1194.2538074191434" data-dq10="8367.177974461625"><td class="rank">84</td><td class="fname">Sabadell Bolsas Emergentes Base <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Sabadell</td><td class="isin">ES0175083031</td><td class="ter">2.40%</td><td class="dq-value"><span class="dq-neg">−12.243 €</span></td><td class="dq-value"><span class="dq-neg">−1194 €</span></td><td class="dq-value"><span class="dq-neg">−8367 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:10%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="85" data-bank="CaixaBank" data-type="Bancario" data-ter="1.46" data-dq3="2410.3701440999935" data-dq5="5475.957078026617" data-dq10="7438.600252365879"><td class="rank">85</td><td class="fname">CaixaBank Bolsa Índice España Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">CaixaBank</td><td class="isin">ES0138392032</td><td class="ter">1.46%</td><td class="dq-value"><span class="dq-neg">−2410 €</span></td><td class="dq-value"><span class="dq-neg">−5476 €</span></td><td class="dq-value"><span class="dq-neg">−7439 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:9%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="86" data-bank="Kutxabank" data-type="Bancario" data-ter="2" data-dq3="-6997.137235199968" data-dq5="-24797.174289846334" data-dq10="7158.380271946241"><td class="rank">86</td><td class="fname">Kutxabank Bolsa Japón Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Kutxabank</td><td class="isin">ES0114232038</td><td class="ter">2.00%</td><td class="dq-value"><span class="dq-pos">+6997 €</span></td><td class="dq-value"><span class="dq-pos">+24.797 €</span></td><td class="dq-value"><span class="dq-neg">−7158 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:9%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="87" data-bank="Sabadell" data-type="Bancario" data-ter="2.3" data-dq3="2144.485324799994" data-dq5="3548.531906242114" data-dq10="6971.143025588033"><td class="rank">87</td><td class="fname">Sabadell Selección Épsilon Base <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Sabadell</td><td class="isin">ES0111149003</td><td class="ter">2.30%</td><td class="dq-value"><span class="dq-neg">−2144 €</span></td><td class="dq-value"><span class="dq-neg">−3549 €<span class="proj">*</span></span></td><td class="dq-value"><span class="dq-neg">−6971 €<span class="proj">*</span></span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:9%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="88" data-bank="BBVA" data-type="Bancario" data-ter="1.23" data-dq3="1670.6095616000116" data-dq5="-50.010001000044824" data-dq10="5555.995299306449"><td class="rank">88</td><td class="fname">BBVA Bolsa Índice Euro <span class="type-badge type-bancario">Bancario</span></td><td class="bname">BBVA</td><td class="isin">ES0110098037</td><td class="ter">1.23%</td><td class="dq-value"><span class="dq-neg">−1671 €</span></td><td class="dq-value"><span class="dq-neutral">~0 €</span></td><td class="dq-value"><span class="dq-neg">−5556 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:7%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="89" data-bank="CaixaBank" data-type="Bancario" data-ter="1.16" data-dq3="-7531.545612499979" data-dq5="-8260.12887285761" data-dq10="598.3825892803995"><td class="rank">89</td><td class="fname">CaixaBank Bolsa Índice Euro Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">CaixaBank</td><td class="isin">ES0138792033</td><td class="ter">1.16%</td><td class="dq-value"><span class="dq-pos">+7532 €</span></td><td class="dq-value"><span class="dq-pos">+8260 €</span></td><td class="dq-value"><span class="dq-neg">−598 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:5%;background:#ffaa44"></div></div></td></tr>
+<tr data-orig-rank="90" data-bank="Bankinter" data-type="Bancario" data-ter="1.03" data-dq3="3820.2916689000112" data-dq5="-200.16006401277764" data-dq10="-400.72076853781005"><td class="rank">90</td><td class="fname">Bankinter Indice Salud R <span class="type-badge type-bancario">Bancario</span></td><td class="bname">Bankinter</td><td class="isin">ES0156741029</td><td class="ter">1.03%</td><td class="dq-value"><span class="dq-neg">−3820 €</span></td><td class="dq-value"><span class="dq-pos">+200 €</span></td><td class="dq-value"><span class="dq-pos">+401 €<span class="proj">*</span></span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:5%;background:#81c784"></div></div></td></tr>
+<tr data-orig-rank="91" data-bank="Numantia" data-type="Independiente" data-ter="1.39" data-dq3="-9240.876089900008" data-dq5="-18596.60187028358" data-dq10="-2119.9565414410813"><td class="rank">91</td><td class="fname">Numantia Patrimonio Global FI <span class="type-badge type-independiente">Independiente</span></td><td class="bname">Numantia</td><td class="isin">ES0173311103</td><td class="ter">1.39%</td><td class="dq-value"><span class="dq-pos">+9241 €</span></td><td class="dq-value"><span class="dq-pos">+18.597 €</span></td><td class="dq-value"><span class="dq-pos">+2120 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:5%;background:#81c784"></div></div></td></tr>
+<tr data-orig-rank="92" data-bank="CaixaBank" data-type="Bancario" data-ter="2.62" data-dq3="-510.8674913000044" data-dq5="8728.266271108198" data-dq10="-3040.8257071388166"><td class="rank">92</td><td class="fname">CaixaBank Bolsa Gestión España Estándar <span class="type-badge type-bancario">Bancario</span></td><td class="bname">CaixaBank</td><td class="isin">ES0105182036</td><td class="ter">2.62%</td><td class="dq-value"><span class="dq-pos">+511 €</span></td><td class="dq-value"><span class="dq-neg">−8728 €</span></td><td class="dq-value"><span class="dq-pos">+3041 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:5%;background:#81c784"></div></div></td></tr>
+<tr data-orig-rank="93" data-bank="Magallanes" data-type="Independiente" data-ter="1.8" data-dq3="7171.395612499987" data-dq5="-11167.865656497412" data-dq10="-11892.266850399346"><td class="rank">93</td><td class="fname">Magallanes European Equity M FI <span class="type-badge type-independiente">Independiente</span></td><td class="bname">Magallanes</td><td class="isin">ES0159259011</td><td class="ter">1.80%</td><td class="dq-value"><span class="dq-neg">−7171 €</span></td><td class="dq-value"><span class="dq-pos">+11.168 €</span></td><td class="dq-value"><span class="dq-pos">+11.892 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:5%;background:#81c784"></div></div></td></tr>
+<tr data-orig-rank="94" data-bank="AzValor" data-type="Independiente" data-ter="1.89" data-dq3="3469.0931613000184" data-dq5="-90942.28555530951" data-dq10="-23341.169302866227"><td class="rank">94</td><td class="fname">Azvalor Internacional FI <span class="type-badge type-independiente">Independiente</span></td><td class="bname">AzValor</td><td class="isin">ES0112611001</td><td class="ter">1.89%</td><td class="dq-value"><span class="dq-neg">−3469 €</span></td><td class="dq-value"><span class="dq-pos">+90.942 €</span></td><td class="dq-value"><span class="dq-pos">+23.341 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:10%;background:#81c784"></div></div></td></tr>
+<tr data-orig-rank="95" data-bank="Adarve" data-type="Independiente" data-ter="1.15" data-dq3="2999.5000300999995" data-dq5="-11385.713650888496" data-dq10="-24067.772055177273"><td class="rank">95</td><td class="fname">Gestión Boutique VIII Adarve Altea FI <span class="type-badge type-independiente">Independiente</span></td><td class="bname">Adarve</td><td class="isin">ES0131445076</td><td class="ter">1.15%</td><td class="dq-value"><span class="dq-neg">−3000 €</span></td><td class="dq-value"><span class="dq-pos">+11.386 €</span></td><td class="dq-value"><span class="dq-pos">+24.068 €<span class="proj">*</span></span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:10%;background:#81c784"></div></div></td></tr>
+<tr data-orig-rank="96" data-bank="Valentum" data-type="Independiente" data-ter="1.36" data-dq3="-8352.313251099975" data-dq5="-5622.3383366050375" data-dq10="-35439.11234593527"><td class="rank">96</td><td class="fname">Valentum E FI <span class="type-badge type-independiente">Independiente</span></td><td class="bname">Valentum</td><td class="isin">ES0182769002</td><td class="ter">1.36%</td><td class="dq-value"><span class="dq-pos">+8352 €</span></td><td class="dq-value"><span class="dq-pos">+5622 €</span></td><td class="dq-value"><span class="dq-pos">+35.439 €</span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:15%;background:#81c784"></div></div></td></tr>
+<tr data-orig-rank="97" data-bank="Equam" data-type="Independiente" data-ter="2.2" data-dq3="-2907.736473600009" data-dq5="-29400.40286477523" data-dq10="-67444.6426156613"><td class="rank">97</td><td class="fname">Equam Global Value B FI <span class="type-badge type-independiente">Independiente</span></td><td class="bname">Equam</td><td class="isin">LU0933684283</td><td class="ter">2.20%</td><td class="dq-value"><span class="dq-pos">+2908 €</span></td><td class="dq-value"><span class="dq-pos">+29.400 €</span></td><td class="dq-value"><span class="dq-pos">+67.445 €<span class="proj">*</span></span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:29%;background:#81c784"></div></div></td></tr>
+<tr data-orig-rank="98" data-bank="Cobas" data-type="Independiente" data-ter="1.29" data-dq3="-16923.988037500036" data-dq5="-29769.5204422729" data-dq10="-68401.28435817483"><td class="rank">98</td><td class="fname">Cobas Grandes Compañías D FI <span class="type-badge type-independiente">Independiente</span></td><td class="bname">Cobas</td><td class="isin">ES0113728010</td><td class="ter">1.29%</td><td class="dq-value"><span class="dq-pos">+16.924 €</span></td><td class="dq-value"><span class="dq-pos">+29.770 €<span class="proj">*</span></span></td><td class="dq-value"><span class="dq-pos">+68.401 €<span class="proj">*</span></span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:29%;background:#81c784"></div></div></td></tr>
+<tr data-orig-rank="99" data-bank="Horos" data-type="Independiente" data-ter="1.8" data-dq3="-24507.24395120003" data-dq5="-59156.64631816175" data-dq10="-153308.38067244433"><td class="rank">99</td><td class="fname">Horos Value Internacional FI <span class="type-badge type-independiente">Independiente</span></td><td class="bname">Horos</td><td class="isin">ES0146309002</td><td class="ter">1.80%</td><td class="dq-value"><span class="dq-pos">+24.507 €</span></td><td class="dq-value"><span class="dq-pos">+59.157 €</span></td><td class="dq-value"><span class="dq-pos">+153.308 €<span class="proj">*</span></span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:65%;background:#27ae60"></div></div></td></tr>
+<tr data-orig-rank="100" data-bank="Cobas" data-type="Independiente" data-ter="1.62" data-dq3="-41322.33130480003" data-dq5="-82780.75922632853" data-dq10="-234088.05943353084"><td class="rank">100</td><td class="fname">Cobas Internacional C FI <span class="type-badge type-independiente">Independiente</span></td><td class="bname">Cobas</td><td class="isin">ES0119199000</td><td class="ter">1.62%</td><td class="dq-value"><span class="dq-pos">+41.322 €</span></td><td class="dq-value"><span class="dq-pos">+82.781 €</span></td><td class="dq-value"><span class="dq-pos">+234.088 €<span class="proj">*</span></span></td><td class="dq-value"><div class="impact-bar-wrap"><div class="impact-bar" style="width:100%;background:#27ae60"></div></div></td></tr>
+</tbody></table></div>
+
+<!-- CALCULATOR -->
+<div class="calc-section" id="calculadora">
+  <h2>🧮 Calculadora de Dinero Quemado</h2>
+  <p class="calc-subtitle">¿Tu fondo no está en la liga? Introduce el ISIN de tu fondo para buscarlo en Morningstar, copia el alfa y calcula tu Dinero Quemado.</p>
+
+  <div class="calc-steps">
+    <div class="calc-step">
+      <div class="calc-step-num">1</div>
+      <div class="calc-step-content">
+        <div class="calc-step-title">Busca tu fondo en Morningstar</div>
+        <div class="calc-field" style="margin-top:8px">
+          <label>ISIN de tu fondo</label>
+          <div style="display:flex;gap:8px;align-items:stretch">
+            <input type="text" id="calc-isin" placeholder="Ej: ES0113728002" style="flex:1;text-transform:uppercase" oninput="detectFund()">
+            <button class="calc-ms-btn" onclick="openMorningstar()">Buscar en Morningstar ↗</button>
+          </div>
+          <div class="calc-fund-detected" id="calc-fund-detected" style="display:none"></div>
+        </div>
+        <p class="calc-hint">Se abrirá la ficha de tu fondo en Morningstar. Una vez allí:<br>1. Haz clic en la pestaña <strong>"Riesgo"</strong> (arriba de la ficha del fondo).<br>2. Busca la sección <strong>"Medidas de volatilidad"</strong>.<br>3. Elige el <strong>"Alfa"</strong> de 3, 5 o 10 años (cuanto más largo, más fiable) y pégalo abajo.</p>
+      </div>
+    </div>
+    <div class="calc-step">
+      <div class="calc-step-num">2</div>
+      <div class="calc-step-content">
+        <div class="calc-step-title">Calcula tu Dinero Quemado</div>
+        <div class="calc-grid" style="margin-top:8px;grid-template-columns:1fr 1fr 1fr">
+          <div class="calc-field">
+            <label>Alfa anualizado (%)</label>
+            <input type="number" id="calc-alpha" step="0.01" placeholder="-2.5">
+          </div>
+          <div class="calc-field">
+            <label>Periodo del alfa</label>
+            <select id="calc-period" class="filter-select" style="min-width:auto">
+              <option value="3">3 años</option>
+              <option value="5">5 años</option>
+              <option value="10">10 años</option>
+            </select>
+          </div>
+          <div class="calc-field">
+            <label>Importe invertido (€)</label>
+            <input type="number" id="calc-amount" placeholder="100000" value="100000">
+          </div>
+        </div>
+        <div class="calc-actions">
+          <button class="calc-go" onclick="calcDQ()">Calcular Dinero Quemado</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="calc-result" id="calc-result">
+    <div class="calc-result-card">
+      <div class="calc-result-fund" id="calc-result-fund" style="display:none"></div>
+      <div class="calc-result-title">Dinero Quemado estimado sobre tu inversión</div>
+      <div class="calc-result-grid">
+        <div class="calc-result-item"><div class="calc-period">3 años</div><div class="calc-amount" id="calc-r3">—</div></div>
+        <div class="calc-result-item"><div class="calc-period">5 años</div><div class="calc-amount" id="calc-r5">—</div></div>
+        <div class="calc-result-item"><div class="calc-period">10 años</div><div class="calc-amount" id="calc-r10">—</div></div>
+      </div>
+      <div class="calc-ranking" id="calc-ranking" style="display:none">
+        <div class="calc-ranking-pos"><span id="calc-pos-num"></span><span id="calc-pos-total"></span></div>
+        <div class="calc-ranking-zone" id="calc-zone"></div>
+      </div>
+      <div class="calc-result-note" id="calc-note"></div>
+      <div class="share-bar result-share" id="calc-share" style="display:none">
+        <span class="share-label">Compartir resultado:</span>
+        <a class="share-btn share-x" id="share-calc-x" href="#" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>X</a>
+        <a class="share-btn share-wa" id="share-calc-wa" href="#" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>WhatsApp</a>
+        <a class="share-btn share-li" id="share-calc-li" href="#" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>LinkedIn</a>
+        <a class="share-btn share-tg" id="share-calc-tg" href="#" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M11.944 0A12 12 0 000 12a12 12 0 0012 12 12 12 0 0012-12A12 12 0 0012 0a12 12 0 00-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 01.171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>Telegram</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="liga-footer">
+<h3>Metodología</h3>
+
+<p><strong>Dinero Quemado (DQ)</strong></p>
+<p>Cuánto dinero pierde (o gana) una inversión de 100.000 € durante 3, 5 y 10 años respecto al benchmark del propio fondo, usando el alfa anualizado de Morningstar:</p>
+<div class="formula">DQ = 100.000 × (1 − (1 + α / 100)<sup>n</sup>)</div>
+<p>Un DQ en <span class="dq-neg">rojo</span> indica dinero destruido — el fondo rinde peor que su índice de referencia. Un DQ en <span class="dq-pos">verde</span> indica que el fondo ha superado a su índice.</p>
+<p>Los valores marcados con <span class="proj" style="font-size:1em">*</span> son proyecciones: si falta el alfa a 10 años, se estima con el de 5 años; si también falta el de 5 años, se usa el de 3 años.</p>
+
+<p style="margin-top:15px"><strong>Zonas de la liga</strong></p>
+<ul>
+  <li><strong style="color:#ffd700">🏆 Champions de la Basura</strong> — Los 25 fondos que más dinero queman (puestos 1–25).</li>
+  <li><strong style="color:#ff6432">🔥 Europa League</strong> — Fondos en puestos 26–50: basura seria.</li>
+  <li><strong style="color:#999">😐 Zona Permanencia</strong> — Puestos 51–75: ni fu ni fa.</li>
+  <li><strong style="color:#64c864">📉 Zona Descenso</strong> — Puestos 76–100: los menos malos (o incluso buenos). Descienden de la liga basura.</li>
+</ul>
+
+<p style="margin-top:15px"><strong>Notas</strong></p>
+<ul>
+  <li>Se analizan 87 fondos de renta variable de las principales gestoras bancarias españolas y 13 fondos de gestoras independientes.</li>
+  <li>De los fondos bancarios, se incluye la clase más cara (la que vende la sucursal al inversor minorista).</li>
+  <li>TER y alfa proceden de Morningstar (datos a febrero 2026).</li>
+  <li>Los fondos sin ningún dato de alfa han sido excluidos del ranking.</li>
+</ul>
+
+<div class="disclaimer">
+  <strong>⚠️ Aviso importante:</strong> Dinero quemado pasado no implica más ni menos dinero quemado a futuro. Los resultados históricos no garantizan rendimientos futuros. Este análisis es con fines educativos y no constituye asesoramiento financiero.
+</div>
+
+<p style="margin-top:20px;color:#666;font-style:italic">
+  Fuente de datos: Morningstar · Fecha de análisis: febrero 2026
+</p>
+</div>
+</div>
+</div>
+<script>
+window.__LIGA_SNAPSHOT_URL_OVERRIDE = "/api/liga/snapshot?bootstrap=1";
+var LIGA_DQ10 = [81440,75946,65093,65016,57124,53593,53242,51654,50338,47386,47048,45909,43802,43023,42721,40691,40629,37557,37097,36435,36102,35363,35228,33931,33862,33239,33170,33100,32751,32541,31977,30909,30838,29462,29462,29243,29023,28876,28876,28359,28211,27913,27165,26864,26334,25953,25800,25186,25032,24723,24568,24568,22764,22526,21487,21164,21164,21003,20760,20435,20027,19945,19699,19617,18376,17287,16099,15327,14896,14896,14809,14636,13414,13150,13062,12176,11909,10562,10290,9653,9562,9379,8367,8367,7439,7158,6971,5556,598,-401,-2120,-3041,-11892,-23341,-24068,-35439,-67445,-68401,-153308,-234088];
+var LIGA_TOTAL = 100;
+var LIGA_ISIN = {"ES0174930000":{"n":"Santander GO RV Norteamerica A","b":"Santander"},"ES0114277033":{"n":"BBVA Megatendencia Demografía","b":"BBVA"},"ES0181407000":{"n":"Unicaja Renta Variable USA A","b":"Unicaja"},"ES0174979007":{"n":"Santander Future Wealth A","b":"Santander"},"ES0113607008":{"n":"Santander Sostenible Acciones A","b":"Santander"},"IE00BG0D0J96":{"n":"Mediolanum BB Innovative Thematic Opportunities L","b":"Mediolanum"},"ES0114222039":{"n":"Kutxabank Bolsa Nueva Economía Estándar","b":"Kutxabank"},"ES0107764039":{"n":"Santander Future Us Tech A","b":"Santander"},"ES0106949037":{"n":"Abanca Renta Variable Crecimiento Minorista","b":"Abanca"},"ES0113191037":{"n":"Kutxabank Bolsa EEUU Estándar","b":"Kutxabank"},"ES0112617016":{"n":"B&H Acciones C FI","b":"Buy&Hold"},"ES0162948006":{"n":"Abanca Renta Variable Dividendo Minorista","b":"Abanca"},"ES0114237037":{"n":"Kutxabank Bolsa Sectorial Estándar","b":"Kutxabank"},"ES0183339037":{"n":"Sabadell Europa Bolsa Futuro Base","b":"Sabadell"},"ES0147644035":{"n":"Ibercaja Tecnológico A","b":"Ibercaja"},"IE00BJYLJ823":{"n":"Mediolanum BB Global Leaders Fund LA","b":"Mediolanum"},"ES0113987038":{"n":"Kutxabank Bolsa Internacional Estándar","b":"Kutxabank"},"ES0114805031":{"n":"Bankinter Finanzas Globales R","b":"Bankinter"},"ES0172243000":{"n":"BBVA Megatendencia Planeta Tierra ISR A","b":"BBVA"},"ES0130705033":{"n":"Ibercaja Bolsa Europa A","b":"Ibercaja"},"ES0105930038":{"n":"Santander Acciones Latinoamericanas A","b":"Santander"},"ES0138172038":{"n":"CaixaBank Bolsa Selección Global Estándar","b":"CaixaBank"},"ES0114105036":{"n":"Bankinter EE.UU. Nasdaq 100 R","b":"Bankinter"},"IE0005380518":{"n":"Mediolanum BB Emerging Markets Collection L A","b":"Mediolanum"},"ES0138181039":{"n":"CaixaBank Bolsa Selección Europa Estándar","b":"CaixaBank"},"ES0113572004":{"n":"Bankinter Índice Global R","b":"Bankinter"},"ES0114233036":{"n":"Kutxabank Bolsa Emergentes Estándar","b":"Kutxabank"},"IE0032082988":{"n":"Mediolanum Challenge International Equity L","b":"Mediolanum"},"ES0180792006":{"n":"True Value FI","b":"True Value"},"IE0005372291":{"n":"Mediolanum BB European Collection L","b":"Mediolanum"},"ES0138068038":{"n":"CaixaBank Bolsa Gestión Europa Estándar","b":"CaixaBank"},"IE0032080495":{"n":"Mediolanum BB Dynamic Collection L A","b":"Mediolanum"},"IE0032080503":{"n":"Mediolanum BB Equity Power Coupon Collection LA","b":"Mediolanum"},"ES0110119031":{"n":"Quality Mejores Ideas","b":"BBVA"},"ES0138189032":{"n":"CaixaBank Bolsa Selección USA Estándar","b":"CaixaBank"},"ES0121092003":{"n":"Compromiso Mediolanum L","b":"Mediolanum"},"ES0147641031":{"n":"Ibercaja Bolsa Internacional A","b":"Ibercaja"},"ES0114371034":{"n":"BBVA Bolsa Europa A","b":"BBVA"},"ES0138861036":{"n":"BBVA Bolsa FI","b":"BBVA"},"ES0114763032":{"n":"Bankinter Índice América R","b":"Bankinter"},"ES0114202031":{"n":"Kutxabank Bolsa Small & Mid Caps Estándar","b":"Kutxabank"},"ES0111092039":{"n":"Sabadell España Bolsa Futuro Base","b":"Sabadell"},"ES0114221031":{"n":"Kutxabank Bolsa Eurozona Estándar","b":"Kutxabank"},"ES0110116037":{"n":"BBVA Bolsa Emergentes MF","b":"BBVA"},"ES0164853006":{"n":"CaixaBank Selección Tendencias Estándar","b":"CaixaBank"},"IE00B6SBTN25":{"n":"Mediolanum BB New Opportunities Collection LA","b":"Mediolanum"},"ES0138328036":{"n":"CaixaBank Bolsa Selección Emergente Estándar","b":"CaixaBank"},"ES0114388038":{"n":"Kutxabank Bolsa Estándar","b":"Kutxabank"},"IE0005372184":{"n":"Mediolanum BB US Collection L","b":"Mediolanum"},"ES0184923037":{"n":"CaixaBank Bolsa Dividendo Europa Estándar","b":"CaixaBank"},"IE0005372309":{"n":"Mediolanum BB Pacific Collection L","b":"Mediolanum"},"ES0114561006":{"n":"Bestinver Grandes Compañías FI","b":"Bestinver"},"ES0108929037":{"n":"BBVA Bolsa Asia MF","b":"BBVA"},"ES0147711032":{"n":"BBVA Megatendencia Tecnología A","b":"BBVA"},"ES0121761037":{"n":"Santander Acciones USA A","b":"Santander"},"ES0147034039":{"n":"Ibercaja Bolsa USA A","b":"Ibercaja"},"IE00BCZNHK63":{"n":"Mediolanum BB Socially Responsible Collection LA","b":"Mediolanum"},"ES0115157036":{"n":"Bankinter Sostenibilidad R","b":"Bankinter"},"ES0114764030":{"n":"Bankinter Pequeñas Compañías Europa R","b":"Bankinter"},"ES0114063037":{"n":"Santander Acciones Euro A","b":"Santander"},"ES0125621039":{"n":"Bankinter Bolsa España R","b":"Bankinter"},"ES0113571006":{"n":"Bankinter Emergentes R","b":"Bankinter"},"ES0159031030":{"n":"CaixaBank Bolsa Gestión Euro Estándar","b":"CaixaBank"},"ES0138893039":{"n":"CaixaBank Bolsa Improvers Estándar","b":"CaixaBank"},"ES0111011039":{"n":"Unicaja RV Europa Selección A","b":"Unicaja"},"ES0157663008":{"n":"Quality Inversión Decidida","b":"BBVA"},"ES0114802038":{"n":"Bankinter Dividendo Europa R","b":"Bankinter"},"ES0147186037":{"n":"Ibercaja Bolsa España A","b":"Ibercaja"},"ES0114081039":{"n":"Santander Go RV Asia A","b":"Santander"},"ES0114638036":{"n":"Bestinver Internacional FI","b":"Bestinver"},"ES0110057033":{"n":"CaixaBank Multisalud Estándar","b":"CaixaBank"},"ES0137878031":{"n":"CaixaBank Bolsa España 150 Estándar","b":"CaixaBank"},"ES0138823036":{"n":"Santander Acciones Españolas A","b":"Santander"},"ES0113536009":{"n":"BBVA Bolsa Plan Dividendo Europa","b":"BBVA"},"ES0138983038":{"n":"Sabadell Estados Unidos Bolsa Base","b":"Sabadell"},"ES0162956009":{"n":"Abanca Indice Renta Variable Global","b":"Abanca"},"ES0138615036":{"n":"CaixaBank Bolsa USA Estándar","b":"CaixaBank"},"ES0114794037":{"n":"Bankinter Indice Ibex R","b":"Bankinter"},"ES0113693032":{"n":"CaixaBank Comunicación Mundial Estándar","b":"CaixaBank"},"ES0114104039":{"n":"Bankinter Índice Japón R","b":"Bankinter"},"ES0110088038":{"n":"BBVA Bolsa Índice Japón (Cubierto)","b":"BBVA"},"ES0114754031":{"n":"Bankinter Índice Europeo R","b":"Bankinter"},"ES0110182039":{"n":"BBVA Bolsa Índice","b":"BBVA"},"ES0175083031":{"n":"Sabadell Bolsas Emergentes Base","b":"Sabadell"},"ES0138392032":{"n":"CaixaBank Bolsa Índice España Estándar","b":"CaixaBank"},"ES0114232038":{"n":"Kutxabank Bolsa Japón Estándar","b":"Kutxabank"},"ES0111149003":{"n":"Sabadell Selección Épsilon Base","b":"Sabadell"},"ES0110098037":{"n":"BBVA Bolsa Índice Euro","b":"BBVA"},"ES0138792033":{"n":"CaixaBank Bolsa Índice Euro Estándar","b":"CaixaBank"},"ES0156741029":{"n":"Bankinter Indice Salud R","b":"Bankinter"},"ES0173311103":{"n":"Numantia Patrimonio Global FI","b":"Numantia"},"ES0105182036":{"n":"CaixaBank Bolsa Gestión España Estándar","b":"CaixaBank"},"ES0159259011":{"n":"Magallanes European Equity M FI","b":"Magallanes"},"ES0112611001":{"n":"Azvalor Internacional FI","b":"AzValor"},"ES0131445076":{"n":"Gestión Boutique VIII Adarve Altea FI","b":"Adarve"},"ES0182769002":{"n":"Valentum E FI","b":"Valentum"},"LU0933684283":{"n":"Equam Global Value B FI","b":"Equam"},"ES0113728010":{"n":"Cobas Grandes Compañías D FI","b":"Cobas"},"ES0146309002":{"n":"Horos Value Internacional FI","b":"Horos"},"ES0119199000":{"n":"Cobas Internacional C FI","b":"Cobas"}};
+// ===== STATE =====
+var activeType = 'all';
+var currentSort = 'dq10';
+
+// ===== POPULATE GESTORA FILTER =====
+(function populateFilter() {
+  var rows = document.querySelectorAll('#ranking-table tbody tr:not(.zone-row)');
+  var banks = {};
+  rows.forEach(function(r) {
+    var b = r.getAttribute('data-bank');
+    if (b) banks[b] = (banks[b] || 0) + 1;
+  });
+  var select = document.getElementById('gestora-filter');
+  Object.keys(banks).sort(function(a,b){ return a.localeCompare(b,'es'); }).forEach(function(name) {
+    var opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name + ' (' + banks[name] + ')';
+    select.appendChild(opt);
+  });
+})();
+
+// ===== TYPE TOGGLE =====
+function setType(type) {
+  activeType = type;
+  document.querySelectorAll('.type-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.getAttribute('data-type') === type);
+  });
+  applyFilters();
+}
+
+// ===== UNIFIED FILTER =====
+function applyFilters() {
+  var query = (document.getElementById('fund-search').value || '').trim().toLowerCase();
+  var gestora = document.getElementById('gestora-filter').value;
+  var terRange = document.getElementById('ter-filter').value;
+  var clearBtn = document.getElementById('search-clear');
+  clearBtn.style.display = query ? '' : 'none';
+
+  var table = document.getElementById('ranking-table');
+  var tbody = table.querySelector('tbody');
+  var allRows = Array.from(tbody.querySelectorAll('tr'));
+  var dataRows = allRows.filter(function(r){ return !r.classList.contains('zone-row'); });
+
+  // Remove all from DOM
+  while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+
+  // Restore display and remove highlights
+  dataRows.forEach(function(r) {
+    r.style.display = '';
+    r.querySelectorAll('.highlight').forEach(function(h) { h.outerHTML = h.textContent; });
+  });
+
+  // Apply all filters
+  var visibleRows = dataRows.filter(function(r) {
+    // Type filter
+    if (activeType !== 'all' && r.getAttribute('data-type') !== activeType) return false;
+
+    // Gestora filter
+    if (gestora && r.getAttribute('data-bank') !== gestora) return false;
+
+    // TER filter
+    if (terRange) {
+      var ter = parseFloat(r.getAttribute('data-ter'));
+      var parts = terRange.split('-');
+      var lo = parseFloat(parts[0]);
+      var hi = parseFloat(parts[1]);
+      if (ter < lo || ter >= hi) return false;
+    }
+
+    // Search filter
+    if (query) {
+      var fname = r.querySelector('.fname').textContent.toLowerCase();
+      var bname = r.querySelector('.bname').textContent.toLowerCase();
+      var isin = r.querySelector('.isin').textContent.toLowerCase();
+      if (fname.indexOf(query) === -1 && bname.indexOf(query) === -1 && isin.indexOf(query) === -1) return false;
+    }
+
+    return true;
+  });
+
+  // Sort visible rows by original rank to maintain league order
+  visibleRows.sort(function(a, b) {
+    return parseInt(a.getAttribute('data-orig-rank')) - parseInt(b.getAttribute('data-orig-rank'));
+  });
+
+  // Highlight search matches
+  if (query) {
+    visibleRows.forEach(function(r) {
+      highlightCell(r.querySelector('.fname'), query);
+      highlightCell(r.querySelector('.bname'), query);
+      highlightCell(r.querySelector('.isin'), query);
+    });
+  }
+
+  // Insert with zone headers (using original ranks)
+  var lastZone = '';
+  var zones = [
+    {max: 25, name: '\uD83C\uDFC6 Champions de la Basura', cls: 'zone-champions', r1: 1, r2: 25},
+    {max: 50, name: '\uD83D\uDD25 Europa League', cls: 'zone-europa', r1: 26, r2: 50},
+    {max: 75, name: '\uD83D\uDE10 Zona Permanencia', cls: 'zone-permanencia', r1: 51, r2: 75},
+    {max: 100, name: '\uD83D\uDCC9 Zona Descenso', cls: 'zone-descenso', r1: 76, r2: 100}
+  ];
+
+  visibleRows.forEach(function(row) {
+    var origRank = parseInt(row.getAttribute('data-orig-rank'));
+    // Always restore original league position
+    row.querySelector('.rank').textContent = origRank;
+    var zone = zones.find(function(z){ return origRank <= z.max; });
+    if (zone && zone.cls !== lastZone) {
+      lastZone = zone.cls;
+      var zr = document.createElement('tr');
+      zr.className = 'zone-row ' + zone.cls;
+      zr.innerHTML = '<td colspan="9" class="zone-header">' + zone.name + ' <span style="font-weight:400;font-size:.85em;opacity:.7">(' + zone.r1 + ' \u2013 ' + zone.r2 + ')</span></td>';
+      tbody.appendChild(zr);
+    }
+    tbody.appendChild(row);
+  });
+
+  // Hidden rows
+  dataRows.forEach(function(r) {
+    if (visibleRows.indexOf(r) === -1) {
+      r.style.display = 'none';
+      tbody.appendChild(r);
+    }
+  });
+
+  // Count
+  var countEl = document.getElementById('filter-count');
+  var hasFilter = query || gestora || terRange || activeType !== 'all';
+  if (hasFilter) {
+    countEl.innerHTML = 'Mostrando <span>' + visibleRows.length + '</span> de 100 fondos';
+  } else {
+    countEl.innerHTML = '';
+  }
+}
+
+// ===== HIGHLIGHT =====
+function highlightCell(cell, q) {
+  if (!cell) return;
+  var walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT, null, false);
+  var nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach(function(node) {
+    var text = node.textContent;
+    var lower = text.toLowerCase();
+    var idx = lower.indexOf(q);
+    if (idx === -1) return;
+    var before = text.substring(0, idx);
+    var match = text.substring(idx, idx + q.length);
+    var after = text.substring(idx + q.length);
+    var span = document.createElement('span');
+    span.className = 'highlight';
+    span.textContent = match;
+    var parent = node.parentNode;
+    if (before) parent.insertBefore(document.createTextNode(before), node);
+    parent.insertBefore(span, node);
+    if (after) parent.insertBefore(document.createTextNode(after), node);
+    parent.removeChild(node);
+  });
+}
+
+function clearSearch() {
+  document.getElementById('fund-search').value = '';
+  applyFilters();
+  document.getElementById('fund-search').focus();
+}
+
+// ===== SORT BY COLUMN =====
+function sortBy(field) {
+  // Reset filters
+  activeType = 'all';
+  document.querySelectorAll('.type-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.getAttribute('data-type') === 'all');
+  });
+  document.getElementById('gestora-filter').value = '';
+  document.getElementById('ter-filter').value = '';
+  document.getElementById('fund-search').value = '';
+  document.getElementById('search-clear').style.display = 'none';
+  document.getElementById('filter-count').innerHTML = '';
+
+  currentSort = field;
+  var table = document.getElementById('ranking-table');
+  var tbody = table.querySelector('tbody');
+  var allRows = Array.from(tbody.querySelectorAll('tr'));
+  var dataRows = allRows.filter(function(r){ return !r.classList.contains('zone-row'); });
+
+  dataRows.forEach(function(r) {
+    r.style.display = '';
+    r.querySelectorAll('.highlight').forEach(function(h) { h.outerHTML = h.textContent; });
+  });
+
+  dataRows.sort(function(a, b) {
+    var va = a.getAttribute('data-' + field);
+    var vb = b.getAttribute('data-' + field);
+    if (va === 'null') return 1;
+    if (vb === 'null') return -1;
+    return parseFloat(vb) - parseFloat(va);
+  });
+
+  while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+
+  var total = dataRows.length;
+  var lastZone = '';
+  var zones = [
+    {max: 0.25, name: '\uD83C\uDFC6 Champions de la Basura', cls: 'zone-champions', r1: 1, r2: Math.ceil(total*0.25)},
+    {max: 0.50, name: '\uD83D\uDD25 Europa League', cls: 'zone-europa', r1: Math.ceil(total*0.25)+1, r2: Math.ceil(total*0.50)},
+    {max: 0.75, name: '\uD83D\uDE10 Zona Permanencia', cls: 'zone-permanencia', r1: Math.ceil(total*0.50)+1, r2: Math.ceil(total*0.75)},
+    {max: 1.01, name: '\uD83D\uDCC9 Zona Descenso', cls: 'zone-descenso', r1: Math.ceil(total*0.75)+1, r2: total}
+  ];
+
+  dataRows.forEach(function(row, i) {
+    var pos = i + 1;
+    var pct = pos / total;
+    var zone = zones.find(function(z){ return pct <= z.max; });
+    if (zone && zone.cls !== lastZone) {
+      lastZone = zone.cls;
+      var zr = document.createElement('tr');
+      zr.className = 'zone-row ' + zone.cls;
+      zr.innerHTML = '<td colspan="9" class="zone-header">' + zone.name + ' <span style="font-weight:400;font-size:.85em;opacity:.7">(' + zone.r1 + ' \u2013 ' + zone.r2 + ')</span></td>';
+      tbody.appendChild(zr);
+    }
+    row.querySelector('.rank').textContent = pos;
+    row.setAttribute('data-sort-rank', pos);
+    tbody.appendChild(row);
+  });
+
+  document.querySelectorAll('.sortable').forEach(function(th) { th.classList.remove('active-sort'); });
+  document.querySelectorAll('.sort-arrow').forEach(function(a) { a.textContent = '\u25BD'; });
+  var clickedTh = document.querySelector('[onclick="sortBy(\'' + field + '\')"]');
+  if (clickedTh) { clickedTh.classList.add('active-sort'); }
+  var arrow = document.getElementById('arrow-' + field);
+  if (arrow) { arrow.textContent = '\u25BC'; }
+}
+
+// ===== MORNINGSTAR LINK =====
+function openMorningstar() {
+  var isin = (document.getElementById('calc-isin').value || '').trim().toUpperCase();
+  if (!isin || isin.length < 10) {
+    alert('Introduce un ISIN v\u00E1lido (ej: ES0113728002)');
+    document.getElementById('calc-isin').focus();
+    return;
+  }
+  window.open('https://www.morningstar.es/es/funds/SecuritySearchResults.aspx?search=' + encodeURIComponent(isin), '_blank');
+}
+
+// ===== FUND DETECTION =====
+var detectedFundName = '';
+var lastLookupIsin = '';
+var lookupTimeout = null;
+
+function detectFund() {
+  var isin = (document.getElementById('calc-isin').value || '').trim().toUpperCase();
+  var box = document.getElementById('calc-fund-detected');
+
+  if (isin.length < 10) {
+    box.style.display = 'none';
+    detectedFundName = '';
+    lastLookupIsin = '';
+    return;
+  }
+
+  // 1) Local database (instant)
+  if (typeof LIGA_ISIN !== 'undefined' && LIGA_ISIN[isin]) {
+    var fund = LIGA_ISIN[isin];
+    box.className = 'calc-fund-detected found';
+    box.innerHTML = '<div class="fund-name">' + fund.n + '</div><div class="fund-bank">' + fund.b + '</div><div class="fund-in-liga">\u26A0\uFE0F Este fondo ya est\u00E1 en La Liga</div>';
+    box.style.display = 'block';
+    detectedFundName = fund.n;
+    lastLookupIsin = isin;
+    return;
+  }
+
+  // 2) Need full 12-char ISIN
+  if (isin.length < 12) return;
+  if (isin === lastLookupIsin) return;
+
+  // 3) Debounce + lookup via WP REST API
+  clearTimeout(lookupTimeout);
+  box.className = 'calc-fund-detected not-found';
+  box.innerHTML = '\u23F3 Buscando fondo...';
+  box.style.display = 'block';
+  detectedFundName = '';
+
+  lookupTimeout = setTimeout(function() {
+    lastLookupIsin = isin;
+
+    fetch('/wp-json/epk/v1/fund?isin=' + encodeURIComponent(isin))
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var cur = (document.getElementById('calc-isin').value || '').trim().toUpperCase();
+        if (cur !== isin) return;
+
+        if (data && data.ok && data.name && data.name.length > 2) {
+          box.className = 'calc-fund-detected found';
+          box.innerHTML = '<div class="fund-name">' + data.name + '</div>' +
+            (data.type ? '<div class="fund-bank">' + data.type + '</div>' : '') +
+            '<div style="color:#81c784;font-size:.78em;margin-top:4px">\u2705 Fondo encontrado \u2014 comp\u00E1ralo</div>';
+          box.style.display = 'block';
+          detectedFundName = data.name;
+          return;
+        }
+
+        // Not found
+        box.className = 'calc-fund-detected not-found';
+        box.innerHTML = '<div style="margin-bottom:6px">Introduce el nombre de tu fondo:</div>' +
+          '<input type="text" class="calc-fund-name-input" id="calc-fund-name" placeholder="Nombre de tu fondo o ETF" oninput="detectedFundName=this.value">';
+        box.style.display = 'block';
+        detectedFundName = '';
+      })
+      .catch(function() {
+        var cur = (document.getElementById('calc-isin').value || '').trim().toUpperCase();
+        if (cur !== isin) return;
+        box.className = 'calc-fund-detected not-found';
+        box.innerHTML = '<div style="margin-bottom:6px">Introduce el nombre de tu fondo:</div>' +
+          '<input type="text" class="calc-fund-name-input" id="calc-fund-name" placeholder="Nombre de tu fondo o ETF" oninput="detectedFundName=this.value">';
+        box.style.display = 'block';
+        detectedFundName = '';
+      });
+  }, 500);
+}
+
+// ===== CALCULATOR =====
+function calcDQ() {
+  var amount = parseFloat(document.getElementById('calc-amount').value);
+  var alpha = parseFloat(document.getElementById('calc-alpha').value);
+  var period = parseInt(document.getElementById('calc-period').value);
+  var resultDiv = document.getElementById('calc-result');
+
+  if (isNaN(amount) || amount <= 0) {
+    alert('Introduce un importe v\u00E1lido');
+    return;
+  }
+  if (isNaN(alpha)) {
+    alert('Introduce el alfa de tu fondo (p.ej. -2.5)');
+    return;
+  }
+
+  function dq(a, n) {
+    return amount * (1 - Math.pow(1 + a / 100, n));
+  }
+
+  // Calculate for 3, 5, 10 years using the alpha the user provided
+  // If user gives alpha for X years, we use it for all periods (same annualized alpha)
+  var r3 = dq(alpha, 3);
+  var r5 = dq(alpha, 5);
+  var r10 = dq(alpha, 10);
+
+  function fmt(v) {
+    var abs = Math.abs(v);
+    var str = abs.toLocaleString('es-ES', { maximumFractionDigits: 0 });
+    if (v > 100) return { text: '\u2212' + str + ' \u20AC', cls: 'red' };
+    if (v < -100) return { text: '+' + str + ' \u20AC', cls: 'green' };
+    return { text: '~0 \u20AC', cls: 'neutral' };
+  }
+
+  var f3 = fmt(r3), f5 = fmt(r5), f10 = fmt(r10);
+
+  document.getElementById('calc-r3').textContent = f3.text;
+  document.getElementById('calc-r3').className = 'calc-amount ' + f3.cls;
+  document.getElementById('calc-r5').textContent = f5.text;
+  document.getElementById('calc-r5').className = 'calc-amount ' + f5.cls;
+  document.getElementById('calc-r10').textContent = f10.text;
+  document.getElementById('calc-r10').className = 'calc-amount ' + f10.cls;
+
+  // Highlight the period that matches the user's alpha source
+  document.querySelectorAll('.calc-result-item').forEach(function(el) { el.style.opacity = '0.5'; });
+  var periodLabels = { 3: 0, 5: 1, 10: 2 };
+  var items = document.querySelectorAll('.calc-result-item');
+  if (items[periodLabels[period]]) items[periodLabels[period]].style.opacity = '1';
+
+  // The reference value is the one matching the user's period
+  var refVal = period === 3 ? r3 : (period === 5 ? r5 : r10);
+  var note = '';
+  if (alpha < 0) {
+    note = 'Con un alfa de ' + alpha.toFixed(2) + '% (' + period + 'A), tu fondo quema dinero respecto a su benchmark. En ' + period + ' a\u00F1os perder\u00EDas ' + Math.abs(Math.round(refVal)).toLocaleString('es-ES') + ' \u20AC sobre ' + amount.toLocaleString('es-ES') + ' \u20AC invertidos. Las dem\u00E1s columnas son estimaciones usando el mismo alfa.';
+  } else if (alpha > 0) {
+    note = 'Con un alfa de +' + alpha.toFixed(2) + '% (' + period + 'A), tu fondo supera a su benchmark. En ' + period + ' a\u00F1os ganar\u00EDas ' + Math.abs(Math.round(refVal)).toLocaleString('es-ES') + ' \u20AC extra sobre ' + amount.toLocaleString('es-ES') + ' \u20AC invertidos. Las dem\u00E1s columnas son estimaciones usando el mismo alfa.';
+  } else {
+    note = 'Con alfa 0%, tu fondo iguala exactamente a su benchmark.';
+  }
+  document.getElementById('calc-note').textContent = note;
+
+  // Calculate ranking position based on DQ10 per 100K
+  var dq10per100k = 100000 * (1 - Math.pow(1 + alpha / 100, 10));
+  var userDQ = Math.round(dq10per100k);
+  var pos = 1;
+  for (var i = 0; i < LIGA_DQ10.length; i++) {
+    if (userDQ < LIGA_DQ10[i]) {
+      pos = i + 2;
+    } else {
+      pos = i + 1;
+      break;
+    }
+  }
+  if (userDQ <= LIGA_DQ10[LIGA_DQ10.length - 1]) pos = LIGA_DQ10.length + 1;
+  var totalWithUser = LIGA_TOTAL + 1;
+  var pct = pos / totalWithUser;
+  var zoneName, zoneCls, zoneEmoji;
+  if (pct <= 0.25) { zoneName = 'Champions de la Basura'; zoneCls = 'calc-zone-champions'; zoneEmoji = '\uD83C\uDFC6'; }
+  else if (pct <= 0.50) { zoneName = 'Europa League'; zoneCls = 'calc-zone-europa'; zoneEmoji = '\uD83D\uDD25'; }
+  else if (pct <= 0.75) { zoneName = 'Zona Permanencia'; zoneCls = 'calc-zone-permanencia'; zoneEmoji = '\uD83D\uDE10'; }
+  else { zoneName = 'Zona Descenso'; zoneCls = 'calc-zone-descenso'; zoneEmoji = '\uD83D\uDCC9'; }
+
+  document.getElementById('calc-pos-num').textContent = '#' + pos;
+  document.getElementById('calc-pos-num').style.color = pct <= 0.5 ? '#ff6b6b' : (pct <= 0.75 ? '#aaa' : '#64c864');
+  document.getElementById('calc-pos-total').textContent = ' de ' + totalWithUser + ' fondos';
+  var zoneEl = document.getElementById('calc-zone');
+  zoneEl.textContent = zoneEmoji + ' ' + zoneName;
+  zoneEl.className = 'calc-ranking-zone ' + zoneCls;
+  document.getElementById('calc-ranking').style.display = 'block';
+
+  // Show fund name in result
+  var fundDiv = document.getElementById('calc-result-fund');
+  var isin = (document.getElementById('calc-isin').value || '').trim().toUpperCase();
+  var fundLabel = detectedFundName || '';
+  if (fundLabel) {
+    fundDiv.innerHTML = fundLabel + (isin ? '<span class="fund-isin">' + isin + '</span>' : '');
+    fundDiv.style.display = 'block';
+  } else if (isin) {
+    fundDiv.innerHTML = isin;
+    fundDiv.style.display = 'block';
+  } else {
+    fundDiv.style.display = 'none';
+  }
+
+  resultDiv.classList.add('visible');
+
+  // Update share buttons with personalized result
+  var fundNameForShare = fundLabel || 'Mi fondo';
+  var shareText;
+  if (alpha < 0) {
+    shareText = fundNameForShare + ' est\u00E1 en el puesto #' + pos + ' de la Liga de los Fondos Basura (' + zoneName + '). Quema ' + Math.abs(Math.round(refVal)).toLocaleString('es-ES') + ' \u20AC en ' + period + ' a\u00F1os. Descubre el tuyo:';
+  } else {
+    shareText = fundNameForShare + ' estar\u00EDa en el puesto #' + pos + ' de la Liga de los Fondos Basura (' + zoneName + '). Gana ' + Math.abs(Math.round(refVal)).toLocaleString('es-ES') + ' \u20AC extra en ' + period + ' a\u00F1os. Descubre el tuyo:';
+  }
+  var pageUrl = 'https://elproyectok.com/la-liga-de-los-fondos-basura/';
+  var encoded = encodeURIComponent(shareText);
+  var encodedUrl = encodeURIComponent(pageUrl);
+
+  document.getElementById('share-calc-x').href = 'https://x.com/intent/tweet?text=' + encoded + '&url=' + encodedUrl;
+  document.getElementById('share-calc-wa').href = 'https://api.whatsapp.com/send?text=' + encoded + '%20' + encodedUrl;
+  document.getElementById('share-calc-li').href = 'https://www.linkedin.com/sharing/share-offsite/?url=' + encodedUrl;
+  document.getElementById('share-calc-tg').href = 'https://t.me/share/url?url=' + encodedUrl + '&text=' + encoded;
+  document.getElementById('calc-share').style.display = 'flex';
+
+  resultDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+/* =============================================================================
+ * Liga de Fondos Basura — Snapshot fetcher
+ * =============================================================================
+ *
+ * Pega este script en el widget HTML de Elementor de la página
+ * /liga-fondos-basura/, en un nuevo bloque <script> AL FINAL del widget
+ * (justo antes del <\/script> de cierre del eval(atob)).
+ *
+ * NO toques el bloque eval(atob) existente. Este wrapper se ejecuta DESPUÉS
+ * y reemplaza los datos hardcoded por los frescos del snapshot.
+ *
+ * Comportamiento:
+ *   - Llama a /wp-json/epk/v1/liga-snapshot
+ *   - Si responde OK: reemplaza filas, actualiza LIGA_ISIN/LIGA_DQ10/LIGA_TOTAL,
+ *     refresca zone headers vía applyFilters().
+ *   - Si falla: deja la tabla hardcoded como fallback (graceful degradation).
+ *
+ * Requisitos en el HTML:
+ *   - <table id="ranking-table">…<tbody>…</tbody></table>  (ya existe)
+ *   - (opcional) <span id="liga-updated-at"></span> para mostrar la fecha
+ *   - (opcional) <span id="liga-snapshot-status"></span> para errores
+ *
+ * ============================================================================= */
+
+(function () {
+	'use strict';
+
+	// Override permite usar este script tanto en WordPress (default WP REST endpoint)
+	// como en el harness de pruebas en localhost (apunta al endpoint Next.js).
+	var SNAPSHOT_URL = ( typeof window !== 'undefined' && window.__LIGA_SNAPSHOT_URL_OVERRIDE )
+		|| '/wp-json/epk/v1/liga-snapshot';
+	var STATUS_EL_ID = 'liga-snapshot-status';
+	var DATE_EL_ID = 'liga-updated-at';
+
+	function fmtEur( n ) {
+		if ( n == null || isNaN( n ) ) return '—';
+		var sign = n < 0 ? '-' : ( n > 0 ? '−' : '' ); // U+2212 para coherencia con el render existente
+		var abs = Math.abs( Math.round( n ) );
+		return sign + abs.toLocaleString( 'es-ES' ) + ' €';
+	}
+
+	function dqClass( n ) {
+		if ( n == null ) return '';
+		return n > 0 ? 'dq-neg' : 'dq-pos';
+	}
+
+	/** Construye la fila <tr> de un fondo respetando la estructura existente. */
+	function renderRow( f, rank ) {
+		var tr = document.createElement( 'tr' );
+		tr.setAttribute( 'data-orig-rank', rank );
+		tr.setAttribute( 'data-bank', f.gestora || '' );
+		tr.setAttribute( 'data-type', f.tipo || '' );
+		tr.setAttribute( 'data-ter', f.ter != null ? String( f.ter ) : '' );
+		tr.setAttribute( 'data-dq3', f.dq3 != null ? String( f.dq3 ) : '0' );
+		tr.setAttribute( 'data-dq5', f.dq5 != null ? String( f.dq5 ) : '0' );
+		tr.setAttribute( 'data-dq10', f.dq10 != null ? String( f.dq10 ) : '0' );
+		if ( f.stale ) tr.setAttribute( 'data-stale', '1' );
+
+		var tipo = f.tipo || '';
+		var typeBadge = tipo
+			? '<span class="type-badge type-' + tipo.toLowerCase() + '">' + tipo + '</span>'
+			: '';
+
+		var dq3html = '<span class="' + dqClass( f.dq3 ) + '">' + fmtEur( f.dq3 ) + '</span>';
+		var dq5html = '<span class="' + dqClass( f.dq5 ) + '">' + fmtEur( f.dq5 ) + '</span>';
+		var dq10html = '<span class="' + dqClass( f.dq10 ) + '">' + fmtEur( f.dq10 ) + '<span class="proj">*</span></span>';
+
+		// Barra de impacto: porcentual respecto al peor dq10 conocido (se calcula fuera)
+		var barWidth = Math.min( 100, Math.max( 0, f.__barPct || 0 ) );
+		var barColor = f.dq10 > 0 ? '#ff4444' : '#4caf50';
+		var bar = '<div class="impact-bar-wrap"><div class="impact-bar" style="width:' + barWidth + '%;background:' + barColor + '"></div></div>';
+
+		tr.innerHTML =
+			'<td class="rank">' + rank + '</td>' +
+			'<td class="fname">' + escapeHtml( f.nombre || '' ) + ' ' + typeBadge + '</td>' +
+			'<td class="bname">' + escapeHtml( f.gestora || '' ) + '</td>' +
+			'<td class="isin">' + escapeHtml( f.isin || '' ) + '</td>' +
+			'<td class="ter">' + ( f.ter != null ? f.ter.toFixed( 2 ) + '%' : '—' ) + '</td>' +
+			'<td class="dq-value">' + dq3html + '</td>' +
+			'<td class="dq-value">' + dq5html + '</td>' +
+			'<td class="dq-value">' + dq10html + '</td>' +
+			'<td class="dq-value">' + bar + '</td>' +
+			'<td class="trend">' + renderTendencia( f ) + '</td>';
+		return tr;
+	}
+
+	/**
+	 * Devuelve el HTML del indicador de tendencia respecto al snapshot anterior:
+	 *   ▲ verde   → dq5 bajó (fondo mejorando)
+	 *   ▼ rojo    → dq5 subió (fondo empeorando)
+	 *   = gris    → variación dentro del umbral (estable)
+	 *   ★ azul    → fondo nuevo en la liga
+	 *   ·         → no hay snapshot anterior para comparar
+	 * El title del span muestra el delta exacto en €.
+	 */
+	function renderTendencia( f ) {
+		var t = f.tendencia || 'sin_ref';
+		var delta = ( f.deltaDq5 != null ) ? f.deltaDq5 : null;
+		var deltaTxt = delta != null
+			? ( delta >= 0 ? '+' : '' ) + Math.round( delta ).toLocaleString( 'es-ES' ) + ' €'
+			: '';
+		var iconos = {
+			mejorando:  { glyph: '▲', color: '#2a9d3f', label: 'Mejorando vs semana anterior' },
+			empeorando: { glyph: '▼', color: '#c62828', label: 'Empeorando vs semana anterior' },
+			estable:    { glyph: '=', color: '#888',    label: 'Estable vs semana anterior' },
+			nuevo:      { glyph: '★', color: '#1d4ed8', label: 'Nuevo en la liga' },
+			sin_ref:    { glyph: '·', color: '#bbb',    label: 'Sin referencia previa' }
+		};
+		var spec = iconos[ t ] || iconos.sin_ref;
+		var title = spec.label + ( deltaTxt ? ' (Δ ' + deltaTxt + ')' : '' );
+		return '<span class="trend-icon trend-' + t + '" style="color:' + spec.color + ';font-weight:600" title="' + escapeHtml( title ) + '">' + spec.glyph + '</span>';
+	}
+
+	/** Inserta el <th>Tend.</th> en el thead si todavía no existe. */
+	function asegurarHeaderTendencia() {
+		var thead = document.querySelector( '#ranking-table thead tr' );
+		if ( ! thead ) return;
+		if ( thead.querySelector( '.th-trend' ) ) return;
+		var th = document.createElement( 'th' );
+		th.className = 'th-trend';
+		th.textContent = 'Tend.';
+		th.title = 'Tendencia respecto a la actualización anterior';
+		thead.appendChild( th );
+	}
+
+	function escapeHtml( s ) {
+		return String( s )
+			.replace( /&/g, '&amp;' )
+			.replace( /</g, '&lt;' )
+			.replace( />/g, '&gt;' )
+			.replace( /"/g, '&quot;' );
+	}
+
+	function rebuildTable( fondos ) {
+		var tbody = document.querySelector( '#ranking-table tbody' );
+		if ( ! tbody ) return false;
+		asegurarHeaderTendencia();
+
+		// Filtrar fondos con datos válidos para mostrar primero, stale al final
+		var conDatos = fondos.filter( function ( f ) { return f.dq5 != null && ! f.stale; } );
+		var stale = fondos.filter( function ( f ) { return f.stale; } );
+		// Ordenar conDatos descendente por dq5 (mayor = peor)
+		conDatos.sort( function ( a, b ) { return ( b.dq5 || 0 ) - ( a.dq5 || 0 ); } );
+
+		// Calcular % barra de impacto (relativo al peor dq10 absoluto)
+		var maxAbsDq10 = 1;
+		fondos.forEach( function ( f ) {
+			var v = Math.abs( f.dq10 || 0 );
+			if ( v > maxAbsDq10 ) maxAbsDq10 = v;
+		} );
+		fondos.forEach( function ( f ) {
+			f.__barPct = ( ( Math.abs( f.dq10 || 0 ) / maxAbsDq10 ) * 100 ).toFixed( 1 );
+		} );
+
+		// Vaciar y reconstruir
+		tbody.innerHTML = '';
+		conDatos.forEach( function ( f, i ) {
+			tbody.appendChild( renderRow( f, i + 1 ) );
+		} );
+		stale.forEach( function ( f, i ) {
+			var tr = renderRow( f, conDatos.length + i + 1 );
+			tr.style.opacity = '0.6';
+			tbody.appendChild( tr );
+		} );
+
+		return true;
+	}
+
+	function actualizarLookups( fondos ) {
+		// LIGA_ISIN: mapa ISIN → {n, b}
+		var isinMap = {};
+		fondos.forEach( function ( f ) {
+			if ( f.isin ) isinMap[ f.isin ] = { n: f.nombre, b: f.gestora };
+		} );
+
+		// LIGA_DQ10: array de dq10 redondeados ordenados desc (para ranking de la calculadora)
+		var dq10Sorted = fondos
+			.filter( function ( f ) { return f.dq10 != null && ! f.stale; } )
+			.map( function ( f ) { return Math.round( f.dq10 ); } )
+			.sort( function ( a, b ) { return b - a; } );
+
+		try { window.LIGA_ISIN = isinMap; } catch ( e ) {}
+		try { window.LIGA_DQ10 = dq10Sorted; } catch ( e ) {}
+		try { window.LIGA_TOTAL = dq10Sorted.length; } catch ( e ) {}
+	}
+
+	function actualizarFecha( generadoEn ) {
+		var el = document.getElementById( DATE_EL_ID );
+		if ( ! el ) return;
+		try {
+			var d = new Date( generadoEn );
+			var meses = [ 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+				'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre' ];
+			el.textContent = meses[ d.getUTCMonth() ] + ' ' + d.getUTCFullYear();
+		} catch ( e ) {
+			el.textContent = '';
+		}
+	}
+
+	function setStatus( msg ) {
+		var el = document.getElementById( STATUS_EL_ID );
+		if ( el ) el.textContent = msg || '';
+	}
+
+	function aplicarFiltrosSeguro() {
+		// applyFilters está definido por el script principal (eval(atob))
+		// reaplica zone headers y orden actual.
+		if ( typeof window.applyFilters === 'function' ) {
+			try { window.applyFilters(); } catch ( e ) { /* ignore */ }
+		}
+		// Las zone-rows que crea applyFilters tienen colspan=9 hardcoded — al
+		// añadir la columna Tend. necesitamos +1.
+		parchearColspans();
+	}
+
+	/** Ajusta colspan de las filas zone-* a 10 si se quedaron en 9. */
+	function parchearColspans() {
+		var celdas = document.querySelectorAll( '#ranking-table tbody tr.zone-row td[colspan]' );
+		celdas.forEach( function ( td ) {
+			if ( parseInt( td.getAttribute( 'colspan' ), 10 ) === 9 ) {
+				td.setAttribute( 'colspan', '10' );
+			}
+		} );
+	}
+
+	function inicializar() {
+		fetch( SNAPSHOT_URL, { credentials: 'same-origin' } )
+			.then( function ( r ) {
+				if ( ! r.ok ) throw new Error( 'HTTP ' + r.status );
+				return r.json();
+			} )
+			.then( function ( snap ) {
+				if ( ! snap || ! Array.isArray( snap.fondos ) || snap.fondos.length === 0 ) {
+					throw new Error( 'snapshot vacío' );
+				}
+				var ok = rebuildTable( snap.fondos );
+				if ( ! ok ) throw new Error( 'no se encontró #ranking-table tbody' );
+				actualizarLookups( snap.fondos );
+				actualizarFecha( snap.generadoEn );
+				aplicarFiltrosSeguro();
+				setStatus( '' );
+			} )
+			.catch( function ( err ) {
+				console.warn( '[liga-fetcher] usando datos hardcoded como fallback:', err );
+				setStatus( '' ); // mantener silencio para el usuario; los datos hardcoded se ven igual
+			} );
+	}
+
+	if ( document.readyState === 'loading' ) {
+		document.addEventListener( 'DOMContentLoaded', inicializar );
+	} else {
+		inicializar();
+	}
+} )();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,101 @@
+isin,nombre,gestora,tipo,categoria,ter_pct,benchmark_isin,benchmark_ticker,benchmark_notas,ref_dq3,ref_dq5,ref_dq10
+ES0174930000,Santander GO RV Norteamerica A,Santander,Bancario,RV EEUU,2.11,IE00B3XXRP09,VUSA.AS,Vanguard S&P 500,31899.25,56919.22,81440.47
+ES0114277033,BBVA Megatendencia Demografía,BBVA,Bancario,RV Global,2.79,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),21264.68,26179.18,75945.7
+ES0181407000,Unicaja Renta Variable USA A,Unicaja,Bancario,RV EEUU,2.35,IE00B3XXRP09,VUSA.AS,Vanguard S&P 500,27075.7,40918.19,65093.39
+ES0174979007,Santander Future Wealth A,Santander,Bancario,RV Global,2.18,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),26074.63,40852.52,65015.76
+ES0113607008,Santander Sostenible Acciones A,Santander,Bancario,RV Global,1.7,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),17497.03,34520.56,57124.43
+IE00BG0D0J96,Mediolanum BB Innovative Thematic Opportunities L,Mediolanum,Bancario,RV Global,2.81,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),20340.2,31877.68,53593.5
+ES0114222039,Kutxabank Bolsa Nueva Economía Estándar,Kutxabank,Bancario,RV Global,2.0,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),23519.43,39893.75,53241.53
+ES0107764039,Santander Future Us Tech A,Santander,Bancario,RV EEUU,1.63,IE00B3XXRP09,VUSA.AS,Vanguard S&P 500,26856.73,38313.51,51653.79
+ES0106949037,Abanca Renta Variable Crecimiento Minorista,Abanca,Bancario,RV Global,1.73,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),24194.84,42765.36,50338.18
+ES0113191037,Kutxabank Bolsa EEUU Estándar,Kutxabank,Bancario,RV EEUU,2.0,IE00B3XXRP09,VUSA.AS,Vanguard S&P 500,21520.2,26843.52,47385.88
+ES0112617016,B&H Acciones C FI,Buy&Hold,Independiente,RV Global,1.04,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),17707.96,12206.27,47048.29
+ES0162948006,Abanca Renta Variable Dividendo Minorista,Abanca,Bancario,RV Global,1.71,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),-3060.71,8542.21,45908.85
+ES0114237037,Kutxabank Bolsa Sectorial Estándar,Kutxabank,Bancario,RV Global,2.4,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),17285.73,27850.32,43802.12
+ES0183339037,Sabadell Europa Bolsa Futuro Base,Sabadell,Bancario,RV Europa,2.21,IE00B1YZSC51,IMEU.AS,iShares MSCI Europe UCITS,13910.04,17567.01,43023.39
+ES0147644035,Ibercaja Tecnológico A,Ibercaja,Bancario,RV Global,2.11,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),4316.36,13416.02,42721.31
+IE00BJYLJ823,Mediolanum BB Global Leaders Fund LA,Mediolanum,Bancario,RV Global,3.02,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),17971.13,22987.74,40691.12
+ES0113987038,Kutxabank Bolsa Internacional Estándar,Kutxabank,Bancario,RV Global,2.4,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),16197.16,28119.48,40628.6
+ES0114805031,Bankinter Finanzas Globales R,Bankinter,Bancario,RV Global,1.61,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),9155.45,11980.76,37557.0
+ES0172243000,BBVA Megatendencia Planeta Tierra ISR A,BBVA,Bancario,RV Global,1.92,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),-5249.26,18844.22,37097.31
+ES0130705033,Ibercaja Bolsa Europa A,Ibercaja,Bancario,RV Europa,1.74,IE00B1YZSC51,IMEU.AS,iShares MSCI Europe UCITS,14154.15,30018.76,36435.32
+ES0105930038,Santander Acciones Latinoamericanas A,Santander,Bancario,RV Emergentes,2.67,LU1681045370,AEEM.PA,Amundi MSCI EM (proxy Latam),15796.53,21680.68,36101.98
+ES0138172038,CaixaBank Bolsa Selección Global Estándar,CaixaBank,Bancario,RV Global,2.66,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),12435.65,19392.74,35363.09
+ES0114105036,Bankinter EE.UU. Nasdaq 100 R,Bankinter,Bancario,RV EEUU,1.3,IE00B3XXRP09,VUSA.AS,Vanguard S&P 500,-2449.74,23190.38,35227.92
+IE0005380518,Mediolanum BB Emerging Markets Collection L A,Mediolanum,Bancario,RV Emergentes,3.21,LU1681045370,AEEM.PA,Amundi MSCI EM,9267.96,18122.42,33931.09
+ES0138181039,CaixaBank Bolsa Selección Europa Estándar,CaixaBank,Bancario,RV Europa,3.0,IE00B1YZSC51,IMEU.AS,iShares MSCI Europe UCITS,10583.03,17008.58,33862.19
+ES0113572004,Bankinter Índice Global R,Bankinter,Bancario,RV Global,1.15,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),11664.57,18292.72,33239.2
+ES0114233036,Kutxabank Bolsa Emergentes Estándar,Kutxabank,Bancario,RV Emergentes,2.6,LU1681045370,AEEM.PA,Amundi MSCI EM,9745.11,19812.66,33169.66
+IE0032082988,Mediolanum Challenge International Equity L,Mediolanum,Bancario,RV Global,2.78,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),7911.67,14568.33,33100.05
+ES0180792006,True Value FI,True Value,Independiente,RV Global,1.46,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),22890.48,26179.18,32751.01
+IE0005372291,Mediolanum BB European Collection L,Mediolanum,Bancario,RV Global,2.81,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),9548.84,17695.45,32540.8
+ES0138068038,CaixaBank Bolsa Gestión Europa Estándar,CaixaBank,Bancario,RV Europa,2.49,IE00B1YZSC51,IMEU.AS,iShares MSCI Europe UCITS,6111.11,9976.27,31977.35
+IE0032080495,Mediolanum BB Dynamic Collection L A,Mediolanum,Bancario,RV Global,2.76,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),12737.34,17695.45,30909.46
+IE0032080503,Mediolanum BB Equity Power Coupon Collection LA,Mediolanum,Bancario,RV Global,3.17,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),6971.42,20647.24,30837.73
+ES0110119031,Quality Mejores Ideas,BBVA,Bancario,RV Global,2.0,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),14829.82,26375.07,29462.13
+ES0138189032,CaixaBank Bolsa Selección USA Estándar,CaixaBank,Bancario,RV EEUU,2.79,IE00B3XXRP09,VUSA.AS,Vanguard S&P 500,15689.48,17309.64,29462.13
+ES0121092003,Compromiso Mediolanum L,Mediolanum,Bancario,RV Global,1.6,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),7655.87,15882.64,29242.7
+ES0147641031,Ibercaja Bolsa Internacional A,Ibercaja,Bancario,RV Global,2.02,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),2528.39,12386.34,29022.65
+ES0114371034,BBVA Bolsa Europa A,BBVA,Bancario,RV Europa,2.42,IE00B1YZSC51,IMEU.AS,iShares MSCI Europe UCITS,11968.03,2426.11,28875.61
+ES0138861036,BBVA Bolsa FI,BBVA,Bancario,RV Global,2.41,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),5071.76,5857.72,28875.61
+ES0114763032,Bankinter Índice América R,Bankinter,Bancario,RV Global,1.1,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),5880.8,17866.45,28358.8
+ES0114202031,Kutxabank Bolsa Small & Mid Caps Estándar,Kutxabank,Bancario,RV Global,1.5,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),12243.3,15402.62,28210.52
+ES0111092039,Sabadell España Bolsa Futuro Base,Sabadell,Bancario,RV España,2.21,ES0157097019,BBVAI.MC,BBVA Acción IBEX 35 ETF,28811.73,24277.29,27913.13
+ES0114221031,Kutxabank Bolsa Eurozona Estándar,Kutxabank,Bancario,RV Europa,2.0,IE00B1YZSC51,IMEU.AS,iShares MSCI Europe UCITS,15876.76,22091.03,27164.8
+ES0110116037,BBVA Bolsa Emergentes MF,BBVA,Bancario,RV Emergentes,2.31,LU1681045370,AEEM.PA,Amundi MSCI EM,6398.46,16533.7,26863.52
+ES0164853006,CaixaBank Selección Tendencias Estándar,CaixaBank,Bancario,RV Global,2.64,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),16516.75,23311.76,26333.58
+IE00B6SBTN25,Mediolanum BB New Opportunities Collection LA,Mediolanum,Bancario,RV Global,2.92,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),11526.4,15926.17,25952.93
+ES0138328036,CaixaBank Bolsa Selección Emergente Estándar,CaixaBank,Bancario,RV Emergentes,2.94,LU1681045370,AEEM.PA,Amundi MSCI EM,5332.31,20355.93,25800.18
+ES0114388038,Kutxabank Bolsa Estándar,Kutxabank,Bancario,RV Global,2.0,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),8817.35,13683.04,25186.32
+IE0005372184,Mediolanum BB US Collection L,Mediolanum,Bancario,RV Global,2.66,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),8081.94,13371.46,25032.15
+ES0184923037,CaixaBank Bolsa Dividendo Europa Estándar,CaixaBank,Bancario,RV Europa,2.56,IE00B1YZSC51,IMEU.AS,iShares MSCI Europe UCITS,4345.49,9238.37,24722.94
+IE0005372309,Mediolanum BB Pacific Collection L,Mediolanum,Bancario,RV Global,2.96,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),10888.97,16749.82,24567.91
+ES0114561006,Bestinver Grandes Compañías FI,Bestinver,Independiente,RV Global,1.6,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),13638.27,19980.13,24567.91
+ES0108929037,BBVA Bolsa Asia MF,BBVA,Bancario,RV Emergentes,2.45,LU1681045370,AEEM.PA,Amundi MSCI EM,7399.59,12969.53,22764.24
+ES0147711032,BBVA Megatendencia Tecnología A,BBVA,Bancario,RV Global,2.57,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),2203.61,9053.14,22526.14
+ES0121761037,Santander Acciones USA A,Santander,Bancario,RV EEUU,2.69,IE00B3XXRP09,VUSA.AS,Vanguard S&P 500,7826.45,13816.3,21486.72
+ES0147034039,Ibercaja Bolsa USA A,Ibercaja,Bancario,RV EEUU,2.22,IE00B3XXRP09,VUSA.AS,Vanguard S&P 500,5129.7,11028.57,21164.38
+IE00BCZNHK63,Mediolanum BB Socially Responsible Collection LA,Mediolanum,Bancario,RV Global,2.89,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),8986.51,19686.86,21164.38
+ES0115157036,Bankinter Sostenibilidad R,Bankinter,Bancario,RV Global,1.7,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),7570.49,1589.79,21002.77
+ES0114764030,Bankinter Pequeñas Compañías Europa R,Bankinter,Bancario,RV Europa,1.71,IE00B1YZSC51,IMEU.AS,iShares MSCI Europe UCITS,15340.95,1639.15,20759.79
+ES0114063037,Santander Acciones Euro A,Santander,Bancario,RV Global,2.3,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),7769.61,12251.31,20434.77
+ES0125621039,Bankinter Bolsa España R,Bankinter,Bancario,RV España,1.7,ES0157097019,BBVAI.MC,BBVA Acción IBEX 35 ETF,12270.8,17180.72,20026.8
+ES0113571006,Bankinter Emergentes R,Bankinter,Bancario,RV Emergentes,1.28,LU1681045370,AEEM.PA,Amundi MSCI EM,6369.75,10526.53,19944.98
+ES0159031030,CaixaBank Bolsa Gestión Euro Estándar,CaixaBank,Bancario,RV Global,2.45,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),4549.22,8309.2,19699.08
+ES0138893039,CaixaBank Bolsa Improvers Estándar,CaixaBank,Bancario,RV Global,1.87,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),1966.96,17352.58,19616.96
+ES0111011039,Unicaja RV Europa Selección A,Unicaja,Bancario,RV Europa,1.91,IE00B1YZSC51,IMEU.AS,iShares MSCI Europe UCITS,-8827.73,-13638.41,18376.06
+ES0157663008,Quality Inversión Decidida,BBVA,Bancario,RV Global,2.14,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),6312.32,6000.56,17286.69
+ES0114802038,Bankinter Dividendo Europa R,Bankinter,Bancario,RV Europa,1.7,IE00B1YZSC51,IMEU.AS,iShares MSCI Europe UCITS,9969.06,6333.18,16098.91
+ES0147186037,Ibercaja Bolsa España A,Ibercaja,Bancario,RV España,1.75,ES0157097019,BBVAI.MC,BBVA Acción IBEX 35 ETF,6197.38,9377.09,15327.25
+ES0114081039,Santander Go RV Asia A,Santander,Bancario,RV Emergentes,2.2,LU1681045370,AEEM.PA,Amundi MSCI EM,-3735.57,2866.55,14895.8
+ES0114638036,Bestinver Internacional FI,Bestinver,Independiente,RV Global,1.8,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),-1598.44,18122.42,14895.8
+ES0110057033,CaixaBank Multisalud Estándar,CaixaBank,Bancario,RV Global,1.94,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),5100.73,-6093.31,14809.27
+ES0137878031,CaixaBank Bolsa España 150 Estándar,CaixaBank,Bancario,RV España,1.7,ES0157097019,BBVAI.MC,BBVA Acción IBEX 35 ETF,6627.93,9746.19,14635.98
+ES0138823036,Santander Acciones Españolas A,Santander,Bancario,RV Global,2.27,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),2823.01,1243.77,13414.02
+ES0113536009,BBVA Bolsa Plan Dividendo Europa,BBVA,Bancario,RV Europa,1.82,IE00B1YZSC51,IMEU.AS,iShares MSCI Europe UCITS,4491.04,7935.41,13150.13
+ES0138983038,Sabadell Estados Unidos Bolsa Base,Sabadell,Bancario,RV Global,2.35,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),2793.58,299.64,13062.01
+ES0162956009,Abanca Indice Renta Variable Global,Abanca,Bancario,RV Global,0.31,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),3820.29,6285.72,12176.34
+ES0138615036,CaixaBank Bolsa USA Estándar,CaixaBank,Bancario,RV EEUU,1.04,IE00B3XXRP09,VUSA.AS,Vanguard S&P 500,2439.88,1885.61,11909.06
+ES0114794037,Bankinter Indice Ibex R,Bankinter,Bancario,RV España,1.13,ES0157097019,BBVAI.MC,BBVA Acción IBEX 35 ETF,5909.61,7701.18,10561.65
+ES0113693032,CaixaBank Comunicación Mundial Estándar,CaixaBank,Bancario,RV Global,1.88,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),-8036.14,-1863.74,10289.95
+ES0114104039,Bankinter Índice Japón R,Bankinter,Bancario,RV Global,1.13,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),-11741.75,-22427.6,9653.1
+ES0110088038,BBVA Bolsa Índice Japón (Cubierto),BBVA,Bancario,RV Global,1.2,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),-2327.83,648.31,9561.79
+ES0114754031,Bankinter Índice Europeo R,Bankinter,Bancario,RV Global,1.18,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),4083.13,4274.97,9378.92
+ES0110182039,BBVA Bolsa Índice,BBVA,Bancario,RV Global,1.4,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),2940.69,6380.62,8367.18
+ES0175083031,Sabadell Bolsas Emergentes Base,Sabadell,Bancario,RV Emergentes,2.4,LU1681045370,AEEM.PA,Amundi MSCI EM,12243.3,1194.25,8367.18
+ES0138392032,CaixaBank Bolsa Índice España Estándar,CaixaBank,Bancario,RV España,1.46,ES0157097019,BBVAI.MC,BBVA Acción IBEX 35 ETF,2410.37,5475.96,7438.6
+ES0114232038,Kutxabank Bolsa Japón Estándar,Kutxabank,Bancario,RV Global,2.0,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),-6997.14,-24797.17,7158.38
+ES0111149003,Sabadell Selección Épsilon Base,Sabadell,Bancario,RV Global,2.3,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),2144.49,3548.53,6971.14
+ES0110098037,BBVA Bolsa Índice Euro,BBVA,Bancario,RV Global,1.23,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),1670.61,-50.01,5556.0
+ES0138792033,CaixaBank Bolsa Índice Euro Estándar,CaixaBank,Bancario,RV Global,1.16,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),-7531.55,-8260.13,598.38
+ES0156741029,Bankinter Indice Salud R,Bankinter,Bancario,RV Global,1.03,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),3820.29,-200.16,-400.72
+ES0173311103,Numantia Patrimonio Global FI,Numantia,Independiente,RV Global,1.39,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),-9240.88,-18596.6,-2119.96
+ES0105182036,CaixaBank Bolsa Gestión España Estándar,CaixaBank,Bancario,RV España,2.62,ES0157097019,BBVAI.MC,BBVA Acción IBEX 35 ETF,-510.87,8728.27,-3040.83
+ES0159259011,Magallanes European Equity M FI,Magallanes,Independiente,RV Global,1.8,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),7171.4,-11167.87,-11892.27
+ES0112611001,Azvalor Internacional FI,AzValor,Independiente,RV Global,1.89,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),3469.09,-90942.29,-23341.17
+ES0131445076,Gestión Boutique VIII Adarve Altea FI,Adarve,Independiente,RV Global,1.15,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),2999.5,-11385.71,-24067.77
+ES0182769002,Valentum E FI,Valentum,Independiente,RV Global,1.36,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),-8352.31,-5622.34,-35439.11
+LU0933684283,Equam Global Value B FI,Equam,Independiente,RV Global,2.2,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),-2907.74,-29400.4,-67444.64
+ES0113728010,Cobas Grandes Compañías D FI,Cobas,Independiente,RV Global,1.29,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),-16923.99,-29769.52,-68401.28
+ES0146309002,Horos Value Internacional FI,Horos,Independiente,RV Global,1.8,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),-24507.24,-59156.65,-153308.38
+ES0119199000,Cobas Internacional C FI,Cobas,Independiente,RV Global,1.62,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),-41322.33,-82780.76,-234088.06
