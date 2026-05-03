@@ -215,10 +215,10 @@ const INDEXED_FUNDS: Fund[] = [
   },
   {
     id: "xtrackers-gov-5-7y",
-    name: "Xtrackers Eurozone Government Bond 5-7 UCITS ETF 1C",
+    name: "Xtrackers II Eurozone Government Bond 5-7 UCITS ETF 1C",
     shortName: "Xtrackers Gov 5-7Y",
     isin: "LU0290357176",
-    yahooTicker: "DBXF.DE",
+    yahooTicker: "X57E.DE", // X57E.XETRA — ticker correcto (DBXF era el 15-30Y!)
     ter: 0.15,
     category: "RF EUR Gov Medio",
     type: "index",

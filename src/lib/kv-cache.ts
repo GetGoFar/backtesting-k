@@ -66,7 +66,8 @@ async function getRedis(): Promise<import("@upstash/redis").Redis | null> {
 // v13 = S&P500: VUAA.DE(desde 2020) → SXR8.DE/iShares Core S&P500 Acc(desde 2010)
 // v14 = US Gov Bond: VDTA.L/ETF(desde 2019) → IE00BF6T7R10.EUFUND/fondo institucional Vanguard(desde 2017-11)
 // v15 = Small Cap: IUSN.DE/iShares(desde 2018) → IE00BFRTDD83.EUFUND/Vanguard institucional(desde 2013-12)
-const CACHE_VERSION = "v15";
+// v16 = BUG FIX Xtrackers Gov 5-7Y: DBXF.DE(era el 15-30Y!) → X57E.DE/X57E.XETRA (correcto, 5-7Y desde 2007)
+const CACHE_VERSION = "v16";
 
 function makeKey(fundId: string): string {
   return `${CACHE_VERSION}:prices:${fundId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
