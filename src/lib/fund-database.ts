@@ -205,7 +205,7 @@ const INDEXED_FUNDS: Fund[] = [
     name: "Amundi Euro Government Bond 7-10Y UCITS ETF Acc",
     shortName: "Amundi Gov 7-10Y",
     isin: "LU1287023185",
-    yahooTicker: "X710.DE",
+    yahooTicker: "MTD.PA", // X710 era Xtrackers (LU0290357259, fondo distinto)
     ter: 0.15,
     category: "RF EUR Gov Medio",
     type: "index",
@@ -231,11 +231,13 @@ const INDEXED_FUNDS: Fund[] = [
     name: "iShares USD Treasury Bond 1-3yr UCITS ETF EUR Hedged (Acc)",
     shortName: "iShares Treasury 1-3Y",
     isin: "IE00BDFK1573",
-    yahooTicker: "IBTS.L",
+    yahooTicker: "IBTE.L", // IBTS era el USD distrib non-hedged (IE00B14X4S71); IBTE es el EUR Hedged Acc correcto
     ter: 0.10,
     category: "RF EUR Gov Corto",
     type: "index",
     currency: "USD",
+    terSource: "curated",
+    terConfirmed: true,
   },
   {
     id: "xtrackers-gov-1-3y",
@@ -268,7 +270,7 @@ const INDEXED_FUNDS: Fund[] = [
     name: "Vanguard EUR Corporate Bond UCITS ETF Accumulating",
     shortName: "Vanguard Corp EUR",
     isin: "IE00BGYWT403",
-    yahooTicker: "VECP.DE",
+    yahooTicker: "VECA.DE", // VECP era la versión distribución (IE00BZ163G84); VECA es la acumulación correcta
     ter: 0.09,
     category: "RF EUR Corp",
     type: "index",
@@ -281,7 +283,7 @@ const INDEXED_FUNDS: Fund[] = [
     name: "iShares EUR High Yield Corporate Bond ESG UCITS ETF EUR (Acc)",
     shortName: "iShares HY ESG",
     isin: "IE00BJK55C48",
-    yahooTicker: "IHYG.L",
+    yahooTicker: "EHYA.AS", // IHYG.L era el HY non-ESG distrib (IE00B66F4759); EHYA es el ESG Acc correcto
     ter: 0.25,
     category: "RF EUR Corp",
     type: "index",
@@ -322,7 +324,7 @@ const INDEXED_FUNDS: Fund[] = [
     name: "Xtrackers II Eurozone Inflation-Linked Bond UCITS ETF 1C",
     shortName: "Xtrackers Inflation EUR Acc",
     isin: "LU0290358224",
-    yahooTicker: "XEIN.DE", // Acumulación (IBCI.DE era distribución — no capturaba cupones)
+    yahooTicker: "DBXK.DE", // DBXK.XETRA — ticker original con ISIN registrado en EODHD (XEIN aparece sin ISIN)
     ter: 0.20,
     category: "RF Inflation EUR",
     type: "index",
@@ -344,11 +346,10 @@ const INDEXED_FUNDS: Fund[] = [
   },
   {
     id: "indexa-us-corp-hedged",
-    name: "Vanguard USD Corporate Bond UCITS ETF EUR Hedged Acc",
+    name: "Vanguard US Investment Grade Bond Index Fund EUR Hedged Acc",
     shortName: "Vanguard US Corp Hdg",
-    isin: "IE00BZ163K21",
-    yahooTicker: "VDCE.L",
-    ter: 0.14,
+    isin: "IE00BZ04LQ92", // Fondo institucional Vanguard (el que usa Indexa Capital) — EUFUND desde 2015-09. ISIN anterior IE00BZ163K21 era la versión USD non-hedged
+    ter: 0.12,
     category: "RF USD Corp",
     type: "index",
     currency: "EUR",

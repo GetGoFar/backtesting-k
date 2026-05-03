@@ -67,7 +67,14 @@ async function getRedis(): Promise<import("@upstash/redis").Redis | null> {
 // v14 = US Gov Bond: VDTA.L/ETF(desde 2019) → IE00BF6T7R10.EUFUND/fondo institucional Vanguard(desde 2017-11)
 // v15 = Small Cap: IUSN.DE/iShares(desde 2018) → IE00BFRTDD83.EUFUND/Vanguard institucional(desde 2013-12)
 // v16 = BUG FIX Xtrackers Gov 5-7Y: DBXF.DE(era el 15-30Y!) → X57E.DE/X57E.XETRA (correcto, 5-7Y desde 2007)
-const CACHE_VERSION = "v16";
+// v17 = BUG FIX masivo de tickers RF (todos eran versiones distribución/diferentes ISINs):
+//       - vanguard-eur-corp: VECP.DE → VECA.DE (era distrib, ahora acc correcto)
+//       - amundi-gov-7-10y: X710.DE → MTD.PA (era Xtrackers, ahora Amundi correcto)
+//       - ishares-usd-treasury-hedged: IBTS.L → IBTE.L (era USD distrib, ahora EUR Hedged Acc)
+//       - ishares-hy-esg: IHYG.L → EHYA.AS (era HY non-ESG, ahora ESG Acc)
+//       - indexa-eur-inflation: XEIN.DE → DBXK.DE (DBXK tiene ISIN registrado)
+//       - indexa-us-corp-hedged: VDCE.L → IE00BZ04LQ92.EUFUND (institucional Vanguard, desde 2015)
+const CACHE_VERSION = "v17";
 
 function makeKey(fundId: string): string {
   return `${CACHE_VERSION}:prices:${fundId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
