@@ -5,7 +5,7 @@
 // Regenera el snapshot de la Liga de Fondos Basura desde EODHD y lo persiste
 // en Redis. Opcionalmente lo empuja al endpoint REST de WordPress.
 //
-// Disparado por Vercel Cron (vercel.json) todos los lunes a las 06:00 UTC.
+// Disparado por Vercel Cron (vercel.json) el día 1 de cada mes a las 06:00 UTC.
 // También accesible manualmente con `curl -H "Authorization: Bearer ..."`.
 //
 // Variables de entorno requeridas:

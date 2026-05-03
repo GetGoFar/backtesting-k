@@ -53,7 +53,7 @@ export interface NavPoint {
 }
 
 /**
- * Tendencia respecto al snapshot anterior:
+ * Tendencia respecto al snapshot anterior (cron mensual, día 1):
  *   - mejorando : el dinero quemado a 5 años bajó (mejor para el fondo)
  *   - empeorando: el dinero quemado a 5 años subió
  *   - estable   : variación dentro del umbral de ruido (±500 €)

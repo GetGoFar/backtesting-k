@@ -100,9 +100,9 @@
 			? ( delta >= 0 ? '+' : '' ) + Math.round( delta ).toLocaleString( 'es-ES' ) + ' €'
 			: '';
 		var iconos = {
-			mejorando:  { glyph: '▲', color: '#2a9d3f', label: 'Mejorando vs semana anterior' },
-			empeorando: { glyph: '▼', color: '#c62828', label: 'Empeorando vs semana anterior' },
-			estable:    { glyph: '=', color: '#888',    label: 'Estable vs semana anterior' },
+			mejorando:  { glyph: '▲', color: '#2a9d3f', label: 'Mejorando vs mes anterior' },
+			empeorando: { glyph: '▼', color: '#c62828', label: 'Empeorando vs mes anterior' },
+			estable:    { glyph: '=', color: '#888',    label: 'Estable vs mes anterior' },
 			nuevo:      { glyph: '★', color: '#1d4ed8', label: 'Nuevo en la liga' },
 			sin_ref:    { glyph: '·', color: '#bbb',    label: 'Sin referencia previa' }
 		};

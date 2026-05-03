@@ -22,7 +22,7 @@ CSS y la misma estructura de tabla. La única diferencia visible es:
 3. Los datos vienen de `/api/liga/snapshot` (no son los hardcoded de
    febrero 2026).
 
-## Qué falta para que el cron semanal corra solo
+## Qué falta para que el cron mensual corra solo
 
 En **Vercel → Project → Settings → Environment Variables**, añadir:
 
@@ -35,7 +35,7 @@ En **Vercel → Project → Settings → Environment Variables**, añadir:
 Tras guardar, **redeploy** (basta con un commit vacío o el botón "Redeploy"
 sin cambios). Vercel registra automáticamente el cron del `vercel.json`.
 
-Para forzar el primer refresh manual sin esperar al lunes:
+Para forzar el primer refresh manual sin esperar al día 1:
 
 ```bash
 curl -X POST https://backtesting-k.vercel.app/api/liga/refresh \

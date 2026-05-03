@@ -78,10 +78,15 @@ En Vercel → Project → Settings → Environment Variables (Production + Previ
 | `WORDPRESS_URL` | `https://elproyectok.com` |
 | `WP_LIGA_TOKEN` | mismo token que el `$expected` embebido en el snippet WPCode (paso 1.2). El cron envía el header `X-Liga-Token` con este valor. |
 
-### 2.2 — Cron (semanal, lunes 06:00 UTC)
+### 2.2 — Cron (mensual, día 1 a las 06:00 UTC)
 
 Ya está añadido en `vercel.json`. Tras el primer deploy con esa entrada, Vercel
 registra el cron automáticamente.
+
+**Por qué mensual y no semanal**: la métrica de "dinero quemado" se basa en la
+alfa anualizada sobre 5+ años — una semana de mercado mueve ese número en
+décimas de punto. Mensual filtra mejor la señal del ruido y encaja con el
+ciclo de comunicación editorial (newsletter, post de seguimiento).
 
 ### 2.3 — Deploy
 

@@ -21,7 +21,9 @@ import { join } from "path";
 import type { SnapshotLiga } from "./liga-engine";
 
 const REDIS_KEY = "liga-fondos-basura:snapshot";
-const REDIS_TTL_SECONDS = 14 * 24 * 60 * 60; // 14 días
+// 45 días: el cron es mensual (día 1 de cada mes), así que necesitamos que
+// el snapshot sobreviva al menos hasta el siguiente refresh + margen.
+const REDIS_TTL_SECONDS = 45 * 24 * 60 * 60;
 const FILE_PATH = join(process.cwd(), ".next", "cache", "liga-snapshot.json");
 
 let memoria: SnapshotLiga | null = null;
