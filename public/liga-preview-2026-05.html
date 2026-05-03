@@ -1388,15 +1388,24 @@ function calcDQ() {
 					msg = 'No pudimos clasificarlo automáticamente: ' + det;
 				}
 				agregarBloqueClassify( box, '<div class="liga-classify-error">' + escapeHtml( msg ) + '</div>' );
+				// Si el classify falla, MOSTRAMOS el flujo manual como fallback
+				toggleFlujoManual( true );
 				return;
 			}
+
+			// Cuando el classify devuelve datos válidos, ocultamos el flujo manual
+			// porque el resultado ya está completo y mostrado.
+			toggleFlujoManual( false );
 
 			var dq5fmt = fmtEur( datos.dq5 );
 			var dq10fmt = fmtEur( datos.dq10 );
 			var alfaFmt = ( datos.alfa != null ) ? datos.alfa.toFixed( 2 ) + '%' : '—';
-			var benchTxt = datos.benchmarkUsado
-				? datos.benchmarkUsado.nombre + ' (' + datos.benchmarkUsado.ticker + ')'
+			var bench = datos.benchmarkUsado;
+			var benchTxt = bench
+				? bench.nombre + ( bench.ticker ? ' (' + bench.ticker + ')' : '' )
 				: '— (en la liga, benchmark del CSV)';
+			var esMixto = bench && bench.composicion ? true : false;
+
 			var zonaLabel = {
 				champions: '🏆 Champions de la Basura',
 				europa: '🔥 Europa League',
@@ -1413,6 +1422,14 @@ function calcDQ() {
 				? datos.anosObservados.toFixed( 1 ) + ' años'
 				: 'N/A';
 
+			// Disclaimer adicional para mixtos: la cesta sintética por defecto puede
+			// no encajar con la distribución real del fondo
+			var disclaimerMixto = esMixto
+				? '<div class="lc-row lc-warn">⚠️ Fondo mixto: comparación contra ' +
+				  escapeHtml( bench.composicion.descripcion ) +
+				  '. Si tu fondo tiene otra distribución (más agresivo o más conservador), las cifras pueden no ser justas.</div>'
+				: '';
+
 			var html =
 				'<div class="liga-classify-result">' +
 				'<div class="lc-row lc-zona" title="' + escapeHtml( zonaTooltip ) + '"><strong>Posición teórica:</strong> ' +
@@ -1422,10 +1439,45 @@ function calcDQ() {
 					' · <strong>Periodo:</strong> ' + aniosTxt + '</div>' +
 				'<div class="lc-row"><strong>Dinero quemado por 100k €:</strong> ' +
 					'5A ' + dq5fmt + ' · 10A ' + dq10fmt + '</div>' +
+				disclaimerMixto +
 				'<div class="lc-row lc-bench">Benchmark usado: ' + escapeHtml( benchTxt ) +
 					'<br><span class="lc-bench-note">¿Crees que no es justo? Cuéntanoslo.</span></div>' +
 				'</div>';
 			agregarBloqueClassify( box, html );
+		}
+
+		/**
+		 * Muestra/oculta el flujo manual de Morningstar (botón "Buscar en
+		 * Morningstar" + Step 2 con inputs de alfa). Lo dejamos visible solo
+		 * como fallback cuando el clasificador automático falla.
+		 */
+		function toggleFlujoManual( visible ) {
+			var btn = document.querySelector( '#calculadora .calc-ms-btn' );
+			if ( btn ) btn.style.display = visible ? '' : 'none';
+			// Step 2 = el segundo .calc-step dentro de .calc-steps
+			var steps = document.querySelectorAll( '#calculadora .calc-steps > .calc-step' );
+			if ( steps && steps.length >= 2 ) {
+				steps[1].style.display = visible ? '' : 'none';
+			}
+			// Las instrucciones intermedias entre los pasos: las identificamos
+			// porque están dentro del primer .calc-step pero después del
+			// .calc-fund-detected. Las ocultamos también porque dirigen al
+			// flujo manual ya redundante.
+			var firstStepContent = document.querySelector( '#calculadora .calc-steps > .calc-step:first-child .calc-step-content' );
+			if ( firstStepContent ) {
+				// Buscar bloques de texto con instrucciones (heurística: contienen "Riesgo" + "Alfa")
+				var children = firstStepContent.children;
+				for ( var i = 0; i < children.length; i++ ) {
+					var c = children[i];
+					if ( /Riesgo|Medidas de volatilidad/i.test( c.textContent || '' )
+					  && ! c.classList.contains( 'liga-classify-result' )
+					  && ! c.classList.contains( 'liga-classify-error' )
+					  && ! c.classList.contains( 'liga-classify-loading' )
+					  && ! c.classList.contains( 'calc-fund-detected' ) ) {
+						c.style.display = visible ? '' : 'none';
+					}
+				}
+			}
 		}
 
 		function agregarBloqueClassify( box, html ) {
@@ -1483,7 +1535,8 @@ function calcDQ() {
 			'.liga-classify-result .lc-pos { color: #fff; font-weight: 700; }' +
 			'.liga-classify-result .lc-zona-tag { font-weight: 600; }' +
 			'.liga-classify-result .lc-bench { color: #aab; font-size: .78em; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.08); }' +
-			'.liga-classify-result .lc-bench-note { color: #889; font-style: italic; }';
+			'.liga-classify-result .lc-bench-note { color: #889; font-style: italic; }' +
+			'.liga-classify-result .lc-warn { color: #ffc107; background: rgba(255,193,7,0.08); border-left: 3px solid #ffc107; padding: 6px 10px; margin: 8px 0 4px; border-radius: 3px; font-size: .82em; line-height: 1.45; }';
 		document.head.appendChild( style );
 	}
 

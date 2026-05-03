@@ -15,6 +15,7 @@
 import {
   calcularAlfa,
   cargarFondosCsv,
+  crearSerieSintetica,
   dineroQuemado,
   fetchNavsEODHD,
   type FondoCsv,
@@ -32,6 +33,12 @@ export interface BenchmarkSpec {
   nombre: string;
   // Símbolo a usar al llamar a EODHD
   simbolo: string;
+  // Si está presente, este benchmark es una cesta sintética. El campo describe
+  // los componentes y los pesos para que el cliente pueda mostrarlos.
+  composicion?: {
+    descripcion: string;          // p.ej. "60% RV Global + 40% RF EUR"
+    componentes: Array<{ ticker: string; peso: number; nombre: string }>;
+  };
 }
 
 export type ClassifyError =
@@ -95,10 +102,10 @@ const BENCHMARK_SPAIN: BenchmarkSpec = {
   simbolo: "BBVAI.MC",
 };
 const BENCHMARK_RF_EUR: BenchmarkSpec = {
-  isin: "IE00BH04GL39",
-  ticker: "VGEA.AS",
-  nombre: "Vanguard EUR Eurozone Government Bond UCITS ETF",
-  simbolo: "VGEA.AS",
+  isin: "IE00B4WXJJ64",
+  ticker: "IEGA.AS",
+  nombre: "iShares Core EUR Government Bond UCITS ETF",
+  simbolo: "IEGA.AS",
 };
 const BENCHMARK_WORLD: BenchmarkSpec = {
   isin: "IE00B4L5Y983",
@@ -106,6 +113,38 @@ const BENCHMARK_WORLD: BenchmarkSpec = {
   nombre: "iShares Core MSCI World UCITS ETF",
   simbolo: "IWDA.AS",
 };
+
+/**
+ * Cestas sintéticas para fondos mixtos. El simbolo no se usa para llamar a
+ * EODHD directamente — al detectar uno de estos, classifyFund construye la
+ * serie sintética combinando RV Global (IWDA) + RF EUR (VGEA) con pesos.
+ */
+function benchmarkMixto(pesoEquity: number): BenchmarkSpec {
+  const pesoBond = 1 - pesoEquity;
+  const labelEq = `${Math.round(pesoEquity * 100)}%`;
+  const labelBond = `${Math.round(pesoBond * 100)}%`;
+  return {
+    isin: `__SYNTH_${Math.round(pesoEquity * 100)}_${Math.round(pesoBond * 100)}`,
+    ticker: `${labelEq}/${labelBond}`,
+    nombre: `Cesta sintética ${labelEq} RV Global + ${labelBond} RF EUR`,
+    simbolo: `__SYNTH_${Math.round(pesoEquity * 100)}_${Math.round(pesoBond * 100)}`,
+    composicion: {
+      descripcion: `${labelEq} RV Global (MSCI World) + ${labelBond} RF EUR (Eurozone Gov Bond)`,
+      componentes: [
+        { ticker: "IWDA.AS", peso: pesoEquity, nombre: "iShares Core MSCI World UCITS ETF" },
+        { ticker: "IEGA.AS", peso: pesoBond, nombre: "iShares Core EUR Government Bond UCITS ETF" },
+      ],
+    },
+  };
+}
+
+const BENCHMARK_MIXTO_AGRESIVO = benchmarkMixto(0.8);     // 80/20
+const BENCHMARK_MIXTO_MODERADO = benchmarkMixto(0.6);     // 60/40
+const BENCHMARK_MIXTO_CONSERVADOR = benchmarkMixto(0.4);  // 40/60
+
+function esBenchmarkSintetico(b: BenchmarkSpec): boolean {
+  return b.simbolo.startsWith("__SYNTH_");
+}
 
 interface BenchmarkRule {
   // Lista de palabras clave que deben aparecer (en cualquier orden) en
@@ -116,9 +155,40 @@ interface BenchmarkRule {
 }
 
 // Reglas evaluadas en orden — la primera que matchea gana.
-// Precedencia diseñada para que regiones específicas (EEUU, España)
-// dominen sobre etiquetas generales (Renta Variable, Equity).
+// Precedencia diseñada para que las categorías más específicas dominen:
+// 1) mixtos primero (porque "mixto agresivo" contiene la palabra "agresivo"
+//    pero también "mixto" — y queremos que entre por mixto, no por equity)
+// 2) regiones específicas (EEUU, España) sobre genéricas
+// 3) renta fija
+// 4) default = MSCI World
 const BENCHMARK_RULES: BenchmarkRule[] = [
+  // Mixtos / multiactivos (PRIMERO — para que ganen sobre keywords de equity)
+  // Conservador: más bonos
+  {
+    keywords: [
+      "mixto conservador", "mixto defensivo", "conservative allocation",
+      "defensive allocation", "indexa 1", "indexa 2", "indexa 3",
+    ],
+    benchmark: BENCHMARK_MIXTO_CONSERVADOR,
+  },
+  // Agresivo: más equity
+  {
+    keywords: [
+      "mixto agresivo", "aggressive allocation", "agresivo global",
+      "indexa 8", "indexa 9", "indexa 10", "imdi funds rojo", "imdi rojo",
+    ],
+    benchmark: BENCHMARK_MIXTO_AGRESIVO,
+  },
+  // Mixto genérico / moderado / balanced
+  {
+    keywords: [
+      "mixto moderado", "mixto flexible", "mixto global", " mixto ",
+      "moderate allocation", "balanced allocation", "multiactivo",
+      "asset allocation", "indexa 4", "indexa 5", "indexa 6", "indexa 7",
+    ],
+    benchmark: BENCHMARK_MIXTO_MODERADO,
+  },
+
   // EEUU / Norteamérica / Nasdaq / S&P
   {
     keywords: [
@@ -336,9 +406,24 @@ export async function classifyFund(
   const fetcher = opts.fetcher
     ?? ((s: string) => fetchNavsEODHD(s, opts.apiToken));
 
+  // Para benchmarks sintéticos (mixtos), construimos la serie combinando
+  // las dos series componentes en lugar de pedirla a EODHD directamente.
+  let navsBenchPromise: Promise<NavPoint[]>;
+  if (esBenchmarkSintetico(benchmark) && benchmark.composicion) {
+    const componentes = benchmark.composicion.componentes;
+    navsBenchPromise = Promise.all(componentes.map((c) => fetcher(c.ticker)))
+      .then((series) => {
+        if (series.length !== 2 || !series[0] || !series[1]) return [];
+        const pesoA = componentes[0]?.peso ?? 0.6;
+        return crearSerieSintetica(series[0], series[1], pesoA);
+      });
+  } else {
+    navsBenchPromise = fetcher(benchmark.simbolo);
+  }
+
   const [navsFondo, navsBench] = await Promise.all([
     fetcher(`${isin}.EUFUND`),
-    fetcher(benchmark.simbolo),
+    navsBenchPromise,
   ]);
 
   if (navsFondo.length < 2) {

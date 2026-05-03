@@ -268,6 +268,51 @@ export function calcularAlfa(
 }
 
 /**
+ * Combina dos series de NAVs (p.ej. RV Global + RF EUR) en una cesta sintética
+ * con peso fijo del primero, sin rebalanceo. Usado como benchmark de fondos
+ * mixtos cuando no podemos atarlos a un benchmark de mercado puro.
+ *
+ * Fórmula: dado peso w para A y (1-w) para B,
+ *   synth_t = w * (navA_t / navA_0) + (1-w) * (navB_t / navB_0)
+ *
+ * Esto representa "un euro invertido al inicio en w% A + (1-w)% B y dejado
+ * tal cual hasta hoy". No es un 60/40 con rebalanceo mensual perfecto,
+ * pero es una aproximación razonable y reproducible.
+ */
+export function crearSerieSintetica(
+  navsA: NavPoint[],
+  navsB: NavPoint[],
+  pesoA: number,
+): NavPoint[] {
+  if (navsA.length < 2 || navsB.length < 2) return [];
+  if (pesoA < 0 || pesoA > 1) return [];
+
+  // Indexar por fecha
+  const mapB = new Map<string, number>();
+  for (const p of navsB) mapB.set(p.date, p.nav);
+
+  // Encontrar primer punto común
+  let inicio: { date: string; navA0: number; navB0: number } | undefined;
+  for (const p of navsA) {
+    const b = mapB.get(p.date);
+    if (b != null) { inicio = { date: p.date, navA0: p.nav, navB0: b }; break; }
+  }
+  if (!inicio) return [];
+
+  const pesoB = 1 - pesoA;
+  const out: NavPoint[] = [];
+  for (const p of navsA) {
+    if (p.date < inicio.date) continue;
+    const b = mapB.get(p.date);
+    if (b == null) continue;
+    // Normalizar a 100 para que se vea como un NAV típico
+    const synth = 100 * (pesoA * (p.nav / inicio.navA0) + pesoB * (b / inicio.navB0));
+    if (synth > 0) out.push({ date: p.date, nav: synth });
+  }
+  return out;
+}
+
+/**
  * "Dinero quemado" según la fórmula publicada en la página:
  *   dq(α, n) = inversion * (1 - (1 + α/100)^n)
  *
