@@ -21,9 +21,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { leerSnapshot, escribirSnapshot } from "@/lib/liga-storage";
 import { cargarFondosCsv, generarSnapshot } from "@/lib/liga-engine";
 
-// Permitimos hasta 60s para el bootstrap (Vercel Pro / Hobby permite >10s en
-// route handlers de App Router; el refresh tarda ~30s con 100 fondos).
-export const maxDuration = 60;
+// El refresh tarda ~30s con 100 fondos. En Hobby Vercel limita serverless
+// a 10s; Pro a 60s. Sin export explícito, Next.js usa el default del plan.
+// Si el bootstrap se queda corto, el cliente verá un timeout y reintentará
+// — los datos parciales no se guardan porque generarSnapshot es atómico.
 
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
