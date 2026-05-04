@@ -74,7 +74,8 @@ async function getRedis(): Promise<import("@upstash/redis").Redis | null> {
 //       - ishares-hy-esg: IHYG.L → EHYA.AS (era HY non-ESG, ahora ESG Acc)
 //       - indexa-eur-inflation: XEIN.DE → DBXK.DE (DBXK tiene ISIN registrado)
 //       - indexa-us-corp-hedged: VDCE.L → IE00BZ04LQ92.EUFUND (institucional Vanguard, desde 2015)
-const CACHE_VERSION = "v17";
+// v18 = HY EUR Corp: EHYA.AS/IE00BJK55C48 (ESG, desde 2019) → XHYA.DE/LU1109943388 (Xtrackers Acc, desde 2017, +2.5 años histórico)
+const CACHE_VERSION = "v18";
 
 function makeKey(fundId: string): string {
   return `${CACHE_VERSION}:prices:${fundId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;

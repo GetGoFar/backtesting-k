@@ -280,11 +280,11 @@ const INDEXED_FUNDS: Fund[] = [
   },
   {
     id: "ishares-hy-esg",
-    name: "iShares EUR High Yield Corporate Bond ESG UCITS ETF EUR (Acc)",
-    shortName: "iShares HY ESG",
-    isin: "IE00BJK55C48",
-    yahooTicker: "EHYA.AS", // IHYG.L era el HY non-ESG distrib (IE00B66F4759); EHYA es el ESG Acc correcto
-    ter: 0.25,
+    name: "Xtrackers II EUR High Yield Corporate Bond UCITS ETF 1C",
+    shortName: "Xtrackers HY EUR",
+    isin: "LU1109943388",
+    yahooTicker: "XHYA.DE", // XHYA.XETRA — Acumulación 1C, datos desde 2017-03 (vs 2019-11 del EHYA ESG). Sin ESG pero con +2.5 años de histórico
+    ter: 0.20,
     category: "RF EUR Corp",
     type: "index",
     currency: "EUR",
