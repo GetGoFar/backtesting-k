@@ -547,195 +547,184 @@ const BANCA_PRIVADA_PRESETS: PortfolioPreset[] = [
 ];
 
 // -----------------------------------------------------------------------------
-// Carteras K Geográfica UCIT (1-10) — Asset Class Allocation desde Portfolio Visualizer
-// Usa clases de activos geográficas (US Large Cap, Intl Developed, EM) en vez de sectores
-// RF: mezcla de duración corta/media/larga + corporate + high yield
+// Carteras K Geográfica UCIT (1-10) — Misma RF que K Inbestme, RV geográfica
+// La ÚNICA diferencia con K Inbestme es la diversificación de la RV:
+//   - K Inbestme: sectores MSCI World (Healthcare, Tech, Energy, Staples, Utilities, REITs)
+//   - K Geográfica UCIT: regiones (US Large Cap, Europe, Emerging Markets)
+// La parte de RF y Oro es IDÉNTICA en ambas. Pesos RV adaptados (Portfolio Visualizer).
 // -----------------------------------------------------------------------------
 
 const K_GEOGRAFICA_UCIT_PRESETS: PortfolioPreset[] = [
   {
     id: "k-geografica-ucit-1",
     name: "Cartera K1 Geográfica UCIT",
-    description: "10% RV + 75% RF + 15% Oro — Muy conservadora",
+    description: "10% RV Geográfica + 75% RF + 15% Oro",
     type: "index",
     holdings: [
-      // RV (10%)
+      // RV Geográfica (10%)
       { fundId: "vanguard-sp500", weight: 6.70 },
       { fundId: "ishares-europe", weight: 2.60 },
       { fundId: "amundi-emerging", weight: 0.70 },
-      // RF (75%)
-      { fundId: "amundi-gov-10-15y", weight: 4.50 },
-      { fundId: "xtrackers-gov-5-7y", weight: 6.50 },
-      { fundId: "amundi-gov-0-1y", weight: 33.50 },
-      { fundId: "vanguard-eur-corp", weight: 22.50 },
-      { fundId: "ishares-hy-esg", weight: 8.00 },
+      // RF (75%) — idéntica a K1 Inbestme
+      { fundId: "ishares-usd-treasury-hedged", weight: 20 },
+      { fundId: "amundi-gov-0-1y", weight: 45 },
+      { fundId: "vanguard-eur-corp", weight: 8 },
+      { fundId: "ishares-hy-esg", weight: 2 },
       // Oro (15%)
-      { fundId: "ishares-gold", weight: 15.00 },
+      { fundId: "ishares-gold", weight: 15 },
     ],
   },
   {
     id: "k-geografica-ucit-2",
     name: "Cartera K2 Geográfica UCIT",
-    description: "15% RV + 70% RF + 15% Oro — Conservadora",
+    description: "15% RV Geográfica + 70% RF + 15% Oro",
     type: "index",
     holdings: [
-      // RV (15%)
+      // RV Geográfica (15%)
       { fundId: "vanguard-sp500", weight: 10.00 },
       { fundId: "ishares-europe", weight: 3.90 },
       { fundId: "amundi-emerging", weight: 1.10 },
-      // RF (70%)
-      { fundId: "amundi-gov-10-15y", weight: 4.00 },
-      { fundId: "xtrackers-gov-5-7y", weight: 8.00 },
-      { fundId: "amundi-gov-0-1y", weight: 29.00 },
-      { fundId: "vanguard-eur-corp", weight: 18.00 },
-      { fundId: "ishares-hy-esg", weight: 11.00 },
+      // RF (70%) — idéntica a K2 Inbestme
+      { fundId: "ishares-usd-treasury-hedged", weight: 35 },
+      { fundId: "xtrackers-gov-1-3y", weight: 20 },
+      { fundId: "vanguard-eur-corp", weight: 11 },
+      { fundId: "ishares-hy-esg", weight: 4 },
       // Oro (15%)
-      { fundId: "ishares-gold", weight: 15.00 },
+      { fundId: "ishares-gold", weight: 15 },
     ],
   },
   {
     id: "k-geografica-ucit-3",
     name: "Cartera K3 Geográfica UCIT",
-    description: "25% RV + 60% RF + 15% Oro — Moderada-conservadora",
+    description: "25% RV Geográfica + 60% RF + 15% Oro",
     type: "index",
     holdings: [
-      // RV (25%)
+      // RV Geográfica (25%)
       { fundId: "vanguard-sp500", weight: 16.70 },
       { fundId: "ishares-europe", weight: 6.50 },
       { fundId: "amundi-emerging", weight: 1.80 },
-      // RF (60%)
-      { fundId: "amundi-gov-10-15y", weight: 5.00 },
-      { fundId: "xtrackers-gov-5-7y", weight: 9.00 },
-      { fundId: "amundi-gov-0-1y", weight: 22.00 },
-      { fundId: "vanguard-eur-corp", weight: 15.00 },
-      { fundId: "ishares-hy-esg", weight: 9.00 },
+      // RF (60%) — idéntica a K3 Inbestme
+      { fundId: "ishares-usd-treasury-hedged", weight: 30 },
+      { fundId: "xtrackers-gov-5-7y", weight: 15 },
+      { fundId: "vanguard-eur-corp", weight: 10 },
+      { fundId: "ishares-hy-esg", weight: 5 },
       // Oro (15%)
-      { fundId: "ishares-gold", weight: 15.00 },
+      { fundId: "ishares-gold", weight: 15 },
     ],
   },
   {
     id: "k-geografica-ucit-4",
     name: "Cartera K4 Geográfica UCIT",
-    description: "35% RV + 50% RF + 15% Oro — Moderada",
+    description: "35% RV Geográfica + 50% RF + 15% Oro",
     type: "index",
     holdings: [
-      // RV (35%)
+      // RV Geográfica (35%)
       { fundId: "vanguard-sp500", weight: 23.50 },
       { fundId: "ishares-europe", weight: 9.00 },
       { fundId: "amundi-emerging", weight: 2.50 },
-      // RF (50%)
-      { fundId: "amundi-gov-10-15y", weight: 5.00 },
-      { fundId: "xtrackers-gov-5-7y", weight: 9.00 },
-      { fundId: "amundi-gov-0-1y", weight: 21.00 },
-      { fundId: "vanguard-eur-corp", weight: 10.00 },
-      { fundId: "ishares-hy-esg", weight: 5.00 },
+      // RF (50%) — idéntica a K4 Inbestme
+      { fundId: "ishares-usd-treasury-hedged", weight: 10 },
+      { fundId: "xtrackers-gov-5-7y", weight: 25 },
+      { fundId: "vanguard-eur-corp", weight: 9 },
+      { fundId: "ishares-hy-esg", weight: 6 },
       // Oro (15%)
-      { fundId: "ishares-gold", weight: 15.00 },
+      { fundId: "ishares-gold", weight: 15 },
     ],
   },
   {
     id: "k-geografica-ucit-5",
     name: "Cartera K5 Geográfica UCIT",
-    description: "45% RV + 35% RF + 20% Oro — Equilibrada",
+    description: "45% RV Geográfica + 35% RF + 20% Oro",
     type: "index",
     holdings: [
-      // RV (45%)
+      // RV Geográfica (45%)
       { fundId: "vanguard-sp500", weight: 30.00 },
       { fundId: "ishares-europe", weight: 12.00 },
       { fundId: "amundi-emerging", weight: 3.00 },
-      // RF (35%)
-      { fundId: "xtrackers-gov-5-7y", weight: 16.00 },
-      { fundId: "amundi-gov-0-1y", weight: 12.00 },
-      { fundId: "vanguard-eur-corp", weight: 5.00 },
-      { fundId: "ishares-hy-esg", weight: 2.00 },
+      // RF (35%) — idéntica a K5 Inbestme
+      { fundId: "xtrackers-gov-5-7y", weight: 25 },
+      { fundId: "vanguard-eur-corp", weight: 6 },
+      { fundId: "ishares-hy-esg", weight: 4 },
       // Oro (20%)
-      { fundId: "ishares-gold", weight: 20.00 },
+      { fundId: "ishares-gold", weight: 20 },
     ],
   },
   {
     id: "k-geografica-ucit-6",
     name: "Cartera K6 Geográfica UCIT",
-    description: "55% RV + 25% RF + 20% Oro — Moderada-agresiva",
+    description: "60% RV Geográfica + 20% RF + 20% Oro",
     type: "index",
     holdings: [
-      // RV (55%)
-      { fundId: "vanguard-sp500", weight: 36.80 },
-      { fundId: "ishares-europe", weight: 14.30 },
-      { fundId: "amundi-emerging", weight: 3.90 },
-      // RF (25%)
-      { fundId: "amundi-gov-10-15y", weight: 7.50 },
-      { fundId: "xtrackers-gov-5-7y", weight: 5.00 },
-      { fundId: "amundi-gov-0-1y", weight: 12.50 },
+      // RV Geográfica (60%) — pesos PV escalados ×60/55 para alinear con K6 Inbestme
+      { fundId: "vanguard-sp500", weight: 40.00 },
+      { fundId: "ishares-europe", weight: 15.60 },
+      { fundId: "amundi-emerging", weight: 4.40 },
+      // RF (20%) — idéntica a K6 Inbestme
+      { fundId: "amundi-gov-7-10y", weight: 20 },
       // Oro (20%)
-      { fundId: "ishares-gold", weight: 20.00 },
+      { fundId: "ishares-gold", weight: 20 },
     ],
   },
   {
     id: "k-geografica-ucit-7",
     name: "Cartera K7 Geográfica UCIT",
-    description: "65% RV + 15% RF + 20% Oro — Agresiva",
+    description: "65% RV Geográfica + 15% RF + 20% Oro",
     type: "index",
     holdings: [
-      // RV (65%)
+      // RV Geográfica (65%)
       { fundId: "vanguard-sp500", weight: 43.60 },
       { fundId: "ishares-europe", weight: 16.80 },
       { fundId: "amundi-emerging", weight: 4.60 },
-      // RF (15%)
-      { fundId: "amundi-gov-10-15y", weight: 4.50 },
-      { fundId: "xtrackers-gov-5-7y", weight: 4.50 },
-      { fundId: "amundi-gov-0-1y", weight: 6.00 },
+      // RF (15%) — idéntica a K7 Inbestme
+      { fundId: "amundi-gov-7-10y", weight: 15 },
       // Oro (20%)
-      { fundId: "ishares-gold", weight: 20.00 },
+      { fundId: "ishares-gold", weight: 20 },
     ],
   },
   {
     id: "k-geografica-ucit-8",
     name: "Cartera K8 Geográfica UCIT",
-    description: "70% RV + 10% RF + 20% Oro — Muy agresiva",
+    description: "70% RV Geográfica + 10% RF + 20% Oro",
     type: "index",
     holdings: [
-      // RV (70%)
+      // RV Geográfica (70%)
       { fundId: "vanguard-sp500", weight: 47.00 },
       { fundId: "ishares-europe", weight: 18.00 },
       { fundId: "amundi-emerging", weight: 5.00 },
-      // RF (10%)
-      { fundId: "amundi-gov-10-15y", weight: 4.00 },
-      { fundId: "xtrackers-gov-5-7y", weight: 3.00 },
-      { fundId: "amundi-gov-0-1y", weight: 3.00 },
+      // RF (10%) — idéntica a K8 Inbestme
+      { fundId: "amundi-gov-10-15y", weight: 10 },
       // Oro (20%)
-      { fundId: "ishares-gold", weight: 20.00 },
+      { fundId: "ishares-gold", weight: 20 },
     ],
   },
   {
     id: "k-geografica-ucit-9",
     name: "Cartera K9 Geográfica UCIT",
-    description: "74% RV + 6% RF + 20% Oro — Máxima agresividad con RF",
+    description: "75% RV Geográfica + 5% RF + 20% Oro",
     type: "index",
     holdings: [
-      // RV (74%)
-      { fundId: "vanguard-sp500", weight: 50.00 },
-      { fundId: "ishares-europe", weight: 19.00 },
+      // RV Geográfica (75%) — pesos PV escalados ×75/74 para alinear con K9 Inbestme
+      { fundId: "vanguard-sp500", weight: 50.70 },
+      { fundId: "ishares-europe", weight: 19.30 },
       { fundId: "amundi-emerging", weight: 5.00 },
-      // RF (6%)
-      { fundId: "amundi-gov-10-15y", weight: 2.00 },
-      { fundId: "xtrackers-gov-5-7y", weight: 2.00 },
-      { fundId: "amundi-gov-0-1y", weight: 2.00 },
+      // RF (5%) — idéntica a K9 Inbestme
+      { fundId: "amundi-gov-10-15y", weight: 5 },
       // Oro (20%)
-      { fundId: "ishares-gold", weight: 20.00 },
+      { fundId: "ishares-gold", weight: 20 },
     ],
   },
   {
     id: "k-geografica-ucit-10",
     name: "Cartera K10 Geográfica UCIT",
-    description: "80% RV + 0% RF + 20% Oro — Máxima agresividad",
+    description: "80% RV Geográfica + 0% RF + 20% Oro",
     type: "index",
     holdings: [
-      // RV (80%)
+      // RV Geográfica (80%)
       { fundId: "vanguard-sp500", weight: 53.60 },
       { fundId: "ishares-europe", weight: 20.80 },
       { fundId: "amundi-emerging", weight: 5.60 },
       // Oro (20%)
-      { fundId: "ishares-gold", weight: 20.00 },
+      { fundId: "ishares-gold", weight: 20 },
     ],
   },
 ];
