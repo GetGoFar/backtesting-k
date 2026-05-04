@@ -547,15 +547,15 @@ const BANCA_PRIVADA_PRESETS: PortfolioPreset[] = [
 ];
 
 // -----------------------------------------------------------------------------
-// Carteras K Sectorial USA (1-10) — Asset Class Allocation desde Portfolio Visualizer
+// Carteras K Geográfica UCIT (1-10) — Asset Class Allocation desde Portfolio Visualizer
 // Usa clases de activos geográficas (US Large Cap, Intl Developed, EM) en vez de sectores
 // RF: mezcla de duración corta/media/larga + corporate + high yield
 // -----------------------------------------------------------------------------
 
-const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
+const K_GEOGRAFICA_UCIT_PRESETS: PortfolioPreset[] = [
   {
-    id: "k-sectorial-usa-1",
-    name: "Cartera K1 Sectorial USA",
+    id: "k-geografica-ucit-1",
+    name: "Cartera K1 Geográfica UCIT",
     description: "10% RV + 75% RF + 15% Oro — Muy conservadora",
     type: "index",
     holdings: [
@@ -574,8 +574,8 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
     ],
   },
   {
-    id: "k-sectorial-usa-2",
-    name: "Cartera K2 Sectorial USA",
+    id: "k-geografica-ucit-2",
+    name: "Cartera K2 Geográfica UCIT",
     description: "15% RV + 70% RF + 15% Oro — Conservadora",
     type: "index",
     holdings: [
@@ -594,8 +594,8 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
     ],
   },
   {
-    id: "k-sectorial-usa-3",
-    name: "Cartera K3 Sectorial USA",
+    id: "k-geografica-ucit-3",
+    name: "Cartera K3 Geográfica UCIT",
     description: "25% RV + 60% RF + 15% Oro — Moderada-conservadora",
     type: "index",
     holdings: [
@@ -614,8 +614,8 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
     ],
   },
   {
-    id: "k-sectorial-usa-4",
-    name: "Cartera K4 Sectorial USA",
+    id: "k-geografica-ucit-4",
+    name: "Cartera K4 Geográfica UCIT",
     description: "35% RV + 50% RF + 15% Oro — Moderada",
     type: "index",
     holdings: [
@@ -634,8 +634,8 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
     ],
   },
   {
-    id: "k-sectorial-usa-5",
-    name: "Cartera K5 Sectorial USA",
+    id: "k-geografica-ucit-5",
+    name: "Cartera K5 Geográfica UCIT",
     description: "45% RV + 35% RF + 20% Oro — Equilibrada",
     type: "index",
     holdings: [
@@ -653,8 +653,8 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
     ],
   },
   {
-    id: "k-sectorial-usa-6",
-    name: "Cartera K6 Sectorial USA",
+    id: "k-geografica-ucit-6",
+    name: "Cartera K6 Geográfica UCIT",
     description: "55% RV + 25% RF + 20% Oro — Moderada-agresiva",
     type: "index",
     holdings: [
@@ -671,8 +671,8 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
     ],
   },
   {
-    id: "k-sectorial-usa-7",
-    name: "Cartera K7 Sectorial USA",
+    id: "k-geografica-ucit-7",
+    name: "Cartera K7 Geográfica UCIT",
     description: "65% RV + 15% RF + 20% Oro — Agresiva",
     type: "index",
     holdings: [
@@ -689,8 +689,8 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
     ],
   },
   {
-    id: "k-sectorial-usa-8",
-    name: "Cartera K8 Sectorial USA",
+    id: "k-geografica-ucit-8",
+    name: "Cartera K8 Geográfica UCIT",
     description: "70% RV + 10% RF + 20% Oro — Muy agresiva",
     type: "index",
     holdings: [
@@ -707,8 +707,8 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
     ],
   },
   {
-    id: "k-sectorial-usa-9",
-    name: "Cartera K9 Sectorial USA",
+    id: "k-geografica-ucit-9",
+    name: "Cartera K9 Geográfica UCIT",
     description: "74% RV + 6% RF + 20% Oro — Máxima agresividad con RF",
     type: "index",
     holdings: [
@@ -725,8 +725,8 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
     ],
   },
   {
-    id: "k-sectorial-usa-10",
-    name: "Cartera K10 Sectorial USA",
+    id: "k-geografica-ucit-10",
+    name: "Cartera K10 Geográfica UCIT",
     description: "80% RV + 0% RF + 20% Oro — Máxima agresividad",
     type: "index",
     holdings: [
@@ -744,7 +744,7 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
 // Todos los presets combinados
 // -----------------------------------------------------------------------------
 
-const ALL_PRESETS: PortfolioPreset[] = [...K_INBESTME_PRESETS, ...K_SECTORIAL_USA_PRESETS, ...INDEXA_PRESETS, ...K_PRESETS, ...BANK_PRESETS, ...BANCA_PRIVADA_PRESETS];
+const ALL_PRESETS: PortfolioPreset[] = [...K_INBESTME_PRESETS, ...K_GEOGRAFICA_UCIT_PRESETS, ...INDEXA_PRESETS, ...K_PRESETS, ...BANK_PRESETS, ...BANCA_PRIVADA_PRESETS];
 
 // Mapa para búsqueda rápida por ID
 const PRESETS_BY_ID = new Map<string, PortfolioPreset>(
@@ -791,10 +791,10 @@ export function getKInbestmePresets(): PortfolioPreset[] {
 }
 
 /**
- * Obtiene presets de carteras K Sectorial USA (1-10)
+ * Obtiene presets de carteras K Geográfica UCIT (1-10)
  */
-export function getKSectorialUSAPresets(): PortfolioPreset[] {
-  return K_SECTORIAL_USA_PRESETS;
+export function getKGeograficaUCITPresets(): PortfolioPreset[] {
+  return K_GEOGRAFICA_UCIT_PRESETS;
 }
 
 /**

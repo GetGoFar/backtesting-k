@@ -182,9 +182,9 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
 
   // Agrupar presets por tipo
   const inbestmePresets = presets.filter((p) => p.id.startsWith("k-inbestme"));
-  const sectorialUSAPresets = presets.filter((p) => p.id.startsWith("k-sectorial-usa"));
+  const geograficaUCITPresets = presets.filter((p) => p.id.startsWith("k-geografica-ucit"));
   const indexaPresets = presets.filter((p) => p.id.startsWith("indexa-"));
-  const indexPresets = presets.filter((p) => p.type === "index" && !p.id.startsWith("k-inbestme") && !p.id.startsWith("k-sectorial-usa") && !p.id.startsWith("indexa-"));
+  const indexPresets = presets.filter((p) => p.type === "index" && !p.id.startsWith("k-inbestme") && !p.id.startsWith("k-geografica-ucit") && !p.id.startsWith("indexa-"));
   const bancaPrivadaPresets = presets.filter((p) => p.id.startsWith("banca-privada"));
   const activePresets = presets.filter((p) => p.type === "active" && !p.id.startsWith("banca-privada"));
 
@@ -275,13 +275,13 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                 </div>
               </div>
 
-              {/* Carteras K Sectorial USA (1-10) */}
+              {/* Carteras K Geográfica UCIT (1-10) */}
               <div className="p-2 border-b border-slate-100">
                 <p className="text-xs font-semibold text-sky-600 uppercase tracking-wider px-2 py-1">
-                  Carteras K Sectorial USA (1-10)
+                  Carteras K Geográfica UCIT (1-10)
                 </p>
                 <div className="grid grid-cols-2 gap-1">
-                  {sectorialUSAPresets.map((preset) => (
+                  {geograficaUCITPresets.map((preset) => (
                     <button
                       key={preset.id}
                       onClick={() => handlePresetSelect(preset)}
