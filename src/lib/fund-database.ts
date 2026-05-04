@@ -267,11 +267,11 @@ const INDEXED_FUNDS: Fund[] = [
   },
   {
     id: "vanguard-eur-corp",
-    name: "Vanguard EUR Corporate Bond UCITS ETF Accumulating",
-    shortName: "Vanguard Corp EUR",
-    isin: "IE00BGYWT403",
-    yahooTicker: "VECA.DE", // VECP era la versión distribución (IE00BZ163G84); VECA es la acumulación correcta
-    ter: 0.09,
+    name: "Xtrackers II EUR Corporate Bond UCITS ETF 1C",
+    shortName: "Xtrackers Corp EUR",
+    isin: "LU0478205379",
+    yahooTicker: "XBLC.DE", // XBLC.XETRA — Acumulación 1C, datos desde 2010-03 (vs 2019-02 del VECA Vanguard). +9 años de histórico
+    ter: 0.12,
     category: "RF EUR Corp",
     type: "index",
     currency: "EUR",
