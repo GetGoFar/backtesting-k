@@ -93,6 +93,17 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
   const feeDifference = Math.abs(feesA - feesB);
   const cheaperName = feesA < feesB ? resultA!.portfolioName : resultB!.portfolioName;
 
+  // Calcular periodos reales de cada cartera (en años)
+  const yearsA = resultA!.timeSeries.length > 1
+    ? (new Date(resultA!.timeSeries[resultA!.timeSeries.length - 1]!.exactDate || resultA!.timeSeries[resultA!.timeSeries.length - 1]!.date).getTime() -
+       new Date(resultA!.timeSeries[0]!.exactDate || resultA!.timeSeries[0]!.date).getTime()) / (1000 * 60 * 60 * 24 * 365.25)
+    : 0;
+  const yearsB = resultB!.timeSeries.length > 1
+    ? (new Date(resultB!.timeSeries[resultB!.timeSeries.length - 1]!.exactDate || resultB!.timeSeries[resultB!.timeSeries.length - 1]!.date).getTime() -
+       new Date(resultB!.timeSeries[0]!.exactDate || resultB!.timeSeries[0]!.date).getTime()) / (1000 * 60 * 60 * 24 * 365.25)
+    : 0;
+  const periodsDiffer = Math.abs(yearsA - yearsB) > 0.1; // más de ~36 días de diferencia
+
   return (
     <div className="rounded-2xl border border-slate-100 shadow-sm overflow-hidden bg-white">
       <div className="p-6 sm:p-8">
@@ -109,6 +120,25 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
           </div>
         </div>
 
+        {/* Aviso si los períodos no coinciden */}
+        {periodsDiffer && (
+          <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+              </svg>
+              <div className="text-sm">
+                <p className="text-amber-900 font-semibold mb-1">Comparación con períodos diferentes</p>
+                <p className="text-amber-800">
+                  <strong>{resultA!.portfolioName}</strong> tiene <strong>{yearsA.toFixed(1)} años</strong> de datos
+                  vs <strong>{yearsB.toFixed(1)} años</strong> de <strong>{resultB!.portfolioName}</strong>.
+                  Las comisiones absolutas en € no son comparables directamente. Activa "Usar rango común" para una comparación justa.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Stats comparativos grandes */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           <div className="rounded-xl bg-blue-50/50 border border-blue-100/50 p-5">
@@ -122,6 +152,11 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
               TER: {resultA!.fees.weightedTer.toFixed(2)}%
               {resultA!.fees.managementFee ? ` + Gestión: ${resultA!.fees.managementFee.toFixed(2)}%` : ""}
             </p>
+            {yearsA > 0 && (
+              <p className="text-xs text-brand-tertiary mt-1">
+                {yearsA.toFixed(1)} años · {(feesA / yearsA).toFixed(0)} €/año
+              </p>
+            )}
           </div>
 
           <div className="rounded-xl bg-rose-50/50 border border-rose-100/50 p-5">
@@ -135,6 +170,11 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
               TER: {resultB!.fees.weightedTer.toFixed(2)}%
               {resultB!.fees.managementFee ? ` + Gestión: ${resultB!.fees.managementFee.toFixed(2)}%` : ""}
             </p>
+            {yearsB > 0 && (
+              <p className="text-xs text-brand-tertiary mt-1">
+                {yearsB.toFixed(1)} años · {(feesB / yearsB).toFixed(0)} €/año
+              </p>
+            )}
           </div>
 
           <div className="rounded-xl bg-brand-navy p-5 text-white">
