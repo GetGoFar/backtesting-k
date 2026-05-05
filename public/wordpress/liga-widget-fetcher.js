@@ -41,7 +41,10 @@
 
 	function fmtEur( n ) {
 		if ( n == null || isNaN( n ) ) return '—';
-		var sign = n < 0 ? '-' : ( n > 0 ? '−' : '' ); // U+2212 para coherencia con el render existente
+		// Convencion DQ: raw POSITIVO = el fondo quema dinero al inversor (perdida).
+		// raw NEGATIVO = el fondo bate al benchmark (ahorro). Mostramos el signo
+		// que el lector espera ver: '+' para ahorro, '−' (U+2212) para perdida.
+		var sign = n < 0 ? '+' : ( n > 0 ? '−' : '' );
 		var abs = Math.abs( Math.round( n ) );
 		return sign + abs.toLocaleString( 'es-ES' ) + ' €';
 	}
@@ -68,9 +71,13 @@
 			? '<span class="type-badge type-' + tipo.toLowerCase() + '">' + tipo + '</span>'
 			: '';
 
+		// Bajo la metodologia de alfa por ventana, cada DQ se calcula con la alfa
+		// de su propia ventana (no con la historica proyectada). Si una ventana
+		// no tiene cobertura suficiente, el DQ es null y mostramos "—" sin asterisco.
+		// El asterisco "proyeccion" del render antiguo deja de tener sentido aqui.
 		var dq3html = '<span class="' + dqClass( f.dq3 ) + '">' + fmtEur( f.dq3 ) + '</span>';
 		var dq5html = '<span class="' + dqClass( f.dq5 ) + '">' + fmtEur( f.dq5 ) + '</span>';
-		var dq10html = '<span class="' + dqClass( f.dq10 ) + '">' + fmtEur( f.dq10 ) + '<span class="proj">*</span></span>';
+		var dq10html = '<span class="' + dqClass( f.dq10 ) + '">' + fmtEur( f.dq10 ) + '</span>';
 
 		// Barra de impacto: porcentual respecto al peor dq10 conocido (se calcula fuera)
 		var barWidth = Math.min( 100, Math.max( 0, f.__barPct || 0 ) );
