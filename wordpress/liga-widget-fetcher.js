@@ -3,8 +3,15 @@
  * =============================================================================
  *
  * Pega este script en el widget HTML de Elementor de la página
- * /liga-fondos-basura/, en un nuevo bloque <script> AL FINAL del widget
- * (justo antes del </script> de cierre del eval(atob)).
+ * /liga-fondos-basura/, en un nuevo bloque "<\script>" AL FINAL del widget
+ * (justo antes del "<\/script>" de cierre del eval(atob)).
+ *
+ * IMPORTANTE: las cadenas "<\script>" y "<\/script>" arriba llevan barra
+ * invertida adrede para no romper el parser HTML cuando este fichero se
+ * pega INLINE dentro de un bloque "<\script>...<\/script>". El parser HTML
+ * cierra el script en el primer "<\/script>" literal que ve, INCLUSO si
+ * está dentro de un comentario JS, y rompe la página. No quites las
+ * barras de los comentarios.
  *
  * NO toques el bloque eval(atob) existente. Este wrapper se ejecuta DESPUÉS
  * y reemplaza los datos hardcoded por los frescos del snapshot.
