@@ -99,7 +99,12 @@ export async function getDailyPrices(fundId: string, yahooTicker?: string, isin?
 
   // 2. Obtener datos del origen
   let prices: DailyPrice[] = [];
-  const isDistributing = fund?.distributing ?? false;
+  // Para fondos en la BD local: usar el flag distributing explícito (curado).
+  // Para fondos dinámicos (búsqueda): default a adjusted_close (=distributing=true) porque
+  // captura dividendos correctamente para ETFs distribución (DBMF, etc.) y para fondos
+  // acumulación limpios adjusted_close == close (no perjudica). Solo problemático en
+  // casos raros con "dividendos fantasma" en EODHD, que ya están curados en la BD local.
+  const isDistributing = fund ? (fund.distributing ?? false) : true;
 
   // 2a. Intentar EODHD primero (si hay API key y ticker)
   if (EODHD_API_TOKEN && EODHD_API_TOKEN !== "demo" && ticker) {
