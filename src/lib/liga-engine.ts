@@ -69,14 +69,21 @@ export interface ResultadoFondo {
   tipo: string;
   categoria: string;
   ter: number;
+  // alfa "principal" (== alfa5 cuando hay datos a 5 años; si no, la mejor
+  // ventana disponible). Se conserva para compatibilidad con consumidores
+  // antiguos del snapshot que sólo leen `alfa`. Las nuevas vistas deberían
+  // usar alfa3/alfa5/alfa10 directamente.
   alfa: number | null;          // anualizada en % (ej: -2.34)
-  dq3: number | null;           // €
-  dq5: number | null;
-  dq10: number | null;
+  alfa3: number | null;         // alfa de los últimos 3 años
+  alfa5: number | null;         // alfa de los últimos 5 años
+  alfa10: number | null;        // alfa de los últimos 10 años
+  dq3: number | null;           // € (calculado con alfa3)
+  dq5: number | null;           // € (calculado con alfa5)
+  dq10: number | null;          // € (calculado con alfa10)
   liga: LigaCategoria | null;
-  fechaInicio: string | null;   // primer NAV usado
-  fechaFin: string | null;      // último NAV usado
-  anosObservados: number | null;
+  fechaInicio: string | null;   // primer NAV usado (ventana 5y)
+  fechaFin: string | null;      // último NAV usado (ventana 5y)
+  anosObservados: number | null; // años cubiertos por la ventana 5y
   stale: boolean;               // true si se reusan valores de referencia
   error?: string;               // descripción si stale
   // --- Comparación con snapshot anterior ---
@@ -215,37 +222,40 @@ export function calcularCAGR(navIni: number, navFin: number, anos: number): numb
   return Math.pow(navFin / navIni, 1 / anos) - 1;
 }
 
+export interface AlfaResultado {
+  alfaPct: number;
+  fechaInicio: string;
+  fechaFin: string;
+  anos: number;
+}
+
 /**
  * Alfa anualizada del fondo respecto a su benchmark sobre el rango común
  * de fechas. Devuelve un valor en % (ej: -2.34 significa que el fondo
  * rinde 2.34 puntos porcentuales menos que su benchmark al año).
  *
  * Reglas:
- *  - Usa la fecha del primer NAV común y la del último NAV común.
- *  - Si el rango común es < 1 año, devuelve null.
+ *  - Usa el último NAV común como fecha final.
+ *  - Si `ventanaAnos` se pasa, busca el primer NAV común con fecha
+ *    >= (fechaFin - ventanaAnos años) y exige al menos `ventanaAnos - 0.5`
+ *    años de cobertura efectiva (margen para fondos cuyo NAV histórico no
+ *    arranca exactamente en el día N años atrás). Si no llega → null.
+ *  - Si `ventanaAnos` es undefined, usa el primer NAV común disponible
+ *    (rango histórico completo) y exige al menos 1 año.
  *  - Cualquier NAV inválido aborta (devuelve null).
  */
 export function calcularAlfa(
   navsFondo: NavPoint[],
   navsBench: NavPoint[],
-): { alfaPct: number; fechaInicio: string; fechaFin: string; anos: number } | null {
+  ventanaAnos?: number,
+): AlfaResultado | null {
   if (navsFondo.length < 2 || navsBench.length < 2) return null;
 
-  // Indexar por fecha
+  // Indexar bench por fecha para localizar puntos comunes
   const benchMap = new Map<string, number>();
   for (const p of navsBench) benchMap.set(p.date, p.nav);
 
-  // Primer punto común: primer date de fondo que también esté en benchMap
-  // (el orden de NAVs viene ascendente)
-  let iniFondo: NavPoint | undefined;
-  let iniBench: number | undefined;
-  for (const p of navsFondo) {
-    const b = benchMap.get(p.date);
-    if (b != null) { iniFondo = p; iniBench = b; break; }
-  }
-  if (!iniFondo || iniBench == null) return null;
-
-  // Último punto común: idem desde el final
+  // Último punto común (fecha final)
   let finFondo: NavPoint | undefined;
   let finBench: number | undefined;
   for (let i = navsFondo.length - 1; i >= 0; i--) {
@@ -256,8 +266,23 @@ export function calcularAlfa(
   }
   if (!finFondo || finBench == null) return null;
 
+  // Primer punto común dentro de la ventana (o desde el principio si no hay
+  // ventana). Para ventanas, calculamos el cutoff y avanzamos hasta el primer
+  // común con fecha >= cutoff.
+  const cutoff = ventanaAnos != null ? restarAnos(finFondo.date, ventanaAnos) : null;
+
+  let iniFondo: NavPoint | undefined;
+  let iniBench: number | undefined;
+  for (const p of navsFondo) {
+    if (cutoff != null && p.date < cutoff) continue;
+    const b = benchMap.get(p.date);
+    if (b != null) { iniFondo = p; iniBench = b; break; }
+  }
+  if (!iniFondo || iniBench == null) return null;
+
   const anos = aniosEntre(iniFondo.date, finFondo.date);
-  if (anos < 1) return null;
+  const minAnos = ventanaAnos != null ? ventanaAnos - 0.5 : 1;
+  if (anos < minAnos) return null;
 
   const cagrFondo = calcularCAGR(iniFondo.nav, finFondo.nav, anos);
   const cagrBench = calcularCAGR(iniBench, finBench, anos);
@@ -265,6 +290,13 @@ export function calcularAlfa(
 
   const alfaPct = (cagrFondo - cagrBench) * 100;
   return { alfaPct, fechaInicio: iniFondo.date, fechaFin: finFondo.date, anos };
+}
+
+/** Resta `anos` años a una fecha YYYY-MM-DD; devuelve YYYY-MM-DD. */
+function restarAnos(fechaIso: string, anos: number): string {
+  const d = new Date(fechaIso + "T00:00:00Z");
+  const ms = anos * DIAS_POR_ANO * 24 * 3600 * 1000;
+  return new Date(d.getTime() - ms).toISOString().slice(0, 10);
 }
 
 /**
@@ -389,15 +421,27 @@ export async function generarSnapshot(
       continue;
     }
 
-    const alfa = calcularAlfa(navsFondo, navsB);
-    if (!alfa) {
+    // Una alfa por horizonte: el DQ a 3 / 5 / 10 años refleja la alfa
+    // efectiva de esa ventana, no una proyección de la alfa histórica
+    // completa. Los fondos sin cobertura suficiente para una ventana
+    // dejan ese DQ a null (la UI ya muestra "—").
+    const alfa3 = calcularAlfa(navsFondo, navsB, 3);
+    const alfa5 = calcularAlfa(navsFondo, navsB, 5);
+    const alfa10 = calcularAlfa(navsFondo, navsB, 10);
+
+    // Si ni siquiera la ventana más corta arroja datos, tratamos como stale.
+    if (!alfa3 && !alfa5 && !alfa10) {
       resultados.push(stalePorFalta(f, previos.get(f.isin)));
       continue;
     }
 
-    const dq3 = dineroQuemado(alfa.alfaPct, 3);
-    const dq5 = dineroQuemado(alfa.alfaPct, 5);
-    const dq10 = dineroQuemado(alfa.alfaPct, 10);
+    const dq3 = alfa3 ? dineroQuemado(alfa3.alfaPct, 3) : null;
+    const dq5 = alfa5 ? dineroQuemado(alfa5.alfaPct, 5) : null;
+    const dq10 = alfa10 ? dineroQuemado(alfa10.alfaPct, 10) : null;
+
+    // Alfa "principal" para compatibilidad: alfa5 si existe, si no la
+    // ventana más larga disponible.
+    const alfaPpal = alfa5 ?? alfa10 ?? alfa3;
 
     resultados.push({
       isin: f.isin,
@@ -406,14 +450,17 @@ export async function generarSnapshot(
       tipo: f.tipo,
       categoria: f.categoria,
       ter: f.ter_pct,
-      alfa: alfa.alfaPct,
+      alfa: alfaPpal!.alfaPct,
+      alfa3: alfa3?.alfaPct ?? null,
+      alfa5: alfa5?.alfaPct ?? null,
+      alfa10: alfa10?.alfaPct ?? null,
       dq3,
       dq5,
       dq10,
       liga: null,           // se asigna después de ordenar
-      fechaInicio: alfa.fechaInicio,
-      fechaFin: alfa.fechaFin,
-      anosObservados: alfa.anos,
+      fechaInicio: alfaPpal!.fechaInicio,
+      fechaFin: alfaPpal!.fechaFin,
+      anosObservados: alfaPpal!.anos,
       stale: false,
       tendencia: "sin_ref", // se asigna después al comparar con previo
       dq5Anterior: null,
@@ -478,6 +525,9 @@ function stalePorFalta(f: FondoCsv, previo?: ResultadoFondo): ResultadoFondo {
     categoria: f.categoria,
     ter: f.ter_pct,
     alfa: null,
+    alfa3: null,
+    alfa5: null,
+    alfa10: null,
     dq3: f.ref_dq3 || null,
     dq5: f.ref_dq5 || null,
     dq10: f.ref_dq10 || null,

@@ -56,7 +56,10 @@ export interface ClassifyResult {
   nombre: string | null;
   gestora?: string | null;
   tipo: string | null;             // categoría/tipo Morningstar
-  alfa: number | null;             // %
+  alfa: number | null;             // % — alfa principal (alfa5 cuando hay datos a 5y)
+  alfa3: number | null;            // % — alfa de los últimos 3 años
+  alfa5: number | null;            // % — alfa de los últimos 5 años
+  alfa10: number | null;           // % — alfa de los últimos 10 años
   dq3: number | null;
   dq5: number | null;
   dq10: number | null;
@@ -340,7 +343,7 @@ export async function classifyFund(
   if (!isinValido(isin)) {
     return {
       isin, enLaLiga: false, nombre: null, tipo: null,
-      alfa: null, dq3: null, dq5: null, dq10: null,
+      alfa: null, alfa3: null, alfa5: null, alfa10: null, dq3: null, dq5: null, dq10: null,
       posicionTeorica: null, totalEnLiga, zona: null,
       benchmarkUsado: null,
       fechaInicio: null, fechaFin: null, anosObservados: null,
@@ -372,6 +375,9 @@ export async function classifyFund(
       gestora: enLiga.gestora,
       tipo: enLiga.categoria,
       alfa: enLiga.alfa,
+      alfa3: enLiga.alfa3,
+      alfa5: enLiga.alfa5,
+      alfa10: enLiga.alfa10,
       dq3: enLiga.dq3,
       dq5: enLiga.dq5,
       dq10: enLiga.dq10,
@@ -391,7 +397,7 @@ export async function classifyFund(
   if (!morningstar) {
     return {
       isin, enLaLiga: false, nombre: null, tipo: null,
-      alfa: null, dq3: null, dq5: null, dq10: null,
+      alfa: null, alfa3: null, alfa5: null, alfa10: null, dq3: null, dq5: null, dq10: null,
       posicionTeorica: null, totalEnLiga, zona: null,
       benchmarkUsado: null,
       fechaInicio: null, fechaFin: null, anosObservados: null,
@@ -430,7 +436,7 @@ export async function classifyFund(
     return {
       isin, enLaLiga: false,
       nombre: morningstar.nombre, tipo: morningstar.tipo,
-      alfa: null, dq3: null, dq5: null, dq10: null,
+      alfa: null, alfa3: null, alfa5: null, alfa10: null, dq3: null, dq5: null, dq10: null,
       posicionTeorica: null, totalEnLiga, zona: null,
       benchmarkUsado: benchmark,
       fechaInicio: null, fechaFin: null, anosObservados: null,
@@ -444,7 +450,7 @@ export async function classifyFund(
     return {
       isin, enLaLiga: false,
       nombre: morningstar.nombre, tipo: morningstar.tipo,
-      alfa: null, dq3: null, dq5: null, dq10: null,
+      alfa: null, alfa3: null, alfa5: null, alfa10: null, dq3: null, dq5: null, dq10: null,
       posicionTeorica: null, totalEnLiga, zona: null,
       benchmarkUsado: benchmark,
       fechaInicio: null, fechaFin: null, anosObservados: null,
@@ -454,40 +460,54 @@ export async function classifyFund(
     };
   }
 
-  const alfa = calcularAlfa(navsFondo, navsBench);
-  if (!alfa) {
+  // Una alfa por ventana (3y / 5y / 10y) — coherente con la nueva metodología
+  // del snapshot. Cada DQ se calcula con la alfa de su propia ventana.
+  const alfa3w = calcularAlfa(navsFondo, navsBench, 3);
+  const alfa5w = calcularAlfa(navsFondo, navsBench, 5);
+  const alfa10w = calcularAlfa(navsFondo, navsBench, 10);
+
+  if (!alfa3w && !alfa5w && !alfa10w) {
     return {
       isin, enLaLiga: false,
       nombre: morningstar.nombre, tipo: morningstar.tipo,
-      alfa: null, dq3: null, dq5: null, dq10: null,
+      alfa: null, alfa3: null, alfa5: null, alfa10: null, dq3: null, dq5: null, dq10: null,
       posicionTeorica: null, totalEnLiga, zona: null,
       benchmarkUsado: benchmark,
       fechaInicio: null, fechaFin: null, anosObservados: null,
       generadoEn,
       error: "rango_corto",
-      detalle: "Rango común con benchmark < 1 año, no se puede calcular alfa",
+      detalle: "Rango común con benchmark insuficiente para 3/5/10 años",
     };
   }
 
-  const dq3 = dineroQuemado(alfa.alfaPct, 3);
-  const dq5 = dineroQuemado(alfa.alfaPct, 5);
-  const dq10 = dineroQuemado(alfa.alfaPct, 10);
-  const { posicion, zona } = posicionEnRanking(dq5, opts.snapshot);
+  const dq3 = alfa3w ? dineroQuemado(alfa3w.alfaPct, 3) : null;
+  const dq5 = alfa5w ? dineroQuemado(alfa5w.alfaPct, 5) : null;
+  const dq10 = alfa10w ? dineroQuemado(alfa10w.alfaPct, 10) : null;
+
+  // Para posicionar en ranking necesitamos un dq5; si no hay, caemos a la
+  // ventana siguiente disponible para evitar dejar el fondo sin posición.
+  const dqRanking = dq5 ?? dq10 ?? dq3 ?? 0;
+  const { posicion, zona } = posicionEnRanking(dqRanking, opts.snapshot);
+
+  const alfaPpal = alfa5w ?? alfa10w ?? alfa3w;
 
   return {
     isin,
     enLaLiga: false,
     nombre: morningstar.nombre,
     tipo: morningstar.tipo,
-    alfa: alfa.alfaPct,
+    alfa: alfaPpal!.alfaPct,
+    alfa3: alfa3w?.alfaPct ?? null,
+    alfa5: alfa5w?.alfaPct ?? null,
+    alfa10: alfa10w?.alfaPct ?? null,
     dq3, dq5, dq10,
     posicionTeorica: posicion,
     totalEnLiga,
     zona,
     benchmarkUsado: benchmark,
-    fechaInicio: alfa.fechaInicio,
-    fechaFin: alfa.fechaFin,
-    anosObservados: alfa.anos,
+    fechaInicio: alfaPpal!.fechaInicio,
+    fechaFin: alfaPpal!.fechaFin,
+    anosObservados: alfaPpal!.anos,
     generadoEn,
   };
 }

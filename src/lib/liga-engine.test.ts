@@ -146,6 +146,32 @@ describe("calcularAlfa", () => {
     expect(calcularAlfa([], [])).toBeNull();
     expect(calcularAlfa([{ date: "2024-01-01", nav: 100 }], [])).toBeNull();
   });
+
+  it("ventana 3y aísla los últimos 3 años aunque la serie completa sea más larga", () => {
+    // Fondo crece 4% en 2018-2022 (mal vs bench 7%) y luego 10% en 2022-2025 (bate al 7%).
+    // El benchmark crece 7% todo el período.
+    // Una alfa "rango completo" sale negativa (~ -1%); una alfa de 3y debe ser positiva (~+3%).
+    const f1 = generarSerie(100, 0.04, "2018-01-01", "2022-01-01");
+    const navInter = f1[f1.length - 1]!.nav;
+    const f2 = generarSerie(navInter, 0.10, "2022-01-01", "2025-01-01");
+    const fondo = [...f1.slice(0, -1), ...f2];
+    const bench = generarSerie(100, 0.07, "2018-01-01", "2025-01-01");
+
+    const alfaCompleta = calcularAlfa(fondo, bench);
+    const alfa3y = calcularAlfa(fondo, bench, 3);
+
+    expect(alfaCompleta).not.toBeNull();
+    expect(alfa3y).not.toBeNull();
+    expect(alfaCompleta!.alfaPct).toBeLessThan(0);   // alfa histórica negativa
+    expect(alfa3y!.alfaPct).toBeGreaterThan(0);      // alfa últimos 3 años positiva
+    expect(alfa3y!.anos).toBeCloseTo(3, 0);
+  });
+
+  it("ventana 10y null si solo hay 7 años de datos comunes", () => {
+    const f = generarSerie(100, 0.05, "2018-01-01", "2025-01-01");
+    const b = generarSerie(100, 0.07, "2018-01-01", "2025-01-01");
+    expect(calcularAlfa(f, b, 10)).toBeNull();
+  });
 });
 
 describe("asignarCategoria (cuartiles)", () => {
@@ -384,6 +410,9 @@ function mockResultado(isin: string, dq5: number): ResultadoFondo {
     categoria: "RV Global",
     ter: 1.0,
     alfa: -2,
+    alfa3: -2,
+    alfa5: -2,
+    alfa10: -2,
     dq3: dq5 * 0.6,
     dq5,
     dq10: dq5 * 1.6,
