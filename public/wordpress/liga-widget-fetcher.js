@@ -300,7 +300,7 @@
 				var det = ( datos && datos.detalle ) || 'sin información';
 				var msg = '';
 				if ( datos && datos.error === 'no_eodhd' ) {
-					msg = 'No tenemos histórico suficiente de este fondo en EODHD. ' +
+					msg = 'No tenemos histórico suficiente de este fondo en nuestra base de datos. ' +
 						'Esto suele pasar con fondos muy nuevos o poco transparentes — ya es una primera mala señal.';
 				} else if ( datos && datos.error === 'no_morningstar' ) {
 					msg = 'No encontramos este fondo en Morningstar. Verifica el ISIN.';
