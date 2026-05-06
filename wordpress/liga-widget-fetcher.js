@@ -262,6 +262,24 @@
 	 *     zonas no activas. La barra de filtros del eval(atob) sigue funcionando
 	 *     dentro de la zona seleccionada.
 	 */
+	/**
+	 * Wrapea window.applyFilters (definido por el eval(atob)) para que cualquier
+	 * llamada posterior re-aplique también el filtro de zona activa. Sin esto,
+	 * cada interacción con los filtros del widget resetea nuestro filtro de tab.
+	 */
+	function hookearApplyFilters() {
+		if ( typeof window.applyFilters !== 'function' ) return;
+		if ( window._epkOrigApplyFilters ) return; // ya hookeado
+		window._epkOrigApplyFilters = window.applyFilters;
+		window.applyFilters = function () {
+			var ret = window._epkOrigApplyFilters.apply( this, arguments );
+			if ( window._ligaZonaActiva ) {
+				filtrarFilasPorZona( window._ligaZonaActiva.min, window._ligaZonaActiva.max );
+			}
+			return ret;
+		};
+	}
+
 	function inyectarTabsZona() {
 		if ( document.querySelector( '.liga-zonas-tabs' ) ) return;
 		var tabla = document.getElementById( 'ranking-table' );
@@ -306,11 +324,25 @@
 				b.setAttribute( 'aria-selected', 'true' );
 				var min = parseInt( b.getAttribute( 'data-min' ), 10 );
 				var max = parseInt( b.getAttribute( 'data-max' ), 10 );
-				filtrarFilasPorZona( min, max );
+				window._ligaZonaActiva = { min: min, max: max };
+				// Reaplicar filtros principales antes de filtrar por zona
+				if ( typeof window.applyFilters === 'function' ) {
+					try { window.applyFilters(); } catch ( e ) {
+						filtrarFilasPorZona( min, max );
+					}
+				} else {
+					filtrarFilasPorZona( min, max );
+				}
+				// Scroll suave a la tabla para que el usuario vea el cambio
+				var tabla = document.getElementById( 'ranking-table' );
+				if ( tabla ) tabla.scrollIntoView( { behavior: 'smooth', block: 'start' } );
 			} );
 		} );
 
-		// Aplicar filtro inicial: Champions
+		// Estado inicial: Champions activo. Hookear applyFilters para que las
+		// interacciones futuras (search, filtros gestora/tipo) respeten el tab.
+		window._ligaZonaActiva = { min: 1, max: 25 };
+		hookearApplyFilters();
 		filtrarFilasPorZona( 1, 25 );
 	}
 
