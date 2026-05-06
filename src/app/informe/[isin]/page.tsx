@@ -199,8 +199,8 @@ export default async function InformePage({ params, searchParams }: Props) {
           </h3>
           <p style={{ margin: 0, color: "#444", lineHeight: 1.5 }}>
             {fondoMejor
-              ? `Sobre 10.000 € invertidos durante ${inf.anosCubiertos.toFixed(1)} años, tu fondo terminó ${fmtEur(Math.abs(dq5Equiv))} por encima de la cartera K10. Felicidades — perteneces al pequeño grupo que efectivamente bate al indexado.`
-              : `Sobre 10.000 € invertidos durante ${inf.anosCubiertos.toFixed(1)} años, la K10 Sectorial terminó ${fmtEur(Math.abs(dq5Equiv))} por encima de tu fondo. Esa diferencia es lo que las comisiones del fondo activo te están costando — dinero que se queda en la gestora en lugar de en tu bolsillo.`}
+              ? `Sobre 10.000 € invertidos durante ${inf.anosCubiertos.toFixed(1)} años, tu fondo terminó ${fmtEur(Math.abs(dq5Equiv))} por encima de la cartera K10. Ten en cuenta que ambas carteras tienen composición distinta — parte de la diferencia es estructural (sectores, geografías, factores), no solo habilidad del gestor. Aun así, una outperformance sostenida frente a una cartera indexada barata es notable.`
+              : `Sobre 10.000 € invertidos durante ${inf.anosCubiertos.toFixed(1)} años, la K10 Sectorial terminó ${fmtEur(Math.abs(dq5Equiv))} por encima de tu fondo. Esa diferencia tiene varios componentes: las comisiones del fondo activo (que se las queda la gestora año tras año), las decisiones de stockpicking del gestor, y la composición sectorial distinta. La cartera indexada captura el mercado de forma eficiente y barata; el fondo activo te cobra por intentar batirlo y, en este caso, no lo está consiguiendo.`}
           </p>
         </section>
 
