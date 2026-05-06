@@ -373,6 +373,166 @@
 	}
 
 	/**
+	 * Reemplaza el contenido de la calculadora compleja por un form simple
+	 * de captura: ISIN + nombre + email. Auto-rellena el nombre del fondo
+	 * cuando el ISIN es válido. Tras submit, redirige al informe vía email
+	 * y muestra el link directo al informe en la propia página.
+	 */
+	function simplificarCalculadora() {
+		var sec = document.querySelector( '#calculadora.calc-section' )
+			|| document.querySelector( '.liga-wrapper .calc-section' );
+		if ( ! sec ) return;
+		if ( sec.getAttribute( 'data-simple' ) === '1' ) return; // ya simplificada
+		sec.setAttribute( 'data-simple', '1' );
+
+		sec.innerHTML =
+			'<div class="liga-simple-form-wrap">' +
+				'<h2 class="liga-simple-titulo">¿Quieres saber si tu fondo bate a la Cartera K10 Sectorial?</h2>' +
+				'<p class="liga-simple-sub">Te enviamos un informe gratuito comparando tu fondo contra una cartera indexada sectorial equivalente. Verás CAGR, volatilidad, drawdown máximo y correlación, en 1 minuto.</p>' +
+				'<form class="liga-simple-form" autocomplete="on">' +
+					'<div class="lsf-field"><label for="lsf-isin">ISIN de tu fondo</label>' +
+						'<input id="lsf-isin" name="isin" type="text" required maxlength="12" placeholder="Ej: ES0138861036" autocomplete="off" spellcheck="false" style="text-transform:uppercase">' +
+						'<div class="lsf-fondo-info" aria-live="polite"></div>' +
+					'</div>' +
+					'<div class="lsf-row">' +
+						'<div class="lsf-field"><label for="lsf-nombre">Tu nombre</label>' +
+							'<input id="lsf-nombre" name="nombre" type="text" required maxlength="80" placeholder="Pablo" autocomplete="given-name">' +
+						'</div>' +
+						'<div class="lsf-field"><label for="lsf-email">Tu email</label>' +
+							'<input id="lsf-email" name="email" type="email" required maxlength="180" placeholder="tu@email.com" autocomplete="email">' +
+						'</div>' +
+					'</div>' +
+					'<button type="submit" class="lsf-submit">Enviarme el informe gratis</button>' +
+					'<div class="lsf-priv">Sin spam. Te apuntas a la newsletter de El Proyecto K (4.200+ inversores). Te puedes desuscribir en 1 clic.</div>' +
+					'<div class="lsf-status" role="status" aria-live="polite"></div>' +
+				'</form>' +
+			'</div>';
+
+		bindSimpleForm( sec );
+	}
+
+	function bindSimpleForm( sec ) {
+		var input = sec.querySelector( '#lsf-isin' );
+		var info = sec.querySelector( '.lsf-fondo-info' );
+		var form = sec.querySelector( '.liga-simple-form' );
+		if ( ! input || ! form ) return;
+
+		var nombreFondoCache = '';
+		var lastIsin = '';
+		var debounceTimer = null;
+
+		function isinValido( s ) {
+			return /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test( ( s || '' ).toUpperCase() );
+		}
+
+		function pintarFondoInfo( html, cls ) {
+			info.className = 'lsf-fondo-info ' + ( cls || '' );
+			info.innerHTML = html;
+		}
+
+		function lookupNombre() {
+			var raw = ( input.value || '' ).trim().toUpperCase();
+			input.value = raw;
+			if ( raw === lastIsin ) return;
+			lastIsin = raw;
+			nombreFondoCache = '';
+			info.innerHTML = '';
+			if ( ! isinValido( raw ) ) return;
+
+			// 1) Lookup local LIGA_ISIN
+			if ( typeof window.LIGA_ISIN === 'object' && window.LIGA_ISIN[ raw ] ) {
+				var f = window.LIGA_ISIN[ raw ];
+				nombreFondoCache = f.n || '';
+				pintarFondoInfo(
+					'⚠️ <strong>' + escapeHtml( f.n ) + '</strong> ya está en La Liga (' + escapeHtml( f.b ) + '). Igualmente puedes recibir el informe.',
+					'lsf-warn'
+				);
+				return;
+			}
+
+			// 2) Lookup vía /api/fund-name
+			pintarFondoInfo( '⏳ Buscando fondo…', 'lsf-loading' );
+			var url = ( typeof window !== 'undefined' && window.__LIGA_FUNDNAME_URL_OVERRIDE )
+				|| 'https://backtesting-k.vercel.app/api/fund-name';
+			fetch( url + '?isin=' + encodeURIComponent( raw ) )
+				.then( function ( r ) { return r.json(); } )
+				.then( function ( d ) {
+					if ( ( input.value || '' ).trim().toUpperCase() !== raw ) return;
+					if ( d && d.ok && d.name ) {
+						nombreFondoCache = d.name;
+						pintarFondoInfo( '✅ <strong>' + escapeHtml( d.name ) + '</strong>', 'lsf-ok' );
+					} else {
+						pintarFondoInfo( 'No encontramos ese fondo en nuestra base. Verifica el ISIN.', 'lsf-warn' );
+					}
+				} )
+				.catch( function () {
+					pintarFondoInfo( 'No pudimos verificar el fondo, pero puedes seguir.', 'lsf-warn' );
+				} );
+		}
+
+		input.addEventListener( 'input', function () {
+			clearTimeout( debounceTimer );
+			debounceTimer = setTimeout( lookupNombre, 500 );
+		} );
+
+		form.addEventListener( 'submit', async function ( ev ) {
+			ev.preventDefault();
+			var isin = ( input.value || '' ).trim().toUpperCase();
+			var nombre = ( form.querySelector( '#lsf-nombre' ).value || '' ).trim();
+			var email = ( form.querySelector( '#lsf-email' ).value || '' ).trim();
+			var status = form.querySelector( '.lsf-status' );
+			var submit = form.querySelector( '.lsf-submit' );
+
+			if ( ! isinValido( isin ) ) {
+				status.className = 'lsf-status lsf-err';
+				status.textContent = 'El ISIN debe tener 12 caracteres (ej: ES0138861036).';
+				return;
+			}
+			if ( ! nombre || ! email ) {
+				status.className = 'lsf-status lsf-err';
+				status.textContent = 'Completa nombre y email.';
+				return;
+			}
+
+			submit.disabled = true;
+			status.className = 'lsf-status lsf-loading';
+			status.textContent = '⏳ Generando tu informe…';
+
+			try {
+				var r = await fetch( urlLead(), {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify( {
+						nombre: nombre, email: email, isin: isin,
+						fondoNombre: nombreFondoCache || isin
+					} )
+				} );
+				var data = await r.json();
+				if ( r.ok && data.ok ) {
+					form.classList.add( 'lsf-done' );
+					var vercelBase = ( typeof window !== 'undefined' && window.__LIGA_VERCEL_BASE )
+						|| 'https://backtesting-k.vercel.app';
+					var informeUrl = vercelBase + '/informe/' + encodeURIComponent( isin );
+					if ( nombreFondoCache ) informeUrl += '?nombre=' + encodeURIComponent( nombreFondoCache );
+					status.className = 'lsf-status lsf-ok';
+					status.innerHTML = '✅ Listo, ' + escapeHtml( nombre ) + '. Te hemos enviado el informe a ' +
+						escapeHtml( email ) + '.<br><a href="' + informeUrl + '" target="_blank" rel="noopener" class="lsf-link-informe">Ver informe ahora →</a>';
+				} else {
+					status.className = 'lsf-status lsf-err';
+					status.textContent = data.error === 'email_invalido'
+						? 'Ese email no parece válido.'
+						: 'Hubo un problema. Inténtalo de nuevo en 1 minuto.';
+					submit.disabled = false;
+				}
+			} catch ( err ) {
+				status.className = 'lsf-status lsf-err';
+				status.textContent = 'Sin conexión. Verifica tu red.';
+				submit.disabled = false;
+			}
+		} );
+	}
+
+	/**
 	 * Reduce densidad inicial: oculta los 2 charts grandes detrás de un toggle.
 	 * El usuario los ve si quiere, pero no los recibe de golpe al aterrizar.
 	 */
@@ -428,7 +588,33 @@
 			'.liga-zona-tab-emoji { font-size: 1.2em; line-height: 1; }' +
 			'.liga-zona-tab-label { font-size: .82em; font-weight: 600; line-height: 1.2; text-align: center; }' +
 			'.liga-zona-tab-count { font-size: .68em; color: inherit; opacity: .7; font-weight: 500; }' +
-			'@media (max-width: 600px) { .liga-zona-tab-label { font-size: .72em; } .liga-zona-tab { min-width: 90px; padding: 10px 6px; } }';
+			'@media (max-width: 600px) { .liga-zona-tab-label { font-size: .72em; } .liga-zona-tab { min-width: 90px; padding: 10px 6px; } }' +
+			// Form simplificado de captura (reemplaza la calculadora compleja)
+			'.liga-simple-form-wrap { padding: 24px 20px; }' +
+			'.liga-simple-titulo { color: #ff6b6b; font-size: 1.45em; font-weight: 700; line-height: 1.25; margin: 0 0 10px; }' +
+			'.liga-simple-sub { color: #c5c8d0; font-size: .95em; line-height: 1.55; margin: 0 0 22px; }' +
+			'.liga-simple-form .lsf-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }' +
+			'.liga-simple-form .lsf-field label { font-size: .78em; color: #aab; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }' +
+			'.liga-simple-form input { background: rgba(15,15,30,0.85); color: #e8e8ec; border: 1px solid rgba(255,255,255,0.18); padding: 12px 14px; border-radius: 8px; font-size: 1em; font-family: inherit; transition: border-color .15s, box-shadow .15s; }' +
+			'.liga-simple-form input:focus { border-color: #ff6b6b; outline: none; box-shadow: 0 0 0 3px rgba(255,107,107,0.2); }' +
+			'.liga-simple-form input::placeholder { color: #555; }' +
+			'.liga-simple-form .lsf-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }' +
+			'.liga-simple-form .lsf-fondo-info { font-size: .9em; line-height: 1.4; min-height: 1.4em; padding: 4px 0; }' +
+			'.liga-simple-form .lsf-fondo-info.lsf-ok { color: #6bcf7f; }' +
+			'.liga-simple-form .lsf-fondo-info.lsf-warn { color: #ffb74d; }' +
+			'.liga-simple-form .lsf-fondo-info.lsf-loading { color: #aab; }' +
+			'.liga-simple-form .lsf-submit { width: 100%; background: linear-gradient(135deg, #ff4444, #ff6b6b); color: #fff; border: none; padding: 14px 24px; border-radius: 8px; font-weight: 700; font-size: 1em; cursor: pointer; transition: transform .1s, box-shadow .15s; font-family: inherit; margin-top: 8px; }' +
+			'.liga-simple-form .lsf-submit:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(255,68,68,0.4); }' +
+			'.liga-simple-form .lsf-submit:disabled { opacity: .55; cursor: not-allowed; }' +
+			'.liga-simple-form .lsf-priv { font-size: .75em; color: #888; margin-top: 12px; line-height: 1.5; text-align: center; }' +
+			'.liga-simple-form .lsf-status { margin-top: 14px; font-size: .9em; line-height: 1.5; padding: 10px 12px; border-radius: 6px; }' +
+			'.liga-simple-form .lsf-status:empty { display: none; }' +
+			'.liga-simple-form .lsf-status.lsf-loading { color: #aab; background: rgba(255,255,255,0.04); }' +
+			'.liga-simple-form .lsf-status.lsf-ok { color: #6bcf7f; background: rgba(42,157,63,0.12); border-left: 3px solid #2a9d3f; }' +
+			'.liga-simple-form .lsf-status.lsf-err { color: #ff8888; background: rgba(220,50,50,0.12); border-left: 3px solid #c62828; }' +
+			'.liga-simple-form .lsf-link-informe { display: inline-block; margin-top: 8px; color: #4caf50; font-weight: 700; text-decoration: underline; }' +
+			'.liga-simple-form.lsf-done .lsf-field, .liga-simple-form.lsf-done .lsf-row, .liga-simple-form.lsf-done .lsf-submit, .liga-simple-form.lsf-done .lsf-priv { display: none; }' +
+			'@media (max-width: 600px) { .liga-simple-form .lsf-row { grid-template-columns: 1fr; } .liga-simple-titulo { font-size: 1.2em; } }';
 		document.head.appendChild( style );
 	}
 
@@ -463,6 +649,7 @@
 		// aplicamos cuanto antes para que el render inicial ya sea menos denso.
 		inyectarEstilosLigaMedia();
 		colapsarGraficos();
+		simplificarCalculadora();
 
 		fetch( SNAPSHOT_URL, { credentials: 'same-origin' } )
 			.then( function ( r ) {
