@@ -37,17 +37,23 @@ export async function OPTIONS(): Promise<NextResponse> {
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  let snap = await leerSnapshot();
+  const url = new URL(req.url);
+  const bootstrap = url.searchParams.get("bootstrap") === "1";
+  const force = url.searchParams.get("force") === "1";
+
+  // force=1 ignora el snapshot cacheado y lo regenera (útil para refresh
+  // bajo demanda con datos frescos). Requiere EODHD_API_TOKEN configurado.
+  // Sin force, leemos el snapshot existente y solo regeneramos si no hay.
+  let snap = force ? null : await leerSnapshot();
+  const previo = force ? await leerSnapshot() : null;
 
   if (!snap) {
-    const url = new URL(req.url);
-    const bootstrap = url.searchParams.get("bootstrap") === "1";
-    if (bootstrap && process.env.EODHD_API_TOKEN) {
+    if ((bootstrap || force) && process.env.EODHD_API_TOKEN) {
       try {
         const fondos = await cargarFondosCsv();
         snap = await generarSnapshot(fondos, {
           apiToken: process.env.EODHD_API_TOKEN,
-          snapshotPrevio: null,
+          snapshotPrevio: previo,
         });
         await escribirSnapshot(snap);
       } catch (err) {
@@ -61,8 +67,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json(
         {
           error: "snapshot todavía no generado",
-          hint: "añade ?bootstrap=1 para auto-generarlo",
-          buildMarker: "DEPLOY-CHECK-2026-05-03-A",
+          hint: "añade ?bootstrap=1 para auto-generarlo, o ?force=1 para regenerar",
+          buildMarker: "DEPLOY-CHECK-2026-05-06-A",
           eodhdConfigured: !!process.env.EODHD_API_TOKEN,
           bootstrapRequested: bootstrap,
         },
