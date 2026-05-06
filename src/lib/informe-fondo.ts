@@ -100,9 +100,10 @@ export async function generarInformeFondo(
     initialAmount: INVERSION_INICIAL,
     rebalanceFrequency: "monthly",
     useCommonDateRange: true,
-    // Daily para que las métricas (CAGR/Vol/MDD) sean idénticas al backtester
-    // completo. El chart luego se downsample a mensual en el cliente.
-    displayGranularity: "daily",
+    // Mensual: Pablo prefiere ese granularity para comparar (encaja mejor
+    // visualmente con la curva del backtester completo). Las metricas
+    // residuales difieren ~0,3pp respecto a daily — aceptable.
+    displayGranularity: "monthly",
   };
 
   let res;
@@ -118,31 +119,10 @@ export async function generarInformeFondo(
     return null;
   }
 
-  // 4) Construir series para el chart. Backtest corre en daily para que las
-  //    metricas sean precisas, pero el chart no necesita 2000+ puntos —
-  //    downsample a mensual cogiendo el ultimo dia de cada mes.
-  const downsample = (series: typeof res.a.timeSeries) => {
-    const out: typeof series = [];
-    let mesActual = "";
-    for (let i = 0; i < series.length; i++) {
-      const p = series[i]!;
-      const ym = (p.exactDate || p.date).slice(0, 7);
-      const ymSig = i + 1 < series.length ? (series[i + 1]!.exactDate || series[i + 1]!.date).slice(0, 7) : "";
-      // Tomamos el último día de cada mes
-      if (ym !== ymSig || i === series.length - 1) {
-        if (ym !== mesActual) {
-          out.push(p);
-          mesActual = ym;
-        }
-      }
-    }
-    return out;
-  };
-  const sa = downsample(res.a.timeSeries);
-  const sb = downsample(res.b.timeSeries);
-  const fechasA = sa.map((p) => p.exactDate || p.date);
-  const valoresA = sa.map((p) => Math.round(p.value));
-  const valoresB = sb.map((p) => Math.round(p.value));
+  // 4) Construir series alineadas para el chart (ya en granularidad mensual).
+  const fechasA = res.a.timeSeries.map((p) => p.exactDate || p.date);
+  const valoresA = res.a.timeSeries.map((p) => Math.round(p.value));
+  const valoresB = res.b.timeSeries.map((p) => Math.round(p.value));
 
   // 5) Correlación: viene del backtest si lo expone, si no calculamos manual
   let correlacion = res.correlation ?? null;
