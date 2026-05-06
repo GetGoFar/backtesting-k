@@ -15,6 +15,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import InformeChart from "./InformeChart";
+import InformeChartsExtra from "./InformeChartsExtra";
 import type { InformeFondo } from "@/lib/informe-fondo";
 
 interface ApiResponse {
@@ -190,6 +191,16 @@ export default async function InformePage({ params, searchParams }: Props) {
           </div>
         </section>
 
+        {/* Charts adicionales: rentabilidades anuales, drawdowns, rolling returns */}
+        <InformeChartsExtra
+          nombreFondo={inf.nombreFondo}
+          rentabilidadesAnuales={inf.rentabilidadesAnuales}
+          drawdowns={inf.drawdowns}
+          rolling1y={inf.rolling1y}
+          rolling3y={inf.rolling3y}
+          rolling5y={inf.rolling5y}
+        />
+
         {/* Resumen interpretación */}
         <section style={{ ...cardStyle, marginTop: 16, background: fondoMejor ? "#f0f9ff" : "#fef2f2", borderLeft: `4px solid ${fondoMejor ? "#1d4ed8" : "#dc2626"}` }}>
           <h3 style={{ margin: "0 0 8px", fontSize: 16, color: fondoMejor ? "#1d4ed8" : "#dc2626" }}>
@@ -227,15 +238,13 @@ export default async function InformePage({ params, searchParams }: Props) {
           </a>
         </section>
 
-        {/* Disclaimer */}
-        <footer style={{ marginTop: 24, fontSize: 12, color: "#888", textAlign: "center", lineHeight: 1.6 }}>
-          <p>
-            Datos: Morningstar / EODHD. Período común disponible con la cartera K10. Las rentabilidades pasadas no garantizan resultados futuros.
+        {/* Aviso legal */}
+        <section style={{ marginTop: 24, padding: 16, background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, color: "#78350f", fontSize: 13, lineHeight: 1.6 }}>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>⚠️ Aviso legal</div>
+          <p style={{ margin: 0 }}>
+            Esta herramienta tiene fines exclusivamente educativos. Las rentabilidades pasadas no garantizan resultados futuros. Los datos de fondos bancarios pueden no reflejar valores liquidativos exactos. Consulta siempre el folleto informativo de cada fondo. El Proyecto K no es una entidad de asesoramiento financiero regulada.
           </p>
-          <p>
-            Esta herramienta tiene fines exclusivamente educativos. El Proyecto K no es una entidad de asesoramiento financiero regulada.
-          </p>
-        </footer>
+        </section>
       </div>
     </main>
   );

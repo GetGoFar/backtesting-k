@@ -32,6 +32,18 @@ export interface InformeKpi {
   maxDrawdown: number;
 }
 
+export interface RentabilidadAnual {
+  ano: number;
+  fondo: number; // % (ej: 12.5 para +12.5%)
+  k10: number;
+}
+
+export interface SerieTemporal {
+  fechas: string[];
+  valoresFondo: number[];
+  valoresK10: number[];
+}
+
 export interface InformeFondo {
   isin: string;
   nombreFondo: string;
@@ -43,6 +55,12 @@ export interface InformeFondo {
   correlacion: number;
   rangoFechas: { inicio: string; fin: string };
   anosCubiertos: number;
+  // Datos para los charts adicionales
+  rentabilidadesAnuales: RentabilidadAnual[];
+  drawdowns: SerieTemporal;       // serie completa de drawdown (% negativo)
+  rolling1y: SerieTemporal;       // rentabilidad móvil anualizada 1y
+  rolling3y: SerieTemporal;
+  rolling5y: SerieTemporal;
 }
 
 const DIAS_POR_ANO = 365.25;
@@ -136,6 +154,36 @@ export async function generarInformeFondo(
   const ms = new Date(fechaFin + "T00:00:00Z").getTime() - new Date(fechaIni + "T00:00:00Z").getTime();
   const anosCubiertos = ms / (DIAS_POR_ANO * 24 * 3600 * 1000);
 
+  // 7) Rentabilidades anuales: combinar las dos carteras por año
+  const mapaA = new Map(res.a.annualReturns.map((r) => [r.year, r.returnPct]));
+  const mapaB = new Map(res.b.annualReturns.map((r) => [r.year, r.returnPct]));
+  const anosUnicos = Array.from(new Set([...mapaA.keys(), ...mapaB.keys()])).sort();
+  const rentabilidadesAnuales: RentabilidadAnual[] = anosUnicos.map((ano) => ({
+    ano,
+    fondo: mapaA.get(ano) ?? 0,
+    k10: mapaB.get(ano) ?? 0,
+  }));
+
+  // 8) Drawdowns: alinear las dos series por fecha
+  const drawdowns = alinearSeries(
+    res.a.drawdowns.map((p) => ({ fecha: p.exactDate || p.date, valor: p.drawdown })),
+    res.b.drawdowns.map((p) => ({ fecha: p.exactDate || p.date, valor: p.drawdown })),
+  );
+
+  // 9) Rolling returns 1/3/5 años
+  const rolling1y = alinearSeries(
+    res.a.rollingReturns.oneYear.map((p) => ({ fecha: p.exactDate || p.date, valor: p.value })),
+    res.b.rollingReturns.oneYear.map((p) => ({ fecha: p.exactDate || p.date, valor: p.value })),
+  );
+  const rolling3y = alinearSeries(
+    res.a.rollingReturns.threeYear.map((p) => ({ fecha: p.exactDate || p.date, valor: p.value })),
+    res.b.rollingReturns.threeYear.map((p) => ({ fecha: p.exactDate || p.date, valor: p.value })),
+  );
+  const rolling5y = alinearSeries(
+    res.a.rollingReturns.fiveYear.map((p) => ({ fecha: p.exactDate || p.date, valor: p.value })),
+    res.b.rollingReturns.fiveYear.map((p) => ({ fecha: p.exactDate || p.date, valor: p.value })),
+  );
+
   return {
     isin,
     nombreFondo,
@@ -147,6 +195,26 @@ export async function generarInformeFondo(
     correlacion,
     rangoFechas: { inicio: fechaIni, fin: fechaFin },
     anosCubiertos,
+    rentabilidadesAnuales,
+    drawdowns,
+    rolling1y,
+    rolling3y,
+    rolling5y,
+  };
+}
+
+/** Alinea dos series por fecha; valor faltante se pone en 0. */
+function alinearSeries(
+  a: Array<{ fecha: string; valor: number }>,
+  b: Array<{ fecha: string; valor: number }>,
+): SerieTemporal {
+  const mapaA = new Map(a.map((p) => [p.fecha, p.valor]));
+  const mapaB = new Map(b.map((p) => [p.fecha, p.valor]));
+  const fechas = Array.from(new Set([...mapaA.keys(), ...mapaB.keys()])).sort();
+  return {
+    fechas,
+    valoresFondo: fechas.map((f) => mapaA.get(f) ?? 0),
+    valoresK10: fechas.map((f) => mapaB.get(f) ?? 0),
   };
 }
 
