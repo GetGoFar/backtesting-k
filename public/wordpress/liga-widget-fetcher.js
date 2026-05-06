@@ -198,17 +198,107 @@
 		try { window.LIGA_TOTAL = dq10Sorted.length; } catch ( e ) {}
 	}
 
+	var MESES_ES = [ 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+		'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre' ];
+
 	function actualizarFecha( generadoEn ) {
 		var el = document.getElementById( DATE_EL_ID );
 		if ( ! el ) return;
 		try {
 			var d = new Date( generadoEn );
-			var meses = [ 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-				'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre' ];
-			el.textContent = meses[ d.getUTCMonth() ] + ' ' + d.getUTCFullYear();
+			el.textContent = MESES_ES[ d.getUTCMonth() ] + ' ' + d.getUTCFullYear();
 		} catch ( e ) {
 			el.textContent = '';
 		}
+	}
+
+	/**
+	 * Banner de "Jornada de [mes] · [año]" — refuerza la metáfora de liga.
+	 * Se inserta justo bajo el header del widget y muestra fecha exacta de
+	 * la última actualización. Si falla todo, usa la fecha del cliente para
+	 * que al menos el banner aparezca con algo razonable.
+	 */
+	function inyectarBannerJornada( generadoEnIso ) {
+		if ( document.querySelector( '.liga-jornada-banner' ) ) return; // ya inyectado
+		var header = document.querySelector( '.liga-wrapper .liga-header' );
+		if ( ! header ) return;
+
+		var fecha;
+		try { fecha = new Date( generadoEnIso || Date.now() ); } catch ( e ) { fecha = new Date(); }
+		var mes = MESES_ES[ fecha.getUTCMonth() ];
+		var anyo = fecha.getUTCFullYear();
+		var dia = fecha.getUTCDate();
+		var fechaTxt = dia + ' de ' + mes + ' de ' + anyo;
+
+		// Calcular jornada = (mes - mes_inicio) + 1, considerando enero 2026 como jornada 1.
+		// Ajustable si el cliente quiere otra base.
+		var jornadaIni = new Date( Date.UTC( 2026, 0, 1 ) ); // 1-ene-2026 = jornada 1
+		var diffMs = fecha.getTime() - jornadaIni.getTime();
+		var jornada = Math.max( 1, Math.floor( diffMs / ( 30.44 * 24 * 3600 * 1000 ) ) + 1 );
+
+		var html =
+			'<div class="liga-jornada-banner">' +
+				'<div class="liga-jornada-left">' +
+					'<div class="liga-jornada-titulo">🏆 Jornada ' + jornada + ' · ' + mes.charAt( 0 ).toUpperCase() + mes.slice( 1 ) + ' ' + anyo + '</div>' +
+					'<div class="liga-jornada-sub">La clasificación se mueve cada mes con datos frescos de Morningstar</div>' +
+				'</div>' +
+				'<div class="liga-jornada-right">' +
+					'<div class="liga-jornada-fecha-label">Última actualización</div>' +
+					'<div class="liga-jornada-fecha-val">' + fechaTxt + '</div>' +
+				'</div>' +
+			'</div>';
+		header.insertAdjacentHTML( 'afterend', html );
+	}
+
+	/**
+	 * Reduce densidad inicial: oculta los 2 charts grandes detrás de un toggle.
+	 * El usuario los ve si quiere, pero no los recibe de golpe al aterrizar.
+	 */
+	function colapsarGraficos() {
+		var grid = document.querySelector( '.liga-wrapper .charts-grid' );
+		if ( ! grid ) return;
+		if ( document.querySelector( '.liga-charts-toggle' ) ) return; // ya colapsado
+
+		grid.style.display = 'none';
+		grid.setAttribute( 'data-collapsed', '1' );
+
+		var btn = document.createElement( 'button' );
+		btn.className = 'liga-charts-toggle';
+		btn.type = 'button';
+		btn.innerHTML = '📊 Ver análisis gráfico detallado';
+		btn.addEventListener( 'click', function () {
+			var collapsed = grid.getAttribute( 'data-collapsed' ) === '1';
+			if ( collapsed ) {
+				grid.style.display = '';
+				grid.setAttribute( 'data-collapsed', '0' );
+				btn.innerHTML = '✕ Ocultar análisis gráfico';
+			} else {
+				grid.style.display = 'none';
+				grid.setAttribute( 'data-collapsed', '1' );
+				btn.innerHTML = '📊 Ver análisis gráfico detallado';
+			}
+		} );
+		grid.insertAdjacentElement( 'beforebegin', btn );
+	}
+
+	/**
+	 * Inyecta los estilos del banner y el toggle de gráficos. Idempotente.
+	 */
+	function inyectarEstilosLigaMedia() {
+		if ( document.getElementById( 'liga-media-styles' ) ) return;
+		var style = document.createElement( 'style' );
+		style.id = 'liga-media-styles';
+		style.textContent =
+			'.liga-jornada-banner { background: linear-gradient(90deg, rgba(255,68,68,0.18), rgba(29,78,216,0.10)); border: 1px solid rgba(255,68,68,0.3); border-radius: 12px; padding: 18px 26px; margin: 0 0 28px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }' +
+			'.liga-jornada-titulo { font-size: 1.4em; font-weight: 700; color: #ff6b6b; line-height: 1.2; }' +
+			'.liga-jornada-sub { font-size: .88em; color: #aab; margin-top: 4px; }' +
+			'.liga-jornada-right { text-align: right; }' +
+			'.liga-jornada-fecha-label { font-size: .72em; color: #888; text-transform: uppercase; letter-spacing: 1px; }' +
+			'.liga-jornada-fecha-val { font-size: 1em; color: #e0e0e0; font-weight: 600; margin-top: 2px; }' +
+			'@media (max-width: 600px) { .liga-jornada-right { text-align: left; } .liga-jornada-banner { padding: 14px 18px; } .liga-jornada-titulo { font-size: 1.15em; } }' +
+			'.liga-charts-toggle { display: block; margin: 0 auto 24px; background: rgba(29,78,216,0.15); border: 1px solid rgba(29,78,216,0.45); color: #9ec1ff; padding: 11px 22px; border-radius: 8px; cursor: pointer; font-size: .95em; font-weight: 600; font-family: inherit; transition: background .15s, transform .1s; }' +
+			'.liga-charts-toggle:hover { background: rgba(29,78,216,0.28); transform: translateY(-1px); }';
+		document.head.appendChild( style );
 	}
 
 	function setStatus( msg ) {
@@ -238,6 +328,11 @@
 	}
 
 	function inicializar() {
+		// Liga Media: estilos + toggle gráficos no dependen del snapshot, los
+		// aplicamos cuanto antes para que el render inicial ya sea menos denso.
+		inyectarEstilosLigaMedia();
+		colapsarGraficos();
+
 		fetch( SNAPSHOT_URL, { credentials: 'same-origin' } )
 			.then( function ( r ) {
 				if ( ! r.ok ) throw new Error( 'HTTP ' + r.status );
@@ -251,12 +346,16 @@
 				if ( ! ok ) throw new Error( 'no se encontró #ranking-table tbody' );
 				actualizarLookups( snap.fondos );
 				actualizarFecha( snap.generadoEn );
+				inyectarBannerJornada( snap.generadoEn );
 				aplicarFiltrosSeguro();
 				setStatus( '' );
 			} )
 			.catch( function ( err ) {
 				console.warn( '[liga-fetcher] usando datos hardcoded como fallback:', err );
-				setStatus( '' ); // mantener silencio para el usuario; los datos hardcoded se ven igual
+				// Aunque falle el snapshot, mostramos el banner con la fecha del cliente
+				// — así al menos el usuario ve "Jornada N · mes año" coherente.
+				inyectarBannerJornada( null );
+				setStatus( '' );
 			} );
 
 		instalarClassifyEnDetectFund();
