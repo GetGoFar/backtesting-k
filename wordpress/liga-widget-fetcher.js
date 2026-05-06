@@ -700,7 +700,17 @@
 					if ( r.ok && data.ok ) {
 						form.classList.add( 'll-done' );
 						status.className = 'll-status ll-ok';
-						status.textContent = '✅ Plan en camino a ' + email + '. Revisa tu bandeja en los próximos minutos.';
+						// El informe se hospeda en Vercel — el lead recibe email pero
+						// ademas le mostramos el link directo aqui para verlo ya.
+						var isinUsuario = datos.isin || form.dataset.isin || '';
+						var vercelBase = ( typeof window !== 'undefined' && window.__LIGA_VERCEL_BASE )
+							|| 'https://backtesting-k.vercel.app';
+						var informeUrl = isinUsuario ? ( vercelBase + '/informe/' + encodeURIComponent( isinUsuario ) ) : '';
+						status.innerHTML = '✅ Apuntado, ' + escapeHtml( nombre ) + '. Te hemos enviado el informe a ' +
+							escapeHtml( email ) + '.' +
+							( informeUrl
+								? ' <br><a href="' + informeUrl + '" target="_blank" rel="noopener" style="color:#4caf50;font-weight:700;text-decoration:underline">Ver informe ahora →</a>'
+								: '' );
 					} else {
 						status.className = 'll-status ll-err';
 						status.textContent = data.error === 'email_invalido'
