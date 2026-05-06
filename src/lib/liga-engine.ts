@@ -21,6 +21,7 @@
 import { promises as fs } from "fs";
 import { join } from "path";
 import Papa from "papaparse";
+import { obtenerAlfasMorningstar } from "./morningstar-alfa";
 
 // -----------------------------------------------------------------------------
 // Tipos
@@ -409,8 +410,55 @@ export async function generarSnapshot(
     for (const r of opts.snapshotPrevio.fondos) previos.set(r.isin, r);
   }
 
+  // Intentamos obtener alfas de Morningstar primero (fuente que el lector
+  // consulta en su pestana Riesgo > Medidas de volatilidad). Si Morningstar
+  // no devuelve datos, caemos al calculo CAGR-diff vs benchmark del CSV
+  // como redundancia. Concurrencia limitada para no saturar la API publica
+  // de Morningstar.
+  const msAlfas = await obtenerAlfasMorningstarBatch(fondos.map((f) => f.isin), 8);
+
   const resultados: ResultadoFondo[] = [];
   for (const f of fondos) {
+    const ms = msAlfas.get(f.isin) ?? null;
+
+    // Caso preferente: Morningstar nos da al menos una alfa.
+    if (ms && (ms.alfa3 != null || ms.alfa5 != null || ms.alfa10 != null)) {
+      const dq3 = ms.alfa3 != null ? dineroQuemado(ms.alfa3, 3) : null;
+      const dq5 = ms.alfa5 != null ? dineroQuemado(ms.alfa5, 5) : null;
+      const dq10 = ms.alfa10 != null ? dineroQuemado(ms.alfa10, 10) : null;
+
+      // Alfa "principal" = alfa5 si existe, si no alfa10, si no alfa3.
+      const alfaPpalVal = ms.alfa5 ?? ms.alfa10 ?? ms.alfa3 ?? null;
+      // Anos observados aproximados segun la ventana mas larga con dato.
+      const anosObs = ms.alfa10 != null ? 10 : ms.alfa5 != null ? 5 : ms.alfa3 != null ? 3 : null;
+
+      resultados.push({
+        isin: f.isin,
+        nombre: f.nombre,
+        gestora: f.gestora,
+        tipo: f.tipo,
+        categoria: f.categoria,
+        ter: f.ter_pct,
+        alfa: alfaPpalVal,
+        alfa3: ms.alfa3 ?? null,
+        alfa5: ms.alfa5 ?? null,
+        alfa10: ms.alfa10 ?? null,
+        dq3,
+        dq5,
+        dq10,
+        liga: null,
+        fechaInicio: null,
+        fechaFin: null,
+        anosObservados: anosObs,
+        stale: false,
+        tendencia: "sin_ref",
+        dq5Anterior: null,
+        deltaDq5: null,
+      });
+      continue;
+    }
+
+    // Fallback: calculo CAGR-diff vs benchmark con datos EODHD.
     const simboloFondo = `${f.isin}.EUFUND`;
     const navsFondo = await fetcher(simboloFondo);
     const sb = simboloBenchmark(f);
@@ -421,15 +469,10 @@ export async function generarSnapshot(
       continue;
     }
 
-    // Una alfa por horizonte: el DQ a 3 / 5 / 10 años refleja la alfa
-    // efectiva de esa ventana, no una proyección de la alfa histórica
-    // completa. Los fondos sin cobertura suficiente para una ventana
-    // dejan ese DQ a null (la UI ya muestra "—").
     const alfa3 = calcularAlfa(navsFondo, navsB, 3);
     const alfa5 = calcularAlfa(navsFondo, navsB, 5);
     const alfa10 = calcularAlfa(navsFondo, navsB, 10);
 
-    // Si ni siquiera la ventana más corta arroja datos, tratamos como stale.
     if (!alfa3 && !alfa5 && !alfa10) {
       resultados.push(stalePorFalta(f, previos.get(f.isin)));
       continue;
@@ -439,8 +482,6 @@ export async function generarSnapshot(
     const dq5 = alfa5 ? dineroQuemado(alfa5.alfaPct, 5) : null;
     const dq10 = alfa10 ? dineroQuemado(alfa10.alfaPct, 10) : null;
 
-    // Alfa "principal" para compatibilidad: alfa5 si existe, si no la
-    // ventana más larga disponible.
     const alfaPpal = alfa5 ?? alfa10 ?? alfa3;
 
     resultados.push({
@@ -495,6 +536,29 @@ export async function generarSnapshot(
 // -----------------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------------
+
+/**
+ * Lookup batched de alfas Morningstar para una lista de ISINs. Usa concurrencia
+ * limitada para no abusar del endpoint público de Morningstar. Devuelve un Map
+ * con los ISINs encontrados; los no encontrados quedan ausentes y caen al
+ * fallback EODHD en el motor.
+ */
+async function obtenerAlfasMorningstarBatch(
+  isins: string[],
+  concurrencia: number = 8,
+): Promise<Map<string, { alfa3: number | null; alfa5: number | null; alfa10: number | null }>> {
+  const out = new Map<string, { alfa3: number | null; alfa5: number | null; alfa10: number | null }>();
+  // Procesar en chunks paralelos para acotar la concurrencia.
+  for (let i = 0; i < isins.length; i += concurrencia) {
+    const chunk = isins.slice(i, i + concurrencia);
+    const results = await Promise.all(chunk.map((isin) => obtenerAlfasMorningstar(isin)));
+    chunk.forEach((isin, j) => {
+      const r = results[j];
+      if (r) out.set(isin, { alfa3: r.alfa3, alfa5: r.alfa5, alfa10: r.alfa10 });
+    });
+  }
+  return out;
+}
 
 function simboloBenchmark(f: FondoCsv): string {
   if (f.benchmark_ticker) return f.benchmark_ticker;
