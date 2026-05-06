@@ -63,13 +63,39 @@ interface ScreenerResponse {
   }>;
 }
 
+/**
+ * Wrapper con reintentos de fetch a Morningstar. Aplica backoff exponencial
+ * suave (200ms, 600ms, 1500ms) — 3 intentos. Devuelve null si los 3 fallan.
+ * Razón: la API publica de Morningstar lanza fallos transitorios cuando se
+ * la presiona con concurrencia, y un fallback silencioso a EODHD/CAGR-diff
+ * deja al usuario viendo cifras que NO coinciden con la ficha de Morningstar.
+ */
+async function fetchConReintentos(url: string, maxIntentos: number = 3): Promise<Response | null> {
+  let ultimoErr: unknown = null;
+  for (let i = 0; i < maxIntentos; i++) {
+    try {
+      const res = await fetch(url, {
+        headers: { "User-Agent": UA },
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      if (res.ok) return res;
+      ultimoErr = `HTTP ${res.status}`;
+    } catch (err) {
+      ultimoErr = err instanceof Error ? err.message : String(err);
+    }
+    if (i < maxIntentos - 1) {
+      const backoff = 200 * Math.pow(3, i); // 200ms, 600ms, 1800ms
+      await new Promise((r) => setTimeout(r, backoff));
+    }
+  }
+  console.warn(`[morningstar-alfa] ${maxIntentos} intentos fallidos: ${ultimoErr}`);
+  return null;
+}
+
 async function buscarPerformanceId(isin: string): Promise<{ pi: string; nombre: string } | null> {
   const url = `${MS_SEARCH_URL}?q=${encodeURIComponent(isin)}&limit=5`;
-  const res = await fetch(url, {
-    headers: { "User-Agent": UA },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
-  if (!res.ok) return null;
+  const res = await fetchConReintentos(url);
+  if (!res) return null;
   const text = await res.text();
   // Cada línea: "<Nombre>|<JSON>|<Tipo>|...|..."
   for (const line of text.split("\n")) {
@@ -100,11 +126,8 @@ async function pedirMetricas(pi: string): Promise<ScreenerResponse["rows"][0] | 
     "SharpeM36",
   ].join("|");
   const url = `${MS_SCREENER_URL}?outputType=json&securityDataPoints=${fields}&term=${encodeURIComponent(pi)}`;
-  const res = await fetch(url, {
-    headers: { "User-Agent": UA },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
-  if (!res.ok) return null;
+  const res = await fetchConReintentos(url);
+  if (!res) return null;
   const data = (await res.json()) as ScreenerResponse;
   return data.rows?.[0] ?? null;
 }
