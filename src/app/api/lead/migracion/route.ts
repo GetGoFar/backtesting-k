@@ -94,6 +94,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // POST a Beehiiv para crear/actualizar el suscriptor.
   // La API es idempotente por email: si ya existe lo actualiza con los nuevos
   // custom fields y le añade los tags sin duplicarlo.
+  const customFields: Array<{ name: string; value: string }> = [
+    { name: "first_name", value: nombre },
+    { name: "adquisición", value: "calculadora-dinero-quemado" },
+  ];
+  // El ISIN se guarda en custom field para que la automation pueda inyectarlo
+  // en la URL del email (https://.../informe/{{fondo_isin}}). Pablo debe crear
+  // este custom field en Beehiiv (Settings > Custom Fields) tipo string.
+  if (isin) customFields.push({ name: "fondo_isin", value: isin });
+  if (fondoNombre) customFields.push({ name: "fondo_nombre", value: fondoNombre });
+
   const beehiivBody: Record<string, unknown> = {
     email,
     reactivate_existing: true,
@@ -101,10 +111,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     utm_source: "calculadora-dinero-quemado",
     utm_medium: "web",
     referring_site: "elproyectok.com",
-    custom_fields: [
-      { name: "first_name", value: nombre },
-      { name: "adquisición", value: "calculadora-dinero-quemado" },
-    ],
+    custom_fields: customFields,
   };
 
   let beehiivRes: Response;
