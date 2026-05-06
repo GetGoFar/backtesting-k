@@ -251,6 +251,90 @@
 	}
 
 	/**
+	 * Tabs por zona en la tabla del ranking. Reduce drásticamente la densidad
+	 * (25 filas a la vez en lugar de 100). Default activo: Champions de la
+	 * Basura (la zona narrativamente más fuerte: los peores).
+	 *
+	 * Mecánica:
+	 *   - Cada fila tiene rank 1..100 (data-orig-rank o .rank cell)
+	 *   - 1-25 = Champions, 26-50 = Europa, 51-75 = Permanencia, 76-100 = Descenso
+	 *   - Al cambiar tab, ocultamos las filas + zone-row separators de las
+	 *     zonas no activas. La barra de filtros del eval(atob) sigue funcionando
+	 *     dentro de la zona seleccionada.
+	 */
+	function inyectarTabsZona() {
+		if ( document.querySelector( '.liga-zonas-tabs' ) ) return;
+		var tabla = document.getElementById( 'ranking-table' );
+		if ( ! tabla ) return;
+
+		var zonas = [
+			{ id: 'champions',   label: 'Champions de la Basura', emoji: '🏆', desc: 'Los 25 fondos que más dinero queman',     min: 1,  max: 25 },
+			{ id: 'europa',      label: 'Europa League',          emoji: '🔥', desc: 'Cuartil 2 — significativamente peores',   min: 26, max: 50 },
+			{ id: 'permanencia', label: 'Zona Permanencia',       emoji: '😐', desc: 'Cuartil 3 — pierden poco contra el bench', min: 51, max: 75 },
+			{ id: 'descenso',    label: 'Zona Descenso',          emoji: '📉', desc: 'Los 25 menos malos / mejores 25%',         min: 76, max: 100 }
+		];
+
+		var tabsHtml = '<div class="liga-zonas-tabs" role="tablist">';
+		zonas.forEach( function ( z, i ) {
+			tabsHtml += '<button class="liga-zona-tab' + ( i === 0 ? ' active' : '' ) + '"' +
+				' data-zona="' + z.id + '"' +
+				' data-min="' + z.min + '" data-max="' + z.max + '"' +
+				' role="tab" aria-selected="' + ( i === 0 ? 'true' : 'false' ) + '"' +
+				' title="' + escapeHtml( z.desc ) + '">' +
+				'<span class="liga-zona-tab-emoji">' + z.emoji + '</span>' +
+				'<span class="liga-zona-tab-label">' + escapeHtml( z.label ) + '</span>' +
+				'<span class="liga-zona-tab-count">25</span>' +
+				'</button>';
+		} );
+		tabsHtml += '</div>';
+
+		// Insertamos la barra DENTRO del table-wrapper (.tw) para que la propia
+		// tabla siga siendo el target principal y la barra se mantenga sticky.
+		var tw = tabla.parentElement;
+		if ( tw && tw.classList.contains( 'tw' ) ) {
+			tw.insertAdjacentHTML( 'afterbegin', tabsHtml );
+		} else {
+			tabla.insertAdjacentHTML( 'beforebegin', tabsHtml );
+		}
+
+		// Bind clicks
+		var btns = document.querySelectorAll( '.liga-zona-tab' );
+		btns.forEach( function ( b ) {
+			b.addEventListener( 'click', function () {
+				btns.forEach( function ( x ) { x.classList.remove( 'active' ); x.setAttribute( 'aria-selected', 'false' ); } );
+				b.classList.add( 'active' );
+				b.setAttribute( 'aria-selected', 'true' );
+				var min = parseInt( b.getAttribute( 'data-min' ), 10 );
+				var max = parseInt( b.getAttribute( 'data-max' ), 10 );
+				filtrarFilasPorZona( min, max );
+			} );
+		} );
+
+		// Aplicar filtro inicial: Champions
+		filtrarFilasPorZona( 1, 25 );
+	}
+
+	function filtrarFilasPorZona( min, max ) {
+		var tbody = document.querySelector( '#ranking-table tbody' );
+		if ( ! tbody ) return;
+		Array.from( tbody.children ).forEach( function ( tr ) {
+			// zone-row separators se ocultan siempre — el tab YA hace ese rol.
+			if ( tr.classList && tr.classList.contains( 'zone-row' ) ) {
+				tr.style.display = 'none';
+				return;
+			}
+			var rankCell = tr.querySelector( '.rank' );
+			var rank = rankCell ? parseInt( rankCell.textContent, 10 ) : NaN;
+			if ( isNaN( rank ) ) {
+				// Si no hay rank, podría ser una fila stale al final — la dejamos visible
+				tr.style.display = '';
+				return;
+			}
+			tr.style.display = ( rank >= min && rank <= max ) ? '' : 'none';
+		} );
+	}
+
+	/**
 	 * Reduce densidad inicial: oculta los 2 charts grandes detrás de un toggle.
 	 * El usuario los ve si quiere, pero no los recibe de golpe al aterrizar.
 	 */
@@ -297,7 +381,16 @@
 			'.liga-jornada-fecha-val { font-size: 1em; color: #e0e0e0; font-weight: 600; margin-top: 2px; }' +
 			'@media (max-width: 600px) { .liga-jornada-right { text-align: left; } .liga-jornada-banner { padding: 14px 18px; } .liga-jornada-titulo { font-size: 1.15em; } }' +
 			'.liga-charts-toggle { display: block; margin: 0 auto 24px; background: rgba(29,78,216,0.15); border: 1px solid rgba(29,78,216,0.45); color: #9ec1ff; padding: 11px 22px; border-radius: 8px; cursor: pointer; font-size: .95em; font-weight: 600; font-family: inherit; transition: background .15s, transform .1s; }' +
-			'.liga-charts-toggle:hover { background: rgba(29,78,216,0.28); transform: translateY(-1px); }';
+			'.liga-charts-toggle:hover { background: rgba(29,78,216,0.28); transform: translateY(-1px); }' +
+			// Tabs por zona del ranking
+			'.liga-zonas-tabs { display: flex; gap: 4px; margin-bottom: 14px; padding: 6px; background: rgba(15,15,30,0.7); border-radius: 10px; overflow-x: auto; flex-wrap: wrap; }' +
+			'.liga-zona-tab { flex: 1 1 0; min-width: 140px; background: transparent; border: 1px solid transparent; color: #aab; padding: 12px 14px; border-radius: 7px; cursor: pointer; font-family: inherit; display: flex; flex-direction: column; gap: 2px; align-items: center; justify-content: center; transition: background .15s, color .15s, border-color .15s; }' +
+			'.liga-zona-tab:hover { background: rgba(255,255,255,0.04); color: #e0e0e0; }' +
+			'.liga-zona-tab.active { background: rgba(255,68,68,0.15); border-color: rgba(255,68,68,0.4); color: #fff; }' +
+			'.liga-zona-tab-emoji { font-size: 1.2em; line-height: 1; }' +
+			'.liga-zona-tab-label { font-size: .82em; font-weight: 600; line-height: 1.2; text-align: center; }' +
+			'.liga-zona-tab-count { font-size: .68em; color: inherit; opacity: .7; font-weight: 500; }' +
+			'@media (max-width: 600px) { .liga-zona-tab-label { font-size: .72em; } .liga-zona-tab { min-width: 90px; padding: 10px 6px; } }';
 		document.head.appendChild( style );
 	}
 
@@ -347,14 +440,16 @@
 				actualizarLookups( snap.fondos );
 				actualizarFecha( snap.generadoEn );
 				inyectarBannerJornada( snap.generadoEn );
+				inyectarTabsZona();
 				aplicarFiltrosSeguro();
 				setStatus( '' );
 			} )
 			.catch( function ( err ) {
 				console.warn( '[liga-fetcher] usando datos hardcoded como fallback:', err );
-				// Aunque falle el snapshot, mostramos el banner con la fecha del cliente
-				// — así al menos el usuario ve "Jornada N · mes año" coherente.
+				// Aunque falle el snapshot, mostramos el banner + tabs con datos
+				// hardcoded del HTML embebido. Al menos la UX no degrada.
 				inyectarBannerJornada( null );
+				inyectarTabsZona();
 				setStatus( '' );
 			} );
 
@@ -369,6 +464,8 @@
 	// Override permite probar contra el dev server de Next.js
 	var CLASSIFY_URL = ( typeof window !== 'undefined' && window.__LIGA_CLASSIFY_URL_OVERRIDE )
 		|| '/api/liga/classify';
+	var LEAD_URL = ( typeof window !== 'undefined' && window.__LIGA_LEAD_URL_OVERRIDE )
+		|| '/api/lead/migracion';
 	// Cuando estamos en el harness de pruebas, classify vive en el mismo Vercel
 	// que el snapshot. En producción Wordpress hay que apuntarlo a Vercel también
 	// (no tiene sentido proxiear esto por WP). Si __LIGA_VERCEL_BASE está definido
@@ -381,6 +478,13 @@
 		// Si CLASSIFY_URL es path relativo y tenemos VERCEL_BASE, anteponemos
 		if ( path.charAt( 0 ) === '/' && base ) path = base + path;
 		return path + '?isin=' + encodeURIComponent( isin );
+	}
+
+	function urlLead() {
+		var base = VERCEL_BASE || '';
+		var path = LEAD_URL;
+		if ( path.charAt( 0 ) === '/' && base ) path = base + path;
+		return path;
 	}
 
 	function instalarClassifyEnDetectFund() {
@@ -451,6 +555,10 @@
 				  '. Si tu fondo tiene otra distribución (más agresivo o más conservador), las cifras pueden no ser justas.</div>'
 				: '';
 
+			// Estado inicial del fondo: ¿el usuario "pierde" o "gana" frente al benchmark?
+			// Usamos dq5 como referencia. Si dq5 > 0 -> el fondo quema dinero.
+			var perdiendo = ( datos.dq5 != null && datos.dq5 > 0 ) || ( datos.alfa != null && datos.alfa < 0 );
+
 			var html =
 				'<div class="liga-classify-result">' +
 				'<div class="lc-row lc-zona" title="' + escapeHtml( zonaTooltip ) + '"><strong>Posición teórica:</strong> ' +
@@ -463,8 +571,86 @@
 				disclaimerMixto +
 				'<div class="lc-row lc-bench">Benchmark usado: ' + escapeHtml( benchTxt ) +
 					'<br><span class="lc-bench-note">¿Crees que no es justo? Cuéntanoslo.</span></div>' +
-				'</div>';
+				'</div>' +
+				renderFormLead( datos, perdiendo );
 			agregarBloqueClassify( box, html );
+			bindFormLead( box, datos );
+		}
+
+		/**
+		 * Form de captura de lead: tras ver el alfa de su fondo, le ofrecemos
+		 * el plan de migración personalizado a su alternativa indexada por email.
+		 * Se renderiza siempre dentro del bloque classify-result.
+		 */
+		function renderFormLead( datos, perdiendo ) {
+			var titular = perdiendo
+				? '¿Quieres saber a qué fondo indexado migrar para dejar de perder dinero?'
+				: '¿Quieres ver el análisis completo y la mejor alternativa indexada para tu fondo?';
+			var subtitular = perdiendo
+				? 'Te enviamos un plan paso a paso por email: alternativa indexada equivalente, cómo hacer el traspaso sin pagar a Hacienda, y el ahorro proyectado a 10 años.'
+				: 'Te enviamos un análisis comparativo por email: alternativa indexada equivalente, costes ocultos, y proyección a 10 años.';
+			return (
+				'<form class="liga-lead-form" data-isin="' + escapeHtml( datos.isin || '' ) +
+					'" data-fondo="' + escapeHtml( datos.nombre || '' ) + '">' +
+					'<div class="ll-titular">' + escapeHtml( titular ) + '</div>' +
+					'<div class="ll-sub">' + escapeHtml( subtitular ) + '</div>' +
+					'<div class="ll-grid">' +
+						'<input type="text" class="ll-input ll-nombre" name="nombre" placeholder="Tu nombre" required maxlength="80" autocomplete="given-name">' +
+						'<input type="email" class="ll-input ll-email" name="email" placeholder="Tu email" required maxlength="180" autocomplete="email">' +
+						'<button type="submit" class="ll-submit">Recibir plan gratis</button>' +
+					'</div>' +
+					'<div class="ll-priv">Sin spam. Te apuntas a la newsletter de El Proyecto K (4.200+ inversores). Te puedes desuscribir en 1 clic.</div>' +
+					'<div class="ll-status" role="status" aria-live="polite"></div>' +
+				'</form>'
+			);
+		}
+
+		function bindFormLead( box, datos ) {
+			var form = box.querySelector( '.liga-lead-form' );
+			if ( ! form ) return;
+			form.addEventListener( 'submit', async function ( ev ) {
+				ev.preventDefault();
+				var nombre = form.querySelector( '.ll-nombre' ).value.trim();
+				var email = form.querySelector( '.ll-email' ).value.trim();
+				var status = form.querySelector( '.ll-status' );
+				var submitBtn = form.querySelector( '.ll-submit' );
+				if ( ! nombre || ! email ) {
+					status.className = 'll-status ll-err';
+					status.textContent = 'Completa nombre y email.';
+					return;
+				}
+				status.className = 'll-status ll-loading';
+				status.textContent = '⏳ Enviando…';
+				submitBtn.disabled = true;
+				try {
+					var r = await fetch( urlLead(), {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify( {
+							nombre: nombre,
+							email: email,
+							isin: datos.isin || form.dataset.isin || '',
+							fondoNombre: datos.nombre || form.dataset.fondo || ''
+						} )
+					} );
+					var data = await r.json();
+					if ( r.ok && data.ok ) {
+						form.classList.add( 'll-done' );
+						status.className = 'll-status ll-ok';
+						status.textContent = '✅ Plan en camino a ' + email + '. Revisa tu bandeja en los próximos minutos.';
+					} else {
+						status.className = 'll-status ll-err';
+						status.textContent = data.error === 'email_invalido'
+							? 'Ese email no parece válido — comprueba la dirección.'
+							: 'Hubo un problema enviándote el plan. Inténtalo de nuevo en un minuto.';
+						submitBtn.disabled = false;
+					}
+				} catch ( err ) {
+					status.className = 'll-status ll-err';
+					status.textContent = 'Sin conexión. Verifica tu red e inténtalo de nuevo.';
+					submitBtn.disabled = false;
+				}
+			} );
 		}
 
 		/**
@@ -545,7 +731,7 @@
 			debounceTimer = setTimeout( dispararClassify, 700 );
 		} );
 
-		// Inyectar CSS mínimo para los bloques de classify
+		// Inyectar CSS mínimo para los bloques de classify + form de lead
 		var style = document.createElement( 'style' );
 		style.textContent =
 			'.liga-classify-loading { margin-top: 8px; padding: 8px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: .85em; opacity: .8; }' +
@@ -557,7 +743,27 @@
 			'.liga-classify-result .lc-zona-tag { font-weight: 600; }' +
 			'.liga-classify-result .lc-bench { color: #aab; font-size: .78em; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.08); }' +
 			'.liga-classify-result .lc-bench-note { color: #889; font-style: italic; }' +
-			'.liga-classify-result .lc-warn { color: #ffc107; background: rgba(255,193,7,0.08); border-left: 3px solid #ffc107; padding: 6px 10px; margin: 8px 0 4px; border-radius: 3px; font-size: .82em; line-height: 1.45; }';
+			'.liga-classify-result .lc-warn { color: #ffc107; background: rgba(255,193,7,0.08); border-left: 3px solid #ffc107; padding: 6px 10px; margin: 8px 0 4px; border-radius: 3px; font-size: .82em; line-height: 1.45; }' +
+			// Form de captura de lead (Beehiiv)
+			'.liga-lead-form { margin-top: 14px; padding: 16px 18px; background: linear-gradient(135deg, rgba(255,68,68,0.12), rgba(29,78,216,0.10)); border: 1px solid rgba(255,68,68,0.35); border-radius: 10px; }' +
+			'.liga-lead-form.ll-done { background: rgba(42,157,63,0.12); border-color: rgba(42,157,63,0.45); }' +
+			'.liga-lead-form .ll-titular { font-size: 1.05em; font-weight: 700; color: #ff8a8a; line-height: 1.3; margin-bottom: 6px; }' +
+			'.liga-lead-form.ll-done .ll-titular { color: #4caf50; }' +
+			'.liga-lead-form .ll-sub { font-size: .85em; color: #c5c8d0; line-height: 1.5; margin-bottom: 12px; }' +
+			'.liga-lead-form .ll-grid { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: stretch; }' +
+			'.liga-lead-form .ll-input { background: rgba(15,15,30,0.8); color: #e8e8ec; border: 1px solid rgba(255,255,255,0.18); padding: 11px 14px; border-radius: 7px; font-size: .95em; font-family: inherit; transition: border-color .15s, box-shadow .15s; }' +
+			'.liga-lead-form .ll-input:focus { border-color: #ff6b6b; outline: none; box-shadow: 0 0 0 3px rgba(255,107,107,0.18); }' +
+			'.liga-lead-form .ll-input::placeholder { color: #777; }' +
+			'.liga-lead-form .ll-submit { background: linear-gradient(135deg, #ff4444, #ff6b6b); color: #fff; border: none; padding: 11px 22px; border-radius: 7px; font-weight: 700; font-size: .92em; cursor: pointer; transition: transform .1s, box-shadow .15s; font-family: inherit; white-space: nowrap; }' +
+			'.liga-lead-form .ll-submit:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(255,68,68,0.35); }' +
+			'.liga-lead-form .ll-submit:disabled { opacity: .55; cursor: not-allowed; }' +
+			'.liga-lead-form .ll-priv { font-size: .72em; color: #888; margin-top: 8px; line-height: 1.45; }' +
+			'.liga-lead-form .ll-status { margin-top: 10px; font-size: .85em; line-height: 1.4; }' +
+			'.liga-lead-form .ll-status.ll-loading { color: #aab; }' +
+			'.liga-lead-form .ll-status.ll-ok { color: #6bcf7f; font-weight: 600; }' +
+			'.liga-lead-form .ll-status.ll-err { color: #ff8888; }' +
+			'.liga-lead-form.ll-done .ll-grid, .liga-lead-form.ll-done .ll-priv, .liga-lead-form.ll-done .ll-sub { display: none; }' +
+			'@media (max-width: 600px) { .liga-lead-form .ll-grid { grid-template-columns: 1fr; } }';
 		document.head.appendChild( style );
 	}
 
