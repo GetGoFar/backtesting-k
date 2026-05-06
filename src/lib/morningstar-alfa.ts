@@ -70,7 +70,7 @@ interface ScreenerResponse {
  * la presiona con concurrencia, y un fallback silencioso a EODHD/CAGR-diff
  * deja al usuario viendo cifras que NO coinciden con la ficha de Morningstar.
  */
-async function fetchConReintentos(url: string, maxIntentos: number = 3): Promise<Response | null> {
+async function fetchConReintentos(url: string, maxIntentos: number = 2): Promise<Response | null> {
   let ultimoErr: unknown = null;
   for (let i = 0; i < maxIntentos; i++) {
     try {
@@ -84,8 +84,8 @@ async function fetchConReintentos(url: string, maxIntentos: number = 3): Promise
       ultimoErr = err instanceof Error ? err.message : String(err);
     }
     if (i < maxIntentos - 1) {
-      const backoff = 200 * Math.pow(3, i); // 200ms, 600ms, 1800ms
-      await new Promise((r) => setTimeout(r, backoff));
+      // Backoff suave: 400ms único reintento. Más simple = más rápido.
+      await new Promise((r) => setTimeout(r, 400));
     }
   }
   console.warn(`[morningstar-alfa] ${maxIntentos} intentos fallidos: ${ultimoErr}`);

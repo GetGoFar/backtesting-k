@@ -21,10 +21,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { leerSnapshot, escribirSnapshot } from "@/lib/liga-storage";
 import { cargarFondosCsv, generarSnapshot } from "@/lib/liga-engine";
 
-// El refresh tarda ~30s con 100 fondos. En Hobby Vercel limita serverless
-// a 10s; Pro a 60s. Sin export explícito, Next.js usa el default del plan.
-// Si el bootstrap se queda corto, el cliente verá un timeout y reintentará
-// — los datos parciales no se guardan porque generarSnapshot es atómico.
+// La regeneración con 100 fondos × 2 fetches Morningstar (más posibles
+// reintentos) puede pasar de 60s. En plan Pro permitimos hasta 300s
+// (en Hobby Vercel ignora este export y limita a 10s). Sin esto las
+// regeneraciones bajo demanda dejaban el snapshot vacío al timeout.
+export const maxDuration = 300;
 
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",

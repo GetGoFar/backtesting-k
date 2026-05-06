@@ -415,7 +415,7 @@ export async function generarSnapshot(
   // no devuelve datos, caemos al calculo CAGR-diff vs benchmark del CSV
   // como redundancia. Concurrencia limitada para no saturar la API publica
   // de Morningstar.
-  const msAlfas = await obtenerAlfasMorningstarBatch(fondos.map((f) => f.isin), 8);
+  const msAlfas = await obtenerAlfasMorningstarBatch(fondos.map((f) => f.isin), 16);
 
   const resultados: ResultadoFondo[] = [];
   for (const f of fondos) {
