@@ -504,13 +504,10 @@
 				var data = await r.json();
 				if ( r.ok && data.ok ) {
 					form.classList.add( 'lsf-done' );
-					var vercelBase = ( typeof window !== 'undefined' && window.__LIGA_VERCEL_BASE )
-						|| 'https://backtesting-k.vercel.app';
-					var informeUrl = vercelBase + '/informe/' + encodeURIComponent( isin );
-					if ( nombreFondoCache ) informeUrl += '?nombre=' + encodeURIComponent( nombreFondoCache );
 					status.className = 'lsf-status lsf-ok';
-					status.innerHTML = '✅ Listo. Te hemos enviado el informe a ' +
-						escapeHtml( email ) + '.<br><a href="' + informeUrl + '" target="_blank" rel="noopener" class="lsf-link-informe">Ver informe ahora →</a>';
+					status.innerHTML = '✅ Listo. Te hemos enviado el informe a <strong>' +
+						escapeHtml( email ) + '</strong>.<br>' +
+						'Llegará en 1-2 minutos. Si no lo ves, revisa la carpeta de Promociones o Spam.';
 				} else {
 					status.className = 'lsf-status lsf-err';
 					status.textContent = data.error === 'email_invalido'

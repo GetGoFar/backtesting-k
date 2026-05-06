@@ -792,6 +792,35 @@ export function getAllFunds(): Fund[] {
 }
 
 /**
+ * Registra un fondo ad-hoc (no curado en la BD) para que pueda ser usado
+ * como holding en runBacktest. Útil para informes personalizados donde
+ * el fondo del usuario no está en la BD pero sí tiene datos en EODHD vía
+ * el sufijo .EUFUND. Idempotente — si ya está registrado, no duplica.
+ *
+ * El fondo registrado tiene type "active" y sin TER conocido (0%) — el
+ * NAV de EODHD ya viene neto del TER del propio fondo, así que el motor
+ * no necesita descontarlo otra vez.
+ */
+export function registrarFondoAdHoc(isin: string, name: string): Fund {
+  const existing = FUNDS_BY_ISIN.get(isin);
+  if (existing) return existing;
+  const fund: Fund = {
+    id: `adhoc-${isin}`,
+    name: name || isin,
+    shortName: (name || isin).slice(0, 30),
+    isin,
+    ter: 0,
+    category: "RV Global",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  };
+  FUNDS_BY_ID.set(fund.id, fund);
+  FUNDS_BY_ISIN.set(fund.isin, fund);
+  return fund;
+}
+
+/**
  * Obtiene la lista de fondos, opcionalmente filtrada por query de búsqueda
  */
 export function searchFunds(query?: string): Fund[] {

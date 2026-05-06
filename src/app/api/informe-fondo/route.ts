@@ -69,7 +69,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const informe = await generarInformeFondo(isin, nombreFondo, apiToken);
+    const informe = await generarInformeFondo(isin, nombreFondo);
     if (!informe) {
       return NextResponse.json(
         {
