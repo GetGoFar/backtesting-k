@@ -550,7 +550,12 @@
 				} else {
 					msg = 'No pudimos clasificarlo automáticamente: ' + det;
 				}
-				agregarBloqueClassify( box, '<div class="liga-classify-error">' + escapeHtml( msg ) + '</div>' );
+				// Aunque el classify falle, ofrecer el form de captura — el user
+				// igualmente puede pedir el plan de migración para su fondo.
+				var datosParciales = datosParcialesDesdeFondo( datos );
+				var formHtml = datosParciales ? renderFormLead( datosParciales, true ) : '';
+				agregarBloqueClassify( box, '<div class="liga-classify-error">' + escapeHtml( msg ) + '</div>' + formHtml );
+				if ( datosParciales ) bindFormLead( box, datosParciales );
 				// Si el classify falla, MOSTRAMOS el flujo manual como fallback
 				toggleFlujoManual( true );
 				return;
@@ -613,6 +618,26 @@
 				renderFormLead( datos, perdiendo );
 			agregarBloqueClassify( box, html );
 			bindFormLead( box, datos );
+		}
+
+		/**
+		 * Construye datos parciales aprovechando lo que detectFund haya puesto
+		 * en el DOM cuando el classify falla. Permite renderizar el form aunque
+		 * la clasificación contra la liga no haya tenido éxito.
+		 */
+		function datosParcialesDesdeFondo() {
+			var input = document.getElementById( 'calc-isin' );
+			var isin = ( ( input && input.value ) || '' ).trim().toUpperCase();
+			if ( ! isinValido( isin ) ) return null;
+			var nameEl = document.querySelector( '.calc-fund-detected .fund-name' );
+			// Si LIGA_ISIN local lo tiene, usamos ese nombre. Si no, lo que detectFund haya puesto.
+			var nombre = '';
+			if ( typeof window.LIGA_ISIN === 'object' && window.LIGA_ISIN[ isin ] ) {
+				nombre = window.LIGA_ISIN[ isin ].n || '';
+			} else if ( nameEl ) {
+				nombre = nameEl.textContent.trim();
+			}
+			return { isin: isin, nombre: nombre, dq5: null, alfa: null };
 		}
 
 		/**
