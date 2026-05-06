@@ -191,14 +191,11 @@ export default async function InformePage({ params, searchParams }: Props) {
           </div>
         </section>
 
-        {/* Charts adicionales: rentabilidades anuales, drawdowns, rolling returns */}
+        {/* Charts adicionales: rentabilidades anuales y drawdowns */}
         <InformeChartsExtra
           nombreFondo={inf.nombreFondo}
           rentabilidadesAnuales={inf.rentabilidadesAnuales}
           drawdowns={inf.drawdowns}
-          rolling1y={inf.rolling1y}
-          rolling3y={inf.rolling3y}
-          rolling5y={inf.rolling5y}
         />
 
         {/* Resumen interpretación */}
