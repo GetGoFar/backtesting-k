@@ -78,12 +78,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       { status: 400, headers: CORS_HEADERS },
     );
   }
-  if (!nombre) {
-    return NextResponse.json(
-      { ok: false, error: "nombre_requerido" },
-      { status: 400, headers: CORS_HEADERS },
-    );
-  }
   if (isin && !RE_ISIN.test(isin)) {
     return NextResponse.json(
       { ok: false, error: "isin_invalido" },
@@ -95,9 +89,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // La API es idempotente por email: si ya existe lo actualiza con los nuevos
   // custom fields y le añade los tags sin duplicarlo.
   const customFields: Array<{ name: string; value: string }> = [
-    { name: "first_name", value: nombre },
     { name: "adquisición", value: "calculadora-dinero-quemado" },
   ];
+  if (nombre) customFields.push({ name: "first_name", value: nombre });
   // El ISIN se guarda en custom field para que la automation pueda inyectarlo
   // en la URL del email (https://.../informe/{{fondo_isin}}). Pablo debe crear
   // este custom field en Beehiiv (Settings > Custom Fields) tipo string.

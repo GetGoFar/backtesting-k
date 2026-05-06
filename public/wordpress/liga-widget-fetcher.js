@@ -394,16 +394,11 @@
 						'<input id="lsf-isin" name="isin" type="text" required maxlength="12" placeholder="Ej: ES0138861036" autocomplete="off" spellcheck="false" style="text-transform:uppercase">' +
 						'<div class="lsf-fondo-info" aria-live="polite"></div>' +
 					'</div>' +
-					'<div class="lsf-row">' +
-						'<div class="lsf-field"><label for="lsf-nombre">Tu nombre</label>' +
-							'<input id="lsf-nombre" name="nombre" type="text" required maxlength="80" placeholder="Pablo" autocomplete="given-name">' +
-						'</div>' +
-						'<div class="lsf-field"><label for="lsf-email">Tu email</label>' +
-							'<input id="lsf-email" name="email" type="email" required maxlength="180" placeholder="tu@email.com" autocomplete="email">' +
-						'</div>' +
+					'<div class="lsf-field"><label for="lsf-email">Tu email</label>' +
+						'<input id="lsf-email" name="email" type="email" required maxlength="180" placeholder="tu@email.com" autocomplete="email">' +
 					'</div>' +
 					'<button type="submit" class="lsf-submit">Enviarme el informe gratis</button>' +
-					'<div class="lsf-priv">Sin spam. Te apuntas a la newsletter de El Proyecto K (4.200+ inversores). Te puedes desuscribir en 1 clic.</div>' +
+					'<div class="lsf-priv">Sin spam. Te apuntas a la newsletter de El Proyecto K (+6.000 inversores). Te puedes desuscribir en 1 clic.</div>' +
 					'<div class="lsf-status" role="status" aria-live="polite"></div>' +
 				'</form>' +
 			'</div>';
@@ -478,7 +473,6 @@
 		form.addEventListener( 'submit', async function ( ev ) {
 			ev.preventDefault();
 			var isin = ( input.value || '' ).trim().toUpperCase();
-			var nombre = ( form.querySelector( '#lsf-nombre' ).value || '' ).trim();
 			var email = ( form.querySelector( '#lsf-email' ).value || '' ).trim();
 			var status = form.querySelector( '.lsf-status' );
 			var submit = form.querySelector( '.lsf-submit' );
@@ -488,9 +482,9 @@
 				status.textContent = 'El ISIN debe tener 12 caracteres (ej: ES0138861036).';
 				return;
 			}
-			if ( ! nombre || ! email ) {
+			if ( ! email ) {
 				status.className = 'lsf-status lsf-err';
-				status.textContent = 'Completa nombre y email.';
+				status.textContent = 'Introduce tu email.';
 				return;
 			}
 
@@ -503,7 +497,7 @@
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify( {
-						nombre: nombre, email: email, isin: isin,
+						email: email, isin: isin,
 						fondoNombre: nombreFondoCache || isin
 					} )
 				} );
@@ -515,7 +509,7 @@
 					var informeUrl = vercelBase + '/informe/' + encodeURIComponent( isin );
 					if ( nombreFondoCache ) informeUrl += '?nombre=' + encodeURIComponent( nombreFondoCache );
 					status.className = 'lsf-status lsf-ok';
-					status.innerHTML = '✅ Listo, ' + escapeHtml( nombre ) + '. Te hemos enviado el informe a ' +
+					status.innerHTML = '✅ Listo. Te hemos enviado el informe a ' +
 						escapeHtml( email ) + '.<br><a href="' + informeUrl + '" target="_blank" rel="noopener" class="lsf-link-informe">Ver informe ahora →</a>';
 				} else {
 					status.className = 'lsf-status lsf-err';
@@ -849,7 +843,7 @@
 						'<input type="email" class="ll-input ll-email" name="email" placeholder="Tu email" required maxlength="180" autocomplete="email">' +
 						'<button type="submit" class="ll-submit">Recibir plan gratis</button>' +
 					'</div>' +
-					'<div class="ll-priv">Sin spam. Te apuntas a la newsletter de El Proyecto K (4.200+ inversores). Te puedes desuscribir en 1 clic.</div>' +
+					'<div class="ll-priv">Sin spam. Te apuntas a la newsletter de El Proyecto K (+6.000 inversores). Te puedes desuscribir en 1 clic.</div>' +
 					'<div class="ll-status" role="status" aria-live="polite"></div>' +
 				'</form>'
 			);
