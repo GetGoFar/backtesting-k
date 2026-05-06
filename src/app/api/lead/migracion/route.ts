@@ -7,16 +7,20 @@
 // del plan de migración personalizado a su alternativa indexada.
 //
 // El plan de migración real lo envía Pablo desde Beehiiv (Automation
-// triggerada por la tag "calculadora-DQ"). Aquí solo creamos el suscriptor
-// con los metadatos suficientes para personalizar el email.
+// triggerada por "Added by API" — enrolamos al subscriber explícitamente
+// en la automation tras crearlo). Antes usábamos un segmento dinámico
+// pero Beehiiv los recalcula 1x/día, lo cual rompe el flujo en tiempo
+// real. Con "Added by API" el email sale en cuanto enrolamos al user.
 //
 // Tags que aplicamos:
-//   - "calculadora-DQ"   -> dispara la automation de Pablo
+//   - "calculadora-DQ"   -> ya no dispara nada, sólo segmentación retrospectiva
 //   - "fondo-{ISIN}"     -> Pablo puede segmentar por fondo origen
 //
 // Custom fields (ya existen en la publicación):
 //   - first_name      -> nombre del usuario
 //   - adquisición     -> "calculadora-dinero-quemado"
+//   - fondo_isin      -> ES0146309002 (la merge tag {{fondo_isin}} la usa el email)
+//   - fondo_nombre    -> nombre completo del fondo
 //
 // Configuración requerida en Vercel:
 //   BEEHIIV_API_KEY     -> create new key en Beehiiv > Settings > Integrations
@@ -27,6 +31,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 const BEEHIIV_API_BASE = "https://api.beehiiv.com/v2";
 const BEEHIIV_PUBLICATION_ID = "pub_39dfba72-1988-4f94-82e0-17bfe1d3d34e";
+// Automation "New Automation" — envía el email del informe.
+// Trigger: "Added by API". Enrolamos al subscriber con un POST a
+// /publications/{pub}/automations/{aut}/journeys tras crearlo.
+const BEEHIIV_AUTOMATION_INFORME = "aut_50384733-839d-49b1-a914-c0f9603b9d6d";
 
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -144,7 +152,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   // Aplicar tags (en una segunda llamada porque la API de POST subscriptions
   // no acepta tags en el body — sólo en endpoint dedicado).
-  // Tag "calculadora-DQ" dispara automation. Tag "fondo-{ISIN}" segmenta.
+  // Tag "calculadora-DQ" sirve para análisis/segmentación retrospectiva.
+  // Tag "fondo-{ISIN}" segmenta por fondo origen.
   if (subscriptionId) {
     const tags: string[] = ["calculadora-DQ"];
     if (isin) tags.push(`fondo-${isin}`);
@@ -165,6 +174,34 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     } catch (err) {
       // No abortamos — el suscriptor se creó, los tags son extras
       console.warn("[lead/migracion] no se pudieron aplicar tags:", err);
+    }
+
+    // Enrolar al subscriber en la automation del informe.
+    // Esto es lo que dispara el envío del email en tiempo real
+    // (en lugar de depender de un segmento dinámico que recalcula 1x/día).
+    // Si el subscriber ya está enrolado Beehiiv responde 4xx — ignoramos
+    // el error porque no queremos duplicar envíos.
+    try {
+      const journeyRes = await fetch(
+        `${BEEHIIV_API_BASE}/publications/${BEEHIIV_PUBLICATION_ID}/automations/${BEEHIIV_AUTOMATION_INFORME}/journeys`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email }),
+          signal: AbortSignal.timeout(8_000),
+        },
+      );
+      if (!journeyRes.ok) {
+        const txt = await journeyRes.text();
+        console.warn(
+          `[lead/migracion] enroll automation ${journeyRes.status}: ${txt.slice(0, 200)}`,
+        );
+      }
+    } catch (err) {
+      console.warn("[lead/migracion] no se pudo enrolar en automation:", err);
     }
   }
 
