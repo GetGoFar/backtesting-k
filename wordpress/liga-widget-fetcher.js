@@ -355,11 +355,17 @@
 				tr.style.display = 'none';
 				return;
 			}
+			// Stale (data-stale="1") = fondo sin datos suficientes para
+			// clasificar. NO debe aparecer en NINGUNA zona — apareceria en
+			// la ultima por mero artefacto de orden, no por merito.
+			if ( tr.getAttribute( 'data-stale' ) === '1' ) {
+				tr.style.display = 'none';
+				return;
+			}
 			var rankCell = tr.querySelector( '.rank' );
 			var rank = rankCell ? parseInt( rankCell.textContent, 10 ) : NaN;
 			if ( isNaN( rank ) ) {
-				// Si no hay rank, podría ser una fila stale al final — la dejamos visible
-				tr.style.display = '';
+				tr.style.display = 'none';
 				return;
 			}
 			tr.style.display = ( rank >= min && rank <= max ) ? '' : 'none';
