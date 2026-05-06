@@ -702,10 +702,17 @@
 						status.className = 'll-status ll-ok';
 						// El informe se hospeda en Vercel — el lead recibe email pero
 						// ademas le mostramos el link directo aqui para verlo ya.
+						// Pasamos el nombre del fondo por URL para evitar lookup
+						// adicional a Morningstar en la pagina del informe.
 						var isinUsuario = datos.isin || form.dataset.isin || '';
+						var nombreFondo = datos.nombre || form.dataset.fondo || '';
 						var vercelBase = ( typeof window !== 'undefined' && window.__LIGA_VERCEL_BASE )
 							|| 'https://backtesting-k.vercel.app';
-						var informeUrl = isinUsuario ? ( vercelBase + '/informe/' + encodeURIComponent( isinUsuario ) ) : '';
+						var informeUrl = '';
+						if ( isinUsuario ) {
+							informeUrl = vercelBase + '/informe/' + encodeURIComponent( isinUsuario );
+							if ( nombreFondo ) informeUrl += '?nombre=' + encodeURIComponent( nombreFondo );
+						}
 						status.innerHTML = '✅ Apuntado, ' + escapeHtml( nombre ) + '. Te hemos enviado el informe a ' +
 							escapeHtml( email ) + '.' +
 							( informeUrl

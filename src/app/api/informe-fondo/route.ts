@@ -31,6 +31,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const url = new URL(req.url);
   const rawIsin = url.searchParams.get("isin") || "";
   const isin = rawIsin.trim().toUpperCase();
+  // Cliente puede enviar el nombre del fondo (si ya lo conoce) para evitar
+  // un round-trip a Morningstar. Útil cuando la calculadora ya lo resolvió.
+  const nombreCliente = (url.searchParams.get("nombre") || "").trim().slice(0, 200);
 
   if (!RE_ISIN.test(isin)) {
     return NextResponse.json(
@@ -47,14 +50,22 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Resolver el nombre del fondo: primero db curada, luego Morningstar.
+  // Resolver el nombre del fondo: cliente > db curada > Morningstar > ISIN.
   let nombreFondo = isin;
-  const curated = getFundByIsin(isin);
-  if (curated) {
-    nombreFondo = curated.name;
+  if (nombreCliente) {
+    nombreFondo = nombreCliente;
   } else {
-    const ms = await obtenerAlfasMorningstar(isin);
-    if (ms?.nombre) nombreFondo = ms.nombre;
+    const curated = getFundByIsin(isin);
+    if (curated) {
+      nombreFondo = curated.name;
+    } else {
+      try {
+        const ms = await obtenerAlfasMorningstar(isin);
+        if (ms?.nombre) nombreFondo = ms.nombre;
+      } catch {
+        // Si Morningstar bloquea, mantenemos el ISIN como fallback
+      }
+    }
   }
 
   try {

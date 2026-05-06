@@ -26,15 +26,17 @@ interface ApiResponse {
 
 interface Props {
   params: Promise<{ isin: string }>;
+  searchParams: Promise<{ nombre?: string }>;
 }
 
 export const dynamic = "force-dynamic";
 
-async function fetchInforme(isin: string): Promise<ApiResponse> {
+async function fetchInforme(isin: string, nombreOverride?: string): Promise<ApiResponse> {
   const h = await headers();
   const proto = h.get("x-forwarded-proto") || "https";
   const host = h.get("host") || "backtesting-k.vercel.app";
-  const url = `${proto}://${host}/api/informe-fondo?isin=${encodeURIComponent(isin)}`;
+  let url = `${proto}://${host}/api/informe-fondo?isin=${encodeURIComponent(isin)}`;
+  if (nombreOverride) url += `&nombre=${encodeURIComponent(nombreOverride)}`;
   try {
     const r = await fetch(url, { cache: "no-store" });
     return (await r.json()) as ApiResponse;
@@ -63,8 +65,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function InformePage({ params }: Props) {
+export default async function InformePage({ params, searchParams }: Props) {
   const { isin: rawIsin } = await params;
+  const sp = await searchParams;
+  const nombreOverride = (sp?.nombre || "").trim().slice(0, 200) || undefined;
   const isin = (rawIsin || "").toUpperCase();
   const RE_ISIN = /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/;
 
@@ -79,7 +83,7 @@ export default async function InformePage({ params }: Props) {
     );
   }
 
-  const r = await fetchInforme(isin);
+  const r = await fetchInforme(isin, nombreOverride);
 
   if (!r.ok || !r.informe) {
     return (
