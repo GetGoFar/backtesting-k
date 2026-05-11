@@ -136,6 +136,21 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
     markAsCustom();
   };
 
+  // Reparte 100% equiponderado entre todos los activos.
+  // El último activo absorbe el redondeo para que la suma sea exactamente 100.
+  const handleEqualizeWeights = () => {
+    if (allocations.length === 0) return;
+    const n = allocations.length;
+    const baseWeight = Math.floor((100 / n) * 100) / 100; // 2 decimales redondeado a la baja
+    const remainder = Math.round((100 - baseWeight * n) * 100) / 100;
+    const newAllocations = allocations.map((a, idx) => ({
+      ...a,
+      weight: idx === n - 1 ? Math.round((baseWeight + remainder) * 100) / 100 : baseWeight,
+    }));
+    setAllocations(newAllocations);
+    markAsCustom();
+  };
+
   const handleTerChange = (fundId: string, ter: number) => {
     setAllocations(
       allocations.map((a) =>
@@ -561,9 +576,23 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
         {/* Resumen de peso y TER */}
         {allocations.length > 0 && (
           <div className="pt-3 border-t border-slate-200 space-y-2">
-            {/* Peso total */}
+            {/* Peso total + botón equiponderar */}
             <div className="flex justify-between items-center">
-              <span className="text-sm text-slate-600">Peso total:</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-600">Peso total:</span>
+                {allocations.length >= 2 && (
+                  <button
+                    onClick={handleEqualizeWeights}
+                    title={`Repartir 100% equiponderado entre los ${allocations.length} activos`}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-brand-coral hover:bg-brand-coral/10 rounded-md transition-colors border border-brand-coral/30"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                    Equiponderar
+                  </button>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 <div
                   className={`w-24 h-2 rounded-full overflow-hidden ${
