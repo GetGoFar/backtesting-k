@@ -49,6 +49,10 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [showPresetDropdown, setShowPresetDropdown] = useState(false);
   const [managementFee, setManagementFee] = useState(0);
+  // Modo "Activo satélite": al añadir, los pesos existentes se reescalan
+  // proporcionalmente para hacer hueco al nuevo activo
+  const [satelliteMode, setSatelliteMode] = useState(false);
+  const [satelliteWeight, setSatelliteWeight] = useState(10);
 
   const presets = getAllPresets();
   const colors = SIDE_COLORS[side];
@@ -112,7 +116,39 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   const handleAddFund = (fund: Fund) => {
     // Evitar duplicados
     if (allocations.some((a) => a.fund.id === fund.id)) return;
-    const newAllocs = [...allocations, { fund, weight: 0 }];
+
+    let newAllocs: FundAllocation[];
+
+    // Modo satélite: reescalar pesos existentes proporcionalmente
+    // para hacer hueco al nuevo activo con weight = satelliteWeight
+    const currentTotal = allocations.reduce((sum, a) => sum + a.weight, 0);
+    const canRescale =
+      satelliteMode &&
+      allocations.length > 0 &&
+      currentTotal > 0 &&
+      satelliteWeight > 0 &&
+      satelliteWeight < 100;
+
+    if (canRescale) {
+      const scale = (100 - satelliteWeight) / currentTotal;
+      const rescaled = allocations.map((a) => ({
+        ...a,
+        weight: Math.round(a.weight * scale * 100) / 100,
+      }));
+      // Ajuste de redondeo: la diferencia hasta (100 - satelliteWeight) la absorbe el primero
+      const rescaledTotal = rescaled.reduce((sum, a) => sum + a.weight, 0);
+      const delta = Math.round((100 - satelliteWeight - rescaledTotal) * 100) / 100;
+      if (rescaled.length > 0 && Math.abs(delta) > 0) {
+        rescaled[0] = {
+          ...rescaled[0]!,
+          weight: Math.round((rescaled[0]!.weight + delta) * 100) / 100,
+        };
+      }
+      newAllocs = [...rescaled, { fund, weight: satelliteWeight }];
+    } else {
+      newAllocs = [...allocations, { fund, weight: 0 }];
+    }
+
     setAllocations(newAllocs);
     markAsCustom();
     updateAutoName(newAllocs, null);
@@ -422,6 +458,50 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
             </div>
           )}
         </div>
+
+        {/* Modo activo satélite */}
+        {allocations.length > 0 && (
+          <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={satelliteMode}
+                onChange={(e) => setSatelliteMode(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-brand-coral focus:ring-brand-coral/50"
+              />
+              <span className="text-sm font-medium text-brand-navy">
+                Modo activo satélite
+              </span>
+              <span className="text-xs text-brand-tertiary">
+                — Al añadir, los pesos existentes se reescalan en proporción
+              </span>
+            </label>
+
+            {satelliteMode && (
+              <div className="mt-3 flex items-center gap-2 pl-6">
+                <span className="text-xs text-brand-secondary">
+                  Peso del nuevo activo:
+                </span>
+                <input
+                  type="number"
+                  min="1"
+                  max="99"
+                  step="1"
+                  value={satelliteWeight}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (!isNaN(v) && v >= 1 && v <= 99) setSatelliteWeight(v);
+                  }}
+                  className="w-16 px-2 py-1 text-sm font-semibold border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral"
+                />
+                <span className="text-sm font-semibold text-brand-navy">%</span>
+                <span className="text-xs text-brand-tertiary ml-1">
+                  (los {allocations.length} actuales se repartirán el {100 - satelliteWeight}% restante)
+                </span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Buscador de fondos */}
         <FundSearch onSelect={handleAddFund} excludeIds={excludedFundIds} />
