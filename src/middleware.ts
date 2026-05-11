@@ -2,16 +2,19 @@
 // MIDDLEWARE — control de acceso público
 // =============================================================================
 //
-// La herramienta de backtesting (/) es interna del equipo. Públicamente solo
-// queremos exponer:
+// Capa edge de control de acceso. La home (/) ya está protegida por el
+// componente <AccessGate> que pide código de suscriptor, así que aquí solo
+// bloqueamos rutas internas/dev no destinadas a usuarios.
+//
+// Rutas permitidas:
+//   - /                    → home con herramienta (AccessGate gestiona el código)
 //   - /informe/[isin]      → informe personalizado del lead capturado
 //   - /api/*               → endpoints REST que consume el widget de WordPress
 //   - /_next/*, /icon.svg  → assets de Next.js + favicon
-//   - /wordpress/*         → fichero del fetcher (servido desde /public, no
-//                             pasa por aquí pero lo permitimos por claridad)
+//   - /wordpress/*         → fetcher servido desde /public
 //
-// Cualquier otra ruta (la home con la herramienta, /liga-preview, páginas
-// futuras…) redirige a https://elproyectok.com.
+// Cualquier otra ruta (futuras páginas internas, /liga-preview…) redirige
+// a https://elproyectok.com.
 //
 // =============================================================================
 
@@ -20,6 +23,7 @@ import type { NextRequest } from "next/server";
 
 const RUTAS_PUBLICAS_PREFIJO = ["/api/", "/informe/", "/_next/", "/wordpress/"];
 const RUTAS_PUBLICAS_EXACTAS = new Set([
+  "/",
   "/favicon.ico",
   "/icon.svg",
   "/apple-icon.svg",
