@@ -458,7 +458,11 @@ export default function Home() {
               </label>
               <div className="flex flex-wrap gap-2">
                 {[
-                  { value: "daily", label: "Diario" },
+                  // "Diario" eliminado: el ruido del forward-fill multi-bolsa
+                  // y los datos EUFUND de baja frecuencia en histórico temprano
+                  // inflaban artificialmente la volatilidad diaria.
+                  // Internamente seguimos usando datos diarios para gráficos
+                  // y drawdowns, solo las métricas estadísticas usan mensual/trimestral.
                   { value: "monthly", label: "Mensual" },
                   { value: "quarterly", label: "Trimestral" },
                 ].map((option) => (
