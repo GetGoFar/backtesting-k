@@ -10,31 +10,41 @@ interface MetricsTableProps {
   isLoading: boolean;
 }
 
+// Mapeo de granularidad a etiquetas
+const GRANULARITY_LABELS: Record<DisplayGranularity, { singular: string; plural: string }> = {
+  daily: { singular: "día", plural: "días" },
+  monthly: { singular: "mes", plural: "meses" },
+  quarterly: { singular: "trimestre", plural: "trimestres" },
+};
+
 // Tooltips en español para cada métrica
-const METRIC_TOOLTIPS = {
-  finalValue:
-    "Valor total de tu cartera al final del periodo, incluyendo todas las aportaciones y rendimientos.",
-  totalReturn:
-    "Rentabilidad total acumulada desde el inicio hasta el final. Incluye el efecto de todas las aportaciones.",
-  cagr:
-    "Rentabilidad media anual compuesta. El dato más relevante para comparar inversiones a largo plazo.",
-  volatility:
-    "Desviación estándar anualizada de los retornos mensuales. Mide cuánto fluctúa el valor de tu cartera. Se calcula sobre todo el periodo del backtest, por lo que puede diferir de fuentes que usan ventanas fijas de 3 o 5 años.",
-  sharpe:
-    "Rentabilidad ajustada al riesgo. Mayor de 1 es bueno, mayor de 2 es excelente. Considera la tasa libre de riesgo del 1%.",
-  sortino:
-    "Similar al Sharpe, pero solo penaliza la volatilidad negativa (caídas). Más relevante si te preocupan las pérdidas.",
-  maxDrawdown:
-    "La peor caída desde un máximo histórico. Mide cuánto podrías haber perdido si hubieras invertido en el peor momento posible.",
-  bestMonth:
-    "El mejor mes del periodo. Muestra el potencial alcista de la cartera.",
-  worstMonth:
-    "El peor mes del periodo. Muestra el riesgo de pérdida en un mal mes.",
-  positiveMonthsRatio:
-    "Porcentaje de meses con rentabilidad positiva. Mayor porcentaje indica más consistencia.",
-  totalFees:
-    "Total de comisiones pagadas durante todo el periodo. Incluye el TER de cada fondo y la comisión de gestión de la cartera.",
-} as const;
+function buildTooltips(granularity: DisplayGranularity) {
+  const { singular, plural } = GRANULARITY_LABELS[granularity];
+  return {
+    finalValue:
+      "Valor total de tu cartera al final del periodo, incluyendo todas las aportaciones y rendimientos.",
+    totalReturn:
+      "Rentabilidad total acumulada desde el inicio hasta el final. Incluye el efecto de todas las aportaciones.",
+    cagr:
+      "Rentabilidad media anual compuesta. El dato más relevante para comparar inversiones a largo plazo.",
+    volatility:
+      `Desviación estándar anualizada de los retornos ${plural === "días" ? "diarios" : plural === "meses" ? "mensuales" : "trimestrales"}. Mide cuánto fluctúa el valor de tu cartera durante el periodo seleccionado.`,
+    sharpe:
+      "Rentabilidad ajustada al riesgo. Mayor de 1 es bueno, mayor de 2 es excelente. Considera la tasa libre de riesgo del 1%.",
+    sortino:
+      "Similar al Sharpe, pero solo penaliza la volatilidad negativa (caídas). Más relevante si te preocupan las pérdidas.",
+    maxDrawdown:
+      "La peor caída desde un máximo histórico. Mide cuánto podrías haber perdido si hubieras invertido en el peor momento posible.",
+    bestMonth:
+      `El mejor ${singular} del periodo. Muestra el potencial alcista de la cartera.`,
+    worstMonth:
+      `El peor ${singular} del periodo. Muestra el riesgo de pérdida en un mal ${singular}.`,
+    positiveMonthsRatio:
+      `Porcentaje de ${plural} con rentabilidad positiva. Mayor porcentaje indica más consistencia.`,
+    totalFees:
+      "Total de comisiones pagadas durante todo el periodo. Incluye el TER de cada fondo y la comisión de gestión de la cartera.",
+  };
+}
 
 // Definición de métricas con dirección
 interface MetricConfig {
@@ -47,14 +57,19 @@ interface MetricConfig {
   isHero?: boolean; // Métricas destacadas en cards grandes
 }
 
-const METRICS_CONFIG: MetricConfig[] = [
+function buildMetricsConfig(granularity: DisplayGranularity): MetricConfig[] {
+  const tooltips = buildTooltips(granularity);
+  const { singular, plural } = GRANULARITY_LABELS[granularity];
+  const pluralCap = plural.charAt(0).toUpperCase() + plural.slice(1);
+
+  return [
   {
     key: "finalValue",
     label: "Valor final",
     getValue: (r) => r.finalValue,
     format: formatEUR,
     higherIsBetter: true,
-    tooltip: METRIC_TOOLTIPS.finalValue,
+    tooltip: tooltips.finalValue,
     isHero: true,
   },
   {
@@ -63,7 +78,7 @@ const METRICS_CONFIG: MetricConfig[] = [
     getValue: (r) => r.metrics.cagr,
     format: (v) => formatPct(v),
     higherIsBetter: true,
-    tooltip: METRIC_TOOLTIPS.cagr,
+    tooltip: tooltips.cagr,
     isHero: true,
   },
   {
@@ -72,7 +87,7 @@ const METRICS_CONFIG: MetricConfig[] = [
     getValue: (r) => r.metrics.volatility,
     format: (v) => formatPctNoSign(v),
     higherIsBetter: false,
-    tooltip: METRIC_TOOLTIPS.volatility,
+    tooltip: tooltips.volatility,
     isHero: true,
   },
   {
@@ -81,7 +96,7 @@ const METRICS_CONFIG: MetricConfig[] = [
     getValue: (r) => r.metrics.maxDrawdown,
     format: (v) => formatPct(v, 1),
     higherIsBetter: true,
-    tooltip: METRIC_TOOLTIPS.maxDrawdown,
+    tooltip: tooltips.maxDrawdown,
     isHero: true,
   },
   {
@@ -90,7 +105,7 @@ const METRICS_CONFIG: MetricConfig[] = [
     getValue: (r) => r.metrics.totalReturn,
     format: (v) => formatPct(v),
     higherIsBetter: true,
-    tooltip: METRIC_TOOLTIPS.totalReturn,
+    tooltip: tooltips.totalReturn,
   },
   {
     key: "sharpe",
@@ -98,7 +113,7 @@ const METRICS_CONFIG: MetricConfig[] = [
     getValue: (r) => r.metrics.sharpe,
     format: formatRatio,
     higherIsBetter: true,
-    tooltip: METRIC_TOOLTIPS.sharpe,
+    tooltip: tooltips.sharpe,
   },
   {
     key: "sortino",
@@ -106,31 +121,31 @@ const METRICS_CONFIG: MetricConfig[] = [
     getValue: (r) => r.metrics.sortino,
     format: formatRatio,
     higherIsBetter: true,
-    tooltip: METRIC_TOOLTIPS.sortino,
+    tooltip: tooltips.sortino,
   },
   {
     key: "bestMonth",
-    label: "Mejor periodo",
+    label: `Mejor ${singular}`,
     getValue: (r) => r.metrics.bestMonth,
     format: (v) => formatPct(v, 1),
     higherIsBetter: true,
-    tooltip: METRIC_TOOLTIPS.bestMonth,
+    tooltip: tooltips.bestMonth,
   },
   {
     key: "worstMonth",
-    label: "Peor periodo",
+    label: `Peor ${singular}`,
     getValue: (r) => r.metrics.worstMonth,
     format: (v) => formatPct(v, 1),
     higherIsBetter: true,
-    tooltip: METRIC_TOOLTIPS.worstMonth,
+    tooltip: tooltips.worstMonth,
   },
   {
     key: "positiveMonthsRatio",
-    label: "% Periodos positivos",
+    label: `% ${pluralCap} positivos`,
     getValue: (r) => r.metrics.positiveMonthsRatio,
     format: (v) => formatPctNoSign(v),
     higherIsBetter: true,
-    tooltip: METRIC_TOOLTIPS.positiveMonthsRatio,
+    tooltip: tooltips.positiveMonthsRatio,
   },
   {
     key: "totalFees",
@@ -138,9 +153,10 @@ const METRICS_CONFIG: MetricConfig[] = [
     getValue: (r) => r.fees.totalFees + (r.fees.managementFeePaid || 0),
     format: formatEUR,
     higherIsBetter: false,
-    tooltip: METRIC_TOOLTIPS.totalFees,
+    tooltip: tooltips.totalFees,
   },
-];
+  ];
+}
 
 // Determinar el ganador
 function getWinner(
@@ -261,8 +277,10 @@ export function MetricsTable({ results, isLoading }: MetricsTableProps) {
     );
   }
 
-  const heroMetrics = METRICS_CONFIG.filter((m) => m.isHero);
-  const tableMetrics = METRICS_CONFIG.filter((m) => !m.isHero);
+  const granularity: DisplayGranularity = results.displayGranularity ?? "monthly";
+  const metricsConfig = buildMetricsConfig(granularity);
+  const heroMetrics = metricsConfig.filter((m) => m.isHero);
+  const tableMetrics = metricsConfig.filter((m) => !m.isHero);
   const isSinglePortfolio = !resultA || !resultB;
   const singleResult = resultA || resultB;
 

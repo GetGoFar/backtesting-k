@@ -155,7 +155,7 @@ export async function runBacktest(
       allHoldings.length >= 2
         ? calculateAssetCorrelationMatrix(allHoldings, actualStartDate, actualEndDate)
         : Promise.resolve(undefined),
-      calculateIndividualAssetMetrics(allHoldings, actualStartDate, actualEndDate),
+      calculateIndividualAssetMetrics(allHoldings, actualStartDate, actualEndDate, displayGranularity),
     ]);
   }
 
@@ -977,7 +977,8 @@ function pearsonCorrelation(a: number[], b: number[]): number {
 async function calculateIndividualAssetMetrics(
   holdings: PortfolioHolding[],
   startDate: string,
-  endDate: string
+  endDate: string,
+  displayGranularity: DisplayGranularity = "monthly"
 ): Promise<AssetMetrics[]> {
   const uniqueHoldings = new Map<string, PortfolioHolding>();
   for (const holding of holdings) {
@@ -1043,8 +1044,56 @@ async function calculateIndividualAssetMetrics(
       const totalReturn = (finalValue - initialValue) / initialValue;
       const cagr = years > 0 ? Math.pow(finalValue / initialValue, 1 / years) - 1 : 0;
 
-      // Volatilidad: diaria anualizada (×√252)
-      const volatility = calculatePeriodVolatility(dailyReturns, TRADING_DAYS_PER_YEAR);
+      // Volatilidad: usar la misma granularidad que las métricas de cartera para coherencia
+      // (las métricas diarias incluyen ruido del forward-fill multi-exchange que infla la vol)
+      let periodReturnsForVol: number[];
+      let periodsPerYear: number;
+      if (displayGranularity === "daily") {
+        periodReturnsForVol = dailyReturns;
+        periodsPerYear = TRADING_DAYS_PER_YEAR;
+      } else if (displayGranularity === "quarterly") {
+        // Agrupar dailyValues por trimestre y calcular retornos
+        const quarterlyValues: number[] = [];
+        const quarterMap = new Map<string, number>();
+        for (let i = 0; i < sortedDates.length; i++) {
+          const d = sortedDates[i]!;
+          const year = d.substring(0, 4);
+          const month = parseInt(d.substring(5, 7), 10);
+          const q = Math.ceil(month / 3);
+          const key = `${year}-Q${q}`;
+          const val = dailyValues[i];
+          if (val !== undefined) quarterMap.set(key, val); // sobrescribe → último del trimestre
+        }
+        const sortedKeys = Array.from(quarterMap.keys()).sort();
+        for (const k of sortedKeys) quarterlyValues.push(quarterMap.get(k)!);
+        periodReturnsForVol = [];
+        for (let i = 1; i < quarterlyValues.length; i++) {
+          const prev = quarterlyValues[i - 1];
+          const curr = quarterlyValues[i];
+          if (prev && curr && prev > 0) periodReturnsForVol.push((curr - prev) / prev);
+        }
+        periodsPerYear = 4;
+      } else {
+        // monthly (default)
+        const monthlyValues: number[] = [];
+        const monthMap = new Map<string, number>();
+        for (let i = 0; i < sortedDates.length; i++) {
+          const month = sortedDates[i]!.substring(0, 7); // YYYY-MM
+          const val = dailyValues[i];
+          if (val !== undefined) monthMap.set(month, val); // sobrescribe → último día del mes
+        }
+        const sortedKeys = Array.from(monthMap.keys()).sort();
+        for (const k of sortedKeys) monthlyValues.push(monthMap.get(k)!);
+        periodReturnsForVol = [];
+        for (let i = 1; i < monthlyValues.length; i++) {
+          const prev = monthlyValues[i - 1];
+          const curr = monthlyValues[i];
+          if (prev && curr && prev > 0) periodReturnsForVol.push((curr - prev) / prev);
+        }
+        periodsPerYear = 12;
+      }
+
+      const volatility = calculatePeriodVolatility(periodReturnsForVol, periodsPerYear);
       const maxDrawdown = calculateMaxDrawdown(dailyValues);
       const sharpe = volatility > 0 ? (cagr - RISK_FREE_RATE) / volatility : 0;
 
