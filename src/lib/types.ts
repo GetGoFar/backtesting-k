@@ -297,6 +297,63 @@ export interface RollingReturns {
   fiveYear: Array<{ date: string; value: number; exactDate?: string }>;
 }
 
+/** Estadísticos best/worst/avg/median de un periodo rolling */
+export interface RollingStatsBucket {
+  /** Etiqueta del periodo (ej: "1 año", "3 años") */
+  label: string;
+  /** Años del periodo */
+  years: number;
+  /** Cuántas ventanas se han calculado */
+  count: number;
+  /** Mejor CAGR de todas las ventanas (decimal) */
+  bestCagr: number;
+  /** Fecha de la ventana con el mejor CAGR (fin de la ventana) */
+  bestEndDate: string | null;
+  /** Peor CAGR de todas las ventanas (decimal) */
+  worstCagr: number;
+  /** Fecha de la ventana con el peor CAGR */
+  worstEndDate: string | null;
+  /** CAGR medio aritmético de todas las ventanas */
+  avgCagr: number;
+  /** CAGR mediano */
+  medianCagr: number;
+  /** % de ventanas con CAGR >= 0 */
+  positiveRatio: number;
+}
+
+/** Conjunto de estadísticos rolling: 1y, 3y, 5y, 10y */
+export interface RollingStats {
+  oneYear: RollingStatsBucket;
+  threeYear: RollingStatsBucket;
+  fiveYear: RollingStatsBucket;
+  tenYear: RollingStatsBucket;
+}
+
+/** Histograma de retornos (distribución de frecuencias) */
+export interface ReturnsHistogram {
+  /** Etiqueta del periodo de los retornos: "mes", "día", "trimestre" */
+  periodLabel: string;
+  /** Bins del histograma */
+  bins: Array<{
+    /** Límite inferior del bin (decimal, ej: -0.05 para -5%) */
+    binStart: number;
+    /** Límite superior del bin */
+    binEnd: number;
+    /** Punto medio del bin (para etiquetar) */
+    binMid: number;
+    /** Frecuencia (número de observaciones en el bin) */
+    count: number;
+    /** Frecuencia esperada según una distribución normal con misma media/std */
+    normalExpected: number;
+  }>;
+  /** Media aritmética de los retornos */
+  mean: number;
+  /** Desviación estándar de los retornos */
+  stdDev: number;
+  /** Número total de observaciones */
+  totalCount: number;
+}
+
 /** Desglose de comisiones pagadas */
 export interface FeesSummary {
   /** Total de comisiones pagadas en EUR */
@@ -333,6 +390,10 @@ export interface BacktestResult {
   benchmark?: BenchmarkComparison;
   /** Rolling returns a 1, 3 y 5 años */
   rollingReturns: RollingReturns;
+  /** Estadísticos rolling: mejor/peor/medio/mediano por ventana (1y, 3y, 5y, 10y) */
+  rollingStats: RollingStats;
+  /** Histograma de la distribución de retornos del periodo */
+  returnsHistogram: ReturnsHistogram;
   /** Resumen de comisiones */
   fees: FeesSummary;
   /** Aportaciones totales realizadas */

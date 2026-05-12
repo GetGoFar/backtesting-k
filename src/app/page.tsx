@@ -107,6 +107,22 @@ const BenchmarkComparisonCard = dynamic(
   }
 );
 
+const RollingStatsTable = dynamic(
+  () => import("@/components/RollingStatsTable").then((mod) => mod.RollingStatsTable),
+  {
+    loading: () => <ChartLoadingSkeleton height="h-64" />,
+    ssr: false,
+  }
+);
+
+const ReturnsHistogramChart = dynamic(
+  () => import("@/components/ReturnsHistogramChart").then((mod) => mod.ReturnsHistogramChart),
+  {
+    loading: () => <ChartLoadingSkeleton height="h-64" />,
+    ssr: false,
+  }
+);
+
 // Skeleton de carga para gráficos
 function ChartLoadingSkeleton({ height }: { height: string }) {
   return (
@@ -834,6 +850,12 @@ export default function Home() {
 
               {/* 6d. Comparación vs benchmark (si se seleccionó) */}
               <BenchmarkComparisonCard results={results} isLoading={false} />
+
+              {/* 6e. Mejores/peores ventanas rolling (estadísticos resumidos) */}
+              <RollingStatsTable results={results} isLoading={false} />
+
+              {/* 6f. Histograma de distribución de retornos */}
+              <ReturnsHistogramChart results={results} isLoading={false} />
 
               {/* 7. Rolling returns */}
               <RollingReturnsChart results={results} isLoading={false} />

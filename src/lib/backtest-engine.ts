@@ -26,6 +26,9 @@ import type {
   FundType,
   RebalanceFrequency,
   RollingReturns,
+  RollingStats,
+  RollingStatsBucket,
+  ReturnsHistogram,
   CorrelationMatrix,
   CorrelationEntry,
   AssetMetrics,
@@ -419,6 +422,8 @@ async function runPortfolioBacktest(
 
   // Rolling returns: usar la serie de output (mensual o trimestral tiene más sentido para rolling)
   const rollingReturns = calculateRollingReturns(timeSeries, displayGranularity);
+  const rollingStats = calculateRollingStats(timeSeries, displayGranularity);
+  const returnsHistogram = calculateReturnsHistogram(volatilityReturns, displayGranularity);
 
   // 7. Comisiones (usar activeHoldings para calcular TER solo de fondos con datos)
   const weightedTer = calculateWeightedTer(activeHoldings, fundTers);
@@ -442,6 +447,8 @@ async function runPortfolioBacktest(
     topDrawdowns,
     stressPeriods,
     rollingReturns,
+    rollingStats,
+    returnsHistogram,
     fees,
     totalContributions: simulation.totalContributions,
     finalValue,
@@ -1247,6 +1254,174 @@ function calculateRollingReturnSeries(
   }
 
   return result;
+}
+
+/**
+ * Calcula estadísticos resumidos (best/worst/avg/median) para ventanas
+ * rolling de 1, 3, 5 y 10 años.
+ */
+function calculateRollingStats(
+  timeSeries: TimeSeriesPoint[],
+  granularity: DisplayGranularity
+): RollingStats {
+  const pointsPerYear = granularity === "daily" ? TRADING_DAYS_PER_YEAR
+    : granularity === "quarterly" ? 4
+    : 12;
+
+  const buildBucket = (years: number, label: string): RollingStatsBucket => {
+    const series = calculateRollingReturnSeries(
+      timeSeries,
+      Math.round(pointsPerYear * years),
+      years
+    );
+    if (series.length === 0) {
+      return {
+        label,
+        years,
+        count: 0,
+        bestCagr: 0,
+        bestEndDate: null,
+        worstCagr: 0,
+        worstEndDate: null,
+        avgCagr: 0,
+        medianCagr: 0,
+        positiveRatio: 0,
+      };
+    }
+
+    const values = series.map((p) => p.value);
+    const sorted = [...values].sort((a, b) => a - b);
+
+    let best = -Infinity;
+    let worst = Infinity;
+    let bestEnd: string | null = null;
+    let worstEnd: string | null = null;
+    for (const p of series) {
+      if (p.value > best) {
+        best = p.value;
+        bestEnd = p.exactDate || p.date;
+      }
+      if (p.value < worst) {
+        worst = p.value;
+        worstEnd = p.exactDate || p.date;
+      }
+    }
+
+    const avg = values.reduce((s, v) => s + v, 0) / values.length;
+    const median = sorted.length % 2 === 0
+      ? (sorted[sorted.length / 2 - 1]! + sorted[sorted.length / 2]!) / 2
+      : sorted[Math.floor(sorted.length / 2)]!;
+    const positives = values.filter((v) => v >= 0).length;
+
+    return {
+      label,
+      years,
+      count: values.length,
+      bestCagr: best,
+      bestEndDate: bestEnd,
+      worstCagr: worst,
+      worstEndDate: worstEnd,
+      avgCagr: avg,
+      medianCagr: median,
+      positiveRatio: positives / values.length,
+    };
+  };
+
+  return {
+    oneYear: buildBucket(1, "1 año"),
+    threeYear: buildBucket(3, "3 años"),
+    fiveYear: buildBucket(5, "5 años"),
+    tenYear: buildBucket(10, "10 años"),
+  };
+}
+
+/**
+ * Calcula el histograma de la distribución de retornos del periodo
+ * seleccionado y la frecuencia esperada según una distribución normal
+ * con la misma media y desviación estándar.
+ *
+ * Útil para visualizar gráficamente la asimetría (skewness) y el
+ * exceso de curtosis (colas gordas) que se muestran como números en
+ * la tabla de métricas.
+ */
+function calculateReturnsHistogram(
+  returns: number[],
+  granularity: DisplayGranularity
+): ReturnsHistogram {
+  const periodLabel = granularity === "daily" ? "día"
+    : granularity === "quarterly" ? "trimestre"
+    : "mes";
+
+  if (returns.length < 5) {
+    return {
+      periodLabel,
+      bins: [],
+      mean: 0,
+      stdDev: 0,
+      totalCount: returns.length,
+    };
+  }
+
+  // Mean y std de la muestra
+  const n = returns.length;
+  const mean = returns.reduce((s, v) => s + v, 0) / n;
+  const variance = returns.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / (n - 1);
+  const stdDev = Math.sqrt(variance);
+
+  if (stdDev === 0) {
+    return { periodLabel, bins: [], mean, stdDev, totalCount: n };
+  }
+
+  // Determinar rango y número de bins (regla de Sturges + buffer simétrico)
+  const minVal = Math.min(...returns);
+  const maxVal = Math.max(...returns);
+  // Centrar el histograma en la media, con ±4σ de rango y bins más finos
+  const rangeHalf = Math.max(Math.abs(minVal - mean), Math.abs(maxVal - mean), 3 * stdDev);
+  const binCount = Math.min(25, Math.max(10, Math.ceil(Math.sqrt(n))));
+  const binWidth = (2 * rangeHalf) / binCount;
+  const histStart = mean - rangeHalf;
+
+  // Inicializar bins
+  const bins = Array.from({ length: binCount }, (_, i) => ({
+    binStart: histStart + i * binWidth,
+    binEnd: histStart + (i + 1) * binWidth,
+    binMid: histStart + (i + 0.5) * binWidth,
+    count: 0,
+    normalExpected: 0,
+  }));
+
+  // Asignar retornos a bins
+  for (const r of returns) {
+    let idx = Math.floor((r - histStart) / binWidth);
+    if (idx < 0) idx = 0;
+    if (idx >= binCount) idx = binCount - 1;
+    bins[idx]!.count++;
+  }
+
+  // Calcular frecuencia esperada según normal(mean, stdDev) para cada bin
+  // Usando CDF de la normal estándar (aproximación de Abramowitz-Stegun)
+  const normalCdf = (x: number): number => {
+    const z = (x - mean) / stdDev;
+    // Aproximación: erf(z/√2) usando serie
+    const t = 1 / (1 + 0.2316419 * Math.abs(z));
+    const d = 0.3989422804 * Math.exp(-z * z / 2);
+    let prob = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+    if (z > 0) prob = 1 - prob;
+    return prob;
+  };
+
+  for (const bin of bins) {
+    const pBin = normalCdf(bin.binEnd) - normalCdf(bin.binStart);
+    bin.normalExpected = pBin * n;
+  }
+
+  return {
+    periodLabel,
+    bins,
+    mean,
+    stdDev,
+    totalCount: n,
+  };
 }
 
 // -----------------------------------------------------------------------------
