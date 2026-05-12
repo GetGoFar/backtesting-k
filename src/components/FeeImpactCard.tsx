@@ -242,23 +242,25 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
               {formatEUR(feesA)}
             </p>
             <p className="text-[11px] text-brand-tertiary mt-1">Coste total acumulado</p>
-            {/* Desglose */}
-            <div className="mt-4 pt-3 border-t border-blue-200/50">
-              <p className="text-[10px] font-semibold text-blue-600/80 uppercase tracking-wider mb-2">Desglose</p>
+            {/* Desglose — siempre visible */}
+            <div className="mt-3 p-3 bg-white/60 rounded-lg border border-blue-200/60">
+              <p className="text-[10px] font-bold text-blue-700 uppercase tracking-wider mb-2">
+                💰 Desglose del coste
+              </p>
               <div className="space-y-1.5 text-xs">
                 <div className="flex justify-between items-baseline">
-                  <span className="text-brand-secondary">• Costes (TER + gestión):</span>
+                  <span className="text-brand-secondary">Costes (TER + gestión):</span>
                   <span className="font-semibold text-brand-navy tabular-nums">{formatEUR(breakdownA.costes)}</span>
                 </div>
                 <div className="flex justify-between items-baseline">
-                  <span className="text-brand-secondary">• Impuestos adelantados:</span>
+                  <span className="text-brand-secondary">Impuestos adelantados:</span>
                   <span className={`font-semibold tabular-nums ${breakdownA.adelantados > 0 ? "text-amber-700" : "text-brand-tertiary"}`}>
                     {breakdownA.adelantados > 0 ? formatEUR(breakdownA.adelantados) : "0 €"}
                   </span>
                 </div>
                 <div className="flex justify-between items-baseline">
                   <span className="text-brand-secondary">
-                    • Impuestos pendientes{breakdownA.isHypothetical && <span className="ml-1 text-purple-600 font-bold">*</span>}:
+                    Impuestos pendientes{breakdownA.isHypothetical && <span className="ml-1 text-purple-600 font-bold">*</span>}:
                   </span>
                   <span className={`font-semibold tabular-nums ${breakdownA.pendientes > 0 ? "text-purple-700" : "text-brand-tertiary"}`}>
                     {breakdownA.pendientes > 0 ? formatEUR(breakdownA.pendientes) : "0 €"}
@@ -282,23 +284,25 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
               {formatEUR(feesB)}
             </p>
             <p className="text-[11px] text-brand-tertiary mt-1">Coste total acumulado</p>
-            {/* Desglose */}
-            <div className="mt-4 pt-3 border-t border-rose-200/50">
-              <p className="text-[10px] font-semibold text-rose-600/80 uppercase tracking-wider mb-2">Desglose</p>
+            {/* Desglose — siempre visible */}
+            <div className="mt-3 p-3 bg-white/60 rounded-lg border border-rose-200/60">
+              <p className="text-[10px] font-bold text-rose-700 uppercase tracking-wider mb-2">
+                💰 Desglose del coste
+              </p>
               <div className="space-y-1.5 text-xs">
                 <div className="flex justify-between items-baseline">
-                  <span className="text-brand-secondary">• Costes (TER + gestión):</span>
+                  <span className="text-brand-secondary">Costes (TER + gestión):</span>
                   <span className="font-semibold text-brand-navy tabular-nums">{formatEUR(breakdownB.costes)}</span>
                 </div>
                 <div className="flex justify-between items-baseline">
-                  <span className="text-brand-secondary">• Impuestos adelantados:</span>
+                  <span className="text-brand-secondary">Impuestos adelantados:</span>
                   <span className={`font-semibold tabular-nums ${breakdownB.adelantados > 0 ? "text-amber-700" : "text-brand-tertiary"}`}>
                     {breakdownB.adelantados > 0 ? formatEUR(breakdownB.adelantados) : "0 €"}
                   </span>
                 </div>
                 <div className="flex justify-between items-baseline">
                   <span className="text-brand-secondary">
-                    • Impuestos pendientes{breakdownB.isHypothetical && <span className="ml-1 text-purple-600 font-bold">*</span>}:
+                    Impuestos pendientes{breakdownB.isHypothetical && <span className="ml-1 text-purple-600 font-bold">*</span>}:
                   </span>
                   <span className={`font-semibold tabular-nums ${breakdownB.pendientes > 0 ? "text-purple-700" : "text-brand-tertiary"}`}>
                     {breakdownB.pendientes > 0 ? formatEUR(breakdownB.pendientes) : "0 €"}
