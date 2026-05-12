@@ -121,6 +121,8 @@ export interface BacktestConfig {
   useCommonDateRange?: boolean;
   /** Granularidad de visualización: daily, monthly (default), quarterly */
   displayGranularity?: DisplayGranularity;
+  /** Benchmark a comparar (opcional). Si se incluye, se calcula alpha/beta/IR/etc. */
+  benchmarkId?: BenchmarkId | null;
 }
 
 // -----------------------------------------------------------------------------
@@ -153,6 +155,58 @@ export interface DrawdownPoint {
   drawdown: number;
   /** Fecha exacta en formato YYYY-MM-DD (para tooltips) */
   exactDate?: string;
+}
+
+/** Opciones de benchmark predefinidas para comparación */
+export type BenchmarkId =
+  | "msci-world"
+  | "sp500-eur"
+  | "msci-em"
+  | "euro-stoxx"
+  | "global-60-40"
+  | "vanguard-global"
+  | "cash-eur";
+
+/** Definición de un benchmark */
+export interface BenchmarkDefinition {
+  id: BenchmarkId;
+  name: string;
+  shortName: string;
+  description: string;
+  /** fundIds o construcción manual */
+  composition: Array<{ fundId: string; weight: number }>;
+}
+
+/** Métricas relativas vs benchmark */
+export interface BenchmarkComparison {
+  /** ID del benchmark utilizado */
+  benchmarkId: BenchmarkId;
+  /** Nombre del benchmark */
+  benchmarkName: string;
+  /** Alpha de Jensen anualizado (decimal). Rentabilidad excesiva sobre el benchmark ajustada por beta. */
+  alpha: number;
+  /** Beta vs el benchmark. >1 = más volátil que el mercado, <1 = menos volátil */
+  beta: number;
+  /** Tracking error anualizado: desviación estándar de (retorno cartera - retorno benchmark) */
+  trackingError: number;
+  /** Information Ratio = (Retorno cartera - Retorno benchmark) / Tracking Error */
+  informationRatio: number;
+  /** Correlación con el benchmark */
+  correlation: number;
+  /** R² (coeficiente de determinación): % de varianza explicada por el benchmark */
+  rSquared: number;
+  /** Up Capture Ratio: % del benchmark capturado cuando el benchmark sube */
+  upCapture: number;
+  /** Down Capture Ratio: % del benchmark capturado cuando el benchmark baja (menor = mejor protección) */
+  downCapture: number;
+  /** Rentabilidad total del benchmark en el periodo */
+  benchmarkTotalReturn: number;
+  /** CAGR del benchmark */
+  benchmarkCagr: number;
+  /** Volatilidad del benchmark */
+  benchmarkVolatility: number;
+  /** Serie temporal del benchmark normalizada al mismo punto de partida */
+  benchmarkTimeSeries: TimeSeriesPoint[];
 }
 
 /** Resultado de la cartera durante un periodo histórico de estrés */
@@ -273,6 +327,8 @@ export interface BacktestResult {
   topDrawdowns: DrawdownEpisode[];
   /** Comportamiento durante periodos históricos de estrés */
   stressPeriods: StressPeriodResult[];
+  /** Comparación vs benchmark (opcional, solo si se solicita) */
+  benchmark?: BenchmarkComparison;
   /** Rolling returns a 1, 3 y 5 años */
   rollingReturns: RollingReturns;
   /** Resumen de comisiones */

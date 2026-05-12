@@ -19,6 +19,8 @@ import type {
   DrawdownPoint,
   DrawdownEpisode,
   StressPeriodResult,
+  BenchmarkComparison,
+  BenchmarkId,
   FeesSummary,
   Metrics,
   FundType,
@@ -30,6 +32,7 @@ import type {
   DisplayGranularity,
 } from "./types";
 import { getFundById } from "./fund-database";
+import { getBenchmarkById } from "./benchmarks";
 import { getDailyPrices, getMonthlyPrices } from "./data-fetcher";
 import { getExcludedAssetWarnings, getTerWarnings } from "./data-warnings";
 import {
@@ -130,6 +133,51 @@ export async function runBacktest(
   let correlation: number | undefined;
   if (resultA && resultB) {
     correlation = calculateCorrelation(resultA.timeSeries, resultB.timeSeries);
+  }
+
+  // Benchmark: si se solicita, ejecutar backtest del benchmark y calcular métricas relativas
+  if (config.benchmarkId && (resultA || resultB)) {
+    try {
+      const benchmarkDef = getBenchmarkById(config.benchmarkId);
+      if (benchmarkDef) {
+        const benchmarkPortfolio: Portfolio = {
+          name: benchmarkDef.name,
+          holdings: benchmarkDef.composition,
+        };
+        const benchmarkResult = await runPortfolioBacktest(
+          benchmarkPortfolio,
+          effectiveStartDate,
+          effectiveEndDate,
+          config.initialAmount,
+          config.rebalanceFrequency,
+          config.monthlyContribution ?? 0,
+          displayGranularity,
+          [] // no acumulamos warnings del benchmark
+        );
+        if (benchmarkResult) {
+          if (resultA) {
+            resultA.benchmark = computeBenchmarkComparison(
+              resultA,
+              benchmarkResult,
+              config.benchmarkId,
+              benchmarkDef.name,
+              displayGranularity
+            );
+          }
+          if (resultB) {
+            resultB.benchmark = computeBenchmarkComparison(
+              resultB,
+              benchmarkResult,
+              config.benchmarkId,
+              benchmarkDef.name,
+              displayGranularity
+            );
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[BacktestEngine] Error calculando benchmark:", err);
+    }
   }
 
   // Métricas individuales de activos y matriz de correlaciones
@@ -794,6 +842,163 @@ function calculateDrawdowns(timeSeries: TimeSeriesPoint[]): DrawdownPoint[] {
   }
 
   return drawdowns;
+}
+
+/**
+ * Calcula métricas de comparación contra un benchmark:
+ * alpha de Jensen, beta, tracking error, information ratio, R², up/down capture.
+ *
+ * Las métricas se calculan sobre la intersección de fechas comunes en
+ * los retornos (timeSeries del periodo, por defecto mensual).
+ */
+function computeBenchmarkComparison(
+  portfolioResult: BacktestResult,
+  benchmarkResult: BacktestResult,
+  benchmarkId: BenchmarkId,
+  benchmarkName: string,
+  granularity: DisplayGranularity
+): BenchmarkComparison {
+  const periodsPerYear = granularity === "daily" ? TRADING_DAYS_PER_YEAR
+    : granularity === "quarterly" ? 4
+    : 12;
+
+  // Construir mapas de retornos por fecha desde las timeSeries
+  const portReturns = timeSeriesToReturns(portfolioResult.timeSeries);
+  const benchReturns = timeSeriesToReturns(benchmarkResult.timeSeries);
+
+  // Intersección de fechas
+  const commonDates = portReturns
+    .map((r) => r.date)
+    .filter((d) => benchReturns.some((br) => br.date === d));
+
+  const portArr: number[] = [];
+  const benchArr: number[] = [];
+  for (const date of commonDates) {
+    const p = portReturns.find((r) => r.date === date)?.value;
+    const b = benchReturns.find((r) => r.date === date)?.value;
+    if (p !== undefined && b !== undefined) {
+      portArr.push(p);
+      benchArr.push(b);
+    }
+  }
+
+  if (portArr.length < 2) {
+    return {
+      benchmarkId,
+      benchmarkName,
+      alpha: 0,
+      beta: 0,
+      trackingError: 0,
+      informationRatio: 0,
+      correlation: 0,
+      rSquared: 0,
+      upCapture: 0,
+      downCapture: 0,
+      benchmarkTotalReturn: benchmarkResult.metrics.totalReturn,
+      benchmarkCagr: benchmarkResult.metrics.cagr,
+      benchmarkVolatility: benchmarkResult.metrics.volatility,
+      benchmarkTimeSeries: benchmarkResult.timeSeries,
+    };
+  }
+
+  const portMean = portArr.reduce((s, v) => s + v, 0) / portArr.length;
+  const benchMean = benchArr.reduce((s, v) => s + v, 0) / benchArr.length;
+
+  // Covarianza y varianza del benchmark
+  let covariance = 0;
+  let benchVariance = 0;
+  let portVariance = 0;
+  for (let i = 0; i < portArr.length; i++) {
+    const dp = portArr[i]! - portMean;
+    const db = benchArr[i]! - benchMean;
+    covariance += dp * db;
+    benchVariance += db * db;
+    portVariance += dp * dp;
+  }
+  covariance /= portArr.length - 1;
+  benchVariance /= portArr.length - 1;
+  portVariance /= portArr.length - 1;
+
+  const beta = benchVariance > 0 ? covariance / benchVariance : 0;
+
+  // Correlación de Pearson
+  const portStd = Math.sqrt(portVariance);
+  const benchStd = Math.sqrt(benchVariance);
+  const correl = portStd > 0 && benchStd > 0
+    ? covariance / (portStd * benchStd)
+    : 0;
+  const rSquared = correl * correl;
+
+  // Alpha de Jensen anualizado:
+  //   alpha = (CAGR_port - Rf) - beta × (CAGR_bench - Rf)
+  const alpha =
+    (portfolioResult.metrics.cagr - RISK_FREE_RATE) -
+    beta * (benchmarkResult.metrics.cagr - RISK_FREE_RATE);
+
+  // Tracking error anualizado: std(port - bench) × √periodsPerYear
+  const diffs = portArr.map((v, i) => v - benchArr[i]!);
+  const diffMean = diffs.reduce((s, v) => s + v, 0) / diffs.length;
+  const diffVar = diffs.reduce((s, v) => s + Math.pow(v - diffMean, 2), 0) / (diffs.length - 1);
+  const trackingError = Math.sqrt(diffVar) * Math.sqrt(periodsPerYear);
+
+  // Information Ratio = (CAGR_port - CAGR_bench) / Tracking Error
+  const informationRatio = trackingError > 0
+    ? (portfolioResult.metrics.cagr - benchmarkResult.metrics.cagr) / trackingError
+    : 0;
+
+  // Up/Down capture ratios
+  let upPort = 0, upBench = 0, downPort = 0, downBench = 0;
+  let upCount = 0, downCount = 0;
+  for (let i = 0; i < portArr.length; i++) {
+    if (benchArr[i]! > 0) {
+      upPort += portArr[i]!;
+      upBench += benchArr[i]!;
+      upCount++;
+    } else if (benchArr[i]! < 0) {
+      downPort += portArr[i]!;
+      downBench += benchArr[i]!;
+      downCount++;
+    }
+  }
+  // Capture ratio = retorno medio cartera / retorno medio benchmark cuando benchmark va en ese sentido
+  const upCapture = upCount > 0 && upBench !== 0
+    ? (upPort / upCount) / (upBench / upCount)
+    : 0;
+  const downCapture = downCount > 0 && downBench !== 0
+    ? (downPort / downCount) / (downBench / downCount)
+    : 0;
+
+  return {
+    benchmarkId,
+    benchmarkName,
+    alpha,
+    beta,
+    trackingError,
+    informationRatio,
+    correlation: correl,
+    rSquared,
+    upCapture,
+    downCapture,
+    benchmarkTotalReturn: benchmarkResult.metrics.totalReturn,
+    benchmarkCagr: benchmarkResult.metrics.cagr,
+    benchmarkVolatility: benchmarkResult.metrics.volatility,
+    benchmarkTimeSeries: benchmarkResult.timeSeries,
+  };
+}
+
+/**
+ * Convierte una serie temporal en una serie de retornos por periodo.
+ */
+function timeSeriesToReturns(timeSeries: TimeSeriesPoint[]): Array<{ date: string; value: number }> {
+  const returns: Array<{ date: string; value: number }> = [];
+  for (let i = 1; i < timeSeries.length; i++) {
+    const prev = timeSeries[i - 1]!;
+    const curr = timeSeries[i]!;
+    if (prev.value > 0) {
+      returns.push({ date: curr.date, value: (curr.value - prev.value) / prev.value });
+    }
+  }
+  return returns;
 }
 
 /**

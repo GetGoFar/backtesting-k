@@ -12,7 +12,9 @@ import type {
   DisplayGranularity,
   PortfolioHolding,
   BacktestWarning,
+  BenchmarkId,
 } from "@/lib/types";
+import { getAllBenchmarks } from "@/lib/benchmarks";
 
 // Función para obtener el mes actual en formato YYYY-MM
 function getCurrentMonth(): string {
@@ -96,6 +98,14 @@ const StressPeriodsTable = dynamic(
   }
 );
 
+const BenchmarkComparisonCard = dynamic(
+  () => import("@/components/BenchmarkComparisonCard").then((mod) => mod.BenchmarkComparisonCard),
+  {
+    loading: () => <ChartLoadingSkeleton height="h-64" />,
+    ssr: false,
+  }
+);
+
 // Skeleton de carga para gráficos
 function ChartLoadingSkeleton({ height }: { height: string }) {
   return (
@@ -157,6 +167,7 @@ export default function Home() {
   const [displayGranularity, setDisplayGranularity] =
     useState<DisplayGranularity>("monthly");
   const [useCommonDateRange, setUseCommonDateRange] = useState(true);
+  const [benchmarkId, setBenchmarkId] = useState<BenchmarkId | null>(null);
 
   // Estado de resultados y UI
   const [results, setResults] = useState<BacktestResponse | null>(null);
@@ -216,6 +227,7 @@ export default function Home() {
         rebalanceFrequency,
         displayGranularity,
         useCommonDateRange,
+        benchmarkId: benchmarkId ?? undefined,
       };
 
       if (portfolioA.isValid) {
@@ -519,6 +531,28 @@ export default function Home() {
               )}
             </div>
 
+            {/* Selector de benchmark */}
+            <div className="mt-4 sm:mt-6">
+              <label className="block text-sm font-medium text-brand-secondary mb-2">
+                Benchmark de referencia (opcional)
+              </label>
+              <select
+                value={benchmarkId ?? ""}
+                onChange={(e) => setBenchmarkId(e.target.value ? (e.target.value as BenchmarkId) : null)}
+                className="w-full sm:max-w-md px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral"
+              >
+                <option value="">Sin benchmark</option>
+                {getAllBenchmarks().map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1.5 text-xs text-brand-tertiary">
+                Si lo seleccionas, se calcularán alpha de Jensen, beta, tracking error, information ratio y capture ratios vs el benchmark.
+              </p>
+            </div>
+
             {/* Botón Ejecutar — CTA coral estilo elproyectok.com */}
             <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
               <button
@@ -768,6 +802,9 @@ export default function Home() {
 
               {/* 6c. Comportamiento en crisis históricas */}
               <StressPeriodsTable results={results} isLoading={false} />
+
+              {/* 6d. Comparación vs benchmark (si se seleccionó) */}
+              <BenchmarkComparisonCard results={results} isLoading={false} />
 
               {/* 7. Rolling returns */}
               <RollingReturnsChart results={results} isLoading={false} />

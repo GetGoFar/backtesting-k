@@ -155,6 +155,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         rebalanceFrequency: config.rebalanceFrequency,
         monthlyContribution: config.monthlyContribution ?? 0,
         displayGranularity: config.displayGranularity,
+        benchmarkId: config.benchmarkId ?? null,
       },
       effectiveDateRange: effectiveStart && effectiveEnd ? {
         startDate: effectiveStart,
