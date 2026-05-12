@@ -161,7 +161,8 @@ interface PortfolioState {
   holdings: PortfolioHolding[];
   isValid: boolean;
   managementFee: number;
-  taxRate: number; // decimal, ej: 0.21
+  taxMode: "none" | "flat" | "spain-irpf";
+  taxRate: number; // decimal, ej: 0.21 (solo aplica en modo "flat")
 }
 
 export default function Home() {
@@ -174,14 +175,16 @@ export default function Home() {
     holdings: [],
     isValid: false,
     managementFee: 0,
-    taxRate: 0,
+    taxMode: "none",
+    taxRate: 0.21,
   });
   const [portfolioB, setPortfolioB] = useState<PortfolioState>({
     name: "Cartera 2",
     holdings: [],
     isValid: false,
     managementFee: 0,
-    taxRate: 0,
+    taxMode: "none",
+    taxRate: 0.21,
   });
 
   // Estado de configuración - usar fechas dinámicas
@@ -264,7 +267,8 @@ export default function Home() {
           name: portfolioA.name,
           holdings: portfolioA.holdings,
           managementFee: portfolioA.managementFee || undefined,
-          taxRate: portfolioA.taxRate > 0 ? portfolioA.taxRate : undefined,
+          taxMode: portfolioA.taxMode !== "none" ? portfolioA.taxMode : undefined,
+          taxRate: portfolioA.taxMode === "flat" && portfolioA.taxRate > 0 ? portfolioA.taxRate : undefined,
         };
       }
 
@@ -273,7 +277,8 @@ export default function Home() {
           name: portfolioB.name,
           holdings: portfolioB.holdings,
           managementFee: portfolioB.managementFee || undefined,
-          taxRate: portfolioB.taxRate > 0 ? portfolioB.taxRate : undefined,
+          taxMode: portfolioB.taxMode !== "none" ? portfolioB.taxMode : undefined,
+          taxRate: portfolioB.taxMode === "flat" && portfolioB.taxRate > 0 ? portfolioB.taxRate : undefined,
         };
       }
 

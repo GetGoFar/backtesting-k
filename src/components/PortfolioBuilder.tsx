@@ -20,7 +20,9 @@ interface PortfolioBuilderProps {
     holdings: PortfolioHolding[];
     isValid: boolean;
     managementFee: number;
-    /** Tasa impositiva por cartera sobre plusvalías al rebalancear (decimal, ej: 0.21) */
+    /** Modo fiscal de la cartera */
+    taxMode: "none" | "flat" | "spain-irpf";
+    /** Tasa impositiva fija (decimal, ej: 0.21) — solo aplica en modo "flat" */
     taxRate: number;
   }) => void;
 }
@@ -51,9 +53,12 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [showPresetDropdown, setShowPresetDropdown] = useState(false);
   const [managementFee, setManagementFee] = useState(0);
-  // Tasa impositiva sobre plusvalías al rebalancear (porcentaje en UI, ej: 21)
-  // 0 = sin impuestos (fondos de inversión con traspaso).
-  const [taxRatePct, setTaxRatePct] = useState(0);
+  // Modo fiscal: "none" = sin impuestos (fondos con traspaso), "flat" = tasa fija
+  // (otros países o personalización), "spain-irpf" = tramos progresivos del IRPF
+  // español sobre el ahorro (19%/21%/23%/27%/28%).
+  const [taxMode, setTaxMode] = useState<"none" | "flat" | "spain-irpf">("none");
+  // Tasa fija a aplicar cuando taxMode = "flat" (porcentaje en UI, ej: 21)
+  const [taxRatePct, setTaxRatePct] = useState(21);
   // Modo "Activo satélite": al añadir, los pesos existentes se reescalan
   // proporcionalmente para hacer hueco al nuevo activo
   const [satelliteMode, setSatelliteMode] = useState(false);
@@ -78,9 +83,10 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
       })),
       isValid,
       managementFee,
+      taxMode,
       taxRate: taxRatePct / 100, // UI en %, motor en decimal
     });
-  }, [name, allocations, isValid, managementFee, taxRatePct, onUpdate]);
+  }, [name, allocations, isValid, managementFee, taxMode, taxRatePct, onUpdate]);
 
   useEffect(() => {
     notifyUpdate();
@@ -748,7 +754,8 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                 setNameManuallyEdited(false);
                 setName(defaultName);
                 setManagementFee(0);
-                setTaxRatePct(0);
+                setTaxMode("none");
+                setTaxRatePct(21);
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg border border-red-200 hover:border-red-300 transition-colors"
             >
@@ -857,56 +864,106 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
               </div>
             </div>
 
-            {/* Fiscalidad de rebalanceo */}
-            <div className="flex justify-between items-center text-sm">
+            {/* Fiscalidad de rebalanceo — selector de modo */}
+            <div className="pt-2 border-t border-dashed border-slate-200 space-y-2">
               <div className="flex items-center gap-1.5">
-                <span className="text-slate-600">Fiscalidad rebalanceo:</span>
+                <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                  Fiscalidad al rebalancear
+                </span>
                 <span
                   className="text-slate-400 cursor-help"
-                  title="Tasa impositiva sobre plusvalías realizadas al rebalancear. Aplica a ETFs en España: cada venta tributa (19%, 21%, 23%, 27%, 28% según tramo IRPF). Los fondos de inversión españoles son 0% por la figura del traspaso."
+                  title="Aplica a ETFs (cada venta realiza plusvalías). Los fondos de inversión españoles son exentos por la figura del traspaso. El modo IRPF España calcula automáticamente los tramos progresivos en función de la plusvalía realizada cada año."
                 >
                   <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
                   </svg>
                 </span>
               </div>
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  min="0"
-                  max="50"
-                  step="0.5"
-                  value={taxRatePct}
-                  onChange={(e) => setTaxRatePct(Math.max(0, Math.min(50, Number(e.target.value))))}
-                  className="w-16 px-1.5 py-0.5 text-xs text-right border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-brand-coral"
-                />
-                <span className="text-xs text-slate-500">%</span>
-              </div>
-            </div>
 
-            {/* Atajos rápidos de fiscalidad */}
-            <div className="flex flex-wrap gap-1 -mt-1">
-              {[
-                { label: "0% (fondo)", value: 0 },
-                { label: "19%", value: 19 },
-                { label: "21%", value: 21 },
-                { label: "23%", value: 23 },
-                { label: "27%", value: 27 },
-              ].map((preset) => (
+              {/* Selector de modo (3 botones tipo tabs) */}
+              <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100 rounded-lg text-[10px] font-medium">
                 <button
-                  key={preset.value}
                   type="button"
-                  onClick={() => setTaxRatePct(preset.value)}
-                  className={`px-2 py-0.5 text-[10px] rounded-md transition-colors ${
-                    taxRatePct === preset.value
-                      ? "bg-brand-coral text-white"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  onClick={() => setTaxMode("none")}
+                  className={`py-1.5 px-1 rounded-md transition-colors ${
+                    taxMode === "none"
+                      ? "bg-white text-brand-navy shadow-sm"
+                      : "text-slate-500 hover:text-brand-navy"
                   }`}
-                  title={preset.value === 0 ? "Sin impuestos: fondos de inversión con traspaso" : `Tramo IRPF ahorro: ${preset.value}%`}
+                  title="Sin impuestos: fondos de inversión españoles (traspaso exento)"
                 >
-                  {preset.label}
+                  Sin impuestos
                 </button>
-              ))}
+                <button
+                  type="button"
+                  onClick={() => setTaxMode("spain-irpf")}
+                  className={`py-1.5 px-1 rounded-md transition-colors ${
+                    taxMode === "spain-irpf"
+                      ? "bg-white text-brand-navy shadow-sm"
+                      : "text-slate-500 hover:text-brand-navy"
+                  }`}
+                  title="Tramos progresivos del IRPF español sobre el ahorro: 19% (hasta 6k€/año), 21% (6k-50k), 23% (50k-200k), 27% (200k-300k), 28% (+300k)"
+                >
+                  IRPF España
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTaxMode("flat")}
+                  className={`py-1.5 px-1 rounded-md transition-colors ${
+                    taxMode === "flat"
+                      ? "bg-white text-brand-navy shadow-sm"
+                      : "text-slate-500 hover:text-brand-navy"
+                  }`}
+                  title="Tasa fija personalizable (útil para otros países o casos específicos)"
+                >
+                  Tasa fija
+                </button>
+              </div>
+
+              {/* Descripción / input según el modo seleccionado */}
+              {taxMode === "none" && (
+                <p className="text-[11px] text-slate-500 italic leading-snug">
+                  Sin coste fiscal — apropiado para fondos de inversión españoles
+                  (los traspasos entre fondos están exentos de tributación).
+                </p>
+              )}
+
+              {taxMode === "spain-irpf" && (
+                <div className="text-[11px] text-slate-600 leading-snug">
+                  <p className="mb-1">
+                    Tramos automáticos del IRPF sobre el ahorro (cómputo anual de plusvalías):
+                  </p>
+                  <ul className="space-y-0.5 ml-3">
+                    <li>• Hasta 6.000 €: <strong>19%</strong></li>
+                    <li>• 6.000 – 50.000 €: <strong>21%</strong></li>
+                    <li>• 50.000 – 200.000 €: <strong>23%</strong></li>
+                    <li>• 200.000 – 300.000 €: <strong>27%</strong></li>
+                    <li>• Más de 300.000 €: <strong>28%</strong></li>
+                  </ul>
+                </div>
+              )}
+
+              {taxMode === "flat" && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-600">Tasa fija:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="50"
+                      step="0.5"
+                      value={taxRatePct}
+                      onChange={(e) => setTaxRatePct(Math.max(0, Math.min(50, Number(e.target.value))))}
+                      className="w-16 px-1.5 py-0.5 text-xs text-right border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-brand-coral"
+                    />
+                    <span className="text-xs text-slate-500">%</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 italic">
+                    Útil para otros países o tasas fijas (ej: ganancias a corto plazo
+                    en EEUU, planes específicos…).
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Coste total anual (TER + gestión) */}

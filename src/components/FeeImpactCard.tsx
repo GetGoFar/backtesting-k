@@ -33,10 +33,17 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
   // MODO SINGLE PORTFOLIO
   // =========================================================================
   if (isSinglePortfolio && singleResult) {
-    const fees = singleResult.fees.totalFees + (singleResult.fees.managementFeePaid || 0);
-    const taxes = singleResult.fees.totalTaxesPaid ?? 0;
+    const costes = singleResult.fees.totalFees + (singleResult.fees.managementFeePaid || 0);
+    const impuestosAdelantados = singleResult.fees.totalTaxesPaid ?? 0;
+    const impuestosPendientes = singleResult.fees.pendingTaxes ?? 0;
     const profit = singleResult.finalValue - singleResult.totalContributions;
-    const hasTaxes = taxes > 0;
+    const profitNetoSiLiquida = profit - impuestosPendientes;
+    const hasAnyTax = impuestosAdelantados > 0 || impuestosPendientes > 0;
+    const taxModeLabel = singleResult.fees.taxMode === "spain-irpf"
+      ? "IRPF tramos"
+      : singleResult.fees.taxMode === "flat" && singleResult.fees.taxRate
+      ? `${((singleResult.fees.taxRate) * 100).toFixed(0)}% fijo`
+      : "";
 
     return (
       <div className="rounded-2xl border border-slate-100 shadow-sm overflow-hidden bg-white">
@@ -53,47 +60,70 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
             </div>
           </div>
 
-          <div className={`grid grid-cols-1 ${hasTaxes ? "sm:grid-cols-4" : "sm:grid-cols-3"} gap-4`}>
+          <div className={`grid grid-cols-1 ${hasAnyTax ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3"} gap-4`}>
             <div className="rounded-xl bg-slate-50 p-5">
               <p className="text-xs font-medium text-brand-tertiary uppercase tracking-wider mb-2">Beneficio neto</p>
-              <p className={`text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight font-serif ${profit >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+              <p className={`text-3xl sm:text-4xl font-bold tracking-tight font-serif ${profit >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                 {formatEUR(profit)}
               </p>
+              {impuestosPendientes > 0 && (
+                <p className="text-xs text-brand-tertiary mt-1">
+                  Tras liquidar y pagar pendientes: <span className={`font-semibold ${profitNetoSiLiquida >= 0 ? "text-emerald-600" : "text-red-600"}`}>{formatEUR(profitNetoSiLiquida)}</span>
+                </p>
+              )}
             </div>
+
             <div className="rounded-xl bg-slate-50 p-5">
-              <p className="text-xs font-medium text-brand-tertiary uppercase tracking-wider mb-2">Comisiones pagadas</p>
-              <p className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight font-serif text-brand-navy">
-                {formatEUR(fees)}
+              <p className="text-xs font-medium text-brand-tertiary uppercase tracking-wider mb-2">Costes (TER + gestión)</p>
+              <p className="text-3xl sm:text-4xl font-bold tracking-tight font-serif text-brand-navy">
+                {formatEUR(costes)}
+              </p>
+              <p className="text-xs text-brand-tertiary mt-1">
+                TER {singleResult.fees.weightedTer.toFixed(2)}%
+                {singleResult.fees.managementFee ? ` + Gestión ${singleResult.fees.managementFee.toFixed(2)}%` : ""}
               </p>
             </div>
-            {hasTaxes && (
+
+            {hasAnyTax && (
               <div className="rounded-xl bg-amber-50 p-5 border border-amber-100">
                 <p className="text-xs font-medium text-amber-700 uppercase tracking-wider mb-2">
-                  Impuestos pagados
+                  Impuestos adelantados
                 </p>
-                <p className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight font-serif text-amber-700">
-                  {formatEUR(taxes)}
+                <p className="text-3xl sm:text-4xl font-bold tracking-tight font-serif text-amber-700">
+                  {formatEUR(impuestosAdelantados)}
                 </p>
                 <p className="text-xs text-amber-700/70 mt-1">
-                  Plusvalías al rebalancear ({((singleResult.fees.taxRate ?? 0) * 100).toFixed(0)}%)
+                  Plusvalías ya realizadas en rebalanceos {taxModeLabel && `(${taxModeLabel})`}
                 </p>
               </div>
             )}
-            <div className="rounded-xl bg-slate-50 p-5">
-              <p className="text-xs font-medium text-brand-tertiary uppercase tracking-wider mb-2">
-                {singleResult.fees.managementFee ? "Coste total" : "TER ponderado"}
-              </p>
-              <p className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight font-serif text-brand-navy">
-                {singleResult.fees.managementFee
-                  ? (singleResult.fees.weightedTer + singleResult.fees.managementFee).toFixed(2)
-                  : singleResult.fees.weightedTer.toFixed(2)}%
-              </p>
-              {singleResult.fees.managementFee ? (
-                <p className="text-xs text-brand-tertiary mt-1">
-                  TER: {singleResult.fees.weightedTer.toFixed(2)}% + Gestión: {singleResult.fees.managementFee.toFixed(2)}%
+
+            {hasAnyTax && (
+              <div className="rounded-xl bg-purple-50 p-5 border border-purple-100">
+                <p className="text-xs font-medium text-purple-700 uppercase tracking-wider mb-2">
+                  Impuestos pendientes
                 </p>
-              ) : null}
-            </div>
+                <p className="text-3xl sm:text-4xl font-bold tracking-tight font-serif text-purple-700">
+                  {formatEUR(impuestosPendientes)}
+                </p>
+                <p className="text-xs text-purple-700/70 mt-1">
+                  Sobre {formatEUR(singleResult.fees.unrealizedGain ?? 0)} de plusvalía latente {taxModeLabel && `(${taxModeLabel})`}
+                </p>
+              </div>
+            )}
+
+            {!hasAnyTax && (
+              <div className="rounded-xl bg-slate-50 p-5">
+                <p className="text-xs font-medium text-brand-tertiary uppercase tracking-wider mb-2">
+                  {singleResult.fees.managementFee ? "Coste total anual" : "TER ponderado"}
+                </p>
+                <p className="text-3xl sm:text-4xl font-bold tracking-tight font-serif text-brand-navy">
+                  {singleResult.fees.managementFee
+                    ? (singleResult.fees.weightedTer + singleResult.fees.managementFee).toFixed(2)
+                    : singleResult.fees.weightedTer.toFixed(2)}%
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -103,9 +133,11 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
   // =========================================================================
   // MODO COMPARACIÓN
   // =========================================================================
-  // Total coste = TER + gestión + impuestos sobre plusvalías al rebalancear
-  const feesA = resultA!.fees.totalFees + (resultA!.fees.managementFeePaid || 0) + (resultA!.fees.totalTaxesPaid || 0);
-  const feesB = resultB!.fees.totalFees + (resultB!.fees.managementFeePaid || 0) + (resultB!.fees.totalTaxesPaid || 0);
+  // Total coste real (incluye impuestos adelantados + pendientes si liquidaras)
+  const feesA = resultA!.fees.totalFees + (resultA!.fees.managementFeePaid || 0) +
+                (resultA!.fees.totalTaxesPaid || 0) + (resultA!.fees.pendingTaxes || 0);
+  const feesB = resultB!.fees.totalFees + (resultB!.fees.managementFeePaid || 0) +
+                (resultB!.fees.totalTaxesPaid || 0) + (resultB!.fees.pendingTaxes || 0);
   const feeDifference = Math.abs(feesA - feesB);
   const cheaperName = feesA < feesB ? resultA!.portfolioName : resultB!.portfolioName;
 

@@ -95,10 +95,13 @@ export interface Portfolio {
   holdings: PortfolioHolding[];
   /** Comisión de gestión adicional anual en % (ej: 0.40 para 0.40%) — se descuenta del valor de la cartera */
   managementFee?: number;
-  /** Tasa impositiva específica de esta cartera sobre plusvalías al rebalancear
-   *  (decimal, ej: 0.21 para 21%). Si está definida, sobrescribe la global del
-   *  BacktestConfig. Permite comparar misma cartera con ETFs (con tax) vs con
-   *  fondos de inversión (con traspaso, sin tax). */
+  /** Modo de cálculo de impuestos al rebalancear:
+   *   - "none" (default): sin impuestos (fondos de inversión con traspaso)
+   *   - "flat": tasa fija (taxRate)
+   *   - "spain-irpf": tramos progresivos del IRPF español sobre el ahorro
+   *      (19%/21%/23%/27%/28%), aplicados sobre las plusvalías anuales acumuladas. */
+  taxMode?: "none" | "flat" | "spain-irpf";
+  /** Tasa fija a aplicar cuando taxMode = "flat" (decimal, ej: 0.21 para 21%) */
   taxRate?: number;
 }
 
@@ -403,10 +406,18 @@ export interface FeesSummary {
   managementFee?: number;
   /** Total pagado en comisiones de gestión en EUR */
   managementFeePaid?: number;
-  /** Tasa impositiva aplicada en cada rebalanceo (decimal, ej: 0.21) */
+  /** Tasa impositiva aplicada en cada rebalanceo (decimal, ej: 0.21).
+   *  En modo "spain-irpf" no aplica un único valor — la tasa varía por tramo. */
   taxRate?: number;
-  /** Total de impuestos pagados al rebalancear, en EUR */
+  /** Modo fiscal aplicado: "none" | "flat" | "spain-irpf" */
+  taxMode?: "none" | "flat" | "spain-irpf";
+  /** Total de impuestos pagados al rebalancear (plusvalías ya realizadas) */
   totalTaxesPaid?: number;
+  /** Impuestos pendientes: lo que tributaría si liquidara la cartera al final
+   *  del periodo, sobre las plusvalías latentes (no realizadas). */
+  pendingTaxes?: number;
+  /** Plusvalía latente al final del periodo (valor final - coste base remanente) */
+  unrealizedGain?: number;
 }
 
 /** Resultado completo del backtest para una cartera */

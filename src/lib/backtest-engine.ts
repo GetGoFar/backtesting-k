@@ -105,11 +105,13 @@ export async function runBacktest(
     }
   }
 
-  // Ejecutar backtests — cada cartera puede tener su propia tasa impositiva,
-  // si no la sobrescribe usa la global del config.
+  // Ejecutar backtests — cada cartera puede tener su propio modo y tasa
+  // impositiva. Fallback al global del config si no está definido.
   const globalTaxRate = config.taxRate ?? 0;
   const taxRateA = config.portfolioA?.taxRate ?? globalTaxRate;
   const taxRateB = config.portfolioB?.taxRate ?? globalTaxRate;
+  const taxModeA: TaxMode = config.portfolioA?.taxMode ?? "none";
+  const taxModeB: TaxMode = config.portfolioB?.taxMode ?? "none";
   const resultAPromise = config.portfolioA
     ? runPortfolioBacktest(
         config.portfolioA,
@@ -120,7 +122,8 @@ export async function runBacktest(
         config.monthlyContribution ?? 0,
         displayGranularity,
         engineWarnings,
-        taxRateA
+        taxRateA,
+        taxModeA
       )
     : Promise.resolve(null);
 
@@ -134,7 +137,8 @@ export async function runBacktest(
         config.monthlyContribution ?? 0,
         displayGranularity,
         engineWarnings,
-        taxRateB
+        taxRateB,
+        taxModeB
       )
     : Promise.resolve(null);
 
@@ -282,7 +286,8 @@ async function runPortfolioBacktest(
   monthlyContribution: number,
   displayGranularity: DisplayGranularity,
   warnings?: BacktestWarning[],
-  taxRate: number = 0
+  taxRate: number = 0,
+  taxMode: TaxMode = "none"
 ): Promise<BacktestResult | null> {
   console.log(`[BacktestEngine] Procesando cartera: ${portfolio.name}`);
 
@@ -374,7 +379,8 @@ async function runPortfolioBacktest(
     rebalanceFrequency,
     monthlyContribution,
     portfolio.managementFee ?? 0,
-    taxRate
+    taxRate,
+    taxMode
   );
 
   if (simulation.dailyTimeSeries.length === 0) {
@@ -467,14 +473,28 @@ async function runPortfolioBacktest(
   const weightedTer = calculateWeightedTer(activeHoldings, fundTers);
   const portfolioType = determinePortfolioType(activeHoldings, fundTypes);
 
+  // Impuestos pendientes: lo que tributaría si se liquidara la cartera ahora
+  const unrealizedGain = Math.max(0, finalValue - simulation.finalCostBasis);
+  let pendingTaxes = 0;
+  if (unrealizedGain > 0) {
+    if (taxMode === "spain-irpf") {
+      pendingTaxes = spanishIrpfTax(unrealizedGain);
+    } else if (taxMode === "flat" && taxRate > 0) {
+      pendingTaxes = unrealizedGain * taxRate;
+    }
+  }
+
   const fees: FeesSummary = {
     totalFees: simulation.totalFeesPaid,
     feesAsPercentage: finalValue > 0 ? (simulation.totalFeesPaid / finalValue) * 100 : 0,
     weightedTer,
     managementFee: portfolio.managementFee,
     managementFeePaid: simulation.totalManagementFeePaid,
-    taxRate: taxRate > 0 ? taxRate : undefined,
+    taxMode: taxMode !== "none" ? taxMode : undefined,
+    taxRate: taxMode === "flat" && taxRate > 0 ? taxRate : undefined,
     totalTaxesPaid: simulation.totalTaxesPaid > 0 ? simulation.totalTaxesPaid : undefined,
+    pendingTaxes: pendingTaxes > 0 ? pendingTaxes : undefined,
+    unrealizedGain: unrealizedGain > 0 ? unrealizedGain : undefined,
   };
 
   return {
@@ -507,6 +527,47 @@ interface DailySimulationResult {
   totalManagementFeePaid: number;
   totalContributions: number;
   totalTaxesPaid: number;
+  /** Coste base remanente al final del backtest, para calcular impuestos pendientes */
+  finalCostBasis: number;
+}
+
+type TaxMode = "none" | "flat" | "spain-irpf";
+
+/**
+ * Tramos del IRPF español sobre rendimientos del ahorro (vigente 2023-2025).
+ * Aplicación progresiva sobre las plusvalías anuales acumuladas.
+ */
+const SPAIN_IRPF_BRACKETS: Array<{ limit: number; rate: number }> = [
+  { limit: 6000, rate: 0.19 },
+  { limit: 50000, rate: 0.21 },
+  { limit: 200000, rate: 0.23 },
+  { limit: 300000, rate: 0.27 },
+  { limit: Infinity, rate: 0.28 },
+];
+
+/** Calcula el impuesto total que tocaría pagar dada una plusvalía anual total. */
+function spanishIrpfTax(annualGain: number): number {
+  if (annualGain <= 0) return 0;
+  let tax = 0;
+  let remaining = annualGain;
+  let lastLimit = 0;
+  for (const b of SPAIN_IRPF_BRACKETS) {
+    const tranche = Math.min(remaining, b.limit - lastLimit);
+    if (tranche <= 0) break;
+    tax += tranche * b.rate;
+    remaining -= tranche;
+    lastLimit = b.limit;
+    if (remaining <= 0) break;
+  }
+  return tax;
+}
+
+/** Tasa efectiva para una plusvalía concreta (útil para cálculo step-up). */
+function effectiveTaxRate(gain: number, mode: TaxMode, flatRate: number): number {
+  if (gain <= 0) return 0;
+  if (mode === "none") return 0;
+  if (mode === "flat") return flatRate;
+  return spanishIrpfTax(gain) / gain;
 }
 
 function simulatePortfolioDaily(
@@ -518,7 +579,8 @@ function simulatePortfolioDaily(
   rebalanceFrequency: RebalanceFrequency,
   monthlyContribution: number,
   managementFee: number = 0,
-  taxRate: number = 0
+  taxRate: number = 0,
+  taxMode: TaxMode = "none"
 ): DailySimulationResult {
   const dailyTimeSeries: Array<{ date: string; value: number }> = [];
   const dailyReturns: Array<{ date: string; returnValue: number }> = [];
@@ -540,6 +602,10 @@ function simulatePortfolioDaily(
   // Se ajusta al alza en cada rebalanceo por el efecto "step-up" tras pagar impuestos
   // sobre la parte de ganancia rebalanceada.
   let totalCostBasis = initialAmount;
+  // Plusvalía acumulada en el AÑO en curso (para tramos progresivos del IRPF).
+  // Se resetea cada 1 de enero.
+  let annualRealizedGain = 0;
+  let currentYear = parseInt(dates[0]!.substring(0, 4), 10);
 
   // Tasas diarias
   const dailyMgmtRate = managementFee / TRADING_DAYS_PER_YEAR / 100;
@@ -598,11 +664,22 @@ function simulatePortfolioDaily(
       }
     }
 
+    // Reset de plusvalía anual al cruzar año natural (relevante para tramos IRPF)
+    const yearNow = parseInt(currentDate.substring(0, 4), 10);
+    if (yearNow !== currentYear) {
+      annualRealizedGain = 0;
+      currentYear = yearNow;
+    }
+
     // Rebalanceo (con cálculo de impuestos sobre plusvalías realizadas)
     if (shouldRebalanceByDate(currentDate, previousDate, rebalanceFrequency)) {
-      const taxResult = rebalancePortfolioWithTax(positionValues, holdings, totalCostBasis, taxRate);
+      const taxResult = rebalancePortfolioWithTax(
+        positionValues, holdings, totalCostBasis,
+        taxMode, taxRate, annualRealizedGain
+      );
       totalTaxesPaid += taxResult.taxPaid;
       totalCostBasis = taxResult.newCostBasis;
+      annualRealizedGain = taxResult.newAnnualRealizedGain;
     }
 
     // Registrar valor total
@@ -626,6 +703,7 @@ function simulatePortfolioDaily(
     totalManagementFeePaid,
     totalContributions,
     totalTaxesPaid,
+    finalCostBasis: totalCostBasis,
   };
 }
 
@@ -667,18 +745,22 @@ function rebalancePortfolioWithTax(
   positionValues: Map<string, number>,
   holdings: PortfolioHolding[],
   currentCostBasis: number,
-  taxRate: number
-): { taxPaid: number; newCostBasis: number } {
+  taxMode: TaxMode,
+  flatRate: number,
+  annualRealizedGain: number
+): { taxPaid: number; newCostBasis: number; newAnnualRealizedGain: number } {
   const totalValue = sumPositions(positionValues);
-  if (totalValue === 0) return { taxPaid: 0, newCostBasis: currentCostBasis };
+  if (totalValue === 0) {
+    return { taxPaid: 0, newCostBasis: currentCostBasis, newAnnualRealizedGain: annualRealizedGain };
+  }
 
-  // Si no hay tasa impositiva, hacer rebalanceo normal sin tocar coste base
-  if (taxRate <= 0) {
+  // Sin impuestos: rebalanceo simple
+  if (taxMode === "none" || (taxMode === "flat" && flatRate <= 0)) {
     for (const holding of holdings) {
       const targetValue = (totalValue * holding.weight) / 100;
       positionValues.set(holding.fundId, targetValue);
     }
-    return { taxPaid: 0, newCostBasis: currentCostBasis };
+    return { taxPaid: 0, newCostBasis: currentCostBasis, newAnnualRealizedGain: annualRealizedGain };
   }
 
   // 1. Calcular monto rebalanceado (= sum de "sells" = sum de "buys")
@@ -688,15 +770,31 @@ function rebalancePortfolioWithTax(
     const target = (totalValue * holding.weight) / 100;
     if (current > target) tradeAmount += current - target;
   }
+  if (tradeAmount === 0) {
+    return { taxPaid: 0, newCostBasis: currentCostBasis, newAnnualRealizedGain: annualRealizedGain };
+  }
 
-  // 2. Si no hay rebalanceo real (carteras ya alineadas), no hay impuesto
-  if (tradeAmount === 0) return { taxPaid: 0, newCostBasis: currentCostBasis };
-
-  // 3. Calcular impuesto sobre la plusvalía realizada
-  const gain = Math.max(0, totalValue - currentCostBasis);
-  const gainRatio = gain > 0 ? gain / totalValue : 0;
+  // 2. Calcular plusvalía realizada en este rebalanceo
+  const totalGain = Math.max(0, totalValue - currentCostBasis);
+  const gainRatio = totalGain > 0 ? totalGain / totalValue : 0;
   const gainOnTraded = tradeAmount * gainRatio;
-  const tax = gainOnTraded * taxRate;
+
+  // 3. Calcular impuesto según el modo
+  let tax = 0;
+  let effectiveRate = 0;
+  if (gainOnTraded > 0) {
+    if (taxMode === "spain-irpf") {
+      // Marginal: tax diferencial sobre la suma anual acumulada
+      const totalTaxAfter = spanishIrpfTax(annualRealizedGain + gainOnTraded);
+      const totalTaxBefore = spanishIrpfTax(annualRealizedGain);
+      tax = totalTaxAfter - totalTaxBefore;
+      effectiveRate = tax / gainOnTraded;
+    } else {
+      // Flat
+      tax = gainOnTraded * flatRate;
+      effectiveRate = flatRate;
+    }
+  }
 
   // 4. Aplicar pesos objetivo al total POST-impuesto
   const newTotalValue = totalValue - tax;
@@ -705,11 +803,14 @@ function rebalancePortfolioWithTax(
     positionValues.set(holding.fundId, targetValue);
   }
 
-  // 5. Step-up del coste base: la ganancia tras impuestos sobre la parte
-  //    rebalanceada se convierte en nuevo coste base (la has "reinvertido").
-  const newCostBasis = currentCostBasis + gainOnTraded * (1 - taxRate);
+  // 5. Step-up del coste base
+  const newCostBasis = currentCostBasis + gainOnTraded * (1 - effectiveRate);
 
-  return { taxPaid: tax, newCostBasis };
+  return {
+    taxPaid: tax,
+    newCostBasis,
+    newAnnualRealizedGain: annualRealizedGain + gainOnTraded,
+  };
 }
 
 function sumPositions(positionValues: Map<string, number>): number {
