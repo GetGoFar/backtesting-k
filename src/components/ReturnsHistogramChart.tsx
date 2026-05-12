@@ -40,24 +40,33 @@ function PortfolioHistogram({
     normal: parseFloat(bin.normalExpected.toFixed(2)),
   }));
 
-  // Calcular skew y kurtosis interpretativos para el subtítulo
+  // Calcular skew y kurtosis interpretativos para el subtítulo.
+  // Umbrales de Bulmer (1979): <0.5 simétrica, 0.5-1 moderada, >=1 fuerte.
   const { skewness, excessKurtosis } = result.metrics;
-  const skewText = skewness > 0.5
-    ? `asimetría positiva fuerte (${skewness.toFixed(2)}): la cola derecha tiene más peso — pocas observaciones muy positivas tiran de la media al alza`
-    : skewness > 0.2
-    ? `asimetría positiva moderada (${skewness.toFixed(2)}): ligeramente más masa por debajo de la media, con algunas subidas extraordinarias`
-    : skewness < -0.5
-    ? `asimetría negativa fuerte (${skewness.toFixed(2)}): la cola izquierda tiene más peso — los meses muy negativos (crashes) pesan más en la distribución que los muy positivos, aunque visualmente pueda no llamar la atención`
-    : skewness < -0.2
-    ? `asimetría negativa moderada (${skewness.toFixed(2)}): más masa por encima de la media, pero algún mes muy negativo pesa lo suficiente en el cálculo para desplazar la simetría hacia la izquierda`
-    : `distribución prácticamente simétrica (skew ${skewness.toFixed(2)}, cercano a 0)`;
-  const kurtText = excessKurtosis > 3
-    ? `colas muy gordas (kurtosis exceso ${excessKurtosis.toFixed(2)}): eventos extremos mucho más frecuentes que en una normal — la volatilidad por sí sola SUBESTIMA el riesgo de tail`
-    : excessKurtosis > 1
-    ? `colas algo más gordas que la normal (kurtosis exceso ${excessKurtosis.toFixed(2)}): eventos extremos algo más probables que en una distribución normal`
-    : excessKurtosis < -0.5
-    ? `colas más finas que la normal (kurtosis exceso ${excessKurtosis.toFixed(2)}): eventos extremos menos probables`
-    : `colas similares a una distribución normal (kurtosis exceso ${excessKurtosis.toFixed(2)})`;
+  const absSkew = Math.abs(skewness);
+  const skewText = absSkew < 0.5
+    ? `aproximadamente simétrica (skew ${skewness.toFixed(2)}, |·| < 0.5): comportamiento cercano al de una distribución normal`
+    : absSkew < 1
+    ? skewness < 0
+      ? `moderadamente asimétrica negativa (skew ${skewness.toFixed(2)}): la cola izquierda tiene algo más de peso, sin ser extremo`
+      : `moderadamente asimétrica positiva (skew ${skewness.toFixed(2)}): la cola derecha tiene algo más de peso, sin ser extremo`
+    : skewness < 0
+      ? `muy asimétrica negativa (skew ${skewness.toFixed(2)}, |·| ≥ 1): las pérdidas extremas pesan claramente más que las ganancias extremas`
+      : `muy asimétrica positiva (skew ${skewness.toFixed(2)}, |·| ≥ 1): las ganancias extremas pesan claramente más que las pérdidas extremas`;
+  const absKurt = Math.abs(excessKurtosis);
+  const kurtText = absKurt < 0.5
+    ? `colas similares a una distribución normal (kurtosis exceso ${excessKurtosis.toFixed(2)})`
+    : absKurt < 1
+    ? excessKurtosis > 0
+      ? `ligeramente leptocúrtica (kurtosis exceso ${excessKurtosis.toFixed(2)}): eventos extremos un poco más frecuentes que en una normal`
+      : `ligeramente platocúrtica (kurtosis exceso ${excessKurtosis.toFixed(2)}): eventos extremos un poco menos frecuentes`
+    : absKurt < 3
+    ? excessKurtosis > 0
+      ? `moderadamente leptocúrtica (kurtosis exceso ${excessKurtosis.toFixed(2)}): colas gordas, eventos extremos notablemente más frecuentes que en una normal`
+      : `moderadamente platocúrtica (kurtosis exceso ${excessKurtosis.toFixed(2)}): colas finas, eventos extremos poco frecuentes`
+    : excessKurtosis > 0
+      ? `MUY leptocúrtica (kurtosis exceso ${excessKurtosis.toFixed(2)}): colas extremadamente gordas — la volatilidad SUBESTIMA seriamente el riesgo de tail`
+      : `muy platocúrtica (kurtosis exceso ${excessKurtosis.toFixed(2)}): casi sin colas, todos los retornos cerca de la media`;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">

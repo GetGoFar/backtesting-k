@@ -9,18 +9,44 @@ import { Tooltip } from "./Tooltip";
 // HELPERS DE INTERPRETACIÓN — texto explicativo según el valor concreto
 // ============================================================================
 
+// Umbrales de Bulmer (1979), estándar en la literatura estadística:
+//   |skew| < 0.5   → aproximadamente simétrica
+//   0.5 ≤ |skew| < 1 → moderadamente asimétrica
+//   |skew| ≥ 1     → muy asimétrica
 function interpretSkewness(value: number): string {
-  if (Math.abs(value) < 0.2) return "≈ simétrica — distribución similar a una normal.";
-  if (value < -0.5) return "MUY NEGATIVA — cola izquierda larga: pérdidas extremas más frecuentes de lo que parece.";
-  if (value < 0) return "Negativa — más riesgo de caídas grandes que de subidas grandes.";
-  if (value > 0.5) return "Muy positiva — cola derecha larga: ganancias extremas ocasionales.";
-  return "Positiva — más probabilidad de subidas grandes que de caídas grandes.";
+  const abs = Math.abs(value);
+  if (abs < 0.5) return "Aproximadamente simétrica — distribución similar a una normal.";
+  if (abs < 1) {
+    return value < 0
+      ? "Moderadamente asimétrica negativa — cola izquierda algo más pesada que la derecha."
+      : "Moderadamente asimétrica positiva — cola derecha algo más pesada que la izquierda.";
+  }
+  return value < 0
+    ? "Muy asimétrica negativa — pérdidas extremas pesan claramente más que las ganancias extremas en la distribución."
+    : "Muy asimétrica positiva — ganancias extremas pesan claramente más que las pérdidas en la distribución.";
 }
 
+// Umbrales para curtosis en exceso (kurtosis - 3):
+//   |EK| < 0.5  → mesocúrtica (≈ normal)
+//   0.5 ≤ |EK| < 1 → ligeramente leptocúrtica/platocúrtica
+//   1 ≤ |EK| < 3   → moderadamente leptocúrtica (colas gordas)
+//   |EK| ≥ 3    → muy leptocúrtica (colas extremadamente gordas)
 function interpretKurtosis(value: number): string {
-  if (value < 0.5) return "≈ normal — eventos extremos como predice una distribución gaussiana.";
-  if (value < 3) return "Colas algo gordas — eventos extremos algo más frecuentes que lo normal.";
-  return "COLAS MUY GORDAS — cisnes negros mucho más probables que en una normal. Riesgo de tail subestimado por la volatilidad.";
+  const abs = Math.abs(value);
+  if (abs < 0.5) return "≈ normal — eventos extremos como predice una distribución gaussiana.";
+  if (abs < 1) {
+    return value > 0
+      ? "Ligeramente leptocúrtica — eventos extremos un poco más frecuentes que en una normal."
+      : "Ligeramente platocúrtica — eventos extremos un poco menos frecuentes que en una normal.";
+  }
+  if (abs < 3) {
+    return value > 0
+      ? "Moderadamente leptocúrtica — colas gordas; los eventos extremos son notablemente más frecuentes que en una normal."
+      : "Moderadamente platocúrtica — colas finas; los eventos extremos son poco frecuentes.";
+  }
+  return value > 0
+    ? "Muy leptocúrtica — colas extremadamente gordas. Cisnes negros mucho más probables que en una normal; la volatilidad subestima el riesgo de tail."
+    : "Muy platocúrtica — distribución casi sin colas, prácticamente todos los retornos cerca de la media.";
 }
 
 function interpretCalmar(value: number): string {
