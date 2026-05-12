@@ -88,6 +88,14 @@ const TopDrawdownsTable = dynamic(
   }
 );
 
+const StressPeriodsTable = dynamic(
+  () => import("@/components/StressPeriodsTable").then((mod) => mod.StressPeriodsTable),
+  {
+    loading: () => <ChartLoadingSkeleton height="h-64" />,
+    ssr: false,
+  }
+);
+
 // Skeleton de carga para gráficos
 function ChartLoadingSkeleton({ height }: { height: string }) {
   return (
@@ -757,6 +765,9 @@ export default function Home() {
 
               {/* 6b. Top 10 drawdowns por cartera */}
               <TopDrawdownsTable results={results} isLoading={false} />
+
+              {/* 6c. Comportamiento en crisis históricas */}
+              <StressPeriodsTable results={results} isLoading={false} />
 
               {/* 7. Rolling returns */}
               <RollingReturnsChart results={results} isLoading={false} />

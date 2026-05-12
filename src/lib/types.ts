@@ -155,6 +155,26 @@ export interface DrawdownPoint {
   exactDate?: string;
 }
 
+/** Resultado de la cartera durante un periodo histórico de estrés */
+export interface StressPeriodResult {
+  /** Identificador del periodo */
+  id: string;
+  /** Nombre legible del periodo */
+  name: string;
+  /** Descripción corta del evento */
+  description: string;
+  /** Inicio del periodo (YYYY-MM) */
+  start: string;
+  /** Fin del periodo (YYYY-MM) */
+  end: string;
+  /** Rentabilidad total de la cartera durante el periodo (decimal) — null si no hay datos */
+  totalReturn: number | null;
+  /** Máximo drawdown sufrido durante el periodo (decimal negativo) */
+  maxDrawdown: number | null;
+  /** Indica si la cartera tenía datos para todo o parte del periodo */
+  hasFullData: boolean;
+}
+
 /** Episodio individual de drawdown (de pico a valle y recuperación) */
 export interface DrawdownEpisode {
   /** Fecha del pico antes de la caída (formato YYYY-MM) */
@@ -199,6 +219,16 @@ export interface Metrics {
   worstMonth: number;
   /** Ratio de meses positivos (decimal, ej: 0.65 para 65%) */
   positiveMonthsRatio: number;
+  /** Ratio Calmar = CAGR / |Max Drawdown| (rentabilidad por unidad de pérdida máxima) */
+  calmar: number;
+  /** Asimetría de la distribución de retornos (skewness). 0 = simétrica, <0 = cola izquierda larga, >0 = cola derecha larga */
+  skewness: number;
+  /** Curtosis en exceso (excess kurtosis). 0 = normal, >0 = leptocúrtica (colas gordas — más eventos extremos) */
+  excessKurtosis: number;
+  /** Value at Risk al 5% (decimal negativo): pérdida máxima esperada en el peor 5% de periodos */
+  varHistorical: number;
+  /** Conditional VaR / Expected Shortfall al 5% (decimal negativo): pérdida media en el peor 5% de periodos */
+  cvar: number;
 }
 
 /** Rolling returns para diferentes periodos */
@@ -241,6 +271,8 @@ export interface BacktestResult {
   drawdowns: DrawdownPoint[];
   /** Top 10 episodios de drawdown (de mayor a menor) */
   topDrawdowns: DrawdownEpisode[];
+  /** Comportamiento durante periodos históricos de estrés */
+  stressPeriods: StressPeriodResult[];
   /** Rolling returns a 1, 3 y 5 años */
   rollingReturns: RollingReturns;
   /** Resumen de comisiones */
@@ -421,6 +453,16 @@ export const METRIC_TOOLTIPS: Readonly<Record<keyof Metrics, string>> = {
   bestMonth: "Mejor rentabilidad mensual obtenida durante el periodo.",
   worstMonth: "Peor rentabilidad mensual sufrida durante el periodo.",
   positiveMonthsRatio: "Porcentaje de meses con rentabilidad positiva.",
+  calmar:
+    "Calmar Ratio = CAGR / |Max DD|. Rentabilidad anual por unidad de pérdida máxima.",
+  skewness:
+    "Asimetría de la distribución. 0 = simétrica, <0 = cola izquierda larga (más pérdidas extremas).",
+  excessKurtosis:
+    "Curtosis en exceso. 0 = normal, >0 = colas gordas (más cisnes negros que una distribución normal).",
+  varHistorical:
+    "Value at Risk 5%: peor retorno del 5% de los peores periodos.",
+  cvar:
+    "Conditional VaR 5%: pérdida media en el peor 5% de los periodos (Expected Shortfall).",
 } as const;
 
 // -----------------------------------------------------------------------------

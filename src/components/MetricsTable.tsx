@@ -5,6 +5,32 @@ import type { BacktestResponse, BacktestResult, DisplayGranularity } from "@/lib
 import { formatEUR, formatPct, formatPctNoSign, formatRatio } from "@/lib/formatters";
 import { Tooltip } from "./Tooltip";
 
+// ============================================================================
+// HELPERS DE INTERPRETACIÓN — texto explicativo según el valor concreto
+// ============================================================================
+
+function interpretSkewness(value: number): string {
+  if (Math.abs(value) < 0.2) return "≈ simétrica — distribución similar a una normal.";
+  if (value < -0.5) return "MUY NEGATIVA — cola izquierda larga: pérdidas extremas más frecuentes de lo que parece.";
+  if (value < 0) return "Negativa — más riesgo de caídas grandes que de subidas grandes.";
+  if (value > 0.5) return "Muy positiva — cola derecha larga: ganancias extremas ocasionales.";
+  return "Positiva — más probabilidad de subidas grandes que de caídas grandes.";
+}
+
+function interpretKurtosis(value: number): string {
+  if (value < 0.5) return "≈ normal — eventos extremos como predice una distribución gaussiana.";
+  if (value < 3) return "Colas algo gordas — eventos extremos algo más frecuentes que lo normal.";
+  return "COLAS MUY GORDAS — cisnes negros mucho más probables que en una normal. Riesgo de tail subestimado por la volatilidad.";
+}
+
+function interpretCalmar(value: number): string {
+  if (value < 0) return "Negativo — la cartera pierde dinero en media.";
+  if (value < 0.3) return "Bajo — rentabilidad escasa por unidad de pérdida máxima sufrida.";
+  if (value < 0.5) return "Moderado — aceptable para carteras conservadoras.";
+  if (value < 1) return "Bueno — buena recompensa por el riesgo de drawdown.";
+  return "Excelente — alta rentabilidad relativa a la peor caída.";
+}
+
 interface MetricsTableProps {
   results: BacktestResponse;
   isLoading: boolean;
@@ -43,6 +69,16 @@ function buildTooltips(granularity: DisplayGranularity) {
       `Porcentaje de ${plural} con rentabilidad positiva. Mayor porcentaje indica más consistencia.`,
     totalFees:
       "Total de comisiones pagadas durante todo el periodo. Incluye el TER de cada fondo y la comisión de gestión de la cartera.",
+    calmar:
+      "Calmar Ratio = CAGR / |Máximo Drawdown|. Mide cuánta rentabilidad anual obtienes por cada 1% de la peor caída sufrida. >0.5 es bueno, >1 es excelente. Más intuitivo que el Sharpe para inversores que temen las pérdidas grandes.",
+    skewness:
+      `Asimetría de la distribución de retornos ${plural === "meses" ? "mensuales" : plural === "días" ? "diarios" : "trimestrales"}. 0 = simétrica como una distribución normal. Negativa = cola izquierda más larga (pérdidas extremas más frecuentes que ganancias extremas — típico en banca privada y fondos de seguros que venden cisnes negros). Positiva = cola derecha más larga (loterías, momentum).`,
+    excessKurtosis:
+      "Curtosis en exceso = kurtosis - 3. Mide la probabilidad de eventos extremos vs una distribución normal. 0 = normal. >0 = colas gordas (cisnes negros más probables de lo que sugiere la volatilidad). Una cartera con baja vol pero alta kurtosis ESCONDE riesgo de cola.",
+    varHistorical:
+      `Value at Risk al 5%: el peor retorno del 5% de los peores ${plural}. Ejemplo: VaR -8% significa que en el 5% de los peores ${plural}, la cartera perdió al menos 8%. Probabilidad esperada de empeorar este valor: 5%.`,
+    cvar:
+      `Conditional VaR / Expected Shortfall al 5%: la pérdida MEDIA en el peor 5% de los ${plural} (no el umbral, sino la media de la cola). Métrica más conservadora que VaR — captura cuánto pierdes EN MEDIA cuando ocurre un mal escenario, no solo el límite. Estándar regulatorio Basel III.`,
   };
 }
 
@@ -55,6 +91,8 @@ interface MetricConfig {
   higherIsBetter: boolean;
   tooltip: string;
   isHero?: boolean; // Métricas destacadas en cards grandes
+  /** Función opcional que devuelve un texto interpretando el valor concreto */
+  interpret?: (value: number) => string;
 }
 
 function buildMetricsConfig(granularity: DisplayGranularity): MetricConfig[] {
@@ -122,6 +160,49 @@ function buildMetricsConfig(granularity: DisplayGranularity): MetricConfig[] {
     format: formatRatio,
     higherIsBetter: true,
     tooltip: tooltips.sortino,
+  },
+  {
+    key: "calmar",
+    label: "Ratio Calmar",
+    getValue: (r) => r.metrics.calmar,
+    format: formatRatio,
+    higherIsBetter: true,
+    tooltip: tooltips.calmar,
+    interpret: interpretCalmar,
+  },
+  {
+    key: "varHistorical",
+    label: "VaR (5%)",
+    getValue: (r) => r.metrics.varHistorical,
+    format: (v) => formatPct(v, 2),
+    higherIsBetter: true,
+    tooltip: tooltips.varHistorical,
+  },
+  {
+    key: "cvar",
+    label: "CVaR / Expected Shortfall (5%)",
+    getValue: (r) => r.metrics.cvar,
+    format: (v) => formatPct(v, 2),
+    higherIsBetter: true,
+    tooltip: tooltips.cvar,
+  },
+  {
+    key: "skewness",
+    label: "Asimetría (Skewness)",
+    getValue: (r) => r.metrics.skewness,
+    format: (v) => v.toFixed(2),
+    higherIsBetter: true,
+    tooltip: tooltips.skewness,
+    interpret: interpretSkewness,
+  },
+  {
+    key: "excessKurtosis",
+    label: "Curtosis en exceso",
+    getValue: (r) => r.metrics.excessKurtosis,
+    format: (v) => v.toFixed(2),
+    higherIsBetter: false,
+    tooltip: tooltips.excessKurtosis,
+    interpret: interpretKurtosis,
   },
   {
     key: "bestMonth",
@@ -386,16 +467,30 @@ export function MetricsTable({ results, isLoading }: MetricsTableProps) {
                           <td className={`py-4 px-3 text-right text-base font-semibold ${
                             winner === "a" ? "text-emerald-600" : "text-brand-navy"
                           }`}>
-                            {metric.format(valA)}
-                            {winner === "a" && <span className="ml-1.5 text-emerald-500">&#10003;</span>}
+                            <div>
+                              {metric.format(valA)}
+                              {winner === "a" && <span className="ml-1.5 text-emerald-500">&#10003;</span>}
+                            </div>
+                            {metric.interpret && (
+                              <div className="text-xs font-normal text-brand-tertiary italic mt-1 max-w-xs ml-auto leading-snug">
+                                {metric.interpret(valA)}
+                              </div>
+                            )}
                           </td>
                         )}
                         {valB !== undefined && (
                           <td className={`py-4 px-3 text-right text-base font-semibold ${
                             winner === "b" ? "text-emerald-600" : "text-brand-navy"
                           }`}>
-                            {metric.format(valB)}
-                            {winner === "b" && <span className="ml-1.5 text-emerald-500">&#10003;</span>}
+                            <div>
+                              {metric.format(valB)}
+                              {winner === "b" && <span className="ml-1.5 text-emerald-500">&#10003;</span>}
+                            </div>
+                            {metric.interpret && (
+                              <div className="text-xs font-normal text-brand-tertiary italic mt-1 max-w-xs ml-auto leading-snug">
+                                {metric.interpret(valB)}
+                              </div>
+                            )}
                           </td>
                         )}
                       </tr>

@@ -18,6 +18,7 @@ import type {
   AnnualReturn,
   DrawdownPoint,
   DrawdownEpisode,
+  StressPeriodResult,
   FeesSummary,
   Metrics,
   FundType,
@@ -366,6 +367,7 @@ async function runPortfolioBacktest(
   const annualReturns = calculateAnnualReturns(timeSeries, dailyInitialValue);
   const drawdowns = calculateDrawdowns(timeSeries);
   const topDrawdowns = calculateTopDrawdowns(timeSeries, 10);
+  const stressPeriods = calculateStressPeriods(timeSeries);
 
   // Rolling returns: usar la serie de output (mensual o trimestral tiene más sentido para rolling)
   const rollingReturns = calculateRollingReturns(timeSeries, displayGranularity);
@@ -390,6 +392,7 @@ async function runPortfolioBacktest(
     annualReturns,
     drawdowns,
     topDrawdowns,
+    stressPeriods,
     rollingReturns,
     fees,
     totalContributions: simulation.totalContributions,
@@ -595,6 +598,15 @@ function calculateMetrics(
     ? positiveMonths / displayReturns.length
     : 0;
 
+  // Calmar Ratio = CAGR / |Max DD|
+  const calmar = maxDrawdown < 0 ? cagr / Math.abs(maxDrawdown) : 0;
+
+  // Distribución: skewness, kurtosis, VaR, CVaR
+  const skewness = calculateSkewness(volatilityReturns);
+  const excessKurtosis = calculateExcessKurtosis(volatilityReturns);
+  const varHistorical = calculateHistoricalVaR(volatilityReturns, 0.05);
+  const cvar = calculateCVaR(volatilityReturns, 0.05);
+
   return {
     totalReturn,
     cagr,
@@ -605,7 +617,78 @@ function calculateMetrics(
     bestMonth,
     worstMonth,
     positiveMonthsRatio,
+    calmar,
+    skewness,
+    excessKurtosis,
+    varHistorical,
+    cvar,
   };
+}
+
+/**
+ * Skewness (asimetría) de la distribución de retornos.
+ * 0 = simétrica (normal), <0 = cola izquierda larga (más pérdidas extremas que ganancias),
+ * >0 = cola derecha larga.
+ * Fórmula: Pearson's moment coefficient of skewness.
+ */
+function calculateSkewness(returns: number[]): number {
+  const n = returns.length;
+  if (n < 3) return 0;
+  const mean = returns.reduce((sum, r) => sum + r, 0) / n;
+  const sumSquared = returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0);
+  const variance = sumSquared / (n - 1);
+  const stdDev = Math.sqrt(variance);
+  if (stdDev === 0) return 0;
+  const sumCubed = returns.reduce((sum, r) => sum + Math.pow((r - mean) / stdDev, 3), 0);
+  // Corrección de muestra (Fisher-Pearson)
+  return (n / ((n - 1) * (n - 2))) * sumCubed;
+}
+
+/**
+ * Excess kurtosis (curtosis en exceso): kurtosis - 3.
+ * 0 = distribución normal (mesocúrtica),
+ * >0 = leptocúrtica (colas gordas, más eventos extremos que la normal),
+ * <0 = platocúrtica (colas finas).
+ */
+function calculateExcessKurtosis(returns: number[]): number {
+  const n = returns.length;
+  if (n < 4) return 0;
+  const mean = returns.reduce((sum, r) => sum + r, 0) / n;
+  const sumSquared = returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0);
+  const variance = sumSquared / (n - 1);
+  const stdDev = Math.sqrt(variance);
+  if (stdDev === 0) return 0;
+  const sumFourth = returns.reduce((sum, r) => sum + Math.pow((r - mean) / stdDev, 4), 0);
+  // Corrección de muestra para excess kurtosis
+  const factor1 = (n * (n + 1)) / ((n - 1) * (n - 2) * (n - 3));
+  const factor2 = (3 * Math.pow(n - 1, 2)) / ((n - 2) * (n - 3));
+  return factor1 * sumFourth - factor2;
+}
+
+/**
+ * Value at Risk histórico al percentil (default 5%).
+ * Devuelve el peor retorno del peor (alpha × 100)% de los periodos.
+ * Ej: VaR 5% = -8% significa que el 5% de los meses peores tuvieron pérdida >= 8%.
+ */
+function calculateHistoricalVaR(returns: number[], alpha: number = 0.05): number {
+  if (returns.length === 0) return 0;
+  const sorted = [...returns].sort((a, b) => a - b);
+  const idx = Math.max(0, Math.floor(sorted.length * alpha) - 1);
+  return sorted[idx] ?? 0;
+}
+
+/**
+ * Conditional VaR / Expected Shortfall al percentil (default 5%).
+ * Devuelve el retorno promedio del peor (alpha × 100)% de los periodos.
+ * Más conservador que VaR: en vez del "umbral", la "pérdida media cuando se cruza ese umbral".
+ */
+function calculateCVaR(returns: number[], alpha: number = 0.05): number {
+  if (returns.length === 0) return 0;
+  const sorted = [...returns].sort((a, b) => a - b);
+  const cutoff = Math.max(1, Math.floor(sorted.length * alpha));
+  const tail = sorted.slice(0, cutoff);
+  if (tail.length === 0) return 0;
+  return tail.reduce((sum, r) => sum + r, 0) / tail.length;
 }
 
 function calculateCAGR(initialValue: number, finalValue: number, years: number): number {
@@ -711,6 +794,114 @@ function calculateDrawdowns(timeSeries: TimeSeriesPoint[]): DrawdownPoint[] {
   }
 
   return drawdowns;
+}
+
+/**
+ * Periodos históricos de estrés predefinidos para análisis.
+ * Definidos con margen para capturar el inicio del estrés y el valle.
+ */
+const STRESS_PERIODS: Array<{ id: string; name: string; description: string; start: string; end: string }> = [
+  {
+    id: "gfc",
+    name: "Crisis financiera global (GFC)",
+    description: "Quiebra de Lehman Brothers, crisis subprime, contracción global.",
+    start: "2007-11",
+    end: "2009-03",
+  },
+  {
+    id: "eurozone",
+    name: "Crisis del euro",
+    description: "Rescates de Grecia, Portugal, Irlanda. Dudas sobre la supervivencia del euro.",
+    start: "2011-05",
+    end: "2012-07",
+  },
+  {
+    id: "china-oil",
+    name: "China + petróleo",
+    description: "Devaluación del yuan, colapso del precio del petróleo (Brent <30$).",
+    start: "2015-06",
+    end: "2016-02",
+  },
+  {
+    id: "q4-2018",
+    name: "Selloff Q4 2018",
+    description: "Fed sube tipos, miedo a recesión y guerra comercial USA-China.",
+    start: "2018-10",
+    end: "2018-12",
+  },
+  {
+    id: "covid",
+    name: "COVID-19",
+    description: "Confinamiento global, mayor caída mensual en décadas.",
+    start: "2020-02",
+    end: "2020-03",
+  },
+  {
+    id: "inflation-2022",
+    name: "Inflación y subida de tipos 2022",
+    description: "Crisis energética, BCE y Fed agresivos. Bonos y bolsa caen a la vez.",
+    start: "2022-01",
+    end: "2022-10",
+  },
+];
+
+/**
+ * Calcula la rentabilidad y máximo drawdown de la cartera durante
+ * cada uno de los periodos históricos de estrés predefinidos.
+ *
+ * Si el periodo cae fuera del rango de datos, devuelve null para
+ * los valores pero mantiene la entrada (para que el usuario vea
+ * qué crisis NO están cubiertas por su backtest).
+ */
+function calculateStressPeriods(timeSeries: TimeSeriesPoint[]): StressPeriodResult[] {
+  if (timeSeries.length === 0) {
+    return STRESS_PERIODS.map((p) => ({
+      ...p,
+      totalReturn: null,
+      maxDrawdown: null,
+      hasFullData: false,
+    }));
+  }
+
+  const seriesStart = timeSeries[0]!.date;
+  const seriesEnd = timeSeries[timeSeries.length - 1]!.date;
+
+  return STRESS_PERIODS.map((period) => {
+    // Filtrar puntos dentro del periodo de estrés (comparación lexicográfica YYYY-MM)
+    const pointsInPeriod = timeSeries.filter(
+      (p) => p.date >= period.start && p.date <= period.end
+    );
+
+    // Verificar cobertura: el inicio del periodo debe estar dentro de la serie
+    const startCovered = period.start >= seriesStart;
+    const endCovered = period.end <= seriesEnd;
+    const hasFullData = startCovered && endCovered && pointsInPeriod.length >= 2;
+
+    if (pointsInPeriod.length < 2) {
+      return {
+        ...period,
+        totalReturn: null,
+        maxDrawdown: null,
+        hasFullData: false,
+      };
+    }
+
+    // Rentabilidad total del periodo (valor final / valor inicial - 1)
+    const startValue = pointsInPeriod[0]!.value;
+    const endValue = pointsInPeriod[pointsInPeriod.length - 1]!.value;
+    const totalReturn = startValue > 0 ? (endValue - startValue) / startValue : 0;
+
+    // Máximo drawdown durante el periodo
+    const values = pointsInPeriod.map((p) => p.value);
+    const maxDrawdown = calculateMaxDrawdown(values);
+
+    return {
+      ...period,
+      totalReturn,
+      maxDrawdown,
+      hasFullData,
+    };
+  });
 }
 
 /**
