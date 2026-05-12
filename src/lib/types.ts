@@ -209,6 +209,8 @@ export interface BenchmarkComparison {
   benchmarkVolatility: number;
   /** Serie temporal del benchmark normalizada al mismo punto de partida */
   benchmarkTimeSeries: TimeSeriesPoint[];
+  /** Comportamiento del benchmark durante los periodos de estrés */
+  benchmarkStressPeriods?: StressPeriodResult[];
 }
 
 /** Resultado de la cartera durante un periodo histórico de estrés */

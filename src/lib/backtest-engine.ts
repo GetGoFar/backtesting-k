@@ -990,6 +990,7 @@ function computeBenchmarkComparison(
     benchmarkCagr: benchmarkResult.metrics.cagr,
     benchmarkVolatility: benchmarkResult.metrics.volatility,
     benchmarkTimeSeries: benchmarkResult.timeSeries,
+    benchmarkStressPeriods: benchmarkResult.stressPeriods,
   };
 }
 
