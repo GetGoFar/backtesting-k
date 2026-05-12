@@ -74,7 +74,7 @@ function buildTooltips(granularity: DisplayGranularity) {
   const { singular, plural } = GRANULARITY_LABELS[granularity];
   return {
     finalValue:
-      "Valor total de tu cartera al final del periodo, incluyendo todas las aportaciones y rendimientos.",
+      "Valor total de tu cartera al final del periodo, sin liquidar. Ya tiene descontado TER, comisión de gestión e impuestos pagados en cada rebalanceo, pero NO los impuestos pendientes sobre la plusvalía latente (esos solo se pagan al vender). Para ver el valor 'en mano' tras liquidar, mira el desglose en el resumen de comisiones.",
     totalReturn:
       "Rentabilidad total acumulada desde el inicio hasta el final. Incluye el efecto de todas las aportaciones.",
     cagr:
@@ -119,6 +119,9 @@ interface MetricConfig {
   isHero?: boolean; // Métricas destacadas en cards grandes
   /** Función opcional que devuelve un texto interpretando el valor concreto */
   interpret?: (value: number) => string;
+  /** Sub-texto opcional (línea pequeña bajo el valor en hero cards), útil para
+   *  contextualizar (ej: valor tras liquidar, etc.) */
+  getSubText?: (result: BacktestResult) => string | null;
 }
 
 function buildMetricsConfig(granularity: DisplayGranularity): MetricConfig[] {
@@ -135,6 +138,12 @@ function buildMetricsConfig(granularity: DisplayGranularity): MetricConfig[] {
     higherIsBetter: true,
     tooltip: tooltips.finalValue,
     isHero: true,
+    getSubText: (r) => {
+      const pending = r.fees.pendingTaxes ?? 0;
+      if (pending <= 0) return null;
+      const afterLiquidation = r.finalValue - pending;
+      return `Tras liquidar: ${formatEUR(afterLiquidation)}`;
+    },
   },
   {
     key: "cagr",
@@ -291,6 +300,9 @@ function HeroStatCard({
   valueA,
   valueB,
   valueBenchmark,
+  subTextA,
+  subTextB,
+  subTextBenchmark,
   format,
   higherIsBetter,
   tooltip,
@@ -302,6 +314,9 @@ function HeroStatCard({
   valueA?: number;
   valueB?: number;
   valueBenchmark?: number;
+  subTextA?: string | null;
+  subTextB?: string | null;
+  subTextBenchmark?: string | null;
   format: (v: number) => string;
   higherIsBetter: boolean;
   tooltip: string;
@@ -329,24 +344,34 @@ function HeroStatCard({
       {/* Valores */}
       {hasTwo ? (
         <div className="space-y-3">
-          <div className="flex items-baseline justify-between">
-            <span className={`text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight font-serif ${
-              winner === "a" ? "text-brand-navy" : "text-slate-400"
-            }`} style={{ fontVariantNumeric: "tabular-nums" }}>
-              {format(valueA!)}
-            </span>
-            {winner === "a" && (
-              <span className="text-xs font-semibold text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full">MEJOR</span>
+          <div>
+            <div className="flex items-baseline justify-between">
+              <span className={`text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight font-serif ${
+                winner === "a" ? "text-brand-navy" : "text-slate-400"
+              }`} style={{ fontVariantNumeric: "tabular-nums" }}>
+                {format(valueA!)}
+              </span>
+              {winner === "a" && (
+                <span className="text-xs font-semibold text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full">MEJOR</span>
+              )}
+            </div>
+            {subTextA && (
+              <p className="text-[10px] text-brand-tertiary italic mt-0.5">{subTextA}</p>
             )}
           </div>
-          <div className="flex items-baseline justify-between">
-            <span className={`text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight font-serif ${
-              winner === "b" ? "text-brand-navy" : "text-slate-400"
-            }`} style={{ fontVariantNumeric: "tabular-nums" }}>
-              {format(valueB!)}
-            </span>
-            {winner === "b" && (
-              <span className="text-xs font-semibold text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full">MEJOR</span>
+          <div>
+            <div className="flex items-baseline justify-between">
+              <span className={`text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight font-serif ${
+                winner === "b" ? "text-brand-navy" : "text-slate-400"
+              }`} style={{ fontVariantNumeric: "tabular-nums" }}>
+                {format(valueB!)}
+              </span>
+              {winner === "b" && (
+                <span className="text-xs font-semibold text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full">MEJOR</span>
+              )}
+            </div>
+            {subTextB && (
+              <p className="text-[10px] text-brand-tertiary italic mt-0.5">{subTextB}</p>
             )}
           </div>
           <div className="flex justify-between pt-2 border-t border-slate-100">
@@ -361,12 +386,18 @@ function HeroStatCard({
               </span>
             </div>
           )}
+          {hasBenchmark && subTextBenchmark && (
+            <p className="text-[10px] text-purple-600/60 italic">{subTextBenchmark}</p>
+          )}
         </div>
       ) : (
         <div>
           <div className="text-4xl sm:text-5xl lg:text-6xl font-bold text-brand-navy tracking-tight font-serif" style={{ fontVariantNumeric: "tabular-nums" }}>
             {format(valueA ?? valueB ?? 0)}
           </div>
+          {(subTextA ?? subTextB) && (
+            <p className="text-xs text-brand-tertiary italic mt-1">{subTextA ?? subTextB}</p>
+          )}
           {hasBenchmark && (
             <div className="flex items-baseline justify-between pt-3 mt-3 border-t border-slate-100">
               <span className="text-xs text-purple-600 font-medium">{nameBenchmark}</span>
@@ -456,6 +487,9 @@ export function MetricsTable({ results, isLoading }: MetricsTableProps) {
             valueA={resultA ? metric.getValue(resultA) : undefined}
             valueB={resultB ? metric.getValue(resultB) : undefined}
             valueBenchmark={benchmarkResult ? metric.getValue(benchmarkResult) : undefined}
+            subTextA={resultA && metric.getSubText ? metric.getSubText(resultA) : null}
+            subTextB={resultB && metric.getSubText ? metric.getSubText(resultB) : null}
+            subTextBenchmark={benchmarkResult && metric.getSubText ? metric.getSubText(benchmarkResult) : null}
             format={metric.format}
             higherIsBetter={metric.higherIsBetter}
             tooltip={metric.tooltip}
