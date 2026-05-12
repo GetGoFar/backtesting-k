@@ -765,10 +765,134 @@ const BANCA_PRIVADA_FUNDS: Fund[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// Fondos Alternativos — Cartera Cañigueral SL
+// Estrategias alternativas (long-short, market-neutral, volatility, multi-strategy,
+// alpha bonds, precious metals equity). Todos via EODHD .EUFUND
+// -----------------------------------------------------------------------------
+
+const ALTERNATIVOS_CANIGUERAL_FUNDS: Fund[] = [
+  {
+    id: "alt-dunas-valor-flexible",
+    name: "Dunas Valor Flexible I FI",
+    shortName: "Dunas Valor Flexible",
+    isin: "ES0175316001",
+    ter: 0.90,
+    category: "Alternativo",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "alt-aqr-apex",
+    name: "AQR Apex UCITS Fund RAEFT EUR Acc",
+    shortName: "AQR Apex",
+    isin: "LU1662496279",
+    ter: 1.60,
+    category: "Alternativo",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "alt-man-alpha-select",
+    name: "Man Funds VI – Man Alpha Select Alternative IL H EUR",
+    shortName: "Man Alpha Select",
+    isin: "IE00B3LJVG97",
+    ter: 1.50,
+    category: "Alternativo",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "alt-jpm-europe-absolute-alpha",
+    name: "JPMorgan Funds – Europe Equity Absolute Alpha C EUR Acc",
+    shortName: "JPM Europe Abs Alpha",
+    isin: "LU1001748398",
+    ter: 1.20,
+    category: "Alternativo",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "alt-gs-alternative-beta",
+    name: "Goldman Sachs Alternative Beta P Cap EUR",
+    shortName: "GS Alternative Beta",
+    isin: "LU0370038167",
+    ter: 1.40,
+    category: "Alternativo",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "alt-amundi-volatility-world",
+    name: "Amundi Funds Volatility World A EUR (C)",
+    shortName: "Amundi Volatility World",
+    isin: "LU0557872479",
+    ter: 1.80,
+    category: "Alternativo",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "alt-helium-selection",
+    name: "Helium Fund – Helium Selection B-EUR",
+    shortName: "Helium Selection",
+    isin: "LU1112771503",
+    ter: 1.85,
+    category: "Alternativo",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "alt-pictet-atlas-titan",
+    name: "Pictet TR – Atlas Titan P EUR",
+    shortName: "Pictet Atlas Titan",
+    isin: "LU2206556016",
+    ter: 1.60,
+    category: "Alternativo",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "alt-ofi-precious-metals",
+    name: "Ofi Invest Precious Metals R",
+    shortName: "Ofi Precious Metals",
+    isin: "FR0011170182",
+    ter: 1.95,
+    category: "Alternativo",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "alt-dnca-alpha-bonds",
+    name: "DNCA Invest Alpha Bonds N EUR",
+    shortName: "DNCA Alpha Bonds",
+    isin: "LU1694789709",
+    ter: 0.65,
+    category: "Alternativo",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+];
+
+// -----------------------------------------------------------------------------
 // Todos los fondos combinados
 // -----------------------------------------------------------------------------
 
-const ALL_FUNDS: Fund[] = [...INDEXED_FUNDS, ...ACTIVE_FUNDS, ...BANCA_PRIVADA_FUNDS];
+const ALL_FUNDS: Fund[] = [
+  ...INDEXED_FUNDS,
+  ...ACTIVE_FUNDS,
+  ...BANCA_PRIVADA_FUNDS,
+  ...ALTERNATIVOS_CANIGUERAL_FUNDS,
+];
 
 // Mapa para búsqueda rápida por ID
 const FUNDS_BY_ID = new Map<string, Fund>(

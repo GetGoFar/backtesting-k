@@ -30,7 +30,8 @@ export type FundCategory =
   | "RF USD Gov"
   | "RF USD Corp"
   | "RF Flexible"
-  | "Oro";
+  | "Oro"
+  | "Alternativo";
 
 /** Frecuencia de rebalanceo de la cartera */
 export type RebalanceFrequency = "monthly" | "quarterly" | "annual" | "none";

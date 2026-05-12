@@ -730,10 +730,35 @@ const K_GEOGRAFICA_UCIT_PRESETS: PortfolioPreset[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// Cartera Fondos Alternativos Cañigueral SL — 10 fondos alternativos equiponderados
+// -----------------------------------------------------------------------------
+
+const ALTERNATIVOS_CANIGUERAL_PRESETS: PortfolioPreset[] = [
+  {
+    id: "alternativos-canigueral",
+    name: "Fondos Alternativos Cañigueral SL",
+    description: "10 fondos alternativos equiponderados (10% c/u)",
+    type: "active",
+    holdings: [
+      { fundId: "alt-dunas-valor-flexible", weight: 10 },
+      { fundId: "alt-aqr-apex", weight: 10 },
+      { fundId: "alt-man-alpha-select", weight: 10 },
+      { fundId: "alt-jpm-europe-absolute-alpha", weight: 10 },
+      { fundId: "alt-gs-alternative-beta", weight: 10 },
+      { fundId: "alt-amundi-volatility-world", weight: 10 },
+      { fundId: "alt-helium-selection", weight: 10 },
+      { fundId: "alt-pictet-atlas-titan", weight: 10 },
+      { fundId: "alt-ofi-precious-metals", weight: 10 },
+      { fundId: "alt-dnca-alpha-bonds", weight: 10 },
+    ],
+  },
+];
+
+// -----------------------------------------------------------------------------
 // Todos los presets combinados
 // -----------------------------------------------------------------------------
 
-const ALL_PRESETS: PortfolioPreset[] = [...K_INBESTME_PRESETS, ...K_GEOGRAFICA_UCIT_PRESETS, ...INDEXA_PRESETS, ...K_PRESETS, ...BANK_PRESETS, ...BANCA_PRIVADA_PRESETS];
+const ALL_PRESETS: PortfolioPreset[] = [...K_INBESTME_PRESETS, ...K_GEOGRAFICA_UCIT_PRESETS, ...INDEXA_PRESETS, ...K_PRESETS, ...BANK_PRESETS, ...BANCA_PRIVADA_PRESETS, ...ALTERNATIVOS_CANIGUERAL_PRESETS];
 
 // Mapa para búsqueda rápida por ID
 const PRESETS_BY_ID = new Map<string, PortfolioPreset>(
