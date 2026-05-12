@@ -331,6 +331,26 @@ export interface RollingStats {
   tenYear: RollingStatsBucket;
 }
 
+/** Una porción de la composición de cartera (agrupada por algún criterio) */
+export interface AllocationSlice {
+  /** Etiqueta de la categoría / agrupación */
+  label: string;
+  /** Peso total en % (decimal: 0.30 para 30%) */
+  weight: number;
+  /** Lista de nombres cortos de los fondos que componen esta porción */
+  fundShortNames: string[];
+}
+
+/** Composición de cartera agregada por distintos criterios */
+export interface PortfolioAllocation {
+  /** Agrupado por FundCategory (RV Global, RF EUR Gov, etc.) */
+  byCategory: AllocationSlice[];
+  /** Agrupado por familia (Renta Variable / Renta Fija / Oro / Alternativos) */
+  byAssetClass: AllocationSlice[];
+  /** Agrupado por tipo de gestión (index vs active) */
+  byManagement: AllocationSlice[];
+}
+
 /** Histograma de retornos (distribución de frecuencias) */
 export interface ReturnsHistogram {
   /** Etiqueta del periodo de los retornos: "mes", "día", "trimestre" */
@@ -396,6 +416,8 @@ export interface BacktestResult {
   rollingStats: RollingStats;
   /** Histograma de la distribución de retornos del periodo */
   returnsHistogram: ReturnsHistogram;
+  /** Composición de la cartera agrupada por distintos criterios */
+  allocation: PortfolioAllocation;
   /** Resumen de comisiones */
   fees: FeesSummary;
   /** Aportaciones totales realizadas */

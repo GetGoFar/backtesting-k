@@ -123,6 +123,14 @@ const ReturnsHistogramChart = dynamic(
   }
 );
 
+const AllocationPieChart = dynamic(
+  () => import("@/components/AllocationPieChart").then((mod) => mod.AllocationPieChart),
+  {
+    loading: () => <ChartLoadingSkeleton height="h-64" />,
+    ssr: false,
+  }
+);
+
 // Skeleton de carga para gráficos
 function ChartLoadingSkeleton({ height }: { height: string }) {
   return (
@@ -816,6 +824,9 @@ export default function Home() {
 
               {/* 3. Tabla de métricas */}
               <MetricsTable results={results} isLoading={false} />
+
+              {/* 3b. Composición de la(s) cartera(s) — pie charts */}
+              <AllocationPieChart results={results} isLoading={false} />
 
               {/* 4. Métricas individuales de cada activo */}
               {results.assetMetrics && results.assetMetrics.length > 0 && (

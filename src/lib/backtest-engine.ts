@@ -29,6 +29,8 @@ import type {
   RollingStats,
   RollingStatsBucket,
   ReturnsHistogram,
+  PortfolioAllocation,
+  AllocationSlice,
   CorrelationMatrix,
   CorrelationEntry,
   AssetMetrics,
@@ -425,6 +427,9 @@ async function runPortfolioBacktest(
   const rollingStats = calculateRollingStats(timeSeries, displayGranularity);
   const returnsHistogram = calculateReturnsHistogram(volatilityReturns, displayGranularity);
 
+  // Composición de la cartera (agregación por categoría, asset class, tipo gestión)
+  const allocation = calculatePortfolioAllocation(portfolio.holdings);
+
   // 7. Comisiones (usar activeHoldings para calcular TER solo de fondos con datos)
   const weightedTer = calculateWeightedTer(activeHoldings, fundTers);
   const portfolioType = determinePortfolioType(activeHoldings, fundTypes);
@@ -449,6 +454,7 @@ async function runPortfolioBacktest(
     rollingReturns,
     rollingStats,
     returnsHistogram,
+    allocation,
     fees,
     totalContributions: simulation.totalContributions,
     finalValue,
@@ -1333,6 +1339,74 @@ function calculateRollingStats(
     threeYear: buildBucket(3, "3 años"),
     fiveYear: buildBucket(5, "5 años"),
     tenYear: buildBucket(10, "10 años"),
+  };
+}
+
+/**
+ * Calcula la composición de la cartera agregando los pesos de los fondos
+ * por: categoría detallada (RV Global, RF EUR Gov…), familia (RV / RF /
+ * Oro / Alt), y tipo de gestión (index / active).
+ *
+ * Se basa en `holdings` (lo que el usuario configuró), no en `activeHoldings`,
+ * para que la composición refleje la cartera diseñada aunque algún fondo no
+ * tenga datos suficientes en el periodo seleccionado.
+ */
+function calculatePortfolioAllocation(holdings: PortfolioHolding[]): PortfolioAllocation {
+  const totalWeight = holdings.reduce((s, h) => s + h.weight, 0);
+  if (totalWeight === 0) {
+    return { byCategory: [], byAssetClass: [], byManagement: [] };
+  }
+
+  type Bucket = { weight: number; fundShortNames: string[] };
+  const byCategoryMap = new Map<string, Bucket>();
+  const byAssetClassMap = new Map<string, Bucket>();
+  const byManagementMap = new Map<string, Bucket>();
+
+  // Mapeo categoría → familia
+  const familyOf = (category: string): string => {
+    if (category === "Oro") return "Oro";
+    if (category === "Alternativo") return "Alternativos";
+    if (category.startsWith("RV")) return "Renta Variable";
+    if (category.startsWith("RF")) return "Renta Fija";
+    return "Otros";
+  };
+
+  for (const holding of holdings) {
+    const fund = getFundById(holding.fundId) || holding.fund;
+    if (!fund) continue;
+    const w = holding.weight / 100; // a decimal
+    const shortName = fund.shortName ?? fund.name ?? holding.fundId;
+
+    // Por categoría detallada
+    const catEntry = byCategoryMap.get(fund.category) ?? { weight: 0, fundShortNames: [] };
+    catEntry.weight += w;
+    catEntry.fundShortNames.push(shortName);
+    byCategoryMap.set(fund.category, catEntry);
+
+    // Por familia (asset class)
+    const family = familyOf(fund.category);
+    const famEntry = byAssetClassMap.get(family) ?? { weight: 0, fundShortNames: [] };
+    famEntry.weight += w;
+    famEntry.fundShortNames.push(shortName);
+    byAssetClassMap.set(family, famEntry);
+
+    // Por tipo de gestión
+    const mgmtLabel = fund.type === "active" ? "Gestión activa" : "Indexada";
+    const mgmtEntry = byManagementMap.get(mgmtLabel) ?? { weight: 0, fundShortNames: [] };
+    mgmtEntry.weight += w;
+    mgmtEntry.fundShortNames.push(shortName);
+    byManagementMap.set(mgmtLabel, mgmtEntry);
+  }
+
+  const toSortedSlices = (map: Map<string, Bucket>): AllocationSlice[] =>
+    Array.from(map.entries())
+      .map(([label, b]) => ({ label, weight: b.weight, fundShortNames: b.fundShortNames }))
+      .sort((a, b) => b.weight - a.weight);
+
+  return {
+    byCategory: toSortedSlices(byCategoryMap),
+    byAssetClass: toSortedSlices(byAssetClassMap),
+    byManagement: toSortedSlices(byManagementMap),
   };
 }
 
