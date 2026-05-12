@@ -15,8 +15,18 @@ const BENCHMARKS: BenchmarkDefinition[] = [
     id: "msci-world",
     name: "MSCI World",
     shortName: "MSCI World",
-    description: "Renta variable de países desarrollados (iShares Core MSCI World, EUR Acc).",
+    description: "Renta variable de países desarrollados (iShares Core MSCI World, EUR Acc). Sin emergentes.",
     composition: [{ fundId: "ishares-msci-world", weight: 100 }],
+  },
+  {
+    id: "msci-acwi",
+    name: "MSCI ACWI (proxy)",
+    shortName: "MSCI ACWI",
+    description: "Proxy del MSCI All Country World Index: 88% MSCI World (desarrollados) + 12% MSCI Emerging Markets. Equivalente a FTSE All-World en composición.",
+    composition: [
+      { fundId: "ishares-msci-world", weight: 88 },
+      { fundId: "amundi-emerging", weight: 12 },
+    ],
   },
   {
     id: "sp500-eur",
@@ -47,6 +57,16 @@ const BENCHMARKS: BenchmarkDefinition[] = [
     composition: [
       { fundId: "ishares-msci-world", weight: 60 },
       { fundId: "vanguard-eur-bond", weight: 40 },
+    ],
+  },
+  {
+    id: "global-80-20",
+    name: "Cartera 80/20 (Global)",
+    shortName: "80/20",
+    description: "80% MSCI World + 20% Bonos gobierno EUR. Benchmark de cartera agresiva moderada.",
+    composition: [
+      { fundId: "ishares-msci-world", weight: 80 },
+      { fundId: "vanguard-eur-bond", weight: 20 },
     ],
   },
   {

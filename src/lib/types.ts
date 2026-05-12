@@ -160,10 +160,12 @@ export interface DrawdownPoint {
 /** Opciones de benchmark predefinidas para comparación */
 export type BenchmarkId =
   | "msci-world"
+  | "msci-acwi"
   | "sp500-eur"
   | "msci-em"
   | "euro-stoxx"
   | "global-60-40"
+  | "global-80-20"
   | "vanguard-global"
   | "cash-eur";
 
