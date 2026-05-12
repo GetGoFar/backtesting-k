@@ -193,6 +193,18 @@ function PortfolioBenchmarkPanel({
           interpretation={interpretUpDownCapture(bm.upCapture, bm.downCapture)}
         />
       </div>
+
+      {/* Nota al pie: fuente de los datos */}
+      <div className="px-6 py-3 bg-slate-50/50 border-t border-slate-100">
+        <p className="text-xs text-brand-tertiary leading-relaxed">
+          <span className="font-semibold text-brand-secondary">Fuente del benchmark:</span>{" "}
+          el &quot;{bm.benchmarkName}&quot; se calcula a partir de uno o varios ETFs reales (datos EODHD).
+          Los precios incluyen el TER descontado del NAV, así que las métricas reflejan lo que
+          obtendrías invirtiendo en el ETF, no el índice teórico sin costes. Por eso pueden diferir
+          ligeramente (~10-20 pb anuales) de fuentes como Portfolio Visualizer o Morningstar que
+          usan series del índice puras.
+        </p>
+      </div>
     </div>
   );
 }

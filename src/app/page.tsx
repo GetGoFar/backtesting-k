@@ -15,6 +15,7 @@ import type {
   BenchmarkId,
 } from "@/lib/types";
 import { getAllBenchmarks } from "@/lib/benchmarks";
+import { getFundById } from "@/lib/fund-database";
 
 // Función para obtener el mes actual en formato YYYY-MM
 function getCurrentMonth(): string {
@@ -551,6 +552,34 @@ export default function Home() {
               <p className="mt-1.5 text-xs text-brand-tertiary">
                 Si lo seleccionas, se calcularán alpha de Jensen, beta, tracking error, information ratio y capture ratios vs el benchmark.
               </p>
+              {/* Composición concreta del benchmark seleccionado */}
+              {benchmarkId && (() => {
+                const def = getAllBenchmarks().find((b) => b.id === benchmarkId);
+                if (!def) return null;
+                return (
+                  <div className="mt-2 sm:max-w-md p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                    <p className="text-xs text-brand-secondary">
+                      <span className="font-semibold">Composición usada como benchmark:</span>{" "}
+                      {def.composition.map((c, idx) => {
+                        const f = getFundById(c.fundId);
+                        return (
+                          <span key={c.fundId}>
+                            {idx > 0 && " + "}
+                            {c.weight}% {f?.shortName ?? c.fundId}
+                            {f?.isin && <span className="text-brand-tertiary"> ({f.isin})</span>}
+                          </span>
+                        );
+                      })}
+                    </p>
+                    <p className="mt-1 text-xs text-brand-tertiary italic">
+                      {def.description}
+                    </p>
+                    <p className="mt-1.5 text-xs text-brand-tertiary">
+                      Datos vía EODHD. Los precios del ETF incluyen el TER descontado del NAV, así que la comparación refleja el resultado real que obtendrías invirtiendo en este ETF (no el índice teórico sin costes).
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Botón Ejecutar — CTA coral estilo elproyectok.com */}
