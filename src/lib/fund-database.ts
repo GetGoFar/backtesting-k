@@ -850,10 +850,10 @@ const ALTERNATIVOS_CANIGUERAL_FUNDS: Fund[] = [
   },
   {
     id: "alt-pictet-atlas-titan",
-    name: "Pictet TR – Atlas Titan P EUR",
-    shortName: "Pictet Atlas Titan",
-    isin: "LU2206556016",
-    ter: 1.60,
+    name: "Pictet TR – Atlas I EUR",
+    shortName: "Pictet Atlas I",
+    isin: "LU1433232698", // Clase institucional 'I' — datos desde 2016-11 (vs 2020-10 de la clase P 'Titan')
+    ter: 1.10,
     category: "Alternativo",
     type: "active",
     currency: "EUR",
