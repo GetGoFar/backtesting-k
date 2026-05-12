@@ -139,16 +139,16 @@ function PortfolioBenchmarkPanel({
         {/* Tracking Error */}
         <MetricRow
           label="Tracking Error (anual)"
-          tooltip="Desviación estándar anualizada de la diferencia (retorno cartera - retorno benchmark). Mide cuánto se separa tu cartera del benchmark. Un fondo indexado puro tiene TE ≈ 0%. Un fondo activo agresivo puede tener TE > 5%."
+          tooltip="Desviación estándar anualizada de la diferencia (retorno cartera - retorno benchmark). Mide cuánto se separa tu cartera del benchmark, independientemente de la dirección. Un TE alto puede deberse a gestión activa, exposición a factores distintos, geografía diferente, o ser otro índice (ej: ACWI vs World incluye emergentes)."
           value={formatPct(bm.trackingError, 2).replace("+", "")}
           interpretation={
             bm.trackingError < 0.01
-              ? "Sigue al benchmark prácticamente sin desviación (indexado)."
+              ? `Diferencia ≈ 0% anual entre cartera y benchmark — composición prácticamente idéntica.`
               : bm.trackingError < 0.03
-              ? "Desviación moderada — gestión activa light o cartera diversificada."
+              ? `La cartera se desvía ${formatPct(bm.trackingError, 2).replace("+", "")} anual del benchmark — composición algo distinta (puede ser por ligera diferencia de índice o pesos).`
               : bm.trackingError < 0.08
-              ? "Desviación notable — gestión activa con apuestas claras."
-              : "Desviación muy alta — cartera con perfil muy diferente al benchmark."
+              ? `La cartera se desvía ${formatPct(bm.trackingError, 2).replace("+", "")} anual del benchmark — perfil de exposición claramente distinto (otro índice, factores, geografía o sectores).`
+              : `La cartera se desvía ${formatPct(bm.trackingError, 2).replace("+", "")} anual del benchmark — exposiciones muy diferentes. El benchmark elegido probablemente no es el más adecuado para compararla.`
           }
         />
 
