@@ -84,10 +84,10 @@ export function SidebarNav({ hasResults }: SidebarNavProps) {
 
   return (
     <>
-      {/* Botón hamburguesa solo en móvil */}
+      {/* Botón hamburguesa solo en móvil — por encima del header sticky */}
       <button
         onClick={() => setIsMobileOpen(!isMobileOpen)}
-        className="lg:hidden fixed top-3 left-3 z-50 w-10 h-10 rounded-lg bg-brand-navy text-white shadow-lg flex items-center justify-center"
+        className="lg:hidden fixed top-2.5 left-3 z-[60] w-9 h-9 rounded-lg bg-brand-navy text-white shadow-lg flex items-center justify-center"
         aria-label="Abrir menú de navegación"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -99,10 +99,10 @@ export function SidebarNav({ hasResults }: SidebarNavProps) {
         </svg>
       </button>
 
-      {/* Backdrop móvil */}
+      {/* Backdrop móvil — cubre todo incluido el header (z-50) */}
       {isMobileOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-black/40 z-30"
+          className="lg:hidden fixed inset-0 bg-black/40 z-[55]"
           onClick={() => setIsMobileOpen(false)}
         />
       )}
@@ -110,9 +110,9 @@ export function SidebarNav({ hasResults }: SidebarNavProps) {
       {/* Sidebar */}
       <aside
         className={`
-          fixed lg:sticky top-0 lg:top-[72px] left-0 h-screen lg:h-[calc(100vh-72px)]
+          fixed lg:sticky top-0 lg:top-16 left-0 h-screen lg:h-[calc(100vh-4rem)]
           w-64 bg-white border-r border-slate-200 shadow-lg lg:shadow-none
-          z-40 transition-transform overflow-y-auto
+          z-[58] lg:z-30 transition-transform overflow-y-auto
           ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
         `}
       >
