@@ -442,7 +442,7 @@ export async function classifyFund(
       fechaInicio: null, fechaFin: null, anosObservados: null,
       generadoEn,
       error: "no_eodhd",
-      detalle: "EODHD no tiene NAVs históricos suficientes para este fondo",
+      detalle: "El proveedor de datos no tiene NAVs históricos suficientes para este fondo",
     };
   }
 
@@ -456,7 +456,7 @@ export async function classifyFund(
       fechaInicio: null, fechaFin: null, anosObservados: null,
       generadoEn,
       error: "no_eodhd",
-      detalle: "Benchmark sin datos en EODHD",
+      detalle: "Benchmark sin datos disponibles",
     };
   }
 

@@ -575,7 +575,7 @@ export default function Home() {
                       {def.description}
                     </p>
                     <p className="mt-1.5 text-xs text-brand-tertiary">
-                      Datos vía EODHD. Los precios del ETF incluyen el TER descontado del NAV, así que la comparación refleja el resultado real que obtendrías invirtiendo en este ETF (no el índice teórico sin costes).
+                      Los precios del ETF incluyen el TER descontado del NAV, así que la comparación refleja el resultado real que obtendrías invirtiendo en este ETF (no el índice teórico sin costes).
                     </p>
                   </div>
                 );

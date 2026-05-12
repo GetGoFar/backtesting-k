@@ -4,7 +4,7 @@
 //
 // Informe personalizado del fondo del usuario vs Cartera K10 Sectorial.
 // Página dinámica (server-rendered): cada visita ejecuta el backtest con
-// los NAVs más actuales (cacheados 12h en CDN para no abusar EODHD).
+// los NAVs más actuales (cacheados 12h en CDN para no abusar del proveedor de datos).
 //
 // Foco: solo lo esencial — gráfico de evolución, 4 KPIs, correlación.
 // El usuario llega aquí desde el email automatizado de Beehiiv tras

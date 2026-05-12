@@ -207,7 +207,7 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
             </>
           )}
 
-          {/* Resultados externos (EODHD / Yahoo Finance fallback) */}
+          {/* Resultados externos (búsqueda online) */}
           {yahooResults.length > 0 && (
             <>
               <div className="px-3 py-2 bg-indigo-50 border-b border-indigo-200">

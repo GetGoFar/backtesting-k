@@ -573,7 +573,7 @@ function stalePorFalta(f: FondoCsv, previo?: ResultadoFondo): ResultadoFondo {
     return {
       ...previo,
       stale: true,
-      error: "EODHD sin datos esta semana, valores anteriores",
+      error: "Sin datos del proveedor esta semana, valores anteriores",
       // Un fondo stale conserva su dq5; no estamos midiendo cambios reales,
       // así que tendencia = sin_ref para no inducir flechas falsas.
       tendencia: "sin_ref",
@@ -600,7 +600,7 @@ function stalePorFalta(f: FondoCsv, previo?: ResultadoFondo): ResultadoFondo {
     fechaFin: null,
     anosObservados: null,
     stale: true,
-    error: "Sin datos en EODHD",
+    error: "Sin datos del proveedor",
     tendencia: "sin_ref",
     dq5Anterior: null,
     deltaDq5: null,
