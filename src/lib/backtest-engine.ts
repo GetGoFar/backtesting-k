@@ -997,6 +997,9 @@ function computeBenchmarkComparison(
     benchmarkVolatility: benchmarkResult.metrics.volatility,
     benchmarkTimeSeries: benchmarkResult.timeSeries,
     benchmarkStressPeriods: benchmarkResult.stressPeriods,
+    benchmarkMetrics: benchmarkResult.metrics,
+    benchmarkFinalValue: benchmarkResult.finalValue,
+    benchmarkFees: benchmarkResult.fees,
   };
 }
 

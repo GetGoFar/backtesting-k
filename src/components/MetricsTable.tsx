@@ -365,6 +365,35 @@ export function MetricsTable({ results, isLoading }: MetricsTableProps) {
   const isSinglePortfolio = !resultA || !resultB;
   const singleResult = resultA || resultB;
 
+  // Si hay benchmark configurado, construir un "resultado virtual" del benchmark
+  // para reutilizar las getValue() de las métricas sin duplicar lógica.
+  const benchmark = resultA?.benchmark ?? resultB?.benchmark;
+  const benchmarkResult: BacktestResult | null =
+    benchmark && benchmark.benchmarkMetrics && benchmark.benchmarkFees && benchmark.benchmarkFinalValue !== undefined
+      ? {
+          portfolioName: benchmark.benchmarkName,
+          portfolioType: "index",
+          timeSeries: benchmark.benchmarkTimeSeries,
+          metrics: benchmark.benchmarkMetrics,
+          annualReturns: [],
+          drawdowns: [],
+          topDrawdowns: [],
+          stressPeriods: benchmark.benchmarkStressPeriods ?? [],
+          rollingReturns: { oneYear: [], threeYear: [], fiveYear: [] },
+          rollingStats: {
+            oneYear: { label: "1 año", years: 1, count: 0, bestCagr: 0, bestEndDate: null, worstCagr: 0, worstEndDate: null, avgCagr: 0, medianCagr: 0, positiveRatio: 0 },
+            threeYear: { label: "3 años", years: 3, count: 0, bestCagr: 0, bestEndDate: null, worstCagr: 0, worstEndDate: null, avgCagr: 0, medianCagr: 0, positiveRatio: 0 },
+            fiveYear: { label: "5 años", years: 5, count: 0, bestCagr: 0, bestEndDate: null, worstCagr: 0, worstEndDate: null, avgCagr: 0, medianCagr: 0, positiveRatio: 0 },
+            tenYear: { label: "10 años", years: 10, count: 0, bestCagr: 0, bestEndDate: null, worstCagr: 0, worstEndDate: null, avgCagr: 0, medianCagr: 0, positiveRatio: 0 },
+          },
+          returnsHistogram: { periodLabel: "mes", bins: [], mean: 0, stdDev: 0, totalCount: 0 },
+          allocation: { byCategory: [], byAssetClass: [], byManagement: [] },
+          fees: benchmark.benchmarkFees,
+          totalContributions: 0,
+          finalValue: benchmark.benchmarkFinalValue,
+        }
+      : null;
+
   return (
     <div className="space-y-6">
       {/* === HERO STATS GRID === */}
@@ -438,12 +467,21 @@ export function MetricsTable({ results, isLoading }: MetricsTableProps) {
                         {resultB.portfolioName}
                       </th>
                     )}
+                    {benchmarkResult && (
+                      <th className="py-3 px-3 text-right text-xs font-semibold text-purple-600 uppercase tracking-wider">
+                        {benchmarkResult.portfolioName}
+                        <Tooltip content="Benchmark de referencia. Las marcas ✓ de 'mejor' solo se calculan entre Cartera A y Cartera B; esta columna se muestra para contexto.">
+                          <span className="ml-1 text-purple-300 cursor-help">ⓘ</span>
+                        </Tooltip>
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {tableMetrics.map((metric) => {
                     const valA = resultA ? metric.getValue(resultA) : undefined;
                     const valB = resultB ? metric.getValue(resultB) : undefined;
+                    const valBench = benchmarkResult ? metric.getValue(benchmarkResult) : undefined;
                     const winner =
                       valA !== undefined && valB !== undefined
                         ? getWinner(valA, valB, metric.higherIsBetter)
@@ -489,6 +527,16 @@ export function MetricsTable({ results, isLoading }: MetricsTableProps) {
                             {metric.interpret && (
                               <div className="text-xs font-normal text-brand-tertiary italic mt-1 max-w-xs ml-auto leading-snug">
                                 {metric.interpret(valB)}
+                              </div>
+                            )}
+                          </td>
+                        )}
+                        {valBench !== undefined && (
+                          <td className="py-4 px-3 text-right text-base font-medium text-purple-600/80 italic">
+                            <div>{metric.format(valBench)}</div>
+                            {metric.interpret && (
+                              <div className="text-xs font-normal text-brand-tertiary italic mt-1 max-w-xs ml-auto leading-snug not-italic">
+                                {metric.interpret(valBench)}
                               </div>
                             )}
                           </td>

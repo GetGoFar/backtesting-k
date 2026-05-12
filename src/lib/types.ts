@@ -211,6 +211,12 @@ export interface BenchmarkComparison {
   benchmarkTimeSeries: TimeSeriesPoint[];
   /** Comportamiento del benchmark durante los periodos de estrés */
   benchmarkStressPeriods?: StressPeriodResult[];
+  /** Métricas completas del benchmark (para columna de referencia en la tabla) */
+  benchmarkMetrics?: Metrics;
+  /** Valor final del benchmark al final del periodo */
+  benchmarkFinalValue?: number;
+  /** Resumen de comisiones del benchmark (TER del ETF que lo replica) */
+  benchmarkFees?: FeesSummary;
 }
 
 /** Resultado de la cartera durante un periodo histórico de estrés */
