@@ -105,8 +105,11 @@ export async function runBacktest(
     }
   }
 
-  // Ejecutar backtests
-  const taxRate = config.taxRate ?? 0;
+  // Ejecutar backtests — cada cartera puede tener su propia tasa impositiva,
+  // si no la sobrescribe usa la global del config.
+  const globalTaxRate = config.taxRate ?? 0;
+  const taxRateA = config.portfolioA?.taxRate ?? globalTaxRate;
+  const taxRateB = config.portfolioB?.taxRate ?? globalTaxRate;
   const resultAPromise = config.portfolioA
     ? runPortfolioBacktest(
         config.portfolioA,
@@ -117,7 +120,7 @@ export async function runBacktest(
         config.monthlyContribution ?? 0,
         displayGranularity,
         engineWarnings,
-        taxRate
+        taxRateA
       )
     : Promise.resolve(null);
 
@@ -131,7 +134,7 @@ export async function runBacktest(
         config.monthlyContribution ?? 0,
         displayGranularity,
         engineWarnings,
-        taxRate
+        taxRateB
       )
     : Promise.resolve(null);
 

@@ -161,6 +161,7 @@ interface PortfolioState {
   holdings: PortfolioHolding[];
   isValid: boolean;
   managementFee: number;
+  taxRate: number; // decimal, ej: 0.21
 }
 
 export default function Home() {
@@ -173,12 +174,14 @@ export default function Home() {
     holdings: [],
     isValid: false,
     managementFee: 0,
+    taxRate: 0,
   });
   const [portfolioB, setPortfolioB] = useState<PortfolioState>({
     name: "Cartera 2",
     holdings: [],
     isValid: false,
     managementFee: 0,
+    taxRate: 0,
   });
 
   // Estado de configuración - usar fechas dinámicas
@@ -194,9 +197,6 @@ export default function Home() {
     useState<DisplayGranularity>("monthly");
   const [useCommonDateRange, setUseCommonDateRange] = useState(true);
   const [benchmarkId, setBenchmarkId] = useState<BenchmarkId | null>(null);
-  // Tasa impositiva sobre plusvalías realizadas al rebalancear (%). 0 = sin impuestos
-  // (fondos de inversión con traspaso). Aplicable a carteras de ETFs en España.
-  const [taxRate, setTaxRate] = useState<number>(0);
 
   // Estado de resultados y UI
   const [results, setResults] = useState<BacktestResponse | null>(null);
@@ -257,7 +257,6 @@ export default function Home() {
         displayGranularity,
         useCommonDateRange,
         benchmarkId: benchmarkId ?? undefined,
-        taxRate: taxRate > 0 ? taxRate / 100 : undefined, // UI en %, motor en decimal
       };
 
       if (portfolioA.isValid) {
@@ -265,6 +264,7 @@ export default function Home() {
           name: portfolioA.name,
           holdings: portfolioA.holdings,
           managementFee: portfolioA.managementFee || undefined,
+          taxRate: portfolioA.taxRate > 0 ? portfolioA.taxRate : undefined,
         };
       }
 
@@ -273,6 +273,7 @@ export default function Home() {
           name: portfolioB.name,
           holdings: portfolioB.holdings,
           managementFee: portfolioB.managementFee || undefined,
+          taxRate: portfolioB.taxRate > 0 ? portfolioB.taxRate : undefined,
         };
       }
 
@@ -613,52 +614,6 @@ export default function Home() {
                   </div>
                 );
               })()}
-            </div>
-
-            {/* Tasa impositiva sobre plusvalías al rebalancear */}
-            <div className="mt-4 sm:mt-6">
-              <label className="block text-sm font-medium text-brand-secondary mb-2">
-                Tasa impositiva sobre plusvalías al rebalancear (%)
-              </label>
-              <div className="flex items-center gap-3 max-w-md">
-                <input
-                  type="number"
-                  min="0"
-                  max="50"
-                  step="0.5"
-                  value={taxRate}
-                  onChange={(e) => {
-                    const v = parseFloat(e.target.value);
-                    setTaxRate(isNaN(v) ? 0 : Math.max(0, Math.min(50, v)));
-                  }}
-                  className="w-24 px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral"
-                />
-                <span className="text-sm font-semibold text-brand-navy">%</span>
-                {/* Atajos rápidos */}
-                <div className="flex flex-wrap gap-1">
-                  {[0, 19, 21, 23, 27].map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => setTaxRate(preset)}
-                      className={`px-2 py-1 text-xs rounded-md transition-colors ${
-                        taxRate === preset
-                          ? "bg-brand-coral text-white"
-                          : "bg-slate-100 text-brand-secondary hover:bg-slate-200"
-                      }`}
-                    >
-                      {preset}%
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <p className="mt-2 text-xs text-brand-tertiary leading-relaxed max-w-2xl">
-                Aplicable a carteras de <strong>ETFs</strong>: cada rebalanceo realiza plusvalías
-                tributables. Tramos de IRPF español sobre ahorro: 19% (hasta 6k€), 21% (6k-50k€),
-                23% (50k-200k€), 27% (200k-300k€), 28% (+300k€).
-                Para carteras de <strong>fondos de inversión españoles</strong> (traspaso entre
-                fondos), deja <strong>0%</strong> — los traspasos no tributan.
-              </p>
             </div>
 
             {/* Botón Ejecutar — CTA coral estilo elproyectok.com */}

@@ -20,6 +20,8 @@ interface PortfolioBuilderProps {
     holdings: PortfolioHolding[];
     isValid: boolean;
     managementFee: number;
+    /** Tasa impositiva por cartera sobre plusvalías al rebalancear (decimal, ej: 0.21) */
+    taxRate: number;
   }) => void;
 }
 
@@ -49,6 +51,9 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [showPresetDropdown, setShowPresetDropdown] = useState(false);
   const [managementFee, setManagementFee] = useState(0);
+  // Tasa impositiva sobre plusvalías al rebalancear (porcentaje en UI, ej: 21)
+  // 0 = sin impuestos (fondos de inversión con traspaso).
+  const [taxRatePct, setTaxRatePct] = useState(0);
   // Modo "Activo satélite": al añadir, los pesos existentes se reescalan
   // proporcionalmente para hacer hueco al nuevo activo
   const [satelliteMode, setSatelliteMode] = useState(false);
@@ -73,8 +78,9 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
       })),
       isValid,
       managementFee,
+      taxRate: taxRatePct / 100, // UI en %, motor en decimal
     });
-  }, [name, allocations, isValid, managementFee, onUpdate]);
+  }, [name, allocations, isValid, managementFee, taxRatePct, onUpdate]);
 
   useEffect(() => {
     notifyUpdate();
@@ -742,6 +748,7 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                 setNameManuallyEdited(false);
                 setName(defaultName);
                 setManagementFee(0);
+                setTaxRatePct(0);
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg border border-red-200 hover:border-red-300 transition-colors"
             >
@@ -850,7 +857,59 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
               </div>
             </div>
 
-            {/* Coste total */}
+            {/* Fiscalidad de rebalanceo */}
+            <div className="flex justify-between items-center text-sm">
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-600">Fiscalidad rebalanceo:</span>
+                <span
+                  className="text-slate-400 cursor-help"
+                  title="Tasa impositiva sobre plusvalías realizadas al rebalancear. Aplica a ETFs en España: cada venta tributa (19%, 21%, 23%, 27%, 28% según tramo IRPF). Los fondos de inversión españoles son 0% por la figura del traspaso."
+                >
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
+                  </svg>
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min="0"
+                  max="50"
+                  step="0.5"
+                  value={taxRatePct}
+                  onChange={(e) => setTaxRatePct(Math.max(0, Math.min(50, Number(e.target.value))))}
+                  className="w-16 px-1.5 py-0.5 text-xs text-right border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-brand-coral"
+                />
+                <span className="text-xs text-slate-500">%</span>
+              </div>
+            </div>
+
+            {/* Atajos rápidos de fiscalidad */}
+            <div className="flex flex-wrap gap-1 -mt-1">
+              {[
+                { label: "0% (fondo)", value: 0 },
+                { label: "19%", value: 19 },
+                { label: "21%", value: 21 },
+                { label: "23%", value: 23 },
+                { label: "27%", value: 27 },
+              ].map((preset) => (
+                <button
+                  key={preset.value}
+                  type="button"
+                  onClick={() => setTaxRatePct(preset.value)}
+                  className={`px-2 py-0.5 text-[10px] rounded-md transition-colors ${
+                    taxRatePct === preset.value
+                      ? "bg-brand-coral text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                  title={preset.value === 0 ? "Sin impuestos: fondos de inversión con traspaso" : `Tramo IRPF ahorro: ${preset.value}%`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Coste total anual (TER + gestión) */}
             {managementFee > 0 && (
               <div className="flex justify-between items-center text-sm pt-1 border-t border-dashed border-slate-200">
                 <span className="text-slate-700 font-medium">Coste total anual:</span>

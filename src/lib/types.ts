@@ -95,6 +95,11 @@ export interface Portfolio {
   holdings: PortfolioHolding[];
   /** Comisión de gestión adicional anual en % (ej: 0.40 para 0.40%) — se descuenta del valor de la cartera */
   managementFee?: number;
+  /** Tasa impositiva específica de esta cartera sobre plusvalías al rebalancear
+   *  (decimal, ej: 0.21 para 21%). Si está definida, sobrescribe la global del
+   *  BacktestConfig. Permite comparar misma cartera con ETFs (con tax) vs con
+   *  fondos de inversión (con traspaso, sin tax). */
+  taxRate?: number;
 }
 
 // -----------------------------------------------------------------------------
