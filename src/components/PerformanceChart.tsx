@@ -17,6 +17,7 @@ import { formatEUR, formatDateLabel } from "@/lib/formatters";
 const COLORS = {
   a: "#2563eb", // Azul
   b: "#e11d48", // Rojo/Rosa
+  benchmark: "#9333ea", // Púrpura (línea discontinua)
 };
 
 interface PerformanceChartProps {
@@ -104,6 +105,11 @@ export function PerformanceChart({ results, isLoading }: PerformanceChartProps) 
 
   const resultA = results.resultA;
   const resultB = results.resultB;
+  // Benchmark — solo si está activo en al menos una cartera
+  const benchmark = resultA?.benchmark ?? resultB?.benchmark;
+  const benchmarkSeries = benchmark?.benchmarkTimeSeries ?? [];
+  const benchmarkName = benchmark?.benchmarkName ?? "";
+  const hasBenchmark = benchmarkSeries.length > 0;
 
   // Combinar datos de las carteras disponibles por fecha
   const dataMap = new Map<string, Record<string, number | string>>();
@@ -133,6 +139,21 @@ export function PerformanceChart({ results, isLoading }: PerformanceChartProps) 
     }
   }
 
+  if (hasBenchmark) {
+    for (const point of benchmarkSeries) {
+      const entry = dataMap.get(point.date);
+      if (entry) {
+        entry[benchmarkName] = point.value;
+      } else {
+        dataMap.set(point.date, {
+          date: point.date,
+          exactDate: point.exactDate || point.date,
+          [benchmarkName]: point.value,
+        });
+      }
+    }
+  }
+
   const chartData = Array.from(dataMap.values()).sort((a, b) =>
     (a.date as string).localeCompare(b.date as string)
   );
@@ -141,6 +162,7 @@ export function PerformanceChart({ results, isLoading }: PerformanceChartProps) 
   const allValues = [
     ...(resultA ? resultA.timeSeries.map((p) => p.value) : []),
     ...(resultB ? resultB.timeSeries.map((p) => p.value) : []),
+    ...(hasBenchmark ? benchmarkSeries.map((p) => p.value) : []),
   ];
   const minValue = Math.min(...allValues);
   const maxValue = Math.max(...allValues);
@@ -213,6 +235,18 @@ export function PerformanceChart({ results, isLoading }: PerformanceChartProps) 
                 strokeWidth={2}
                 dot={false}
                 activeDot={{ r: 4, fill: COLORS.b }}
+              />
+            )}
+            {hasBenchmark && (
+              <Line
+                type="monotone"
+                dataKey={benchmarkName}
+                name={benchmarkName}
+                stroke={COLORS.benchmark}
+                strokeWidth={2}
+                strokeDasharray="6 4"
+                dot={false}
+                activeDot={{ r: 4, fill: COLORS.benchmark }}
               />
             )}
           </LineChart>

@@ -289,23 +289,28 @@ function HeroStatCard({
   label,
   valueA,
   valueB,
+  valueBenchmark,
   format,
   higherIsBetter,
   tooltip,
   nameA,
   nameB,
+  nameBenchmark,
 }: {
   label: string;
   valueA?: number;
   valueB?: number;
+  valueBenchmark?: number;
   format: (v: number) => string;
   higherIsBetter: boolean;
   tooltip: string;
   nameA?: string;
   nameB?: string;
+  nameBenchmark?: string;
 }) {
   const hasTwo = valueA !== undefined && valueB !== undefined;
   const winner = hasTwo ? getWinner(valueA!, valueB!, higherIsBetter) : "tie";
+  const hasBenchmark = valueBenchmark !== undefined && nameBenchmark;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-100 p-5 sm:p-7 shadow-sm hover:shadow-md transition-shadow">
@@ -347,10 +352,28 @@ function HeroStatCard({
             <span className="text-xs text-blue-600 font-medium">{nameA}</span>
             <span className="text-xs text-rose-600 font-medium">{nameB}</span>
           </div>
+          {hasBenchmark && (
+            <div className="flex items-baseline justify-between pt-2 border-t border-slate-100">
+              <span className="text-xs text-purple-600 font-medium">{nameBenchmark}</span>
+              <span className="text-base font-semibold text-purple-600/80 italic tabular-nums">
+                {format(valueBenchmark)}
+              </span>
+            </div>
+          )}
         </div>
       ) : (
-        <div className="text-4xl sm:text-5xl lg:text-6xl font-bold text-brand-navy tracking-tight font-serif" style={{ fontVariantNumeric: "tabular-nums" }}>
-          {format(valueA ?? valueB ?? 0)}
+        <div>
+          <div className="text-4xl sm:text-5xl lg:text-6xl font-bold text-brand-navy tracking-tight font-serif" style={{ fontVariantNumeric: "tabular-nums" }}>
+            {format(valueA ?? valueB ?? 0)}
+          </div>
+          {hasBenchmark && (
+            <div className="flex items-baseline justify-between pt-3 mt-3 border-t border-slate-100">
+              <span className="text-xs text-purple-600 font-medium">{nameBenchmark}</span>
+              <span className="text-base font-semibold text-purple-600/80 italic tabular-nums">
+                {format(valueBenchmark)}
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -430,11 +453,13 @@ export function MetricsTable({ results, isLoading }: MetricsTableProps) {
             label={metric.label}
             valueA={resultA ? metric.getValue(resultA) : undefined}
             valueB={resultB ? metric.getValue(resultB) : undefined}
+            valueBenchmark={benchmarkResult ? metric.getValue(benchmarkResult) : undefined}
             format={metric.format}
             higherIsBetter={metric.higherIsBetter}
             tooltip={metric.tooltip}
             nameA={resultA?.portfolioName}
             nameB={resultB?.portfolioName}
+            nameBenchmark={benchmarkResult?.portfolioName}
           />
         ))}
       </div>

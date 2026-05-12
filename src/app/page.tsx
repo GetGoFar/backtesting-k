@@ -338,8 +338,8 @@ export default function Home() {
       <div className="flex flex-1 w-full">
         <SidebarNav hasResults={showResults && !!results} />
 
-        {/* Main Content */}
-        <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+        {/* Main Content — max-width permite ver tablas anchas sin estirarse hasta los bordes en monitores grandes */}
+        <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-8 sm:py-12 max-w-[1600px] mx-auto w-full">
         {/* Intro — hero style */}
         <div className="mb-10 sm:mb-14 text-center max-w-3xl mx-auto">
           <h2 className="text-4xl sm:text-5xl md:text-6xl font-normal text-brand-navy mb-4 sm:mb-5 tracking-tight font-serif">
