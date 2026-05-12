@@ -29,11 +29,10 @@ function interpretBeta(beta: number): string {
 }
 
 function interpretInformationRatio(ir: number): string {
-  if (ir > 0.5) return "Excelente — bates al benchmark de forma consistente.";
-  if (ir > 0.2) return "Bueno — bates al benchmark con cierta consistencia.";
-  if (ir > 0) return "Modesto — apenas bates al benchmark, alta dependencia del azar.";
-  if (ir > -0.2) return "Pierdes contra el benchmark sin ser muy consistente.";
-  return "Pierdes contra el benchmark de forma consistente — cambia de estrategia.";
+  if (ir > 1) return "Excelente — bates al benchmark con alta consistencia (IR > 1).";
+  if (ir >= 0.5) return "Bueno — bates al benchmark de forma sólida (IR 0.5 – 1).";
+  if (ir >= 0) return "Promedio — bates al benchmark pero con poca consistencia (IR 0 – 0.5).";
+  return "Negativo — el gestor no supera al índice (IR < 0).";
 }
 
 function interpretRSquared(r2: number): string {
@@ -60,9 +59,10 @@ function classifyAlpha(alpha: number): string {
 }
 
 function classifyIR(ir: number): string {
-  if (ir > 0.2) return "text-emerald-600";
-  if (ir > -0.2) return "text-slate-600";
-  return "text-red-600";
+  if (ir > 1) return "text-emerald-600";       // Excelente
+  if (ir >= 0.5) return "text-emerald-500";    // Bueno
+  if (ir >= 0) return "text-slate-600";        // Promedio
+  return "text-red-600";                        // Negativo
 }
 
 // ===========================================================================
@@ -155,7 +155,7 @@ function PortfolioBenchmarkPanel({
         {/* Information Ratio */}
         <MetricRow
           label="Information Ratio"
-          tooltip="Information Ratio = (CAGR cartera - CAGR benchmark) / Tracking Error. Mide la rentabilidad excedente por unidad de riesgo activo. >0.5 es excelente, >0.2 es bueno, <0 significa que pierdes contra el benchmark."
+          tooltip="Information Ratio = (CAGR cartera - CAGR benchmark) / Tracking Error. Mide la rentabilidad excedente por unidad de riesgo activo. Escala estándar de la industria: >1 excelente, 0.5–1 bueno, 0–0.5 promedio, <0 el gestor no supera al índice."
           value={formatRatio(bm.informationRatio)}
           interpretation={interpretInformationRatio(bm.informationRatio)}
           valueClass={classifyIR(bm.informationRatio)}
