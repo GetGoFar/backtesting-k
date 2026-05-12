@@ -34,7 +34,9 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
   // =========================================================================
   if (isSinglePortfolio && singleResult) {
     const fees = singleResult.fees.totalFees + (singleResult.fees.managementFeePaid || 0);
+    const taxes = singleResult.fees.totalTaxesPaid ?? 0;
     const profit = singleResult.finalValue - singleResult.totalContributions;
+    const hasTaxes = taxes > 0;
 
     return (
       <div className="rounded-2xl border border-slate-100 shadow-sm overflow-hidden bg-white">
@@ -51,24 +53,37 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className={`grid grid-cols-1 ${hasTaxes ? "sm:grid-cols-4" : "sm:grid-cols-3"} gap-4`}>
             <div className="rounded-xl bg-slate-50 p-5">
               <p className="text-xs font-medium text-brand-tertiary uppercase tracking-wider mb-2">Beneficio neto</p>
-              <p className={`text-4xl sm:text-5xl font-bold tracking-tight font-serif ${profit >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+              <p className={`text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight font-serif ${profit >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                 {formatEUR(profit)}
               </p>
             </div>
             <div className="rounded-xl bg-slate-50 p-5">
               <p className="text-xs font-medium text-brand-tertiary uppercase tracking-wider mb-2">Comisiones pagadas</p>
-              <p className="text-4xl sm:text-5xl font-bold tracking-tight font-serif text-brand-navy">
+              <p className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight font-serif text-brand-navy">
                 {formatEUR(fees)}
               </p>
             </div>
+            {hasTaxes && (
+              <div className="rounded-xl bg-amber-50 p-5 border border-amber-100">
+                <p className="text-xs font-medium text-amber-700 uppercase tracking-wider mb-2">
+                  Impuestos pagados
+                </p>
+                <p className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight font-serif text-amber-700">
+                  {formatEUR(taxes)}
+                </p>
+                <p className="text-xs text-amber-700/70 mt-1">
+                  Plusvalías al rebalancear ({((singleResult.fees.taxRate ?? 0) * 100).toFixed(0)}%)
+                </p>
+              </div>
+            )}
             <div className="rounded-xl bg-slate-50 p-5">
               <p className="text-xs font-medium text-brand-tertiary uppercase tracking-wider mb-2">
                 {singleResult.fees.managementFee ? "Coste total" : "TER ponderado"}
               </p>
-              <p className="text-4xl sm:text-5xl font-bold tracking-tight font-serif text-brand-navy">
+              <p className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight font-serif text-brand-navy">
                 {singleResult.fees.managementFee
                   ? (singleResult.fees.weightedTer + singleResult.fees.managementFee).toFixed(2)
                   : singleResult.fees.weightedTer.toFixed(2)}%
@@ -88,8 +103,9 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
   // =========================================================================
   // MODO COMPARACIÓN
   // =========================================================================
-  const feesA = resultA!.fees.totalFees + (resultA!.fees.managementFeePaid || 0);
-  const feesB = resultB!.fees.totalFees + (resultB!.fees.managementFeePaid || 0);
+  // Total coste = TER + gestión + impuestos sobre plusvalías al rebalancear
+  const feesA = resultA!.fees.totalFees + (resultA!.fees.managementFeePaid || 0) + (resultA!.fees.totalTaxesPaid || 0);
+  const feesB = resultB!.fees.totalFees + (resultB!.fees.managementFeePaid || 0) + (resultB!.fees.totalTaxesPaid || 0);
   const feeDifference = Math.abs(feesA - feesB);
   const cheaperName = feesA < feesB ? resultA!.portfolioName : resultB!.portfolioName;
 

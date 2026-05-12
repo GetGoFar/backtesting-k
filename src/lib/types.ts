@@ -123,6 +123,10 @@ export interface BacktestConfig {
   displayGranularity?: DisplayGranularity;
   /** Benchmark a comparar (opcional). Si se incluye, se calcula alpha/beta/IR/etc. */
   benchmarkId?: BenchmarkId | null;
+  /** Tasa impositiva sobre plusvalías realizadas en cada rebalanceo (decimal,
+   *  ej: 0.21 para 21%). 0 = sin impuestos (fondos de inversión con traspaso).
+   *  Aplicable solo a carteras de ETFs en España. */
+  taxRate?: number;
 }
 
 // -----------------------------------------------------------------------------
@@ -394,6 +398,10 @@ export interface FeesSummary {
   managementFee?: number;
   /** Total pagado en comisiones de gestión en EUR */
   managementFeePaid?: number;
+  /** Tasa impositiva aplicada en cada rebalanceo (decimal, ej: 0.21) */
+  taxRate?: number;
+  /** Total de impuestos pagados al rebalancear, en EUR */
+  totalTaxesPaid?: number;
 }
 
 /** Resultado completo del backtest para una cartera */

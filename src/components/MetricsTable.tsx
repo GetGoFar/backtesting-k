@@ -94,7 +94,7 @@ function buildTooltips(granularity: DisplayGranularity) {
     positiveMonthsRatio:
       `Porcentaje de ${plural} con rentabilidad positiva. Mayor porcentaje indica más consistencia.`,
     totalFees:
-      "Total de comisiones pagadas durante todo el periodo. Incluye el TER de cada fondo y la comisión de gestión de la cartera.",
+      "Coste total acumulado: TER de cada fondo + comisión de gestión + impuestos sobre plusvalías realizadas en cada rebalanceo (si la tasa impositiva > 0%).",
     calmar:
       "Calmar Ratio = CAGR / |Máximo Drawdown|. Mide cuánta rentabilidad anual obtienes por cada 1% de la peor caída sufrida. >0.5 es bueno, >1 es excelente. Más intuitivo que el Sharpe para inversores que temen las pérdidas grandes.",
     skewness:
@@ -256,8 +256,8 @@ function buildMetricsConfig(granularity: DisplayGranularity): MetricConfig[] {
   },
   {
     key: "totalFees",
-    label: "Comisiones pagadas",
-    getValue: (r) => r.fees.totalFees + (r.fees.managementFeePaid || 0),
+    label: "Coste total (TER + gestión + impuestos)",
+    getValue: (r) => r.fees.totalFees + (r.fees.managementFeePaid || 0) + (r.fees.totalTaxesPaid || 0),
     format: formatEUR,
     higherIsBetter: false,
     tooltip: tooltips.totalFees,

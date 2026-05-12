@@ -106,6 +106,7 @@ export async function runBacktest(
   }
 
   // Ejecutar backtests
+  const taxRate = config.taxRate ?? 0;
   const resultAPromise = config.portfolioA
     ? runPortfolioBacktest(
         config.portfolioA,
@@ -115,7 +116,8 @@ export async function runBacktest(
         config.rebalanceFrequency,
         config.monthlyContribution ?? 0,
         displayGranularity,
-        engineWarnings
+        engineWarnings,
+        taxRate
       )
     : Promise.resolve(null);
 
@@ -128,7 +130,8 @@ export async function runBacktest(
         config.rebalanceFrequency,
         config.monthlyContribution ?? 0,
         displayGranularity,
-        engineWarnings
+        engineWarnings,
+        taxRate
       )
     : Promise.resolve(null);
 
@@ -275,7 +278,8 @@ async function runPortfolioBacktest(
   rebalanceFrequency: RebalanceFrequency,
   monthlyContribution: number,
   displayGranularity: DisplayGranularity,
-  warnings?: BacktestWarning[]
+  warnings?: BacktestWarning[],
+  taxRate: number = 0
 ): Promise<BacktestResult | null> {
   console.log(`[BacktestEngine] Procesando cartera: ${portfolio.name}`);
 
@@ -366,7 +370,8 @@ async function runPortfolioBacktest(
     initialAmount,
     rebalanceFrequency,
     monthlyContribution,
-    portfolio.managementFee ?? 0
+    portfolio.managementFee ?? 0,
+    taxRate
   );
 
   if (simulation.dailyTimeSeries.length === 0) {
@@ -465,6 +470,8 @@ async function runPortfolioBacktest(
     weightedTer,
     managementFee: portfolio.managementFee,
     managementFeePaid: simulation.totalManagementFeePaid,
+    taxRate: taxRate > 0 ? taxRate : undefined,
+    totalTaxesPaid: simulation.totalTaxesPaid > 0 ? simulation.totalTaxesPaid : undefined,
   };
 
   return {
@@ -496,6 +503,7 @@ interface DailySimulationResult {
   totalFeesPaid: number;
   totalManagementFeePaid: number;
   totalContributions: number;
+  totalTaxesPaid: number;
 }
 
 function simulatePortfolioDaily(
@@ -506,7 +514,8 @@ function simulatePortfolioDaily(
   initialAmount: number,
   rebalanceFrequency: RebalanceFrequency,
   monthlyContribution: number,
-  managementFee: number = 0
+  managementFee: number = 0,
+  taxRate: number = 0
 ): DailySimulationResult {
   const dailyTimeSeries: Array<{ date: string; value: number }> = [];
   const dailyReturns: Array<{ date: string; returnValue: number }> = [];
@@ -523,6 +532,11 @@ function simulatePortfolioDaily(
   let totalContributions = initialAmount;
   let totalFeesPaid = 0;
   let totalManagementFeePaid = 0;
+  let totalTaxesPaid = 0;
+  // Coste base acumulado: lo que el usuario ha "puesto" (initial + aportaciones).
+  // Se ajusta al alza en cada rebalanceo por el efecto "step-up" tras pagar impuestos
+  // sobre la parte de ganancia rebalanceada.
+  let totalCostBasis = initialAmount;
 
   // Tasas diarias
   const dailyMgmtRate = managementFee / TRADING_DAYS_PER_YEAR / 100;
@@ -573,6 +587,7 @@ function simulatePortfolioDaily(
     // Aportación mensual: aplicar en el primer día hábil de cada nuevo mes
     if (monthlyContribution > 0 && isNewMonth(currentDate, previousDate)) {
       totalContributions += monthlyContribution;
+      totalCostBasis += monthlyContribution;
       for (const holding of holdings) {
         const currentValue = positionValues.get(holding.fundId) ?? 0;
         const contributionToPosition = (monthlyContribution * holding.weight) / 100;
@@ -580,9 +595,11 @@ function simulatePortfolioDaily(
       }
     }
 
-    // Rebalanceo
+    // Rebalanceo (con cálculo de impuestos sobre plusvalías realizadas)
     if (shouldRebalanceByDate(currentDate, previousDate, rebalanceFrequency)) {
-      rebalancePortfolio(positionValues, holdings);
+      const taxResult = rebalancePortfolioWithTax(positionValues, holdings, totalCostBasis, taxRate);
+      totalTaxesPaid += taxResult.taxPaid;
+      totalCostBasis = taxResult.newCostBasis;
     }
 
     // Registrar valor total
@@ -605,6 +622,7 @@ function simulatePortfolioDaily(
     totalFeesPaid,
     totalManagementFeePaid,
     totalContributions,
+    totalTaxesPaid,
   };
 }
 
@@ -623,6 +641,72 @@ function rebalancePortfolio(
     const targetValue = (totalValue * holding.weight) / 100;
     positionValues.set(holding.fundId, targetValue);
   }
+}
+
+/**
+ * Rebalanceo con cálculo de impuestos sobre plusvalías realizadas.
+ *
+ * Modelo simplificado pero correcto en agregado:
+ *   1. Se calcula el "monto rebalanceado" (sum de |target - current| / 2),
+ *      que equivale al dinero que se mueve entre fondos.
+ *   2. Sobre ese monto se realiza una plusvalía proporcional al ratio
+ *      ganancia/valor total: tax = monto × (gain/value) × tasa.
+ *   3. El impuesto se deduce proporcionalmente de todas las posiciones,
+ *      reduciendo el valor total de la cartera.
+ *   4. Se aplican los pesos objetivo al nuevo total (post-impuesto).
+ *   5. El coste base se ajusta al alza por el "step-up" en la parte
+ *      rebalanceada (la ganancia tras pagar impuestos pasa a ser nuevo
+ *      coste base reinvertido).
+ *
+ * Devuelve el impuesto pagado y el nuevo coste base total.
+ */
+function rebalancePortfolioWithTax(
+  positionValues: Map<string, number>,
+  holdings: PortfolioHolding[],
+  currentCostBasis: number,
+  taxRate: number
+): { taxPaid: number; newCostBasis: number } {
+  const totalValue = sumPositions(positionValues);
+  if (totalValue === 0) return { taxPaid: 0, newCostBasis: currentCostBasis };
+
+  // Si no hay tasa impositiva, hacer rebalanceo normal sin tocar coste base
+  if (taxRate <= 0) {
+    for (const holding of holdings) {
+      const targetValue = (totalValue * holding.weight) / 100;
+      positionValues.set(holding.fundId, targetValue);
+    }
+    return { taxPaid: 0, newCostBasis: currentCostBasis };
+  }
+
+  // 1. Calcular monto rebalanceado (= sum de "sells" = sum de "buys")
+  let tradeAmount = 0;
+  for (const holding of holdings) {
+    const current = positionValues.get(holding.fundId) ?? 0;
+    const target = (totalValue * holding.weight) / 100;
+    if (current > target) tradeAmount += current - target;
+  }
+
+  // 2. Si no hay rebalanceo real (carteras ya alineadas), no hay impuesto
+  if (tradeAmount === 0) return { taxPaid: 0, newCostBasis: currentCostBasis };
+
+  // 3. Calcular impuesto sobre la plusvalía realizada
+  const gain = Math.max(0, totalValue - currentCostBasis);
+  const gainRatio = gain > 0 ? gain / totalValue : 0;
+  const gainOnTraded = tradeAmount * gainRatio;
+  const tax = gainOnTraded * taxRate;
+
+  // 4. Aplicar pesos objetivo al total POST-impuesto
+  const newTotalValue = totalValue - tax;
+  for (const holding of holdings) {
+    const targetValue = (newTotalValue * holding.weight) / 100;
+    positionValues.set(holding.fundId, targetValue);
+  }
+
+  // 5. Step-up del coste base: la ganancia tras impuestos sobre la parte
+  //    rebalanceada se convierte en nuevo coste base (la has "reinvertido").
+  const newCostBasis = currentCostBasis + gainOnTraded * (1 - taxRate);
+
+  return { taxPaid: tax, newCostBasis };
 }
 
 function sumPositions(positionValues: Map<string, number>): number {
