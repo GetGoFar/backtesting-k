@@ -140,6 +140,31 @@ export async function runBacktest(
     correlation = calculateCorrelation(resultA.timeSeries, resultB.timeSeries);
   }
 
+  // FIX: el benchmark debe correr sobre el periodo REAL de los portfolios
+  // (no el solicitado), para que CAGR y rentabilidad sean comparables.
+  // Si un portfolio empieza en 2017 porque algún fondo no tenía datos antes,
+  // el benchmark también debe empezar en 2017 — no en 2010 (que era el solicitado).
+  const tsAFirst = resultA?.timeSeries[0];
+  const tsBFirst = resultB?.timeSeries[0];
+  const tsALast = resultA?.timeSeries[resultA.timeSeries.length - 1];
+  const tsBLast = resultB?.timeSeries[resultB.timeSeries.length - 1];
+
+  // Tomar el inicio MÁS TARDE entre A y B (intersección) si ambas existen,
+  // o el de la única cartera que exista.
+  const candidates_start: string[] = [];
+  if (tsAFirst) candidates_start.push(tsAFirst.exactDate || `${tsAFirst.date}-01`);
+  if (tsBFirst) candidates_start.push(tsBFirst.exactDate || `${tsBFirst.date}-01`);
+  const actualStartForBenchmark = candidates_start.length > 0
+    ? candidates_start.sort().reverse()[0]! // la más tarde
+    : effectiveStartDate;
+
+  const candidates_end: string[] = [];
+  if (tsALast) candidates_end.push(tsALast.exactDate || `${tsALast.date}-01`);
+  if (tsBLast) candidates_end.push(tsBLast.exactDate || `${tsBLast.date}-01`);
+  const actualEndForBenchmark = candidates_end.length > 0
+    ? candidates_end.sort()[0]! // la más temprana (intersección)
+    : effectiveEndDate;
+
   // Benchmark: si se solicita, ejecutar backtest del benchmark y calcular métricas relativas
   if (config.benchmarkId && (resultA || resultB)) {
     try {
@@ -151,8 +176,8 @@ export async function runBacktest(
         };
         const benchmarkResult = await runPortfolioBacktest(
           benchmarkPortfolio,
-          effectiveStartDate,
-          effectiveEndDate,
+          actualStartForBenchmark,
+          actualEndForBenchmark,
           config.initialAmount,
           config.rebalanceFrequency,
           config.monthlyContribution ?? 0,
