@@ -155,6 +155,30 @@ export interface DrawdownPoint {
   exactDate?: string;
 }
 
+/** Episodio individual de drawdown (de pico a valle y recuperación) */
+export interface DrawdownEpisode {
+  /** Fecha del pico antes de la caída (formato YYYY-MM) */
+  peakDate: string;
+  /** Fecha exacta del pico (YYYY-MM-DD) */
+  peakExactDate?: string;
+  /** Fecha del valle (mínimo del drawdown) en formato YYYY-MM */
+  troughDate: string;
+  /** Fecha exacta del valle (YYYY-MM-DD) */
+  troughExactDate?: string;
+  /** Fecha de recuperación al nivel del pico — null si aún no se ha recuperado */
+  recoveryDate: string | null;
+  /** Fecha exacta de recuperación (YYYY-MM-DD) */
+  recoveryExactDate?: string;
+  /** Magnitud del drawdown (decimal negativo, ej: -0.131 para -13.1%) */
+  drawdownPct: number;
+  /** Duración de la caída en meses (pico → valle) */
+  lengthMonths: number;
+  /** Tiempo de recuperación en meses (valle → recuperación), null si no recuperado */
+  recoveryMonths: number | null;
+  /** Periodo total underwater en meses (pico → recuperación o fin de serie) */
+  underwaterMonths: number;
+}
+
 /** Métricas de rendimiento de una cartera */
 export interface Metrics {
   /** Rentabilidad total acumulada (decimal, ej: 0.85 para +85%) */
@@ -215,6 +239,8 @@ export interface BacktestResult {
   annualReturns: AnnualReturn[];
   /** Serie temporal de drawdowns */
   drawdowns: DrawdownPoint[];
+  /** Top 10 episodios de drawdown (de mayor a menor) */
+  topDrawdowns: DrawdownEpisode[];
   /** Rolling returns a 1, 3 y 5 años */
   rollingReturns: RollingReturns;
   /** Resumen de comisiones */

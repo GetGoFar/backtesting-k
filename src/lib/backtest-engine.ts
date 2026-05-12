@@ -17,6 +17,7 @@ import type {
   TimeSeriesPoint,
   AnnualReturn,
   DrawdownPoint,
+  DrawdownEpisode,
   FeesSummary,
   Metrics,
   FundType,
@@ -364,6 +365,7 @@ async function runPortfolioBacktest(
   // 6. Rentabilidades anuales, drawdowns, rolling returns
   const annualReturns = calculateAnnualReturns(timeSeries, dailyInitialValue);
   const drawdowns = calculateDrawdowns(timeSeries);
+  const topDrawdowns = calculateTopDrawdowns(timeSeries, 10);
 
   // Rolling returns: usar la serie de output (mensual o trimestral tiene más sentido para rolling)
   const rollingReturns = calculateRollingReturns(timeSeries, displayGranularity);
@@ -387,6 +389,7 @@ async function runPortfolioBacktest(
     metrics,
     annualReturns,
     drawdowns,
+    topDrawdowns,
     rollingReturns,
     fees,
     totalContributions: simulation.totalContributions,
@@ -708,6 +711,102 @@ function calculateDrawdowns(timeSeries: TimeSeriesPoint[]): DrawdownPoint[] {
   }
 
   return drawdowns;
+}
+
+/**
+ * Identifica episodios completos de drawdown (peak → trough → recovery)
+ * y devuelve los top N ordenados por magnitud (más negativo primero).
+ *
+ * Un episodio nace cuando el valor cae por debajo del pico anterior y
+ * termina cuando se vuelve a alcanzar el pico (o al final de la serie).
+ */
+function calculateTopDrawdowns(
+  timeSeries: TimeSeriesPoint[],
+  topN: number = 10
+): DrawdownEpisode[] {
+  if (timeSeries.length < 2) return [];
+
+  // Helper: diferencia en meses entre dos fechas YYYY-MM o YYYY-MM-DD
+  const monthsBetween = (start: string, end: string): number => {
+    const s = new Date(start.length === 7 ? `${start}-01` : start);
+    const e = new Date(end.length === 7 ? `${end}-01` : end);
+    if (isNaN(s.getTime()) || isNaN(e.getTime())) return 0;
+    return (
+      (e.getFullYear() - s.getFullYear()) * 12 +
+      (e.getMonth() - s.getMonth())
+    );
+  };
+
+  const episodes: DrawdownEpisode[] = [];
+  const first = timeSeries[0]!;
+  let peak = first.value;
+  let peakDate = first.date;
+  let peakExactDate = first.exactDate;
+  let currentTrough = peak;
+  let currentTroughDate = peakDate;
+  let currentTroughExactDate = peakExactDate;
+  let inDrawdown = false;
+
+  for (let i = 1; i < timeSeries.length; i++) {
+    const point = timeSeries[i]!;
+    const value = point.value;
+
+    if (value >= peak) {
+      // Recuperación o nuevo pico
+      if (inDrawdown) {
+        const ddPct = peak > 0 ? (currentTrough - peak) / peak : 0;
+        episodes.push({
+          peakDate,
+          peakExactDate,
+          troughDate: currentTroughDate,
+          troughExactDate: currentTroughExactDate,
+          recoveryDate: point.date,
+          recoveryExactDate: point.exactDate,
+          drawdownPct: ddPct,
+          lengthMonths: monthsBetween(peakDate, currentTroughDate),
+          recoveryMonths: monthsBetween(currentTroughDate, point.date),
+          underwaterMonths: monthsBetween(peakDate, point.date),
+        });
+        inDrawdown = false;
+      }
+      peak = value;
+      peakDate = point.date;
+      peakExactDate = point.exactDate;
+      currentTrough = value;
+      currentTroughDate = point.date;
+      currentTroughExactDate = point.exactDate;
+    } else {
+      // En drawdown — actualizar valle si profundizamos
+      inDrawdown = true;
+      if (value < currentTrough) {
+        currentTrough = value;
+        currentTroughDate = point.date;
+        currentTroughExactDate = point.exactDate;
+      }
+    }
+  }
+
+  // Si la serie termina en drawdown, registrar como "no recuperado"
+  if (inDrawdown) {
+    const ddPct = peak > 0 ? (currentTrough - peak) / peak : 0;
+    const lastPoint = timeSeries[timeSeries.length - 1]!;
+    episodes.push({
+      peakDate,
+      peakExactDate,
+      troughDate: currentTroughDate,
+      troughExactDate: currentTroughExactDate,
+      recoveryDate: null,
+      recoveryExactDate: undefined,
+      drawdownPct: ddPct,
+      lengthMonths: monthsBetween(peakDate, currentTroughDate),
+      recoveryMonths: null,
+      underwaterMonths: monthsBetween(peakDate, lastPoint.date),
+    });
+  }
+
+  // Ordenar por magnitud (más negativo primero) y devolver top N
+  episodes.sort((a, b) => a.drawdownPct - b.drawdownPct);
+  return episodes.slice(0, topN);
 }
 
 // -----------------------------------------------------------------------------
