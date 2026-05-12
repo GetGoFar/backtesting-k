@@ -32,6 +32,7 @@ const ALL_SECTIONS: NavSection[] = [
   { id: "section-rolling-stats", label: "Ventanas rolling", group: "results", icon: "🔄" },
   { id: "section-histogram", label: "Distribución retornos", group: "results", icon: "📐" },
   { id: "section-rolling-chart", label: "Rolling returns", group: "results", icon: "📜" },
+  { id: "section-rebalance-log", label: "Historial de rebalanceos", group: "results", icon: "🔁" },
 ];
 
 export function SidebarNav({ hasResults }: SidebarNavProps) {

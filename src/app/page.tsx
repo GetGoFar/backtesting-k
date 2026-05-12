@@ -132,6 +132,14 @@ const AllocationPieChart = dynamic(
   }
 );
 
+const RebalanceLogTable = dynamic(
+  () => import("@/components/RebalanceLogTable").then((mod) => mod.RebalanceLogTable),
+  {
+    loading: () => <ChartLoadingSkeleton height="h-64" />,
+    ssr: false,
+  }
+);
+
 // Skeleton de carga para gráficos
 function ChartLoadingSkeleton({ height }: { height: string }) {
   return (
@@ -908,6 +916,11 @@ export default function Home() {
               {/* 7. Rolling returns */}
               <div id="section-rolling-chart" className="scroll-mt-24">
                 <RollingReturnsChart results={results} isLoading={false} />
+              </div>
+
+              {/* 8. Historial detallado de rebalanceos (sells/buys/plusvalías/impuestos) */}
+              <div id="section-rebalance-log" className="scroll-mt-24">
+                <RebalanceLogTable results={results} isLoading={false} />
               </div>
 
               {/* 8. Disclaimer */}

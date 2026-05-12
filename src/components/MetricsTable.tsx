@@ -429,6 +429,7 @@ export function MetricsTable({ results, isLoading }: MetricsTableProps) {
           drawdowns: [],
           topDrawdowns: [],
           stressPeriods: benchmark.benchmarkStressPeriods ?? [],
+          rebalanceLog: [],
           rollingReturns: { oneYear: [], threeYear: [], fiveYear: [] },
           rollingStats: {
             oneYear: { label: "1 año", years: 1, count: 0, bestCagr: 0, bestEndDate: null, worstCagr: 0, worstEndDate: null, avgCagr: 0, medianCagr: 0, positiveRatio: 0 },

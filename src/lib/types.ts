@@ -251,6 +251,38 @@ export interface StressPeriodResult {
   hasFullData: boolean;
 }
 
+/** Una operación individual dentro de un rebalanceo */
+export interface RebalanceTrade {
+  /** ID del fondo */
+  fundId: string;
+  /** Nombre corto del fondo */
+  fundName: string;
+  /** "sell" = venta (puede generar plusvalía), "buy" = compra (no genera plusvalía) */
+  action: "sell" | "buy";
+  /** Importe en EUR */
+  amount: number;
+  /** Solo para sells: plusvalía o minusvalía realizada (positivo = ganancia, negativo = pérdida) */
+  gain?: number;
+  /** Solo para sells: porción del coste base que se realiza con la venta */
+  costBasisPortion?: number;
+}
+
+/** Un evento de rebalanceo completo con su detalle */
+export interface RebalanceEvent {
+  /** Fecha del rebalanceo (YYYY-MM-DD) */
+  date: string;
+  /** Valor de la cartera ANTES del rebalanceo */
+  portfolioValueBefore: number;
+  /** Valor de la cartera DESPUÉS (= before - taxPaid) */
+  portfolioValueAfter: number;
+  /** Plusvalía/minusvalía TOTAL realizada en este rebalanceo (suma de gain de todas las sells) */
+  totalGain: number;
+  /** Impuesto total pagado */
+  taxPaid: number;
+  /** Detalle de cada operación (sells + buys) */
+  trades: RebalanceTrade[];
+}
+
 /** Episodio individual de drawdown (de pico a valle y recuperación) */
 export interface DrawdownEpisode {
   /** Fecha del pico antes de la caída (formato YYYY-MM) */
@@ -438,6 +470,8 @@ export interface BacktestResult {
   topDrawdowns: DrawdownEpisode[];
   /** Comportamiento durante periodos históricos de estrés */
   stressPeriods: StressPeriodResult[];
+  /** Detalle de cada rebalanceo realizado (vacío si no hubo rebalanceos o no se trackeó) */
+  rebalanceLog: RebalanceEvent[];
   /** Comparación vs benchmark (opcional, solo si se solicita) */
   benchmark?: BenchmarkComparison;
   /** Rolling returns a 1, 3 y 5 años */

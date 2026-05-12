@@ -21,6 +21,8 @@ import type {
   StressPeriodResult,
   BenchmarkComparison,
   BenchmarkId,
+  RebalanceEvent,
+  RebalanceTrade,
   FeesSummary,
   Metrics,
   FundType,
@@ -506,6 +508,7 @@ async function runPortfolioBacktest(
     drawdowns,
     topDrawdowns,
     stressPeriods,
+    rebalanceLog: simulation.rebalanceLog,
     rollingReturns,
     rollingStats,
     returnsHistogram,
@@ -529,6 +532,8 @@ interface DailySimulationResult {
   totalTaxesPaid: number;
   /** Coste base remanente al final del backtest, para calcular impuestos pendientes */
   finalCostBasis: number;
+  /** Log de cada evento de rebalanceo */
+  rebalanceLog: RebalanceEvent[];
 }
 
 type TaxMode = "none" | "flat" | "spain-irpf";
@@ -584,24 +589,27 @@ function simulatePortfolioDaily(
 ): DailySimulationResult {
   const dailyTimeSeries: Array<{ date: string; value: number }> = [];
   const dailyReturns: Array<{ date: string; returnValue: number }> = [];
+  const rebalanceLog: RebalanceEvent[] = [];
 
-  // Valor de cada posición (en EUR)
+  // Valor de cada posición (en EUR) y coste base por fondo (per-fund accounting)
   const positionValues = new Map<string, number>();
+  const fundCostBasis = new Map<string, number>();
+  // Lookup de nombres cortos por fundId, para el log
+  const fundNames = new Map<string, string>();
 
-  // Inicializar posiciones según pesos
+  // Inicializar posiciones y cost basis según pesos
   for (const holding of holdings) {
     const value = (initialAmount * holding.weight) / 100;
     positionValues.set(holding.fundId, value);
+    fundCostBasis.set(holding.fundId, value);
+    const fund = getFundById(holding.fundId) || holding.fund;
+    fundNames.set(holding.fundId, fund?.shortName ?? fund?.name ?? holding.fundId);
   }
 
   let totalContributions = initialAmount;
   let totalFeesPaid = 0;
   let totalManagementFeePaid = 0;
   let totalTaxesPaid = 0;
-  // Coste base acumulado: lo que el usuario ha "puesto" (initial + aportaciones).
-  // Se ajusta al alza en cada rebalanceo por el efecto "step-up" tras pagar impuestos
-  // sobre la parte de ganancia rebalanceada.
-  let totalCostBasis = initialAmount;
   // Plusvalía acumulada en el AÑO en curso (para tramos progresivos del IRPF).
   // Se resetea cada 1 de enero.
   let annualRealizedGain = 0;
@@ -656,11 +664,11 @@ function simulatePortfolioDaily(
     // Aportación mensual: aplicar en el primer día hábil de cada nuevo mes
     if (monthlyContribution > 0 && isNewMonth(currentDate, previousDate)) {
       totalContributions += monthlyContribution;
-      totalCostBasis += monthlyContribution;
       for (const holding of holdings) {
         const currentValue = positionValues.get(holding.fundId) ?? 0;
         const contributionToPosition = (monthlyContribution * holding.weight) / 100;
         positionValues.set(holding.fundId, currentValue + contributionToPosition);
+        fundCostBasis.set(holding.fundId, (fundCostBasis.get(holding.fundId) ?? 0) + contributionToPosition);
       }
     }
 
@@ -674,12 +682,14 @@ function simulatePortfolioDaily(
     // Rebalanceo (con cálculo de impuestos sobre plusvalías realizadas)
     if (shouldRebalanceByDate(currentDate, previousDate, rebalanceFrequency)) {
       const taxResult = rebalancePortfolioWithTax(
-        positionValues, holdings, totalCostBasis,
+        positionValues, fundCostBasis, fundNames, holdings,
         taxMode, taxRate, annualRealizedGain
       );
       totalTaxesPaid += taxResult.taxPaid;
-      totalCostBasis = taxResult.newCostBasis;
       annualRealizedGain = taxResult.newAnnualRealizedGain;
+      if (taxResult.event) {
+        rebalanceLog.push({ ...taxResult.event, date: currentDate });
+      }
     }
 
     // Registrar valor total
@@ -696,6 +706,9 @@ function simulatePortfolioDaily(
     }
   }
 
+  // Coste base final = suma de los coste base por fondo
+  const finalCostBasis = Array.from(fundCostBasis.values()).reduce((s, v) => s + v, 0);
+
   return {
     dailyTimeSeries,
     dailyReturns,
@@ -703,7 +716,8 @@ function simulatePortfolioDaily(
     totalManagementFeePaid,
     totalContributions,
     totalTaxesPaid,
-    finalCostBasis: totalCostBasis,
+    finalCostBasis,
+    rebalanceLog,
   };
 }
 
@@ -741,75 +755,131 @@ function rebalancePortfolio(
  *
  * Devuelve el impuesto pagado y el nuevo coste base total.
  */
+/**
+ * Rebalanceo con cost basis POR FONDO y tracking detallado de cada operación.
+ *
+ * Algoritmo:
+ *  1. Identifica para cada fondo si toca vender (current > target) o comprar.
+ *  2. Para cada venta: calcula plusvalía concreta usando el coste base de ESE fondo.
+ *  3. Suma plusvalías totales y calcula impuesto (modo IRPF o tasa fija).
+ *  4. Aplica ventas: reduce posición y reduce coste base del fondo proporcionalmente.
+ *  5. Aplica compras escaladas al cash disponible tras impuestos.
+ *  6. Devuelve el evento con detalle de cada operación.
+ *
+ * El cost basis por fondo es el método FIFO/promedio simplificado.
+ */
 function rebalancePortfolioWithTax(
   positionValues: Map<string, number>,
+  fundCostBasis: Map<string, number>,
+  fundNames: Map<string, string>,
   holdings: PortfolioHolding[],
-  currentCostBasis: number,
   taxMode: TaxMode,
   flatRate: number,
   annualRealizedGain: number
-): { taxPaid: number; newCostBasis: number; newAnnualRealizedGain: number } {
-  const totalValue = sumPositions(positionValues);
-  if (totalValue === 0) {
-    return { taxPaid: 0, newCostBasis: currentCostBasis, newAnnualRealizedGain: annualRealizedGain };
+): {
+  taxPaid: number;
+  newAnnualRealizedGain: number;
+  event: Omit<RebalanceEvent, "date"> | null;
+} {
+  const totalValueBefore = sumPositions(positionValues);
+  if (totalValueBefore === 0) {
+    return { taxPaid: 0, newAnnualRealizedGain: annualRealizedGain, event: null };
   }
 
-  // Sin impuestos: rebalanceo simple
-  if (taxMode === "none" || (taxMode === "flat" && flatRate <= 0)) {
-    for (const holding of holdings) {
-      const targetValue = (totalValue * holding.weight) / 100;
-      positionValues.set(holding.fundId, targetValue);
-    }
-    return { taxPaid: 0, newCostBasis: currentCostBasis, newAnnualRealizedGain: annualRealizedGain };
-  }
+  // 1. Identificar sells y buys
+  type Sell = { fundId: string; soldAmount: number; cbSold: number; gain: number };
+  type Buy = { fundId: string; desiredAmount: number };
+  const sells: Sell[] = [];
+  const buys: Buy[] = [];
+  let totalGainRealized = 0;
 
-  // 1. Calcular monto rebalanceado (= sum de "sells" = sum de "buys")
-  let tradeAmount = 0;
   for (const holding of holdings) {
     const current = positionValues.get(holding.fundId) ?? 0;
-    const target = (totalValue * holding.weight) / 100;
-    if (current > target) tradeAmount += current - target;
-  }
-  if (tradeAmount === 0) {
-    return { taxPaid: 0, newCostBasis: currentCostBasis, newAnnualRealizedGain: annualRealizedGain };
-  }
+    const target = (totalValueBefore * holding.weight) / 100;
+    if (Math.abs(current - target) < 0.01) continue; // sin cambio significativo
 
-  // 2. Calcular plusvalía realizada en este rebalanceo
-  const totalGain = Math.max(0, totalValue - currentCostBasis);
-  const gainRatio = totalGain > 0 ? totalGain / totalValue : 0;
-  const gainOnTraded = tradeAmount * gainRatio;
-
-  // 3. Calcular impuesto según el modo
-  let tax = 0;
-  let effectiveRate = 0;
-  if (gainOnTraded > 0) {
-    if (taxMode === "spain-irpf") {
-      // Marginal: tax diferencial sobre la suma anual acumulada
-      const totalTaxAfter = spanishIrpfTax(annualRealizedGain + gainOnTraded);
-      const totalTaxBefore = spanishIrpfTax(annualRealizedGain);
-      tax = totalTaxAfter - totalTaxBefore;
-      effectiveRate = tax / gainOnTraded;
+    if (current > target) {
+      const soldAmount = current - target;
+      const fraction = soldAmount / current;
+      const cb = fundCostBasis.get(holding.fundId) ?? 0;
+      const cbSold = cb * fraction;
+      const gain = soldAmount - cbSold;
+      sells.push({ fundId: holding.fundId, soldAmount, cbSold, gain });
+      totalGainRealized += gain;
     } else {
-      // Flat
-      tax = gainOnTraded * flatRate;
-      effectiveRate = flatRate;
+      buys.push({ fundId: holding.fundId, desiredAmount: target - current });
     }
   }
 
-  // 4. Aplicar pesos objetivo al total POST-impuesto
-  const newTotalValue = totalValue - tax;
-  for (const holding of holdings) {
-    const targetValue = (newTotalValue * holding.weight) / 100;
-    positionValues.set(holding.fundId, targetValue);
+  if (sells.length === 0 && buys.length === 0) {
+    return { taxPaid: 0, newAnnualRealizedGain: annualRealizedGain, event: null };
   }
 
-  // 5. Step-up del coste base
-  const newCostBasis = currentCostBasis + gainOnTraded * (1 - effectiveRate);
+  // 2. Calcular impuesto sobre plusvalía total (solo si modo aplica)
+  let tax = 0;
+  if (totalGainRealized > 0 && (taxMode === "spain-irpf" || (taxMode === "flat" && flatRate > 0))) {
+    if (taxMode === "spain-irpf") {
+      const taxAfter = spanishIrpfTax(annualRealizedGain + totalGainRealized);
+      const taxBefore = spanishIrpfTax(annualRealizedGain);
+      tax = taxAfter - taxBefore;
+    } else {
+      tax = totalGainRealized * flatRate;
+    }
+  }
+
+  // 3. Aplicar sells: actualizar position y coste base del fondo
+  const trades: RebalanceTrade[] = [];
+  let cashFromSales = 0;
+  for (const sell of sells) {
+    const currentPos = positionValues.get(sell.fundId) ?? 0;
+    const newPos = currentPos - sell.soldAmount;
+    positionValues.set(sell.fundId, newPos);
+    const currentCb = fundCostBasis.get(sell.fundId) ?? 0;
+    fundCostBasis.set(sell.fundId, currentCb - sell.cbSold);
+    cashFromSales += sell.soldAmount;
+    trades.push({
+      fundId: sell.fundId,
+      fundName: fundNames.get(sell.fundId) ?? sell.fundId,
+      action: "sell",
+      amount: sell.soldAmount,
+      gain: sell.gain,
+      costBasisPortion: sell.cbSold,
+    });
+  }
+
+  // 4. Aplicar buys: usar cash post-impuesto, escalar si hace falta
+  const cashAfterTax = cashFromSales - tax;
+  const totalBuyDesired = buys.reduce((s, b) => s + b.desiredAmount, 0);
+  if (totalBuyDesired > 0) {
+    const buyScale = cashAfterTax / totalBuyDesired;
+    for (const buy of buys) {
+      const actualBuy = buy.desiredAmount * buyScale;
+      if (actualBuy <= 0) continue;
+      const currentPos = positionValues.get(buy.fundId) ?? 0;
+      positionValues.set(buy.fundId, currentPos + actualBuy);
+      const currentCb = fundCostBasis.get(buy.fundId) ?? 0;
+      fundCostBasis.set(buy.fundId, currentCb + actualBuy);
+      trades.push({
+        fundId: buy.fundId,
+        fundName: fundNames.get(buy.fundId) ?? buy.fundId,
+        action: "buy",
+        amount: actualBuy,
+      });
+    }
+  }
+
+  const event: Omit<RebalanceEvent, "date"> = {
+    portfolioValueBefore: totalValueBefore,
+    portfolioValueAfter: totalValueBefore - tax,
+    totalGain: totalGainRealized,
+    taxPaid: tax,
+    trades,
+  };
 
   return {
     taxPaid: tax,
-    newCostBasis,
-    newAnnualRealizedGain: annualRealizedGain + gainOnTraded,
+    newAnnualRealizedGain: annualRealizedGain + Math.max(0, totalGainRealized),
+    event,
   };
 }
 
