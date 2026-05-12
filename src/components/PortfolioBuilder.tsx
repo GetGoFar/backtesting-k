@@ -200,15 +200,77 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
 
   const handlePresetSelect = (preset: PortfolioPreset) => {
     // Convertir holdings del preset a allocaciones con fondos completos
-    const newAllocations: FundAllocation[] = [];
+    const presetAllocations: FundAllocation[] = [];
     for (const holding of preset.holdings) {
       const fund = getFundById(holding.fundId);
       if (fund) {
-        newAllocations.push({ fund, weight: holding.weight });
+        presetAllocations.push({ fund, weight: holding.weight });
       }
     }
 
-    setAllocations(newAllocations);
+    // Modo satélite: si hay cartera actual, INSERTAR el preset en lugar de reemplazar
+    const currentTotal = allocations.reduce((sum, a) => sum + a.weight, 0);
+    const presetTotal = presetAllocations.reduce((sum, a) => sum + a.weight, 0);
+    const canInsertAsSatellite =
+      satelliteMode &&
+      allocations.length > 0 &&
+      currentTotal > 0 &&
+      presetTotal > 0 &&
+      satelliteWeight > 0 &&
+      satelliteWeight < 100;
+
+    if (canInsertAsSatellite) {
+      // 1) Reescalar pesos existentes a (100 - satelliteWeight)
+      const existingScale = (100 - satelliteWeight) / currentTotal;
+      // 2) Reescalar pesos del preset para que sumen satelliteWeight
+      const presetScale = satelliteWeight / presetTotal;
+
+      // Mapa fundId → allocation final (combinando duplicados si los hay)
+      const merged = new Map<string, FundAllocation>();
+
+      for (const a of allocations) {
+        merged.set(a.fund.id, {
+          fund: a.fund,
+          weight: Math.round(a.weight * existingScale * 100) / 100,
+        });
+      }
+
+      for (const a of presetAllocations) {
+        const existing = merged.get(a.fund.id);
+        const scaledWeight = Math.round(a.weight * presetScale * 100) / 100;
+        if (existing) {
+          merged.set(a.fund.id, {
+            fund: a.fund,
+            weight: Math.round((existing.weight + scaledWeight) * 100) / 100,
+          });
+        } else {
+          merged.set(a.fund.id, { fund: a.fund, weight: scaledWeight });
+        }
+      }
+
+      const mergedAllocations = Array.from(merged.values());
+
+      // Ajuste de redondeo: la diferencia con 100 la absorbe el primer activo
+      const mergedTotal = mergedAllocations.reduce((sum, a) => sum + a.weight, 0);
+      const delta = Math.round((100 - mergedTotal) * 100) / 100;
+      if (mergedAllocations.length > 0 && Math.abs(delta) > 0) {
+        mergedAllocations[0] = {
+          ...mergedAllocations[0]!,
+          weight: Math.round((mergedAllocations[0]!.weight + delta) * 100) / 100,
+        };
+      }
+
+      setAllocations(mergedAllocations);
+      setSelectedPresetId(null); // ya no es un preset puro
+      setShowPresetDropdown(false);
+      // Auto-nombrar: "<nombre actual> + <satélite> N%"
+      setNameManuallyEdited(false);
+      setName(`${name} + ${preset.name} ${satelliteWeight}%`);
+      return;
+    }
+
+    // Modo normal: reemplazar la cartera con el preset
+    setAllocations(presetAllocations);
     setSelectedPresetId(preset.id);
     setShowPresetDropdown(false);
     // Reset manual edit flag — preset name takes over
@@ -279,7 +341,9 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
             className="w-full flex items-center justify-between px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50 transition-colors"
           >
             <span className="text-slate-600">
-              {selectedPresetId
+              {satelliteMode && allocations.length > 0
+                ? `🛰️ Añadir cartera satélite al ${satelliteWeight}%...`
+                : selectedPresetId
                 ? presets.find((p) => p.id === selectedPresetId)?.name
                 : "Seleccionar cartera predefinida..."}
             </span>
@@ -490,7 +554,9 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
 
         {/* Modo activo satélite */}
         {allocations.length > 0 && (
-          <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+          <div className={`rounded-lg border p-3 transition-colors ${
+            satelliteMode ? "border-brand-coral/40 bg-brand-coral/5" : "border-slate-200 bg-slate-50/50"
+          }`}>
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -502,31 +568,36 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                 Modo activo satélite
               </span>
               <span className="text-xs text-brand-tertiary">
-                — Al añadir, los pesos existentes se reescalan en proporción
+                — Al añadir un activo <em>o cartera</em>, los pesos actuales se reescalan en proporción
               </span>
             </label>
 
             {satelliteMode && (
-              <div className="mt-3 flex items-center gap-2 pl-6">
-                <span className="text-xs text-brand-secondary">
-                  Peso del nuevo activo:
-                </span>
-                <input
-                  type="number"
-                  min="1"
-                  max="99"
-                  step="1"
-                  value={satelliteWeight}
-                  onChange={(e) => {
-                    const v = parseFloat(e.target.value);
-                    if (!isNaN(v) && v >= 1 && v <= 99) setSatelliteWeight(v);
-                  }}
-                  className="w-16 px-2 py-1 text-sm font-semibold border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral"
-                />
-                <span className="text-sm font-semibold text-brand-navy">%</span>
-                <span className="text-xs text-brand-tertiary ml-1">
-                  (los {allocations.length} actuales se repartirán el {100 - satelliteWeight}% restante)
-                </span>
+              <div className="mt-3 space-y-2 pl-6">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-brand-secondary">
+                    Peso del satélite:
+                  </span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="99"
+                    step="1"
+                    value={satelliteWeight}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      if (!isNaN(v) && v >= 1 && v <= 99) setSatelliteWeight(v);
+                    }}
+                    className="w-16 px-2 py-1 text-sm font-semibold border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral"
+                  />
+                  <span className="text-sm font-semibold text-brand-navy">%</span>
+                  <span className="text-xs text-brand-tertiary ml-1">
+                    → la cartera actual se reescala al {100 - satelliteWeight}%
+                  </span>
+                </div>
+                <p className="text-xs text-brand-coral/80 italic">
+                  💡 Funciona también al seleccionar otra cartera predefinida: se inserta como satélite en vez de reemplazar
+                </p>
               </div>
             )}
           </div>
