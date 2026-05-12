@@ -42,12 +42,22 @@ function PortfolioHistogram({
 
   // Calcular skew y kurtosis interpretativos para el subtítulo
   const { skewness, excessKurtosis } = result.metrics;
-  const skewText = skewness > 0.2 ? "asimetría positiva (cola derecha)"
-    : skewness < -0.2 ? "asimetría negativa (cola izquierda — más pérdidas extremas)"
-    : "distribución prácticamente simétrica";
-  const kurtText = excessKurtosis > 1 ? "colas más gordas que la normal (más eventos extremos)"
-    : excessKurtosis < -0.5 ? "colas más finas que la normal (eventos extremos menos probables)"
-    : "colas similares a una distribución normal";
+  const skewText = skewness > 0.5
+    ? `asimetría positiva fuerte (${skewness.toFixed(2)}): la cola derecha tiene más peso — pocas observaciones muy positivas tiran de la media al alza`
+    : skewness > 0.2
+    ? `asimetría positiva moderada (${skewness.toFixed(2)}): ligeramente más masa por debajo de la media, con algunas subidas extraordinarias`
+    : skewness < -0.5
+    ? `asimetría negativa fuerte (${skewness.toFixed(2)}): la cola izquierda tiene más peso — los meses muy negativos (crashes) pesan más en la distribución que los muy positivos, aunque visualmente pueda no llamar la atención`
+    : skewness < -0.2
+    ? `asimetría negativa moderada (${skewness.toFixed(2)}): más masa por encima de la media, pero algún mes muy negativo pesa lo suficiente en el cálculo para desplazar la simetría hacia la izquierda`
+    : `distribución prácticamente simétrica (skew ${skewness.toFixed(2)}, cercano a 0)`;
+  const kurtText = excessKurtosis > 3
+    ? `colas muy gordas (kurtosis exceso ${excessKurtosis.toFixed(2)}): eventos extremos mucho más frecuentes que en una normal — la volatilidad por sí sola SUBESTIMA el riesgo de tail`
+    : excessKurtosis > 1
+    ? `colas algo más gordas que la normal (kurtosis exceso ${excessKurtosis.toFixed(2)}): eventos extremos algo más probables que en una distribución normal`
+    : excessKurtosis < -0.5
+    ? `colas más finas que la normal (kurtosis exceso ${excessKurtosis.toFixed(2)}): eventos extremos menos probables`
+    : `colas similares a una distribución normal (kurtosis exceso ${excessKurtosis.toFixed(2)})`;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -55,10 +65,22 @@ function PortfolioHistogram({
         <h4 className={`text-base font-semibold ${headerColor} font-serif`}>
           Distribución de retornos por {hist.periodLabel} — {result.portfolioName}
         </h4>
-        <p className="text-xs text-brand-tertiary mt-0.5">
+        <p className="text-xs text-brand-tertiary mt-0.5 leading-relaxed">
           Barras = frecuencia observada; línea negra = lo que predeciría una distribución
-          normal con la misma media y volatilidad. Esta cartera tiene{" "}
-          <strong>{skewText}</strong> y <strong>{kurtText}</strong>.
+          normal con la misma media y volatilidad. Comparar ambos te dice si la cartera
+          se comporta como una normal o tiene asimetría / colas anómalas.
+        </p>
+        <p className="text-xs text-brand-tertiary mt-2 leading-relaxed">
+          <span className="font-semibold text-brand-secondary">Esta cartera presenta:</span>{" "}
+          {skewText}. <br />
+          <span className="font-semibold text-brand-secondary">Curtosis:</span>{" "}
+          {kurtText}.
+        </p>
+        <p className="text-xs text-brand-tertiary mt-2 leading-relaxed italic">
+          Nota: el skewness se calcula elevando las desviaciones de la media al cubo,
+          así que pocos meses muy negativos (p.ej. crash de marzo 2020) pueden hacer que
+          salga claramente negativo aunque visualmente el histograma parezca simétrico
+          o incluso ladeado a la derecha.
         </p>
       </div>
       <div className="p-4 sm:p-6">
