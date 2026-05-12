@@ -135,6 +135,14 @@ export interface BacktestConfig {
    *  ej: 0.21 para 21%). 0 = sin impuestos (fondos de inversión con traspaso).
    *  Aplicable solo a carteras de ETFs en España. */
   taxRate?: number;
+  /** Banda RELATIVA de drift (decimal, ej: 0.25 = 25%). Si algún activo se
+   *  desvía más de este % respecto a su peso objetivo, se rebalancea. 0 o
+   *  undefined = desactivado. Funciona en paralelo al rebalanceo periódico. */
+  rebalanceBandRelative?: number;
+  /** Banda ABSOLUTA de drift (decimal, ej: 0.05 = 5 puntos porcentuales).
+   *  Si algún activo se desvía más de X pp del peso objetivo, se rebalancea.
+   *  0 o undefined = desactivado. */
+  rebalanceBandAbsolute?: number;
 }
 
 // -----------------------------------------------------------------------------

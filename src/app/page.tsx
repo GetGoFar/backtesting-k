@@ -208,6 +208,10 @@ export default function Home() {
     useState<DisplayGranularity>("monthly");
   const [useCommonDateRange, setUseCommonDateRange] = useState(true);
   const [benchmarkId, setBenchmarkId] = useState<BenchmarkId | null>(null);
+  // Rebalanceo por bandas (cualquiera dispara el rebalanceo, además del temporal).
+  // 0 = desactivado. UI en %, motor en decimal.
+  const [rebalanceBandRelativePct, setRebalanceBandRelativePct] = useState(0);
+  const [rebalanceBandAbsolutePct, setRebalanceBandAbsolutePct] = useState(0);
 
   // Estado de resultados y UI
   const [results, setResults] = useState<BacktestResponse | null>(null);
@@ -268,6 +272,8 @@ export default function Home() {
         displayGranularity,
         useCommonDateRange,
         benchmarkId: benchmarkId ?? undefined,
+        rebalanceBandRelative: rebalanceBandRelativePct > 0 ? rebalanceBandRelativePct / 100 : undefined,
+        rebalanceBandAbsolute: rebalanceBandAbsolutePct > 0 ? rebalanceBandAbsolutePct / 100 : undefined,
       };
 
       if (portfolioA.isValid) {
@@ -525,6 +531,77 @@ export default function Home() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Rebalanceo por bandas */}
+            <div className="mt-4 sm:mt-6">
+              <div className="flex items-center gap-2 mb-2 sm:mb-3">
+                <label className="block text-sm font-medium text-brand-navy">
+                  Rebalanceo por bandas <span className="text-xs font-normal text-brand-tertiary">(opcional)</span>
+                </label>
+                <span
+                  className="text-slate-400 cursor-help"
+                  title="Trigger adicional al rebalanceo temporal: cuando cualquier activo se desvía del peso objetivo más allá del umbral, se ejecuta un rebalanceo. Cualquier valor a 0 desactiva esa banda."
+                >
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
+                  </svg>
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
+                {/* Banda RELATIVA */}
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-semibold text-brand-secondary">Banda relativa</span>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="5"
+                        value={rebalanceBandRelativePct}
+                        onChange={(e) =>
+                          setRebalanceBandRelativePct(Math.max(0, Math.min(100, Number(e.target.value))))
+                        }
+                        className="w-16 px-2 py-1 text-sm text-right border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-brand-coral"
+                      />
+                      <span className="text-sm font-semibold text-brand-navy">%</span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-brand-tertiary leading-snug">
+                    Si algún activo se desvía más del <strong>{rebalanceBandRelativePct || "X"}%</strong> respecto a su peso objetivo (ej: 20% objetivo → trigger en {rebalanceBandRelativePct ? (20 + 20 * rebalanceBandRelativePct / 100).toFixed(1) : "X"}% o {rebalanceBandRelativePct ? (20 - 20 * rebalanceBandRelativePct / 100).toFixed(1) : "X"}%).
+                  </p>
+                </div>
+
+                {/* Banda ABSOLUTA */}
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-semibold text-brand-secondary">Banda absoluta</span>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min="0"
+                        max="50"
+                        step="1"
+                        value={rebalanceBandAbsolutePct}
+                        onChange={(e) =>
+                          setRebalanceBandAbsolutePct(Math.max(0, Math.min(50, Number(e.target.value))))
+                        }
+                        className="w-16 px-2 py-1 text-sm text-right border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-brand-coral"
+                      />
+                      <span className="text-sm font-semibold text-brand-navy">pp</span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-brand-tertiary leading-snug">
+                    Si algún activo se desvía más de <strong>{rebalanceBandAbsolutePct || "X"} puntos porcentuales</strong> del peso objetivo (ej: 20% objetivo → trigger en {rebalanceBandAbsolutePct ? (20 + rebalanceBandAbsolutePct).toFixed(0) : "X"}% o {rebalanceBandAbsolutePct ? (20 - rebalanceBandAbsolutePct).toFixed(0) : "X"}%).
+                  </p>
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-brand-tertiary leading-relaxed max-w-2xl">
+                Cualquiera de las dos bandas activa el rebalanceo (además del temporal de arriba).
+                Deja ambas a 0 para usar solo el rebalanceo periódico. La banda absoluta es más
+                exigente en pesos pequeños; la relativa, en pesos grandes.
+              </p>
             </div>
 
             {/* Granularidad de datos */}

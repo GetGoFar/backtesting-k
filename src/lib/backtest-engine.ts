@@ -114,6 +114,9 @@ export async function runBacktest(
   const taxRateB = config.portfolioB?.taxRate ?? globalTaxRate;
   const taxModeA: TaxMode = config.portfolioA?.taxMode ?? "none";
   const taxModeB: TaxMode = config.portfolioB?.taxMode ?? "none";
+  // Bandas de rebalanceo globales (aplican a ambas carteras por igual)
+  const bandRel = config.rebalanceBandRelative ?? 0;
+  const bandAbs = config.rebalanceBandAbsolute ?? 0;
   const resultAPromise = config.portfolioA
     ? runPortfolioBacktest(
         config.portfolioA,
@@ -125,7 +128,9 @@ export async function runBacktest(
         displayGranularity,
         engineWarnings,
         taxRateA,
-        taxModeA
+        taxModeA,
+        bandRel,
+        bandAbs
       )
     : Promise.resolve(null);
 
@@ -140,7 +145,9 @@ export async function runBacktest(
         displayGranularity,
         engineWarnings,
         taxRateB,
-        taxModeB
+        taxModeB,
+        bandRel,
+        bandAbs
       )
     : Promise.resolve(null);
 
@@ -289,7 +296,9 @@ async function runPortfolioBacktest(
   displayGranularity: DisplayGranularity,
   warnings?: BacktestWarning[],
   taxRate: number = 0,
-  taxMode: TaxMode = "none"
+  taxMode: TaxMode = "none",
+  rebalanceBandRelative: number = 0,
+  rebalanceBandAbsolute: number = 0
 ): Promise<BacktestResult | null> {
   console.log(`[BacktestEngine] Procesando cartera: ${portfolio.name}`);
 
@@ -382,7 +391,9 @@ async function runPortfolioBacktest(
     monthlyContribution,
     portfolio.managementFee ?? 0,
     taxRate,
-    taxMode
+    taxMode,
+    rebalanceBandRelative,
+    rebalanceBandAbsolute
   );
 
   if (simulation.dailyTimeSeries.length === 0) {
@@ -546,6 +557,32 @@ interface DailySimulationResult {
 // Tax utilities (centralizado en lib/tax-utils.ts para que UI los pueda usar también)
 import { spanishIrpfTax, type TaxMode } from "./tax-utils";
 
+/**
+ * Comprueba si alguna posición ha cruzado las bandas de rebalanceo:
+ *   - Banda relativa: |peso_actual - peso_objetivo| / peso_objetivo > bandRel
+ *   - Banda absoluta: |peso_actual - peso_objetivo| > bandAbs (en decimal)
+ * Si cualquiera de las dos se cumple para CUALQUIER activo → toca rebalancear.
+ * Si ambas bandas son 0/undefined → bandas desactivadas.
+ */
+function checkBandsBreached(
+  positionValues: Map<string, number>,
+  holdings: PortfolioHolding[],
+  bandRelative: number,
+  bandAbsolute: number
+): boolean {
+  if (bandRelative <= 0 && bandAbsolute <= 0) return false;
+  const totalValue = sumPositions(positionValues);
+  if (totalValue <= 0) return false;
+  for (const holding of holdings) {
+    const target = holding.weight / 100;
+    const current = (positionValues.get(holding.fundId) ?? 0) / totalValue;
+    const absDrift = Math.abs(current - target);
+    if (bandAbsolute > 0 && absDrift > bandAbsolute) return true;
+    if (bandRelative > 0 && target > 0 && absDrift / target > bandRelative) return true;
+  }
+  return false;
+}
+
 function simulatePortfolioDaily(
   holdings: PortfolioHolding[],
   fundPrices: Map<string, Map<string, number>>,
@@ -556,7 +593,9 @@ function simulatePortfolioDaily(
   monthlyContribution: number,
   managementFee: number = 0,
   taxRate: number = 0,
-  taxMode: TaxMode = "none"
+  taxMode: TaxMode = "none",
+  rebalanceBandRelative: number = 0,
+  rebalanceBandAbsolute: number = 0
 ): DailySimulationResult {
   const dailyTimeSeries: Array<{ date: string; value: number }> = [];
   const dailyReturns: Array<{ date: string; returnValue: number }> = [];
@@ -650,8 +689,15 @@ function simulatePortfolioDaily(
       currentYear = yearNow;
     }
 
-    // Rebalanceo (con cálculo de impuestos sobre plusvalías realizadas)
-    if (shouldRebalanceByDate(currentDate, previousDate, rebalanceFrequency)) {
+    // Rebalanceo: dos triggers independientes (cualquiera dispara la operación)
+    //   1) Trigger temporal: según frecuencia (mensual/trimestral/anual/none)
+    //   2) Trigger por bandas: si algún activo se ha desviado del peso objetivo
+    //      más allá de la banda relativa o absoluta configurada (0 = desactivado)
+    const isTimeTriggered = shouldRebalanceByDate(currentDate, previousDate, rebalanceFrequency);
+    const isBandTriggered = !isTimeTriggered && checkBandsBreached(
+      positionValues, holdings, rebalanceBandRelative, rebalanceBandAbsolute
+    );
+    if (isTimeTriggered || isBandTriggered) {
       const taxResult = rebalancePortfolioWithTax(
         positionValues, fundCostBasis, fundNames, holdings,
         taxMode, taxRate, annualRealizedGain
