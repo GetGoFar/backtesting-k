@@ -6,6 +6,7 @@ import { PortfolioBuilder } from "@/components/PortfolioBuilder";
 import { MetricsTable } from "@/components/MetricsTable";
 import { FeeImpactCard } from "@/components/FeeImpactCard";
 import { AccessGate } from "@/components/AccessGate";
+import { SidebarNav } from "@/components/SidebarNav";
 import type {
   BacktestResponse,
   RebalanceFrequency,
@@ -305,9 +306,9 @@ export default function Home() {
     <div className="min-h-screen flex flex-col">
       {/* Header — estilo elproyectok.com */}
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-brand-border">
-        <div className="container mx-auto px-4 sm:px-6 py-3 max-w-[1320px]">
-          <div className="flex items-center justify-between">
-            <a href="https://elproyectok.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 group">
+        <div className="px-4 sm:px-6 py-3">
+          <div className="flex items-center justify-between max-w-[1800px] mx-auto">
+            <a href="https://elproyectok.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 group ml-12 lg:ml-0">
               <div className="w-10 h-10 rounded-xl gradient-k flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow">
                 <span className="text-2xl font-bold text-white">K</span>
               </div>
@@ -333,8 +334,12 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 container mx-auto px-4 sm:px-6 py-8 sm:py-12 max-w-[1320px]">
+      {/* Layout: sidebar + main */}
+      <div className="flex flex-1 w-full">
+        <SidebarNav hasResults={showResults && !!results} />
+
+        {/* Main Content */}
+        <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         {/* Intro — hero style */}
         <div className="mb-10 sm:mb-14 text-center max-w-3xl mx-auto">
           <h2 className="text-4xl sm:text-5xl md:text-6xl font-normal text-brand-navy mb-4 sm:mb-5 tracking-tight font-serif">
@@ -381,7 +386,7 @@ export default function Home() {
         )}
 
         {/* Sección de Configuración de Carteras */}
-        <section className="mb-8 sm:mb-10">
+        <section id="section-carteras" className="scroll-mt-24 mb-8 sm:mb-10">
           <h3 className="text-sm font-semibold text-brand-tertiary uppercase tracking-wider mb-4">
             1. Configura tus carteras
           </h3>
@@ -392,7 +397,7 @@ export default function Home() {
         </section>
 
         {/* Sección de Parámetros */}
-        <section className="mb-8 sm:mb-10">
+        <section id="section-params" className="scroll-mt-24 mb-8 sm:mb-10">
           <h3 className="text-sm font-semibold text-brand-tertiary uppercase tracking-wider mb-4">
             2. Parámetros del backtest
           </h3>
@@ -817,59 +822,83 @@ export default function Home() {
               )}
 
               {/* 1. Card destacado de comisiones */}
-              <FeeImpactCard results={results} isLoading={false} />
+              <div id="section-summary" className="scroll-mt-24">
+                <FeeImpactCard results={results} isLoading={false} />
+              </div>
 
               {/* 2. Gráfico principal de evolución */}
-              <PerformanceChart results={results} isLoading={false} />
+              <div id="section-performance" className="scroll-mt-24">
+                <PerformanceChart results={results} isLoading={false} />
+              </div>
 
               {/* 3. Tabla de métricas */}
-              <MetricsTable results={results} isLoading={false} />
+              <div id="section-metrics" className="scroll-mt-24">
+                <MetricsTable results={results} isLoading={false} />
+              </div>
 
               {/* 3b. Composición de la(s) cartera(s) — pie charts */}
-              <AllocationPieChart results={results} isLoading={false} />
+              <div id="section-allocation" className="scroll-mt-24">
+                <AllocationPieChart results={results} isLoading={false} />
+              </div>
 
               {/* 4. Métricas individuales de cada activo */}
               {results.assetMetrics && results.assetMetrics.length > 0 && (
-                <AssetMetricsTable results={results} isLoading={false} />
+                <div id="section-assets" className="scroll-mt-24">
+                  <AssetMetricsTable results={results} isLoading={false} />
+                </div>
               )}
 
               {/* 5. Matriz de correlaciones entre activos */}
               {results.correlationMatrix && results.correlationMatrix.fundIds.length >= 2 && (
-                <CorrelationMatrix
-                  results={results}
-                  isLoading={false}
-                  portfolioAFundIds={portfolioA.holdings.map(h => h.fundId)}
-                  portfolioBFundIds={portfolioB.holdings.map(h => h.fundId)}
-                  portfolioAHoldings={portfolioA.holdings}
-                  portfolioBHoldings={portfolioB.holdings}
-                  portfolioAName={portfolioA.name}
-                  portfolioBName={portfolioB.name}
-                />
+                <div id="section-correlations" className="scroll-mt-24">
+                  <CorrelationMatrix
+                    results={results}
+                    isLoading={false}
+                    portfolioAFundIds={portfolioA.holdings.map(h => h.fundId)}
+                    portfolioBFundIds={portfolioB.holdings.map(h => h.fundId)}
+                    portfolioAHoldings={portfolioA.holdings}
+                    portfolioBHoldings={portfolioB.holdings}
+                    portfolioAName={portfolioA.name}
+                    portfolioBName={portfolioB.name}
+                  />
+                </div>
               )}
 
               {/* 6. Gráficos secundarios en grid */}
-              <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+              <div id="section-annual" className="scroll-mt-24 grid gap-4 sm:gap-6 lg:grid-cols-2">
                 <AnnualReturnsChart results={results} isLoading={false} />
                 <DrawdownChart results={results} isLoading={false} />
               </div>
 
               {/* 6b. Top 10 drawdowns por cartera */}
-              <TopDrawdownsTable results={results} isLoading={false} />
+              <div id="section-drawdowns-top" className="scroll-mt-24">
+                <TopDrawdownsTable results={results} isLoading={false} />
+              </div>
 
               {/* 6c. Comportamiento en crisis históricas */}
-              <StressPeriodsTable results={results} isLoading={false} />
+              <div id="section-stress" className="scroll-mt-24">
+                <StressPeriodsTable results={results} isLoading={false} />
+              </div>
 
               {/* 6d. Comparación vs benchmark (si se seleccionó) */}
-              <BenchmarkComparisonCard results={results} isLoading={false} />
+              <div id="section-benchmark" className="scroll-mt-24">
+                <BenchmarkComparisonCard results={results} isLoading={false} />
+              </div>
 
               {/* 6e. Mejores/peores ventanas rolling (estadísticos resumidos) */}
-              <RollingStatsTable results={results} isLoading={false} />
+              <div id="section-rolling-stats" className="scroll-mt-24">
+                <RollingStatsTable results={results} isLoading={false} />
+              </div>
 
               {/* 6f. Histograma de distribución de retornos */}
-              <ReturnsHistogramChart results={results} isLoading={false} />
+              <div id="section-histogram" className="scroll-mt-24">
+                <ReturnsHistogramChart results={results} isLoading={false} />
+              </div>
 
               {/* 7. Rolling returns */}
-              <RollingReturnsChart results={results} isLoading={false} />
+              <div id="section-rolling-chart" className="scroll-mt-24">
+                <RollingReturnsChart results={results} isLoading={false} />
+              </div>
 
               {/* 8. Disclaimer */}
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
@@ -901,7 +930,8 @@ export default function Home() {
             </div>
           )}
         </section>
-      </main>
+        </main>
+      </div>
 
       {/* Footer — estilo elproyectok.com */}
       <footer className="border-t border-brand-border bg-white">
