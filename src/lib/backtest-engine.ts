@@ -475,8 +475,13 @@ async function runPortfolioBacktest(
   const weightedTer = calculateWeightedTer(activeHoldings, fundTers);
   const portfolioType = determinePortfolioType(activeHoldings, fundTypes);
 
-  // Impuestos pendientes: lo que tributaría si se liquidara la cartera ahora
+  // Plusvalía latente al final: cualquier cartera la tiene (mismo cálculo)
+  // Para "fondos sin impuestos", finalCostBasis ≈ aportaciones totales,
+  // por lo que la plusvalía latente captura TODA la ganancia (lógica fiscal
+  // española de fondos: traspasos exentos, pero tributas al sacar al final).
   const unrealizedGain = Math.max(0, finalValue - simulation.finalCostBasis);
+
+  // Impuestos pendientes con el MODO de la cartera (puede ser 0 si taxMode = none)
   let pendingTaxes = 0;
   if (unrealizedGain > 0) {
     if (taxMode === "spain-irpf") {
@@ -496,6 +501,8 @@ async function runPortfolioBacktest(
     taxRate: taxMode === "flat" && taxRate > 0 ? taxRate : undefined,
     totalTaxesPaid: simulation.totalTaxesPaid > 0 ? simulation.totalTaxesPaid : undefined,
     pendingTaxes: pendingTaxes > 0 ? pendingTaxes : undefined,
+    // Siempre exponer la plusvalía latente (la UI puede usarla para calcular
+    // impuestos hipotéticos en comparaciones, p.ej. fondo vs ETF).
     unrealizedGain: unrealizedGain > 0 ? unrealizedGain : undefined,
   };
 
@@ -536,44 +543,8 @@ interface DailySimulationResult {
   rebalanceLog: RebalanceEvent[];
 }
 
-type TaxMode = "none" | "flat" | "spain-irpf";
-
-/**
- * Tramos del IRPF español sobre rendimientos del ahorro (vigente 2023-2025).
- * Aplicación progresiva sobre las plusvalías anuales acumuladas.
- */
-const SPAIN_IRPF_BRACKETS: Array<{ limit: number; rate: number }> = [
-  { limit: 6000, rate: 0.19 },
-  { limit: 50000, rate: 0.21 },
-  { limit: 200000, rate: 0.23 },
-  { limit: 300000, rate: 0.27 },
-  { limit: Infinity, rate: 0.28 },
-];
-
-/** Calcula el impuesto total que tocaría pagar dada una plusvalía anual total. */
-function spanishIrpfTax(annualGain: number): number {
-  if (annualGain <= 0) return 0;
-  let tax = 0;
-  let remaining = annualGain;
-  let lastLimit = 0;
-  for (const b of SPAIN_IRPF_BRACKETS) {
-    const tranche = Math.min(remaining, b.limit - lastLimit);
-    if (tranche <= 0) break;
-    tax += tranche * b.rate;
-    remaining -= tranche;
-    lastLimit = b.limit;
-    if (remaining <= 0) break;
-  }
-  return tax;
-}
-
-/** Tasa efectiva para una plusvalía concreta (útil para cálculo step-up). */
-function effectiveTaxRate(gain: number, mode: TaxMode, flatRate: number): number {
-  if (gain <= 0) return 0;
-  if (mode === "none") return 0;
-  if (mode === "flat") return flatRate;
-  return spanishIrpfTax(gain) / gain;
-}
+// Tax utilities (centralizado en lib/tax-utils.ts para que UI los pueda usar también)
+import { spanishIrpfTax, type TaxMode } from "./tax-utils";
 
 function simulatePortfolioDaily(
   holdings: PortfolioHolding[],

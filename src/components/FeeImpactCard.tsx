@@ -1,7 +1,8 @@
 "use client";
 
-import type { BacktestResponse } from "@/lib/types";
+import type { BacktestResponse, BacktestResult } from "@/lib/types";
 import { formatEUR } from "@/lib/formatters";
+import { computeTaxOnGain, taxModeLabel, type TaxMode } from "@/lib/tax-utils";
 
 interface FeeImpactCardProps {
   results: BacktestResponse;
@@ -133,13 +134,56 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
   // =========================================================================
   // MODO COMPARACIÓN
   // =========================================================================
-  // Total coste real (incluye impuestos adelantados + pendientes si liquidaras)
-  const feesA = resultA!.fees.totalFees + (resultA!.fees.managementFeePaid || 0) +
-                (resultA!.fees.totalTaxesPaid || 0) + (resultA!.fees.pendingTaxes || 0);
-  const feesB = resultB!.fees.totalFees + (resultB!.fees.managementFeePaid || 0) +
-                (resultB!.fees.totalTaxesPaid || 0) + (resultB!.fees.pendingTaxes || 0);
+  // Si una cartera tiene modo fiscal activo y la otra no, usamos el modo de
+  // la que SÍ tiene para calcular impuestos hipotéticos de liquidación en la
+  // que no — así la comparación es justa: al final ambas tributan al vender.
+  const modeA = (resultA!.fees.taxMode ?? "none") as TaxMode;
+  const modeB = (resultB!.fees.taxMode ?? "none") as TaxMode;
+  const rateA = resultA!.fees.taxRate ?? 0;
+  const rateB = resultB!.fees.taxRate ?? 0;
+
+  // Modo efectivo para la cartera A (si A no tiene tax, usa el de B)
+  const effectiveModeA: TaxMode = modeA !== "none" ? modeA : modeB;
+  const effectiveRateA = modeA !== "none" ? rateA : rateB;
+  // Modo efectivo para la cartera B
+  const effectiveModeB: TaxMode = modeB !== "none" ? modeB : modeA;
+  const effectiveRateB = modeB !== "none" ? rateB : rateA;
+
+  // Cálculo del desglose por cartera
+  function breakdownFor(result: BacktestResult, effMode: TaxMode, effRate: number) {
+    const costes = result.fees.totalFees + (result.fees.managementFeePaid || 0);
+    const adelantados = result.fees.totalTaxesPaid ?? 0;
+    // Pendientes "reales" (con el modo propio) o "hipotéticos" (con el del otro)
+    const ownPending = result.fees.pendingTaxes ?? 0;
+    const unrealizedGain = result.fees.unrealizedGain ?? 0;
+    const ownMode = (result.fees.taxMode ?? "none") as TaxMode;
+    // Si la cartera NO tiene tax mode propio pero el efectivo SÍ, calcular hipotético
+    const isHypothetical = ownMode === "none" && effMode !== "none";
+    const hypoPending = isHypothetical
+      ? computeTaxOnGain(unrealizedGain, effMode, effRate)
+      : ownPending;
+    const total = costes + adelantados + hypoPending;
+    return {
+      costes,
+      adelantados,
+      pendientes: hypoPending,
+      total,
+      isHypothetical,
+      unrealizedGain,
+    };
+  }
+
+  const breakdownA = breakdownFor(resultA!, effectiveModeA, effectiveRateA);
+  const breakdownB = breakdownFor(resultB!, effectiveModeB, effectiveRateB);
+  const feesA = breakdownA.total;
+  const feesB = breakdownB.total;
   const feeDifference = Math.abs(feesA - feesB);
   const cheaperName = feesA < feesB ? resultA!.portfolioName : resultB!.portfolioName;
+  const showHypoNote = breakdownA.isHypothetical || breakdownB.isHypothetical;
+  const hypoModeLabel = taxModeLabel(
+    breakdownA.isHypothetical ? effectiveModeA : effectiveModeB,
+    breakdownA.isHypothetical ? effectiveRateA : effectiveRateB
+  );
 
   // Calcular periodos reales de cada cartera (en años)
   const yearsA = resultA!.timeSeries.length > 1
@@ -187,56 +231,112 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
           </div>
         )}
 
-        {/* Stats comparativos grandes */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        {/* Stats comparativos grandes con desglose */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          {/* Cartera A */}
           <div className="rounded-xl bg-blue-50/50 border border-blue-100/50 p-5">
             <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-2">
               {resultA!.portfolioName}
             </p>
-            <p className="text-4xl sm:text-5xl font-bold tracking-tight font-serif text-brand-navy">
+            <p className="text-3xl sm:text-4xl font-bold tracking-tight font-serif text-brand-navy">
               {formatEUR(feesA)}
             </p>
-            <p className="text-sm text-brand-tertiary mt-1">
+            <p className="text-[11px] text-brand-tertiary mt-1">Coste total acumulado</p>
+            {/* Desglose */}
+            <div className="mt-4 space-y-1.5 pt-3 border-t border-blue-100/60 text-xs">
+              <div className="flex justify-between items-baseline">
+                <span className="text-brand-tertiary">Costes (TER + gestión):</span>
+                <span className="font-semibold text-brand-navy tabular-nums">{formatEUR(breakdownA.costes)}</span>
+              </div>
+              <div className="flex justify-between items-baseline">
+                <span className="text-brand-tertiary">Impuestos adelantados:</span>
+                <span className={`font-semibold tabular-nums ${breakdownA.adelantados > 0 ? "text-amber-700" : "text-brand-tertiary"}`}>
+                  {breakdownA.adelantados > 0 ? formatEUR(breakdownA.adelantados) : "—"}
+                </span>
+              </div>
+              <div className="flex justify-between items-baseline">
+                <span className="text-brand-tertiary">
+                  Impuestos pendientes{breakdownA.isHypothetical && <span className="ml-1 text-purple-600">*</span>}:
+                </span>
+                <span className={`font-semibold tabular-nums ${breakdownA.pendientes > 0 ? "text-purple-700" : "text-brand-tertiary"}`}>
+                  {breakdownA.pendientes > 0 ? formatEUR(breakdownA.pendientes) : "—"}
+                </span>
+              </div>
+            </div>
+            <p className="text-[10px] text-brand-tertiary mt-2 pt-2 border-t border-blue-100/40">
               TER: {resultA!.fees.weightedTer.toFixed(2)}%
               {resultA!.fees.managementFee ? ` + Gestión: ${resultA!.fees.managementFee.toFixed(2)}%` : ""}
+              {yearsA > 0 && <> · {yearsA.toFixed(1)} años · {(feesA / yearsA).toFixed(0)} €/año</>}
             </p>
-            {yearsA > 0 && (
-              <p className="text-xs text-brand-tertiary mt-1">
-                {yearsA.toFixed(1)} años · {(feesA / yearsA).toFixed(0)} €/año
-              </p>
-            )}
           </div>
 
+          {/* Cartera B */}
           <div className="rounded-xl bg-rose-50/50 border border-rose-100/50 p-5">
             <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider mb-2">
               {resultB!.portfolioName}
             </p>
-            <p className="text-4xl sm:text-5xl font-bold tracking-tight font-serif text-brand-navy">
+            <p className="text-3xl sm:text-4xl font-bold tracking-tight font-serif text-brand-navy">
               {formatEUR(feesB)}
             </p>
-            <p className="text-sm text-brand-tertiary mt-1">
+            <p className="text-[11px] text-brand-tertiary mt-1">Coste total acumulado</p>
+            {/* Desglose */}
+            <div className="mt-4 space-y-1.5 pt-3 border-t border-rose-100/60 text-xs">
+              <div className="flex justify-between items-baseline">
+                <span className="text-brand-tertiary">Costes (TER + gestión):</span>
+                <span className="font-semibold text-brand-navy tabular-nums">{formatEUR(breakdownB.costes)}</span>
+              </div>
+              <div className="flex justify-between items-baseline">
+                <span className="text-brand-tertiary">Impuestos adelantados:</span>
+                <span className={`font-semibold tabular-nums ${breakdownB.adelantados > 0 ? "text-amber-700" : "text-brand-tertiary"}`}>
+                  {breakdownB.adelantados > 0 ? formatEUR(breakdownB.adelantados) : "—"}
+                </span>
+              </div>
+              <div className="flex justify-between items-baseline">
+                <span className="text-brand-tertiary">
+                  Impuestos pendientes{breakdownB.isHypothetical && <span className="ml-1 text-purple-600">*</span>}:
+                </span>
+                <span className={`font-semibold tabular-nums ${breakdownB.pendientes > 0 ? "text-purple-700" : "text-brand-tertiary"}`}>
+                  {breakdownB.pendientes > 0 ? formatEUR(breakdownB.pendientes) : "—"}
+                </span>
+              </div>
+            </div>
+            <p className="text-[10px] text-brand-tertiary mt-2 pt-2 border-t border-rose-100/40">
               TER: {resultB!.fees.weightedTer.toFixed(2)}%
               {resultB!.fees.managementFee ? ` + Gestión: ${resultB!.fees.managementFee.toFixed(2)}%` : ""}
+              {yearsB > 0 && <> · {yearsB.toFixed(1)} años · {(feesB / yearsB).toFixed(0)} €/año</>}
             </p>
-            {yearsB > 0 && (
-              <p className="text-xs text-brand-tertiary mt-1">
-                {yearsB.toFixed(1)} años · {(feesB / yearsB).toFixed(0)} €/año
-              </p>
-            )}
           </div>
 
+          {/* Te ahorras */}
           <div className="rounded-xl bg-brand-navy p-5 text-white">
             <p className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-2">
               Te ahorras
             </p>
-            <p className="text-4xl sm:text-5xl font-bold tracking-tight font-serif">
+            <p className="text-3xl sm:text-4xl font-bold tracking-tight font-serif">
               {formatEUR(feeDifference)}
             </p>
             <p className="text-sm text-white/70 mt-1">
               con {cheaperName}
             </p>
+            <p className="text-[10px] text-white/50 mt-3 pt-3 border-t border-white/10">
+              Incluye TER, comisión de gestión, impuestos pagados durante el periodo
+              y los pendientes que tributarías al liquidar la cartera.
+            </p>
           </div>
         </div>
+
+        {/* Nota explicativa cuando hay impuestos hipotéticos */}
+        {showHypoNote && (
+          <div className="rounded-xl bg-purple-50/50 border border-purple-100 p-3 mb-6 text-xs text-purple-900 flex items-start gap-2">
+            <span className="text-purple-600 font-bold flex-shrink-0">*</span>
+            <p className="leading-relaxed">
+              <strong>Impuestos pendientes hipotéticos:</strong> la cartera que no tiene fiscalidad activa
+              (típicamente fondos de inversión con traspaso) no paga impuestos durante el periodo, pero
+              SÍ tributará al liquidar. Para comparar de forma justa, le aplicamos el mismo régimen
+              fiscal que la otra cartera ({hypoModeLabel}) sobre la plusvalía latente al final.
+            </p>
+          </div>
+        )}
 
         {/* Warning solo cuando la cartera más cara es de gestión activa */}
         {(() => {
