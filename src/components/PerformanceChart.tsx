@@ -107,9 +107,29 @@ export function PerformanceChart({ results, isLoading }: PerformanceChartProps) 
   const resultB = results.resultB;
   // Benchmark — solo si está activo en al menos una cartera
   const benchmark = resultA?.benchmark ?? resultB?.benchmark;
-  const benchmarkSeries = benchmark?.benchmarkTimeSeries ?? [];
+  const benchmarkSeriesRaw = benchmark?.benchmarkTimeSeries ?? [];
   const benchmarkName = benchmark?.benchmarkName ?? "";
+
+  // Construir set de fechas válidas (las que aparecen en al menos una cartera)
+  // para limitar el benchmark a ese rango y evitar la "cola extra" inicial cuando
+  // el benchmark tiene datos anteriores al inicio real de las carteras.
+  const carteraDates = new Set<string>();
+  if (resultA) for (const p of resultA.timeSeries) carteraDates.add(p.date);
+  if (resultB) for (const p of resultB.timeSeries) carteraDates.add(p.date);
+
+  const benchmarkSeries = benchmarkSeriesRaw.filter((p) => carteraDates.has(p.date));
   const hasBenchmark = benchmarkSeries.length > 0;
+
+  // Si el benchmark tiene valor inicial distinto al de la cartera (porque arrancó
+  // antes o no estaba normalizado), lo reescalamos para que ambos partan del mismo
+  // patrimonio inicial (el del primer punto de la cartera con datos).
+  // Esto solo afecta a visualización — las métricas del benchmark se calcularon
+  // sobre su propio backtest.
+  const firstCarteraValue = resultA?.timeSeries[0]?.value ?? resultB?.timeSeries[0]?.value;
+  const firstBenchmarkValue = benchmarkSeries[0]?.value;
+  const benchmarkScale = firstCarteraValue && firstBenchmarkValue && firstBenchmarkValue > 0
+    ? firstCarteraValue / firstBenchmarkValue
+    : 1;
 
   // Combinar datos de las carteras disponibles por fecha
   const dataMap = new Map<string, Record<string, number | string>>();
@@ -142,13 +162,15 @@ export function PerformanceChart({ results, isLoading }: PerformanceChartProps) 
   if (hasBenchmark) {
     for (const point of benchmarkSeries) {
       const entry = dataMap.get(point.date);
+      const scaledValue = point.value * benchmarkScale;
       if (entry) {
-        entry[benchmarkName] = point.value;
+        entry[benchmarkName] = scaledValue;
       } else {
+        // Este caso ya no debería darse tras el filtro previo, pero por seguridad
         dataMap.set(point.date, {
           date: point.date,
           exactDate: point.exactDate || point.date,
-          [benchmarkName]: point.value,
+          [benchmarkName]: scaledValue,
         });
       }
     }
@@ -162,7 +184,7 @@ export function PerformanceChart({ results, isLoading }: PerformanceChartProps) 
   const allValues = [
     ...(resultA ? resultA.timeSeries.map((p) => p.value) : []),
     ...(resultB ? resultB.timeSeries.map((p) => p.value) : []),
-    ...(hasBenchmark ? benchmarkSeries.map((p) => p.value) : []),
+    ...(hasBenchmark ? benchmarkSeries.map((p) => p.value * benchmarkScale) : []),
   ];
   const minValue = Math.min(...allValues);
   const maxValue = Math.max(...allValues);
