@@ -125,14 +125,12 @@ export async function getDailyPrices(fundId: string, yahooTicker?: string, isin?
     prices = await fetchDailyFromEODHD(`${effectiveIsin}.EUFUND`, isDistributing);
   }
 
-  // 2b. Fallback a Yahoo Finance (último recurso para APIs online)
-  if (prices.length === 0 && ticker) {
-    console.log(`[DataFetcher] ⚠️ EODHD no tuvo datos, fallback a Yahoo Finance: ${ticker}`);
-    prices = await fetchDailyFromYahooFinance(ticker);
-    if (prices.length > 0) {
-      console.log(`[DataFetcher] ⚠️ Datos obtenidos de Yahoo Finance (fallback) para ${ticker}`);
-    }
-  }
+  // 2b. Fallback a Yahoo Finance DESACTIVADO:
+  // Los precios de Yahoo NO coinciden con los de portfoliovisualizer.com
+  // (distintas series ajustadas, distintas fechas de splits/dividendos,
+  // diferencias de redondeo, etc.). Para garantizar consistencia con la
+  // referencia de Pablo, EODHD es la fuente única online. Si EODHD no tiene
+  // el dato, el motor lanza error en lugar de usar silenciosamente otra fuente.
 
   // 2c. Fallback a CSV (fondos bancarios españoles — solo mensual, convertir a diario)
   if (prices.length === 0 && fund) {
@@ -413,7 +411,14 @@ async function fetchDailyFromEODHD(ticker: string, distributing: boolean = false
 
 /**
  * Descarga precios diarios desde Yahoo Finance API v8
+ *
+ * NOTA: Esta función está conservada pero NO se usa actualmente. EODHD es
+ * la fuente única online porque los datos de Yahoo no coinciden con los de
+ * portfoliovisualizer.com (distintas series ajustadas, splits, dividendos).
+ * Se mantiene en el código como referencia / para uso futuro si se necesita
+ * reactivar el fallback.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function fetchDailyFromYahooFinance(ticker: string): Promise<DailyPrice[]> {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=max&interval=1d`;
 
