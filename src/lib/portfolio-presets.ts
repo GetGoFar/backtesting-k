@@ -407,6 +407,35 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// Cartera de los participantes de las primeras ediciones del Taller K.
+// 10 acciones individuales equiponderadas (10% cada una). Mezcla USD/EUR —
+// el motor no convierte FX, las cifras quedarán en una mezcla de divisas. Útil
+// como caso pedagógico para enseñar stock-picking, concentración y
+// survivorship bias.
+// -----------------------------------------------------------------------------
+
+const PARTICIPANTES_PRIMERAS_PRESETS: PortfolioPreset[] = [
+  {
+    id: "participantes-primeras-ediciones",
+    name: "Cartera Participantes Primeras Ediciones",
+    description: "10 acciones equiponderadas (10% c/u): AAPL, NVDA, AMZN, TSLA, GOOGL, KO, BRK-A, MSFT (USD) + ITX, LVMH (EUR)",
+    type: "index",
+    holdings: [
+      { fundId: "stock-aapl",  weight: 10 },
+      { fundId: "stock-nvda",  weight: 10 },
+      { fundId: "stock-amzn",  weight: 10 },
+      { fundId: "stock-tsla",  weight: 10 },
+      { fundId: "stock-googl", weight: 10 },
+      { fundId: "stock-ko",    weight: 10 },
+      { fundId: "stock-brk-a", weight: 10 },
+      { fundId: "stock-msft",  weight: 10 },
+      { fundId: "stock-itx",   weight: 10 },
+      { fundId: "stock-mc",    weight: 10 },
+    ],
+  },
+];
+
+// -----------------------------------------------------------------------------
 // Carteras Indexa Capital UCITS (1-10) — Cartera mediana (10k-100k)
 // Proxies ETF de los fondos Vanguard Ins Plus que usa Indexa
 // Fuente: https://indexacapital.com/es/esp/model
@@ -953,6 +982,7 @@ const ALL_PRESETS: PortfolioPreset[] = [
   ...K_GEOGRAFICA_UCIT_PRESETS,
   ...INDEXA_PRESETS,
   ...K_PRESETS,
+  ...PARTICIPANTES_PRIMERAS_PRESETS,
   ...BANK_PRESETS,
   ...BANCA_PRIVADA_PRESETS,
   ...ALTERNATIVOS_CANIGUERAL_PRESETS,
