@@ -37,3 +37,12 @@ yarn-error.log*
 
 # Temporary scripts
 *.ps1
+
+# Local generated reports (PDFs one-off, scripts de skill experimentales)
+informes/
+
+# Borradores de mensajes de commit
+commit_msg.txt
+
+# TypeScript build info (regenerado en cada build)
+tsconfig.tsbuildinfo

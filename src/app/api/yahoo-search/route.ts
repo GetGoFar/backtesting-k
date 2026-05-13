@@ -32,6 +32,8 @@ interface YahooSearchResult {
   exchDisp: string;
   typeDisp: string;
   quoteType: string;
+  /** Algunas respuestas de Yahoo incluyen el currency directamente */
+  currency?: string;
 }
 
 interface YahooSearchResponse {
@@ -135,12 +137,15 @@ async function searchEODHD(query: string): Promise<EODHDSearchResult[]> {
     const data: EODHDSearchResult[] = await response.json();
     if (!Array.isArray(data)) return [];
 
-    // Filtrar solo ETFs y fondos (el filtro server-side causa 422)
+    // Filtrar ETFs, fondos y acciones (Common Stock).
+    // El filtro server-side de EODHD (&type=) causa 422 con ciertas búsquedas,
+    // así que filtramos manualmente aquí.
     return data.filter(
       (r) =>
         r.Type === "ETF" ||
         r.Type === "Fund" ||
         r.Type === "FUND" ||
+        r.Type === "Common Stock" ||
         r.Exchange === "EUFUND"
     );
   } catch (error) {
@@ -173,8 +178,10 @@ async function searchYahoo(query: string): Promise<YahooSearchResult[]> {
       (q) =>
         q.quoteType === "ETF" ||
         q.quoteType === "MUTUALFUND" ||
+        q.quoteType === "EQUITY" ||
         q.typeDisp?.toLowerCase().includes("etf") ||
-        q.typeDisp?.toLowerCase().includes("fund")
+        q.typeDisp?.toLowerCase().includes("fund") ||
+        q.typeDisp?.toLowerCase().includes("equity")
     );
   } catch (error) {
     console.error("[Yahoo Search] Error:", error);
@@ -192,35 +199,74 @@ async function searchYahoo(query: string): Promise<YahooSearchResult[]> {
  * Busca fondos/ETFs usando EODHD (principal) + Yahoo Finance (fallback)
  * Enriquece resultados con TER real de Morningstar
  */
+/**
+ * Limpia la query antes de buscar. Acepta formatos comunes que el usuario
+ * puede teclear (NVDA, NVDA.US, NVDA.NASDAQ, etc.) y devuelve el símbolo "core"
+ * que tanto Yahoo como EODHD reconocen mejor.
+ *
+ * Reglas:
+ *   - Si parece un ticker (todo mayúsculas + opcional sufijo .XX), nos quedamos
+ *     solo con el símbolo principal.
+ *   - Si parece nombre/búsqueda libre, lo dejamos tal cual.
+ */
+function normalizeSearchQuery(raw: string): string {
+  const q = raw.trim();
+  // Patrón ticker con sufijo: "NVDA.US", "BTC.US", "AAPL.NASDAQ", "TSLA.O"
+  const tickerWithSuffix = /^([A-Z0-9\-]+)\.([A-Z]+)$/i;
+  const m = q.match(tickerWithSuffix);
+  if (m && m[1]) return m[1].toUpperCase();
+  // Si toda la query parece un ticker simple (mayúsculas, sin espacios), uppercase
+  if (/^[A-Z0-9\-]+$/i.test(q) && q.length <= 10) return q.toUpperCase();
+  return q;
+}
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const { searchParams } = new URL(request.url);
-    const query = searchParams.get("q");
+    const rawQuery = searchParams.get("q");
 
-    if (!query || query.trim().length < 2) {
+    if (!rawQuery || rawQuery.trim().length < 2) {
       return NextResponse.json({ results: [] });
     }
+
+    // Normalizar: el usuario puede teclear "NVDA.US" (formato EODHD) pero
+    // Yahoo Finance espera solo "NVDA". Quitamos sufijos típicos de bolsa.
+    const query = normalizeSearchQuery(rawQuery);
 
     // Intentar EODHD primero
     const eodhResults = await searchEODHD(query);
 
     if (eodhResults.length > 0) {
-      // Mapear resultados EODHD al formato esperado por el frontend
-      const mapped = eodhResults.map((r) => ({
-        symbol: eodhToYahooTicker(r.Code, r.Exchange),
-        name: r.Name,
-        shortName: r.Name.length > 50 ? r.Name.substring(0, 47) + "..." : r.Name,
-        exchange: r.Exchange,
-        type: r.Type === "ETF" ? "ETF" : (r.Type === "Fund" || r.Type === "FUND") ? "MUTUALFUND" : r.Type,
-        typeDisplay: r.Type,
-        isin: r.ISIN || null,
-        ter: null as number | null, // Se enriquecerá con Morningstar
-      }));
+      // Mapear resultados EODHD al formato esperado por el frontend.
+      // El tipo "STOCK" identifica las acciones individuales (sin TER, sin
+      // Morningstar lookup). Currency se preserva para mostrar el aviso de
+      // divisa en el front (USD, GBP, etc.).
+      const mapped = eodhResults.map((r) => {
+        const isStock = r.Type === "Common Stock";
+        return {
+          symbol: eodhToYahooTicker(r.Code, r.Exchange),
+          name: r.Name,
+          shortName: r.Name.length > 50 ? r.Name.substring(0, 47) + "..." : r.Name,
+          exchange: r.Exchange,
+          type: isStock
+            ? "STOCK"
+            : r.Type === "ETF"
+            ? "ETF"
+            : (r.Type === "Fund" || r.Type === "FUND")
+            ? "MUTUALFUND"
+            : r.Type,
+          typeDisplay: isStock ? "Acción" : r.Type,
+          isin: r.ISIN || null,
+          ter: isStock ? 0 : (null as number | null),
+          currency: r.Currency || "EUR",
+          isStock,
+        };
+      });
 
-      // Intentar obtener TER de Morningstar para cada resultado
+      // Solo buscar TER en Morningstar para fondos/ETFs (no para acciones)
       const resultsWithTer = await Promise.all(
         mapped.map(async (result) => {
-          // Buscar por ISIN si disponible, sino por query
+          if (result.isStock) return result;
           const msQuery = result.isin || query;
           const msData = await fetchTerFromMorningstar(msQuery, result.symbol);
           return {
@@ -238,18 +284,33 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     console.log("[Search] EODHD sin resultados, intentando Yahoo Finance");
     const yahooResults = await searchYahoo(query);
 
-    const filtered = yahooResults.map((q) => ({
-      symbol: q.symbol,
-      name: q.longname || q.shortname || q.symbol,
-      shortName: q.shortname || q.symbol,
-      exchange: q.exchDisp || "Unknown",
-      type: q.quoteType,
-      typeDisplay: q.typeDisp,
-    }));
+    const filtered = yahooResults.map((q) => {
+      const isStock = q.quoteType === "EQUITY";
+      // Inferir divisa: si Yahoo la da, usarla; si no, deducir por sufijo del
+      // ticker (sin sufijo + EQUITY → US/USD, sufijos europeos → EUR, etc.)
+      const sym = q.symbol || "";
+      const inferredCurrency = q.currency
+        || (isStock && !sym.includes(".") ? "USD"
+        : sym.endsWith(".L") ? "GBP"
+        : "EUR");
+      return {
+        symbol: q.symbol,
+        name: q.longname || q.shortname || q.symbol,
+        shortName: q.shortname || q.symbol,
+        exchange: q.exchDisp || "Unknown",
+        type: isStock ? "STOCK" : q.quoteType,
+        typeDisplay: isStock ? "Acción" : q.typeDisp,
+        currency: inferredCurrency,
+        isStock,
+      };
+    });
 
-    // Enriquecer con Morningstar
+    // Enriquecer con Morningstar solo para fondos/ETFs
     const resultsWithData = await Promise.all(
       filtered.map(async (result) => {
+        if (result.isStock) {
+          return { ...result, ter: 0, isin: null };
+        }
         const msData = await fetchTerFromMorningstar(query, result.symbol);
         return { ...result, ter: msData.ter, isin: msData.isin };
       })

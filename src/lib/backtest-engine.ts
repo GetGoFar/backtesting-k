@@ -117,6 +117,8 @@ export async function runBacktest(
   // Bandas de rebalanceo globales (aplican a ambas carteras por igual)
   const bandRel = config.rebalanceBandRelative ?? 0;
   const bandAbs = config.rebalanceBandAbsolute ?? 0;
+  // Rebalanceo con aportaciones: redirige el dinero nuevo a activos rezagados
+  const contributionRebalance = config.contributionRebalance ?? false;
   const resultAPromise = config.portfolioA
     ? runPortfolioBacktest(
         config.portfolioA,
@@ -130,7 +132,8 @@ export async function runBacktest(
         taxRateA,
         taxModeA,
         bandRel,
-        bandAbs
+        bandAbs,
+        contributionRebalance
       )
     : Promise.resolve(null);
 
@@ -147,7 +150,8 @@ export async function runBacktest(
         taxRateB,
         taxModeB,
         bandRel,
-        bandAbs
+        bandAbs,
+        contributionRebalance
       )
     : Promise.resolve(null);
 
@@ -298,7 +302,8 @@ async function runPortfolioBacktest(
   taxRate: number = 0,
   taxMode: TaxMode = "none",
   rebalanceBandRelative: number = 0,
-  rebalanceBandAbsolute: number = 0
+  rebalanceBandAbsolute: number = 0,
+  contributionRebalance: boolean = false
 ): Promise<BacktestResult | null> {
   console.log(`[BacktestEngine] Procesando cartera: ${portfolio.name}`);
 
@@ -380,6 +385,15 @@ async function runPortfolioBacktest(
 
   console.log(`[BacktestEngine] Rango diario: ${startDay} - ${endDay} (${commonDates.length} días)`);
 
+  // Permitir overrides POR CARTERA del rebalanceo (frecuencia + bandas).
+  // Si la cartera define sus propios valores, sobrescriben a los globales.
+  const effectiveRebalanceFrequency =
+    portfolio.rebalanceFrequency ?? rebalanceFrequency;
+  const effectiveBandRel =
+    portfolio.rebalanceBandRelative ?? rebalanceBandRelative;
+  const effectiveBandAbs =
+    portfolio.rebalanceBandAbsolute ?? rebalanceBandAbsolute;
+
   // 3. Simular la cartera día a día (usando solo holdings con datos disponibles)
   const simulation = simulatePortfolioDaily(
     activeHoldings,
@@ -387,13 +401,14 @@ async function runPortfolioBacktest(
     fundTers,
     commonDates,
     initialAmount,
-    rebalanceFrequency,
+    effectiveRebalanceFrequency,
     monthlyContribution,
     portfolio.managementFee ?? 0,
     taxRate,
     taxMode,
-    rebalanceBandRelative,
-    rebalanceBandAbsolute
+    effectiveBandRel,
+    effectiveBandAbs,
+    contributionRebalance
   );
 
   if (simulation.dailyTimeSeries.length === 0) {
@@ -457,6 +472,12 @@ async function runPortfolioBacktest(
   // Para CAGR: usar el valor inicial real (día 1) y final real (último día)
   const dailyInitialValue = dailyValues[0] ?? simulation.totalContributions;
 
+  // Retornos diarios crudos (ya ajustados por aportaciones en el motor) para
+  // calcular TWRR. Cualquier día con aportación tiene su retorno medido sobre
+  // el valor pre-aportación, por lo que encadenarlos no inyecta capital nuevo
+  // en la rentabilidad medida.
+  const allDailyReturnsForTWRR = simulation.dailyReturns.map((r) => r.returnValue);
+
   const metrics = calculateMetrics(
     periodValues,                                  // valores del periodo para max drawdown
     volatilityReturns,                             // retornos limpios para volatilidad
@@ -465,7 +486,8 @@ async function runPortfolioBacktest(
     finalValue,
     years,
     displayGranularity,
-    dailyInitialValue
+    dailyInitialValue,
+    allDailyReturnsForTWRR
   );
 
   // 6. Rentabilidades anuales, drawdowns, rolling returns
@@ -595,7 +617,8 @@ function simulatePortfolioDaily(
   taxRate: number = 0,
   taxMode: TaxMode = "none",
   rebalanceBandRelative: number = 0,
-  rebalanceBandAbsolute: number = 0
+  rebalanceBandAbsolute: number = 0,
+  contributionRebalance: boolean = false
 ): DailySimulationResult {
   const dailyTimeSeries: Array<{ date: string; value: number }> = [];
   const dailyReturns: Array<{ date: string; returnValue: number }> = [];
@@ -674,11 +697,22 @@ function simulatePortfolioDaily(
     // Aportación mensual: aplicar en el primer día hábil de cada nuevo mes
     if (monthlyContribution > 0 && isNewMonth(currentDate, previousDate)) {
       totalContributions += monthlyContribution;
-      for (const holding of holdings) {
-        const currentValue = positionValues.get(holding.fundId) ?? 0;
-        const contributionToPosition = (monthlyContribution * holding.weight) / 100;
-        positionValues.set(holding.fundId, currentValue + contributionToPosition);
-        fundCostBasis.set(holding.fundId, (fundCostBasis.get(holding.fundId) ?? 0) + contributionToPosition);
+      if (contributionRebalance) {
+        // Rebalanceo con aportaciones: dirigir el dinero a los activos por
+        // debajo del peso objetivo. Nunca se vende → cero plusvalías realizadas,
+        // cero coste fiscal. Si la aportación no alcanza a cerrar todos los
+        // gaps, el resto se reparte proporcional a los pesos objetivo.
+        applyContributionRebalance(
+          positionValues, fundCostBasis, holdings, monthlyContribution
+        );
+      } else {
+        // Reparto clásico proporcional a los pesos objetivo
+        for (const holding of holdings) {
+          const currentValue = positionValues.get(holding.fundId) ?? 0;
+          const contributionToPosition = (monthlyContribution * holding.weight) / 100;
+          positionValues.set(holding.fundId, currentValue + contributionToPosition);
+          fundCostBasis.set(holding.fundId, (fundCostBasis.get(holding.fundId) ?? 0) + contributionToPosition);
+        }
       }
     }
 
@@ -689,14 +723,18 @@ function simulatePortfolioDaily(
       currentYear = yearNow;
     }
 
-    // Rebalanceo: dos triggers independientes (cualquiera dispara la operación)
-    //   1) Trigger temporal: según frecuencia (mensual/trimestral/anual/none)
-    //   2) Trigger por bandas: si algún activo se ha desviado del peso objetivo
-    //      más allá de la banda relativa o absoluta configurada (0 = desactivado)
-    const isTimeTriggered = shouldRebalanceByDate(currentDate, previousDate, rebalanceFrequency);
-    const isBandTriggered = !isTimeTriggered && checkBandsBreached(
+    // Rebalanceo:
+    //   - Si hay bandas activas (relativa > 0 o absoluta > 0), las BANDAS SUSTITUYEN
+    //     al rebalanceo periódico. La cartera solo se rebalancea cuando algún
+    //     activo se desvía más allá de la banda configurada.
+    //   - Si no hay bandas (ambas = 0), se usa el rebalanceo temporal según
+    //     la frecuencia (mensual/trimestral/anual/none).
+    const bandsActive = rebalanceBandRelative > 0 || rebalanceBandAbsolute > 0;
+    const isBandTriggered = bandsActive && checkBandsBreached(
       positionValues, holdings, rebalanceBandRelative, rebalanceBandAbsolute
     );
+    const isTimeTriggered = !bandsActive
+      && shouldRebalanceByDate(currentDate, previousDate, rebalanceFrequency);
     if (isTimeTriggered || isBandTriggered) {
       const taxResult = rebalancePortfolioWithTax(
         positionValues, fundCostBasis, fundNames, holdings,
@@ -752,6 +790,76 @@ function rebalancePortfolio(
   for (const holding of holdings) {
     const targetValue = (totalValue * holding.weight) / 100;
     positionValues.set(holding.fundId, targetValue);
+  }
+}
+
+/**
+ * Rebalanceo con aportaciones ("cash-flow rebalancing").
+ *
+ * Aplica la aportación dirigiéndola PRIMERO a los activos por debajo del peso
+ * objetivo (los "rezagados"). Beneficios:
+ *   - Cero plusvalías realizadas (nunca vende) → cero impuestos
+ *   - Cero comisiones de venta
+ *   - Efecto "buy low" natural sobre los activos que han bajado
+ *
+ * Algoritmo:
+ *   1. Calcular el target_i con el total POST-aportación.
+ *   2. gap_i = max(0, target_i − current_i) para cada activo.
+ *   3. Si Σ gap ≥ aportación: repartir proporcional a los gaps.
+ *   4. Si Σ gap < aportación: cerrar todos los gaps y repartir el resto
+ *      según pesos objetivo (proporcional clásico).
+ *
+ * El cost basis se actualiza con el dinero comprado (es contribución nueva,
+ * no plusvalía, así que cb += compra).
+ */
+function applyContributionRebalance(
+  positionValues: Map<string, number>,
+  fundCostBasis: Map<string, number>,
+  holdings: PortfolioHolding[],
+  contribution: number
+): void {
+  if (contribution <= 0) return;
+  const currentTotal = sumPositions(positionValues);
+  const newTotal = currentTotal + contribution;
+
+  // 1. Calcular gaps (cuánto le falta a cada activo para llegar a su target)
+  const gaps = new Map<string, number>();
+  let totalGap = 0;
+  for (const h of holdings) {
+    const target = (newTotal * h.weight) / 100;
+    const current = positionValues.get(h.fundId) ?? 0;
+    const gap = Math.max(0, target - current);
+    gaps.set(h.fundId, gap);
+    totalGap += gap;
+  }
+
+  let cashLeft = contribution;
+
+  // 2. Cubrir los gaps de los activos rezagados (proporcional a su gap)
+  if (totalGap > 0) {
+    const toFillGaps = Math.min(cashLeft, totalGap);
+    for (const h of holdings) {
+      const gap = gaps.get(h.fundId) ?? 0;
+      if (gap <= 0) continue;
+      const portion = (gap / totalGap) * toFillGaps;
+      const current = positionValues.get(h.fundId) ?? 0;
+      const cb = fundCostBasis.get(h.fundId) ?? 0;
+      positionValues.set(h.fundId, current + portion);
+      fundCostBasis.set(h.fundId, cb + portion);
+    }
+    cashLeft -= toFillGaps;
+  }
+
+  // 3. Resto (si la aportación cubre todos los gaps): proporcional clásico
+  if (cashLeft > 0.005) {
+    for (const h of holdings) {
+      const portion = (cashLeft * h.weight) / 100;
+      if (portion <= 0) continue;
+      const current = positionValues.get(h.fundId) ?? 0;
+      const cb = fundCostBasis.get(h.fundId) ?? 0;
+      positionValues.set(h.fundId, current + portion);
+      fundCostBasis.set(h.fundId, cb + portion);
+    }
   }
 }
 
@@ -832,20 +940,90 @@ function rebalancePortfolioWithTax(
     return { taxPaid: 0, newAnnualRealizedGain: annualRealizedGain, event: null };
   }
 
-  // 2. Calcular impuesto sobre plusvalía total (solo si modo aplica)
+  const trades: RebalanceTrade[] = [];
+
+  // -------------------------------------------------------------------------
+  // CASO A: Sin impuestos (fondos con traspaso fiscal en España)
+  // -------------------------------------------------------------------------
+  // En un traspaso entre fondos, el coste base se PRESERVA: el dinero se
+  // mueve del fondo origen al destino llevando consigo su cb original
+  // (no hay step-up ni tributación). De este modo, al final del backtest la
+  // plusvalía latente captura TODA la ganancia acumulada, lo que permite
+  // calcular correctamente la fiscalidad pendiente al liquidar.
+  if (taxMode === "none" || (taxMode === "flat" && flatRate <= 0)) {
+    const totalCbSold = sells.reduce((s, sell) => s + sell.cbSold, 0);
+    const totalBuyDesired = buys.reduce((s, b) => s + b.desiredAmount, 0);
+
+    // Aplicar ventas: posición y cb bajan proporcionalmente
+    let cashFromSales = 0;
+    for (const sell of sells) {
+      const currentPos = positionValues.get(sell.fundId) ?? 0;
+      positionValues.set(sell.fundId, currentPos - sell.soldAmount);
+      const currentCb = fundCostBasis.get(sell.fundId) ?? 0;
+      fundCostBasis.set(sell.fundId, currentCb - sell.cbSold);
+      cashFromSales += sell.soldAmount;
+      trades.push({
+        fundId: sell.fundId,
+        fundName: fundNames.get(sell.fundId) ?? sell.fundId,
+        action: "sell",
+        amount: sell.soldAmount,
+        gain: sell.gain,
+        costBasisPortion: sell.cbSold,
+      });
+    }
+
+    // Aplicar compras: heredar cb proporcionalmente al peso de la compra.
+    // Así la suma global de cb se conserva (no step-up).
+    if (totalBuyDesired > 0) {
+      for (const buy of buys) {
+        const buyShare = buy.desiredAmount / totalBuyDesired;
+        const cbInherited = totalCbSold * buyShare;
+        const currentPos = positionValues.get(buy.fundId) ?? 0;
+        positionValues.set(buy.fundId, currentPos + buy.desiredAmount);
+        const currentCb = fundCostBasis.get(buy.fundId) ?? 0;
+        fundCostBasis.set(buy.fundId, currentCb + cbInherited);
+        trades.push({
+          fundId: buy.fundId,
+          fundName: fundNames.get(buy.fundId) ?? buy.fundId,
+          action: "buy",
+          amount: buy.desiredAmount,
+        });
+      }
+    }
+
+    const event: Omit<RebalanceEvent, "date"> = {
+      portfolioValueBefore: totalValueBefore,
+      portfolioValueAfter: totalValueBefore, // sin impuesto, valor total intacto
+      totalGain: totalGainRealized,
+      taxPaid: 0,
+      trades,
+    };
+
+    return {
+      taxPaid: 0,
+      // Sin tributación efectiva: no contribuye a la base anual del IRPF
+      newAnnualRealizedGain: annualRealizedGain,
+      event,
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // CASO B: Con impuestos (IRPF España o tasa fija)
+  // -------------------------------------------------------------------------
+  // 2. Calcular impuesto sobre plusvalía total
   let tax = 0;
-  if (totalGainRealized > 0 && (taxMode === "spain-irpf" || (taxMode === "flat" && flatRate > 0))) {
+  if (totalGainRealized > 0) {
     if (taxMode === "spain-irpf") {
       const taxAfter = spanishIrpfTax(annualRealizedGain + totalGainRealized);
       const taxBefore = spanishIrpfTax(annualRealizedGain);
       tax = taxAfter - taxBefore;
     } else {
+      // flat con flatRate > 0
       tax = totalGainRealized * flatRate;
     }
   }
 
   // 3. Aplicar sells: actualizar position y coste base del fondo
-  const trades: RebalanceTrade[] = [];
   let cashFromSales = 0;
   for (const sell of sells) {
     const currentPos = positionValues.get(sell.fundId) ?? 0;
@@ -923,15 +1101,36 @@ function calculateMetrics(
   finalValue: number,
   years: number,
   granularity: DisplayGranularity,
-  dailyInitialValue?: number
+  dailyInitialValue?: number,
+  contributionAdjustedDailyReturns?: number[]
 ): Metrics {
-  const totalReturn = totalContributions > 0
-    ? (finalValue - totalContributions) / totalContributions
-    : 0;
+  // -------------------------------------------------------------------------
+  // TWRR (Time-Weighted Rate of Return) — método correcto con aportaciones.
+  // -------------------------------------------------------------------------
+  // Encadenando los retornos diarios (que YA están ajustados por aportaciones
+  // en la simulación), obtenemos la rentabilidad pura de la cartera SIN contar
+  // las aportaciones como ganancia. Es la métrica estándar del sector de fondos
+  // y la única comparable con un benchmark que no tiene aportaciones.
+  //
+  // Sin aportaciones: TWRR ≡ (Final/Inicial) − 1, idéntico al método antiguo.
+  // Con aportaciones: el método antiguo INFLABA artificialmente la rentabilidad
+  // porque dividía por la inversión inicial pero el numerador (finalValue)
+  // incluía toda la liquidez aportada por el inversor durante el periodo.
+  let totalReturn: number;
+  if (contributionAdjustedDailyReturns && contributionAdjustedDailyReturns.length > 0) {
+    let product = 1;
+    for (const r of contributionAdjustedDailyReturns) product *= (1 + r);
+    totalReturn = product - 1;
+  } else {
+    // Fallback: solo se usa si no llega el array de retornos
+    const initialValue = dailyInitialValue ?? periodValues[0] ?? totalContributions;
+    totalReturn = initialValue > 0 ? (finalValue / initialValue) - 1 : 0;
+  }
 
-  // Usar el valor inicial diario real (día 1) para CAGR
-  const initialValue = dailyInitialValue ?? periodValues[0] ?? totalContributions;
-  const cagr = calculateCAGR(initialValue, finalValue, years);
+  // CAGR derivado del TWRR (anualizando el retorno encadenado)
+  const cagr = years > 0
+    ? Math.pow(1 + totalReturn, 1 / years) - 1
+    : 0;
 
   // Volatilidad: depende de la granularidad seleccionada
   // Diario: ×√252, Mensual: ×√12, Trimestral: ×√4
@@ -1299,6 +1498,7 @@ function computeBenchmarkComparison(
     benchmarkStressPeriods: benchmarkResult.stressPeriods,
     benchmarkMetrics: benchmarkResult.metrics,
     benchmarkFinalValue: benchmarkResult.finalValue,
+    benchmarkTotalContributions: benchmarkResult.totalContributions,
     benchmarkFees: benchmarkResult.fees,
   };
 }

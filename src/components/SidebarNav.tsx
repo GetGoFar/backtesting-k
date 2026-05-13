@@ -20,6 +20,7 @@ const ALL_SECTIONS: NavSection[] = [
   { id: "section-params", label: "Parámetros backtest", group: "config", icon: "⚙️" },
   // Resultados (solo se muestran si hay datos)
   { id: "section-summary", label: "Resumen comisiones", group: "results", icon: "💰" },
+  { id: "section-tax-impact", label: "Cómo afectan los impuestos", group: "results", icon: "🧾" },
   { id: "section-performance", label: "Evolución patrimonio", group: "results", icon: "📈" },
   { id: "section-metrics", label: "Métricas comparativas", group: "results", icon: "📊" },
   { id: "section-allocation", label: "Composición cartera", group: "results", icon: "🥧" },

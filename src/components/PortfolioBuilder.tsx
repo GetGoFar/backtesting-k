@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { FundSearch } from "./FundSearch";
 import { FundDataRange } from "./FundDataRange";
-import type { Fund, PortfolioPreset, PortfolioHolding } from "@/lib/types";
+import type { Fund, PortfolioPreset, PortfolioHolding, RebalanceFrequency } from "@/lib/types";
 import { getAllPresets } from "@/lib/portfolio-presets";
 import { getFundById } from "@/lib/fund-database";
 
@@ -24,6 +24,12 @@ interface PortfolioBuilderProps {
     taxMode: "none" | "flat" | "spain-irpf";
     /** Tasa impositiva fija (decimal, ej: 0.21) — solo aplica en modo "flat" */
     taxRate: number;
+    /** Frecuencia de rebalanceo de esta cartera */
+    rebalanceFrequency: RebalanceFrequency;
+    /** Banda relativa en % (UI), 0 = desactivada */
+    rebalanceBandRelativePct: number;
+    /** Banda absoluta en % (UI), 0 = desactivada */
+    rebalanceBandAbsolutePct: number;
   }) => void;
 }
 
@@ -59,6 +65,12 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   const [taxMode, setTaxMode] = useState<"none" | "flat" | "spain-irpf">("none");
   // Tasa fija a aplicar cuando taxMode = "flat" (porcentaje en UI, ej: 21)
   const [taxRatePct, setTaxRatePct] = useState(21);
+  // Rebalanceo por cartera (cada cartera tiene su propia configuración).
+  // Permite comparar la MISMA composición con frecuencias/bandas distintas.
+  const [rebalanceFrequencyLocal, setRebalanceFrequencyLocal] =
+    useState<RebalanceFrequency>("annual");
+  const [bandRelativePct, setBandRelativePct] = useState(0);
+  const [bandAbsolutePct, setBandAbsolutePct] = useState(0);
   // Modo "Activo satélite": al añadir, los pesos existentes se reescalan
   // proporcionalmente para hacer hueco al nuevo activo
   const [satelliteMode, setSatelliteMode] = useState(false);
@@ -85,8 +97,13 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
       managementFee,
       taxMode,
       taxRate: taxRatePct / 100, // UI en %, motor en decimal
+      rebalanceFrequency: rebalanceFrequencyLocal,
+      rebalanceBandRelativePct: bandRelativePct,
+      rebalanceBandAbsolutePct: bandAbsolutePct,
     });
-  }, [name, allocations, isValid, managementFee, taxMode, taxRatePct, onUpdate]);
+  }, [name, allocations, isValid, managementFee, taxMode, taxRatePct,
+      rebalanceFrequencyLocal, bandRelativePct, bandAbsolutePct,
+      onUpdate]);
 
   useEffect(() => {
     notifyUpdate();
@@ -964,6 +981,99 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                   </p>
                 </div>
               )}
+            </div>
+
+            {/* Rebalanceo de esta cartera */}
+            <div className="pt-2 border-t border-dashed border-slate-200 space-y-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                  Rebalanceo
+                </span>
+                <span
+                  className="text-slate-400 cursor-help"
+                  title="Frecuencia y bandas de rebalanceo de esta cartera. Si configuras una banda (>0), sustituye al rebalanceo por frecuencia. Cada cartera puede tener una configuración distinta para comparar estrategias."
+                >
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
+                  </svg>
+                </span>
+              </div>
+
+              <div className="space-y-2.5">
+                {/* Frecuencia local */}
+                <div>
+                  <span className="block text-[11px] text-slate-600 mb-1">Frecuencia</span>
+                  <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-lg text-[10px] font-medium">
+                    {[
+                      { value: "monthly", label: "Mensual" },
+                      { value: "quarterly", label: "Trimestral" },
+                      { value: "annual", label: "Anual" },
+                      { value: "none", label: "Sin reb." },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setRebalanceFrequencyLocal(opt.value as RebalanceFrequency)}
+                        className={`py-1.5 px-1 rounded-md transition-colors ${
+                          rebalanceFrequencyLocal === opt.value
+                            ? "bg-white text-brand-navy shadow-sm"
+                            : "text-slate-500 hover:text-brand-navy"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Bandas locales */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-2 bg-slate-50 border border-slate-200 rounded">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] text-slate-600">Banda rel.</span>
+                      <div className="flex items-center gap-0.5">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="5"
+                          value={bandRelativePct}
+                          onChange={(e) =>
+                            setBandRelativePct(Math.max(0, Math.min(100, Number(e.target.value))))
+                          }
+                          className="w-12 px-1 py-0.5 text-[11px] text-right border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-brand-coral"
+                        />
+                        <span className="text-[10px] text-slate-500">%</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-2 bg-slate-50 border border-slate-200 rounded">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] text-slate-600">Banda abs.</span>
+                      <div className="flex items-center gap-0.5">
+                        <input
+                          type="number"
+                          min="0"
+                          max="50"
+                          step="1"
+                          value={bandAbsolutePct}
+                          onChange={(e) =>
+                            setBandAbsolutePct(Math.max(0, Math.min(50, Number(e.target.value))))
+                          }
+                          className="w-12 px-1 py-0.5 text-[11px] text-right border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-brand-coral"
+                        />
+                        <span className="text-[10px] text-slate-500">%</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-slate-500 italic leading-snug">
+                  {(bandRelativePct > 0 || bandAbsolutePct > 0)
+                    ? <>⚠ Bandas activas: sustituyen al rebalanceo por frecuencia.</>
+                    : <>Configurar una banda &gt; 0 hace que sustituya al rebalanceo por frecuencia.</>}
+                </p>
+              </div>
             </div>
 
             {/* Coste total anual (TER + gestión) */}

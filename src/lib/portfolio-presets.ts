@@ -218,6 +218,195 @@ const K_INBESTME_PRESETS: PortfolioPreset[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// Carteras K Sectorial USA (1-9, X) — versión "USA" con ETFs cotizados en USD
+// Fuente: Pablo González Vidal (portfoliovisualizer.com), niveles de riesgo 1-9 + X (máx).
+// IMPORTANTE: estos ETFs cotizan en USD. El motor procesa los precios sin
+// convertir a EUR, las cifras del resultado aparecerán con símbolo "€" pero
+// realmente serán USD. Útil para alumnos con broker US o para análisis histórico
+// con datos largos (los Vanguard treasuries y XL* tienen histórico desde 2000+).
+//
+// Sustituciones realizadas vs portfoliovisualizer:
+//   ^GOLD (spot oro) → GLD (SPDR Gold Shares, TER 0,40%)
+//   ^CASHUS (cash)   → BIL (SPDR Bloomberg 1-3M T-Bill, TER 0,14%)
+// -----------------------------------------------------------------------------
+
+const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
+  {
+    id: "k-sectorial-usa-1",
+    name: "K1 Sectorial USA",
+    description: "Riesgo 1 (muy conservadora): 45% Cash + 30% Treasury + 10% Corp + 15% Oro + sectores",
+    type: "index",
+    holdings: [
+      { fundId: "spdr-xlp", weight: 1.25 },
+      { fundId: "spdr-xlv", weight: 2.50 },
+      { fundId: "invesco-qqq", weight: 2.50 },
+      { fundId: "spdr-xle", weight: 1.25 },
+      { fundId: "vanguard-vgsix", weight: 1.25 },
+      { fundId: "spdr-gld", weight: 15 },
+      { fundId: "vanguard-vfisx", weight: 20 },
+      { fundId: "spdr-xlu", weight: 1.25 },
+      { fundId: "spdr-bil", weight: 45 },
+      { fundId: "ishares-lqd", weight: 8 },
+      { fundId: "vanguard-vwehx", weight: 2 },
+    ],
+  },
+  {
+    id: "k-sectorial-usa-2",
+    name: "K2 Sectorial USA",
+    description: "Riesgo 2: 30% Cash + 12% VFISX + 28% Bonds + 15% Oro + 15% sectores",
+    type: "index",
+    holdings: [
+      { fundId: "vanguard-vfisx", weight: 12 },
+      { fundId: "ishares-lqd", weight: 18 },
+      { fundId: "vanguard-vwehx", weight: 10 },
+      { fundId: "spdr-gld", weight: 15 },
+      { fundId: "spdr-xlp", weight: 1.88 },
+      { fundId: "spdr-xlv", weight: 3.75 },
+      { fundId: "invesco-qqq", weight: 3.75 },
+      { fundId: "spdr-xle", weight: 1.88 },
+      { fundId: "vanguard-vgsix", weight: 1.88 },
+      { fundId: "spdr-xlu", weight: 1.88 },
+      { fundId: "spdr-bil", weight: 30 },
+    ],
+  },
+  {
+    id: "k-sectorial-usa-3",
+    name: "K3 Sectorial USA",
+    description: "Riesgo 3: 35,8% VFISX + 24% Corp + 15% Oro + 25,2% sectores",
+    type: "index",
+    holdings: [
+      { fundId: "spdr-xlp", weight: 3.15 },
+      { fundId: "spdr-xlv", weight: 6.30 },
+      { fundId: "invesco-qqq", weight: 6.30 },
+      { fundId: "spdr-xle", weight: 3.15 },
+      { fundId: "vanguard-vgsix", weight: 3.15 },
+      { fundId: "spdr-gld", weight: 15 },
+      { fundId: "vanguard-vfisx", weight: 35.80 },
+      { fundId: "ishares-lqd", weight: 15 },
+      { fundId: "vanguard-vwehx", weight: 9 },
+      { fundId: "spdr-xlu", weight: 3.15 },
+    ],
+  },
+  {
+    id: "k-sectorial-usa-4",
+    name: "K4 Sectorial USA",
+    description: "Riesgo 4: 34,8% Treasury (corto/medio/largo) + 15% Corp + 15% Oro + 35,2% sectores",
+    type: "index",
+    holdings: [
+      { fundId: "spdr-xlp", weight: 8.80 },
+      { fundId: "spdr-xlv", weight: 8.80 },
+      { fundId: "invesco-qqq", weight: 8.80 },
+      { fundId: "spdr-xle", weight: 4.40 },
+      { fundId: "vanguard-vgsix", weight: 4.40 },
+      { fundId: "vanguard-vfitx", weight: 9 },
+      { fundId: "vanguard-vustx", weight: 5 },
+      { fundId: "vanguard-vfisx", weight: 20.80 },
+      { fundId: "ishares-lqd", weight: 10 },
+      { fundId: "vanguard-vwehx", weight: 5 },
+      { fundId: "spdr-gld", weight: 15 },
+    ],
+  },
+  {
+    id: "k-sectorial-usa-5",
+    name: "K5 Sectorial USA",
+    description: "Riesgo 5 (equilibrada): 27,9% Treasury + 7% Corp + 20% Oro + 45,1% sectores",
+    type: "index",
+    holdings: [
+      { fundId: "spdr-xlu", weight: 5.65 },
+      { fundId: "spdr-xlp", weight: 5.65 },
+      { fundId: "spdr-xlv", weight: 11.30 },
+      { fundId: "invesco-qqq", weight: 11.30 },
+      { fundId: "spdr-xle", weight: 5.60 },
+      { fundId: "vanguard-vgsix", weight: 5.60 },
+      { fundId: "spdr-gld", weight: 20 },
+      { fundId: "vanguard-vfitx", weight: 8 },
+      { fundId: "vanguard-vustx", weight: 3 },
+      { fundId: "vanguard-vfisx", weight: 16.90 },
+      { fundId: "ishares-lqd", weight: 5 },
+      { fundId: "vanguard-vwehx", weight: 2 },
+    ],
+  },
+  {
+    id: "k-sectorial-usa-6",
+    name: "K6 Sectorial USA",
+    description: "Riesgo 6: 20% VFITX + 20% Oro + 60% sectores (XLV/QQQ 15% + XLP/XLE/VGSIX/XLU 7,5%)",
+    type: "index",
+    holdings: [
+      { fundId: "spdr-xlp", weight: 7.50 },
+      { fundId: "spdr-xlv", weight: 15.00 },
+      { fundId: "invesco-qqq", weight: 15.00 },
+      { fundId: "spdr-xle", weight: 7.50 },
+      { fundId: "vanguard-vgsix", weight: 7.50 },
+      { fundId: "spdr-gld", weight: 20 },
+      { fundId: "vanguard-vfitx", weight: 20 },
+      { fundId: "spdr-xlu", weight: 7.50 },
+    ],
+  },
+  {
+    id: "k-sectorial-usa-7",
+    name: "K7 Sectorial USA",
+    description: "Riesgo 7: 15% VUSTX + 20% Oro + 65% sectores",
+    type: "index",
+    holdings: [
+      { fundId: "vanguard-vustx", weight: 15 },
+      { fundId: "spdr-gld", weight: 20 },
+      { fundId: "spdr-xlp", weight: 8.10 },
+      { fundId: "spdr-xlv", weight: 16.30 },
+      { fundId: "invesco-qqq", weight: 16.30 },
+      { fundId: "spdr-xle", weight: 8.10 },
+      { fundId: "vanguard-vgsix", weight: 8.10 },
+      { fundId: "spdr-xlu", weight: 8.10 },
+    ],
+  },
+  {
+    id: "k-sectorial-usa-8",
+    name: "K8 Sectorial USA",
+    description: "Riesgo 8: 10% VUSTX + 20% Oro + 70% sectores",
+    type: "index",
+    holdings: [
+      { fundId: "vanguard-vustx", weight: 10 },
+      { fundId: "spdr-gld", weight: 20 },
+      { fundId: "spdr-xlp", weight: 8.75 },
+      { fundId: "spdr-xlv", weight: 17.50 },
+      { fundId: "invesco-qqq", weight: 17.50 },
+      { fundId: "spdr-xle", weight: 8.75 },
+      { fundId: "vanguard-vgsix", weight: 8.75 },
+      { fundId: "spdr-xlu", weight: 8.75 },
+    ],
+  },
+  {
+    id: "k-sectorial-usa-9",
+    name: "K9 Sectorial USA",
+    description: "Riesgo 9: 5% VUSTX + 20% Oro + 75% sectores",
+    type: "index",
+    holdings: [
+      { fundId: "spdr-gld", weight: 20 },
+      { fundId: "vanguard-vustx", weight: 5 },
+      { fundId: "spdr-xlp", weight: 9.38 },
+      { fundId: "spdr-xlv", weight: 18.75 },
+      { fundId: "invesco-qqq", weight: 18.75 },
+      { fundId: "spdr-xle", weight: 9.38 },
+      { fundId: "vanguard-vgsix", weight: 9.38 },
+      { fundId: "spdr-xlu", weight: 9.38 },
+    ],
+  },
+  {
+    id: "k-sectorial-usa-x",
+    name: "KX Sectorial USA",
+    description: "Riesgo máximo: 80% sectores + 20% Oro (sin bonos ni cash)",
+    type: "index",
+    holdings: [
+      { fundId: "spdr-xlp", weight: 20 },
+      { fundId: "spdr-xlv", weight: 20 },
+      { fundId: "invesco-qqq", weight: 20 },
+      { fundId: "spdr-xle", weight: 10 },
+      { fundId: "vanguard-vgsix", weight: 10 },
+      { fundId: "spdr-gld", weight: 20 },
+    ],
+  },
+];
+
+// -----------------------------------------------------------------------------
 // Carteras Indexa Capital UCITS (1-10) — Cartera mediana (10k-100k)
 // Proxies ETF de los fondos Vanguard Ins Plus que usa Indexa
 // Fuente: https://indexacapital.com/es/esp/model
@@ -758,7 +947,16 @@ const ALTERNATIVOS_CANIGUERAL_PRESETS: PortfolioPreset[] = [
 // Todos los presets combinados
 // -----------------------------------------------------------------------------
 
-const ALL_PRESETS: PortfolioPreset[] = [...K_INBESTME_PRESETS, ...K_GEOGRAFICA_UCIT_PRESETS, ...INDEXA_PRESETS, ...K_PRESETS, ...BANK_PRESETS, ...BANCA_PRIVADA_PRESETS, ...ALTERNATIVOS_CANIGUERAL_PRESETS];
+const ALL_PRESETS: PortfolioPreset[] = [
+  ...K_INBESTME_PRESETS,
+  ...K_SECTORIAL_USA_PRESETS,
+  ...K_GEOGRAFICA_UCIT_PRESETS,
+  ...INDEXA_PRESETS,
+  ...K_PRESETS,
+  ...BANK_PRESETS,
+  ...BANCA_PRIVADA_PRESETS,
+  ...ALTERNATIVOS_CANIGUERAL_PRESETS,
+];
 
 // Mapa para búsqueda rápida por ID
 const PRESETS_BY_ID = new Map<string, PortfolioPreset>(

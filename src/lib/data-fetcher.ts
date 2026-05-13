@@ -227,6 +227,12 @@ function yahooTickerToEODHD(yahooTicker: string): string {
     }
   }
 
+  // Tickers sin sufijo (típicamente acciones estadounidenses como AAPL, MSFT):
+  // EODHD requiere el sufijo .US para identificarlos.
+  if (!yahooTicker.includes(".")) {
+    return `${yahooTicker}.US`;
+  }
+
   return yahooTicker;
 }
 

@@ -3,8 +3,10 @@
 import { useState, useRef, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { PortfolioBuilder } from "@/components/PortfolioBuilder";
-import { MetricsTable } from "@/components/MetricsTable";
+import { MetricsTable, type ValueMode } from "@/components/MetricsTable";
 import { FeeImpactCard } from "@/components/FeeImpactCard";
+import { TaxImpactCard } from "@/components/TaxImpactCard";
+import { ReportGeneratorModal } from "@/components/ReportGeneratorModal";
 import { AccessGate } from "@/components/AccessGate";
 import { SidebarNav } from "@/components/SidebarNav";
 import type {
@@ -171,6 +173,12 @@ interface PortfolioState {
   managementFee: number;
   taxMode: "none" | "flat" | "spain-irpf";
   taxRate: number; // decimal, ej: 0.21 (solo aplica en modo "flat")
+  /** Frecuencia de rebalanceo de esta cartera */
+  rebalanceFrequency: RebalanceFrequency;
+  /** Banda relativa propia en % (UI), 0 = desactivada */
+  rebalanceBandRelativePct: number;
+  /** Banda absoluta propia en % (UI), 0 = desactivada */
+  rebalanceBandAbsolutePct: number;
 }
 
 export default function Home() {
@@ -185,6 +193,9 @@ export default function Home() {
     managementFee: 0,
     taxMode: "none",
     taxRate: 0.21,
+    rebalanceFrequency: "annual",
+    rebalanceBandRelativePct: 0,
+    rebalanceBandAbsolutePct: 0,
   });
   const [portfolioB, setPortfolioB] = useState<PortfolioState>({
     name: "Cartera 2",
@@ -193,6 +204,9 @@ export default function Home() {
     managementFee: 0,
     taxMode: "none",
     taxRate: 0.21,
+    rebalanceFrequency: "annual",
+    rebalanceBandRelativePct: 0,
+    rebalanceBandAbsolutePct: 0,
   });
 
   // Estado de configuración - usar fechas dinámicas
@@ -202,22 +216,25 @@ export default function Home() {
   const [endDate, setEndDate] = useState(currentMonth);
   const [initialInvestment, setInitialInvestment] = useState(10000);
   const [monthlyContribution, setMonthlyContribution] = useState(0);
-  const [rebalanceFrequency, setRebalanceFrequency] =
-    useState<RebalanceFrequency>("annual");
+  // Rebalanceo con aportaciones: dirige el dinero nuevo a activos rezagados.
+  // Solo se activa si hay aportación mensual > 0.
+  const [contributionRebalance, setContributionRebalance] = useState(false);
   const [displayGranularity, setDisplayGranularity] =
     useState<DisplayGranularity>("monthly");
   const [useCommonDateRange, setUseCommonDateRange] = useState(true);
   const [benchmarkId, setBenchmarkId] = useState<BenchmarkId | null>(null);
-  // Rebalanceo por bandas (cualquiera dispara el rebalanceo, además del temporal).
-  // 0 = desactivado. UI en %, motor en decimal.
-  const [rebalanceBandRelativePct, setRebalanceBandRelativePct] = useState(0);
-  const [rebalanceBandAbsolutePct, setRebalanceBandAbsolutePct] = useState(0);
 
   // Estado de resultados y UI
   const [results, setResults] = useState<BacktestResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showResults, setShowResults] = useState(false);
+  // Modal del generador de informes PDF
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  // Modo de visualización del valor (bruto / camino / al liquidar) — controla
+  // tanto las curvas del gráfico como las métricas hero. Por defecto "liquidar"
+  // (la verdad del bolsillo).
+  const [valueMode, setValueMode] = useState<ValueMode>("liquidar");
 
   // Callbacks para actualizar carteras
   const handlePortfolioAUpdate = useCallback((data: PortfolioState) => {
@@ -268,12 +285,14 @@ export default function Home() {
         endDate: endDate + "-01",
         initialAmount: initialInvestment,
         monthlyContribution,
-        rebalanceFrequency,
+        // Frecuencia "global" hardcodeada como anual: ya no se elige en la UI,
+        // la frecuencia real viene de cada cartera. Este valor solo se usa
+        // como fallback para el benchmark.
+        rebalanceFrequency: "annual",
         displayGranularity,
         useCommonDateRange,
         benchmarkId: benchmarkId ?? undefined,
-        rebalanceBandRelative: rebalanceBandRelativePct > 0 ? rebalanceBandRelativePct / 100 : undefined,
-        rebalanceBandAbsolute: rebalanceBandAbsolutePct > 0 ? rebalanceBandAbsolutePct / 100 : undefined,
+        contributionRebalance: monthlyContribution > 0 ? contributionRebalance : undefined,
       };
 
       if (portfolioA.isValid) {
@@ -283,6 +302,12 @@ export default function Home() {
           managementFee: portfolioA.managementFee || undefined,
           taxMode: portfolioA.taxMode !== "none" ? portfolioA.taxMode : undefined,
           taxRate: portfolioA.taxMode === "flat" && portfolioA.taxRate > 0 ? portfolioA.taxRate : undefined,
+          // Rebalanceo por cartera — siempre se envía
+          rebalanceFrequency: portfolioA.rebalanceFrequency,
+          rebalanceBandRelative: portfolioA.rebalanceBandRelativePct > 0
+            ? portfolioA.rebalanceBandRelativePct / 100 : undefined,
+          rebalanceBandAbsolute: portfolioA.rebalanceBandAbsolutePct > 0
+            ? portfolioA.rebalanceBandAbsolutePct / 100 : undefined,
         };
       }
 
@@ -293,6 +318,11 @@ export default function Home() {
           managementFee: portfolioB.managementFee || undefined,
           taxMode: portfolioB.taxMode !== "none" ? portfolioB.taxMode : undefined,
           taxRate: portfolioB.taxMode === "flat" && portfolioB.taxRate > 0 ? portfolioB.taxRate : undefined,
+          rebalanceFrequency: portfolioB.rebalanceFrequency,
+          rebalanceBandRelative: portfolioB.rebalanceBandRelativePct > 0
+            ? portfolioB.rebalanceBandRelativePct / 100 : undefined,
+          rebalanceBandAbsolute: portfolioB.rebalanceBandAbsolutePct > 0
+            ? portfolioB.rebalanceBandAbsolutePct / 100 : undefined,
         };
       }
 
@@ -501,107 +531,30 @@ export default function Home() {
                     EUR
                   </span>
                 </div>
+                {/* Toggle: rebalanceo con aportaciones */}
+                {monthlyContribution > 0 && (
+                  <label className="mt-2 flex items-start gap-2 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={contributionRebalance}
+                      onChange={(e) => setContributionRebalance(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <span className="relative inline-block w-9 h-5 bg-slate-200 rounded-full peer-checked:bg-emerald-600 transition-colors flex-shrink-0 mt-0.5">
+                      <span className="absolute top-[2px] left-[2px] w-4 h-4 bg-white rounded-full border border-slate-300 transition-transform peer-checked:translate-x-4" />
+                    </span>
+                    <span className="text-xs text-brand-secondary leading-snug">
+                      <span className="font-semibold text-brand-navy">
+                        Rebalancear con las aportaciones
+                      </span>
+                      <span className="block text-brand-tertiary mt-0.5">
+                        El dinero nuevo se dirige a los activos rezagados.
+                        Sin ventas → cero impuestos en el camino.
+                      </span>
+                    </span>
+                  </label>
+                )}
               </div>
-            </div>
-
-            {/* Rebalanceo */}
-            <div className="mt-4 sm:mt-6">
-              <label className="block text-sm font-medium text-brand-navy mb-2 sm:mb-3">
-                Frecuencia de rebalanceo
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { value: "none", label: "Sin rebalanceo" },
-                  { value: "annual", label: "Anual" },
-                  { value: "quarterly", label: "Trimestral" },
-                  { value: "monthly", label: "Mensual" },
-                ].map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() =>
-                      setRebalanceFrequency(option.value as RebalanceFrequency)
-                    }
-                    className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-all ${
-                      rebalanceFrequency === option.value
-                        ? "bg-brand-coral text-white shadow-md"
-                        : "bg-slate-100 text-brand-secondary hover:bg-slate-200"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Rebalanceo por bandas */}
-            <div className="mt-4 sm:mt-6">
-              <div className="flex items-center gap-2 mb-2 sm:mb-3">
-                <label className="block text-sm font-medium text-brand-navy">
-                  Rebalanceo por bandas <span className="text-xs font-normal text-brand-tertiary">(opcional)</span>
-                </label>
-                <span
-                  className="text-slate-400 cursor-help"
-                  title="Trigger adicional al rebalanceo temporal: cuando cualquier activo se desvía del peso objetivo más allá del umbral, se ejecuta un rebalanceo. Cualquier valor a 0 desactiva esa banda."
-                >
-                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
-                  </svg>
-                </span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
-                {/* Banda RELATIVA */}
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-semibold text-brand-secondary">Banda relativa</span>
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="5"
-                        value={rebalanceBandRelativePct}
-                        onChange={(e) =>
-                          setRebalanceBandRelativePct(Math.max(0, Math.min(100, Number(e.target.value))))
-                        }
-                        className="w-16 px-2 py-1 text-sm text-right border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-brand-coral"
-                      />
-                      <span className="text-sm font-semibold text-brand-navy">%</span>
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-brand-tertiary leading-snug">
-                    Si algún activo se desvía más del <strong>{rebalanceBandRelativePct || "X"}%</strong> respecto a su peso objetivo (ej: 20% objetivo → trigger en {rebalanceBandRelativePct ? (20 + 20 * rebalanceBandRelativePct / 100).toFixed(1) : "X"}% o {rebalanceBandRelativePct ? (20 - 20 * rebalanceBandRelativePct / 100).toFixed(1) : "X"}%).
-                  </p>
-                </div>
-
-                {/* Banda ABSOLUTA */}
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-semibold text-brand-secondary">Banda absoluta</span>
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="number"
-                        min="0"
-                        max="50"
-                        step="1"
-                        value={rebalanceBandAbsolutePct}
-                        onChange={(e) =>
-                          setRebalanceBandAbsolutePct(Math.max(0, Math.min(50, Number(e.target.value))))
-                        }
-                        className="w-16 px-2 py-1 text-sm text-right border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-brand-coral"
-                      />
-                      <span className="text-sm font-semibold text-brand-navy">pp</span>
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-brand-tertiary leading-snug">
-                    Si algún activo se desvía más de <strong>{rebalanceBandAbsolutePct || "X"} puntos porcentuales</strong> del peso objetivo (ej: 20% objetivo → trigger en {rebalanceBandAbsolutePct ? (20 + rebalanceBandAbsolutePct).toFixed(0) : "X"}% o {rebalanceBandAbsolutePct ? (20 - rebalanceBandAbsolutePct).toFixed(0) : "X"}%).
-                  </p>
-                </div>
-              </div>
-              <p className="mt-2 text-xs text-brand-tertiary leading-relaxed max-w-2xl">
-                Cualquiera de las dos bandas activa el rebalanceo (además del temporal de arriba).
-                Deja ambas a 0 para usar solo el rebalanceo periódico. La banda absoluta es más
-                exigente en pesos pequeños; la relativa, en pesos grandes.
-              </p>
             </div>
 
             {/* Granularidad de datos */}
@@ -916,19 +869,77 @@ export default function Home() {
                 </div>
               )}
 
+              {/* Acción: Generar informe PDF */}
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setReportModalOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-brand-navy text-white hover:bg-brand-navy/90 transition-colors shadow-sm"
+                  title="Generar un informe PDF personalizable para compartir con el cliente"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Generar informe PDF
+                </button>
+              </div>
+
               {/* 1. Card destacado de comisiones */}
               <div id="section-summary" className="scroll-mt-24">
                 <FeeImpactCard results={results} isLoading={false} />
               </div>
 
+              {/* 1b. Cómo afectan los impuestos (3 rentabilidades + barra apilada) */}
+              <div id="section-tax-impact" className="scroll-mt-24">
+                <TaxImpactCard results={results} isLoading={false} />
+              </div>
+
+              {/* Selector global de modo de valor — controla gráfico + métricas.
+                  Siempre visible. Si no hay fiscalidad relevante, los 3 modos
+                  dan el mismo número, pero el selector se queda como recordatorio
+                  pedagógico de que existen tres lentes distintas. */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-xl border border-slate-100 px-4 py-3 shadow-sm">
+                <div className="text-xs text-brand-tertiary leading-snug">
+                  <span className="font-semibold text-brand-navy">Mostrar valor como:</span>{" "}
+                  cambia la lente con la que ves el gráfico y las métricas.
+                </div>
+                <div className="inline-flex p-1 bg-slate-100 rounded-lg gap-1">
+                  {([
+                    { id: "bruto" as ValueMode, label: "Bruto", title: "Sin descontar ningún impuesto (la cifra del folleto)" },
+                    { id: "camino" as ValueMode, label: "Neta del camino", title: "Descuenta solo los impuestos pagados en rebalanceos (lo que ves en tu broker)" },
+                    { id: "liquidar" as ValueMode, label: "Al liquidar", title: "Descuenta también los pendientes — lo que de verdad te llevas al bolsillo" },
+                  ]).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setValueMode(opt.id)}
+                      title={opt.title}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                        valueMode === opt.id
+                          ? "bg-white text-brand-navy shadow-sm"
+                          : "text-brand-tertiary hover:text-brand-navy"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* 2. Gráfico principal de evolución */}
               <div id="section-performance" className="scroll-mt-24">
-                <PerformanceChart results={results} isLoading={false} />
+                <PerformanceChart results={results} isLoading={false} valueMode={valueMode} />
               </div>
 
               {/* 3. Tabla de métricas */}
               <div id="section-metrics" className="scroll-mt-24">
-                <MetricsTable results={results} isLoading={false} />
+                <MetricsTable
+                  results={results}
+                  isLoading={false}
+                  valueMode={valueMode}
+                  onValueModeChange={setValueMode}
+                />
               </div>
 
               {/* 3b. Composición de la(s) cartera(s) — pie charts */}
@@ -1028,6 +1039,15 @@ export default function Home() {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Modal generador de informe PDF */}
+          {results && (
+            <ReportGeneratorModal
+              open={reportModalOpen}
+              onClose={() => setReportModalOpen(false)}
+              results={results}
+            />
           )}
         </section>
         </main>

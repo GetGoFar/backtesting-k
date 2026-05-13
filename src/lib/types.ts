@@ -103,6 +103,15 @@ export interface Portfolio {
   taxMode?: "none" | "flat" | "spain-irpf";
   /** Tasa fija a aplicar cuando taxMode = "flat" (decimal, ej: 0.21 para 21%) */
   taxRate?: number;
+  /** Frecuencia de rebalanceo específica de esta cartera. Si undefined,
+   *  se usa la frecuencia global de BacktestConfig. */
+  rebalanceFrequency?: RebalanceFrequency;
+  /** Banda RELATIVA de drift específica de esta cartera (decimal, ej: 0.25 = 25%).
+   *  Si undefined, se usa el valor global. 0 = desactivada. */
+  rebalanceBandRelative?: number;
+  /** Banda ABSOLUTA de drift específica de esta cartera (decimal, ej: 0.05 = 5pp).
+   *  Si undefined, se usa el valor global. 0 = desactivada. */
+  rebalanceBandAbsolute?: number;
 }
 
 // -----------------------------------------------------------------------------
@@ -143,6 +152,10 @@ export interface BacktestConfig {
    *  Si algún activo se desvía más de X pp del peso objetivo, se rebalancea.
    *  0 o undefined = desactivado. */
   rebalanceBandAbsolute?: number;
+  /** Rebalanceo con aportaciones: si true, las aportaciones mensuales se
+   *  dirigen primero a los activos por debajo del peso objetivo, evitando
+   *  realizar plusvalías. Solo aplica si hay monthlyContribution > 0. */
+  contributionRebalance?: boolean;
 }
 
 // -----------------------------------------------------------------------------
@@ -235,6 +248,9 @@ export interface BenchmarkComparison {
   benchmarkMetrics?: Metrics;
   /** Valor final del benchmark al final del periodo */
   benchmarkFinalValue?: number;
+  /** Aportaciones totales del benchmark (inicial + mensuales) — necesario para
+   *  cálculos de % sobre lo aportado, igual que en las carteras. */
+  benchmarkTotalContributions?: number;
   /** Resumen de comisiones del benchmark (TER del ETF que lo replica) */
   benchmarkFees?: FeesSummary;
 }

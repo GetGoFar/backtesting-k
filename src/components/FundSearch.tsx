@@ -9,10 +9,15 @@ interface YahooResult {
   name: string;
   shortName: string;
   exchange: string;
+  /** "ETF" | "MUTUALFUND" | "STOCK" | ... */
   type: string;
   typeDisplay: string;
   ter?: number | null; // TER real de Morningstar (puede ser null si no se encontró)
   isin?: string | null; // ISIN real de Morningstar
+  /** Divisa del activo (EUR, USD, GBP, ...). Para acciones US viene "USD". */
+  currency?: string;
+  /** Marca si es una acción individual (sin TER, divisa puede ser USD) */
+  isStock?: boolean;
 }
 
 interface FundSearchProps {
@@ -97,10 +102,24 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
   };
 
   const handleSelectYahoo = (result: YahooResult) => {
-    // Convertir resultado de Yahoo a Fund
-    const hasTer = result.ter != null && result.ter > 0;
+    const isStock = !!result.isStock || result.type === "STOCK";
+    const hasTer = !isStock && result.ter != null && result.ter > 0;
     // Usar ISIN real de Morningstar si está disponible, si no el símbolo
     const realIsin = result.isin && /^[A-Z]{2}[A-Z0-9]{10}$/.test(result.isin) ? result.isin : null;
+    const currency = (result.currency || "EUR").toUpperCase();
+    // Para acciones americanas (USD) avisamos al usuario una sola vez antes de
+    // añadirlas. No convertimos a EUR: los precios se mantienen en USD y el
+    // backtest los trata numéricamente (el "€" del UI será solo simbólico).
+    if (currency !== "EUR") {
+      const ok = window.confirm(
+        `Atención: "${result.shortName}" cotiza en ${currency}, no en EUR.\n\n` +
+        `Los precios se descargarán en ${currency} y el backtest los tratará ` +
+        `numéricamente sin convertir. Las cifras del resultado aparecerán con ` +
+        `símbolo "€" pero realmente serán ${currency}.\n\n` +
+        `¿Continuar añadiendo este activo?`
+      );
+      if (!ok) return;
+    }
     const fund: Fund = {
       id: `yahoo-${result.symbol.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
       name: result.name,
@@ -109,10 +128,10 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
       yahooTicker: result.symbol,
       ter: hasTer ? result.ter! : 0,
       category: "RV Global", // Categoría por defecto
-      type: "index", // Asumimos indexado por defecto para ETFs
-      currency: "EUR",
-      terSource: hasTer ? "morningstar" : "estimated",
-      terConfirmed: hasTer,
+      type: "index", // Acciones y ETFs se modelan como "index" (sin gestión activa)
+      currency,
+      terSource: isStock ? "curated" : (hasTer ? "morningstar" : "estimated"),
+      terConfirmed: isStock || hasTer,
     };
     onSelect(fund);
     setQuery("");
@@ -216,15 +235,23 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
                 </span>
               </div>
               <ul>
-                {yahooResults.map((result) => (
+                {yahooResults.map((result) => {
+                  const isStock = result.isStock || result.type === "STOCK";
+                  const currency = (result.currency || "EUR").toUpperCase();
+                  const isForeignCurrency = currency !== "EUR";
+                  return (
                   <li
                     key={result.symbol}
                     onClick={() => handleSelectYahoo(result)}
                     className="px-4 py-3 hover:bg-indigo-50 cursor-pointer border-b border-slate-100 last:border-b-0 transition-colors"
                   >
                     <div className="flex items-start gap-3">
-                      <span className="px-2 py-0.5 text-xs font-medium rounded-full mt-0.5 bg-indigo-100 text-indigo-700">
-                        {result.type}
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full mt-0.5 ${
+                        isStock
+                          ? "bg-purple-100 text-purple-700"
+                          : "bg-indigo-100 text-indigo-700"
+                      }`}>
+                        {isStock ? "Acción" : result.type}
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm text-slate-900">
@@ -240,19 +267,29 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
                           <span className="font-mono text-indigo-600">{result.symbol}</span>
                           <span className="text-slate-300">•</span>
                           <span>{result.exchange}</span>
-                          {result.typeDisplay && (
+                          {/* Badge de divisa: destaca cuando no es EUR */}
+                          {isForeignCurrency && (
+                            <>
+                              <span className="text-slate-300">•</span>
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                                ⚠ {currency}
+                              </span>
+                            </>
+                          )}
+                          {!isForeignCurrency && result.typeDisplay && !isStock && (
                             <>
                               <span className="text-slate-300">•</span>
                               <span>{result.typeDisplay}</span>
                             </>
                           )}
-                          {result.ter != null && (
+                          {/* TER solo para fondos/ETFs, no para acciones */}
+                          {!isStock && result.ter != null && (
                             <>
                               <span className="text-slate-300">•</span>
                               <span className="text-emerald-600 font-medium">TER: {result.ter}%</span>
                             </>
                           )}
-                          {result.ter == null && (
+                          {!isStock && result.ter == null && (
                             <>
                               <span className="text-slate-300">•</span>
                               <span className="text-amber-500">TER: ~0.2% (est.)</span>
@@ -265,7 +302,8 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
                       </div>
                     </div>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </>
           )}

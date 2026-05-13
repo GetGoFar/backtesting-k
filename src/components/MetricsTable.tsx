@@ -4,6 +4,14 @@ import { useState } from "react";
 import type { BacktestResponse, BacktestResult, DisplayGranularity } from "@/lib/types";
 import { formatEUR, formatPct, formatPctNoSign, formatRatio } from "@/lib/formatters";
 import { Tooltip } from "./Tooltip";
+import { computeTaxOnGain, type TaxMode } from "@/lib/tax-utils";
+
+// Modo de visualización del valor final. Hereda al impuestos pendientes:
+//   - "bruto": antes de cualquier impuesto (la cifra del folleto)
+//   - "camino": ya descontados los impuestos pagados en rebalanceos (lo que
+//     ves en la app del broker)
+//   - "liquidar": descontando también los pendientes (lo que de verdad te llevas)
+export type ValueMode = "bruto" | "camino" | "liquidar";
 
 // ============================================================================
 // HELPERS DE INTERPRETACIÓN — texto explicativo según el valor concreto
@@ -60,6 +68,10 @@ function interpretCalmar(value: number): string {
 interface MetricsTableProps {
   results: BacktestResponse;
   isLoading: boolean;
+  /** Modo de visualización del valor (controlado desde el padre) */
+  valueMode: ValueMode;
+  /** Callback para cambiar el modo */
+  onValueModeChange: (mode: ValueMode) => void;
 }
 
 // Mapeo de granularidad a etiquetas
@@ -74,11 +86,11 @@ function buildTooltips(granularity: DisplayGranularity) {
   const { singular, plural } = GRANULARITY_LABELS[granularity];
   return {
     finalValue:
-      "Valor total de tu cartera al final del periodo, sin liquidar. Ya tiene descontado TER, comisión de gestión e impuestos pagados en cada rebalanceo, pero NO los impuestos pendientes sobre la plusvalía latente (esos solo se pagan al vender). Para ver el valor 'en mano' tras liquidar, mira el desglose en el resumen de comisiones.",
+      "Lo que de verdad te llevas al bolsillo si vendieras toda la cartera hoy. Descuenta TER, comisión de gestión, impuestos ya pagados en rebalanceos Y los impuestos pendientes sobre la plusvalía latente. El sub-texto muestra el 'bruto' (sin descontar pendientes), que es el número que aparece típicamente en las apps de tu broker.",
     totalReturn:
-      "Rentabilidad total acumulada desde el inicio hasta el final. Incluye el efecto de todas las aportaciones.",
+      "Rentabilidad total acumulada (TWRR). Encadena los retornos diarios eliminando el efecto de las aportaciones, así que mide únicamente lo que ha rentado la cartera — no el dinero que tú has metido. Es la métrica estándar de los fondos y la única comparable con un benchmark.",
     cagr:
-      "Rentabilidad media anual compuesta. El dato más relevante para comparar inversiones a largo plazo.",
+      "Rentabilidad media anual compuesta, derivada del TWRR. NO incluye el efecto de las aportaciones — refleja solo lo que la cartera ha rentado, no el dinero aportado por ti. Si meterías 1.000€/mes y el valor final fuera la suma exacta de tus aportaciones, el CAGR sería 0% (no la suma de aportaciones convertida en 'rentabilidad ficticia').",
     volatility:
       `Desviación estándar anualizada de los retornos ${plural === "días" ? "diarios" : plural === "meses" ? "mensuales" : "trimestrales"}. Mide cuánto fluctúa el valor de tu cartera durante el periodo seleccionado.`,
     sharpe:
@@ -124,31 +136,143 @@ interface MetricConfig {
   getSubText?: (result: BacktestResult) => string | null;
 }
 
-function buildMetricsConfig(granularity: DisplayGranularity): MetricConfig[] {
+function buildMetricsConfig(
+  granularity: DisplayGranularity,
+  valueMode: ValueMode,
+  effectivePending: (r: BacktestResult) => number
+): MetricConfig[] {
   const tooltips = buildTooltips(granularity);
   const { singular, plural } = GRANULARITY_LABELS[granularity];
   const pluralCap = plural.charAt(0).toUpperCase() + plural.slice(1);
 
+  // Helpers que aplican el modo de visualización elegido. La hero card de
+  // "Valor final" cambia su VALOR PRINCIPAL según el modo. Los sub-textos
+  // muestran las otras dos variantes para que el alumno tenga contexto.
+  const finalValueLabel: Record<ValueMode, string> = {
+    bruto: "Valor bruto",
+    camino: "Valor neto camino",
+    liquidar: "Valor al liquidar",
+  };
+  const valueByMode = (r: BacktestResult, mode: ValueMode): number => {
+    const paid = r.fees.totalTaxesPaid ?? 0;
+    const pending = effectivePending(r);
+    if (mode === "bruto") return r.finalValue + paid;
+    if (mode === "camino") return r.finalValue;
+    return r.finalValue - pending; // "liquidar"
+  };
+
+  // Factor de escalado del cumulative TWRR según el modo. Permite re-derivar
+  // CAGR, totalReturn, Sharpe, Sortino y Calmar de manera coherente al modo
+  // elegido. La aproximación asume que el "drag" fiscal (modo bruto) o el
+  // pago al liquidar (modo liquidar) impactan el factor multiplicativo final.
+  //   - "camino"  → factor 1 (TWRR tal cual lo calcula el motor)
+  //   - "bruto"   → escalar al alza por (1 + paid/final)
+  //   - "liquidar"→ escalar a la baja por (1 − pending/final)
+  // Es una aproximación pedagógicamente útil — los números son coherentes
+  // con el valor mostrado en la card "Valor".
+  const scaleFactor = (r: BacktestResult, mode: ValueMode): number => {
+    if (mode === "camino") return 1;
+    const finalVal = r.finalValue;
+    if (finalVal <= 0) return 1;
+    const paid = r.fees.totalTaxesPaid ?? 0;
+    const pending = effectivePending(r);
+    return mode === "bruto"
+      ? (finalVal + paid) / finalVal
+      : (finalVal - pending) / finalVal;
+  };
+
+  // Calcula los años cubiertos por la timeSeries (precisión suficiente para
+  // re-derivar CAGR sin requerir storage adicional).
+  const yearsOf = (r: BacktestResult): number => {
+    const ts = r.timeSeries;
+    if (!ts || ts.length < 2) return 1;
+    const first = ts[0];
+    const last = ts[ts.length - 1];
+    if (!first || !last) return 1;
+    const firstDate = new Date(first.exactDate || `${first.date}-01`);
+    const lastDate = new Date(last.exactDate || `${last.date}-01`);
+    const days = (lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24);
+    return Math.max(0.01, days / 365.25);
+  };
+
+  // TotalReturn escalado al modo: (1 + TWRR) × factor − 1
+  const totalReturnByMode = (r: BacktestResult, mode: ValueMode): number => {
+    const scale = scaleFactor(r, mode);
+    return (1 + r.metrics.totalReturn) * scale - 1;
+  };
+
+  // CAGR escalado al modo (anualizado a partir del cumulative escalado)
+  const cagrByMode = (r: BacktestResult, mode: ValueMode): number => {
+    if (mode === "camino") return r.metrics.cagr;
+    const scale = scaleFactor(r, mode);
+    const newCum = (1 + r.metrics.totalReturn) * scale;
+    if (newCum <= 0) return -1;
+    const years = yearsOf(r);
+    return Math.pow(newCum, 1 / years) - 1;
+  };
+
+  // Sharpe / Sortino / Calmar derivan del CAGR escalado. Usamos la tasa libre
+  // de riesgo del motor (1%) y la volatilidad / drawdown originales (no varían
+  // con el modo fiscal — son la experiencia real de la cartera durante el camino).
+  const RISK_FREE_RATE = 0.01;
+  const sharpeByMode = (r: BacktestResult, mode: ValueMode): number => {
+    if (mode === "camino") return r.metrics.sharpe;
+    const vol = r.metrics.volatility;
+    if (vol <= 0) return 0;
+    return (cagrByMode(r, mode) - RISK_FREE_RATE) / vol;
+  };
+  const sortinoByMode = (r: BacktestResult, mode: ValueMode): number => {
+    if (mode === "camino") return r.metrics.sortino;
+    // Reconstruir downside deviation desde el Sortino y CAGR originales
+    const camCagr = r.metrics.cagr;
+    const camSortino = r.metrics.sortino;
+    if (camSortino === 0) return 0;
+    const downsideDev = (camCagr - RISK_FREE_RATE) / camSortino;
+    if (downsideDev <= 0) return 0;
+    return (cagrByMode(r, mode) - RISK_FREE_RATE) / downsideDev;
+  };
+  const calmarByMode = (r: BacktestResult, mode: ValueMode): number => {
+    if (mode === "camino") return r.metrics.calmar;
+    const dd = r.metrics.maxDrawdown;
+    if (dd >= 0) return 0;
+    return cagrByMode(r, mode) / Math.abs(dd);
+  };
+
   return [
   {
     key: "finalValue",
-    label: "Valor final",
-    getValue: (r) => r.finalValue,
+    label: finalValueLabel[valueMode],
+    getValue: (r) => valueByMode(r, valueMode),
     format: formatEUR,
     higherIsBetter: true,
     tooltip: tooltips.finalValue,
     isHero: true,
     getSubText: (r) => {
-      const pending = r.fees.pendingTaxes ?? 0;
-      if (pending <= 0) return null;
-      const afterLiquidation = r.finalValue - pending;
-      return `Tras liquidar: ${formatEUR(afterLiquidation)}`;
+      const bruto = valueByMode(r, "bruto");
+      const camino = valueByMode(r, "camino");
+      const liquidar = valueByMode(r, "liquidar");
+      const paid = r.fees.totalTaxesPaid ?? 0;
+      const pending = effectivePending(r);
+      // Mostrar las DOS variantes que NO son la principal, para dar contexto
+      if (valueMode === "liquidar") {
+        if (paid === 0 && pending === 0) return null;
+        return `Bruto: ${formatEUR(bruto)} · Camino: ${formatEUR(camino)}`;
+      }
+      if (valueMode === "camino") {
+        if (paid === 0 && pending === 0) return null;
+        return `Bruto: ${formatEUR(bruto)} · Liquidar: ${formatEUR(liquidar)}`;
+      }
+      // bruto
+      if (paid === 0 && pending === 0) return null;
+      return `Camino: ${formatEUR(camino)} · Liquidar: ${formatEUR(liquidar)}`;
     },
   },
   {
     key: "cagr",
-    label: "CAGR",
-    getValue: (r) => r.metrics.cagr,
+    label: valueMode === "liquidar" ? "CAGR al liquidar"
+      : valueMode === "bruto" ? "CAGR bruto"
+      : "CAGR",
+    getValue: (r) => cagrByMode(r, valueMode),
     format: (v) => formatPct(v),
     higherIsBetter: true,
     tooltip: tooltips.cagr,
@@ -175,7 +299,7 @@ function buildMetricsConfig(granularity: DisplayGranularity): MetricConfig[] {
   {
     key: "totalReturn",
     label: "Rentabilidad total",
-    getValue: (r) => r.metrics.totalReturn,
+    getValue: (r) => totalReturnByMode(r, valueMode),
     format: (v) => formatPct(v),
     higherIsBetter: true,
     tooltip: tooltips.totalReturn,
@@ -183,7 +307,7 @@ function buildMetricsConfig(granularity: DisplayGranularity): MetricConfig[] {
   {
     key: "sharpe",
     label: "Ratio Sharpe",
-    getValue: (r) => r.metrics.sharpe,
+    getValue: (r) => sharpeByMode(r, valueMode),
     format: formatRatio,
     higherIsBetter: true,
     tooltip: tooltips.sharpe,
@@ -191,7 +315,7 @@ function buildMetricsConfig(granularity: DisplayGranularity): MetricConfig[] {
   {
     key: "sortino",
     label: "Ratio Sortino",
-    getValue: (r) => r.metrics.sortino,
+    getValue: (r) => sortinoByMode(r, valueMode),
     format: formatRatio,
     higherIsBetter: true,
     tooltip: tooltips.sortino,
@@ -199,7 +323,7 @@ function buildMetricsConfig(granularity: DisplayGranularity): MetricConfig[] {
   {
     key: "calmar",
     label: "Ratio Calmar",
-    getValue: (r) => r.metrics.calmar,
+    getValue: (r) => calmarByMode(r, valueMode),
     format: formatRatio,
     higherIsBetter: true,
     tooltip: tooltips.calmar,
@@ -266,8 +390,11 @@ function buildMetricsConfig(granularity: DisplayGranularity): MetricConfig[] {
   {
     key: "totalFees",
     label: "Coste total (TER + gestión + impuestos)",
+    // Usa los pendientes EFECTIVOS (propios o hipotéticos heredados), para
+    // que dos carteras con regímenes fiscales distintos se comparen de forma
+    // justa al asumir liquidación al final.
     getValue: (r) => r.fees.totalFees + (r.fees.managementFeePaid || 0) +
-                     (r.fees.totalTaxesPaid || 0) + (r.fees.pendingTaxes || 0),
+                     (r.fees.totalTaxesPaid || 0) + effectivePending(r),
     format: formatEUR,
     higherIsBetter: false,
     tooltip: tooltips.totalFees,
@@ -416,7 +543,7 @@ function HeroStatCard({
 // MAIN COMPONENT
 // ============================================================================
 
-export function MetricsTable({ results, isLoading }: MetricsTableProps) {
+export function MetricsTable({ results, isLoading, valueMode, onValueModeChange }: MetricsTableProps) {
   const [showAllMetrics, setShowAllMetrics] = useState(false);
 
   if (isLoading) {
@@ -440,9 +567,6 @@ export function MetricsTable({ results, isLoading }: MetricsTableProps) {
   }
 
   const granularity: DisplayGranularity = results.displayGranularity ?? "monthly";
-  const metricsConfig = buildMetricsConfig(granularity);
-  const heroMetrics = metricsConfig.filter((m) => m.isHero);
-  const tableMetrics = metricsConfig.filter((m) => !m.isHero);
   const isSinglePortfolio = !resultA || !resultB;
   const singleResult = resultA || resultB;
 
@@ -471,13 +595,91 @@ export function MetricsTable({ results, isLoading }: MetricsTableProps) {
           returnsHistogram: { periodLabel: "mes", bins: [], mean: 0, stdDev: 0, totalCount: 0 },
           allocation: { byCategory: [], byAssetClass: [], byManagement: [] },
           fees: benchmark.benchmarkFees,
-          totalContributions: 0,
+          totalContributions: benchmark.benchmarkTotalContributions ?? 0,
           finalValue: benchmark.benchmarkFinalValue,
         }
       : null;
 
+  // ---------------------------------------------------------------------------
+  // Helper: impuesto pendiente EFECTIVO de una cartera/benchmark
+  // ---------------------------------------------------------------------------
+  // Si la entidad tiene su propio régimen fiscal (taxMode != "none"), usa su
+  // pendingTaxes propio. Si no, hereda el régimen de la OTRA cartera (en
+  // comparaciones) o de la cartera principal (para el benchmark) para calcular
+  // el pendiente hipotético al liquidar. Esta es la misma lógica que usa
+  // TaxImpactCard, y sin ella la card "Valor al liquidar" mostraba el bruto en
+  // la cartera sin tax y en el benchmark.
+  const effectivePending = (result: BacktestResult): number => {
+    const ownMode = (result.fees.taxMode ?? "none") as TaxMode;
+    if (ownMode !== "none") return result.fees.pendingTaxes ?? 0;
+    // Buscar un modo a heredar: primero la otra cartera, luego el "compañero"
+    // de la cartera principal (para el caso del benchmark virtual).
+    let inheritedMode: TaxMode = "none";
+    let inheritedRate = 0;
+    const candidates: (BacktestResult | null)[] = result === resultA
+      ? [resultB ?? null]
+      : result === resultB
+      ? [resultA ?? null]
+      : [resultA ?? null, resultB ?? null]; // benchmark: A primero, luego B
+    for (const c of candidates) {
+      if (!c) continue;
+      const mode = (c.fees.taxMode ?? "none") as TaxMode;
+      if (mode !== "none") {
+        inheritedMode = mode;
+        inheritedRate = c.fees.taxRate ?? 0;
+        break;
+      }
+    }
+    if (inheritedMode === "none") return 0;
+    const ug = result.fees.unrealizedGain ?? 0;
+    return computeTaxOnGain(ug, inheritedMode, inheritedRate);
+  };
+
+  const metricsConfig = buildMetricsConfig(granularity, valueMode, effectivePending);
+  const heroMetrics = metricsConfig.filter((m) => m.isHero);
+  const tableMetrics = metricsConfig.filter((m) => !m.isHero);
+
+  // Banner de capital aportado: cuando hay aportaciones mensuales, conviene
+  // mostrar EXPLÍCITAMENTE el dinero aportado para que el alumno entienda que
+  // el valor final NO es todo rentabilidad. El TWRR ya excluye el efecto de
+  // las aportaciones, pero el contraste visual es clave para evitar confusión.
+  const totalContributed = (resultA ?? resultB)?.totalContributions ?? 0;
+  const initialAmount = results.config.initialAmount;
+  const monthly = results.config.monthlyContribution ?? 0;
+  const hasContributions = monthly > 0;
+  const totalMonthsContributed = hasContributions && monthly > 0
+    ? Math.round((totalContributed - initialAmount) / monthly)
+    : 0;
+
   return (
     <div className="space-y-6">
+      {/* Banner de capital aportado (solo si hay aportaciones mensuales) */}
+      {hasContributions && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
+          <div className="w-9 h-9 rounded-lg bg-amber-500 text-white flex items-center justify-center flex-shrink-0 text-base font-bold">
+            💼
+          </div>
+          <div className="flex-1 text-sm leading-snug">
+            <p className="font-semibold text-amber-900">
+              Has aportado en total <span className="tabular-nums">{formatEUR(totalContributed)}</span>{" "}
+              <span className="text-amber-700 font-normal">
+                ({formatEUR(initialAmount)} inicial + {formatEUR(monthly)} × {totalMonthsContributed} meses)
+              </span>
+            </p>
+            <p className="text-xs text-amber-800/80 mt-1">
+              <strong>Importante:</strong> las métricas de rentabilidad (CAGR, total)
+              están calculadas como <strong>TWRR</strong> — encadenan los retornos diarios
+              y NO tratan tus aportaciones como ganancia. Reflejan únicamente lo que ha
+              rentado la cartera, lo que es comparable con un benchmark.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* El selector de modo de valor (Bruto / Camino / Al liquidar) está
+          ahora en la página, encima del gráfico, para que controle tanto las
+          curvas como las hero stats con un solo click. */}
+
       {/* === HERO STATS GRID === */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {heroMetrics.map((metric) => (

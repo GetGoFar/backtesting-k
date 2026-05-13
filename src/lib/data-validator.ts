@@ -52,10 +52,14 @@ export function validatePriceData(
       gaps.push(`${prev.date} → ${curr.date} (${calendarDays} días)`);
     }
 
-    // Saltos sospechosos: >30% cambio diario (muy inusual para ETFs/fondos)
+    // Saltos sospechosos: >50% cambio diario (impensable para ETFs incluso
+    // en crisis — el peor día del SPY en 2020 fue -12%). Para acciones
+    // individuales hay days extremos legítimos (NVDA 2000-2008 tuvo movimientos
+    // de ±30-45% reales), no queremos penalizarlos. Solo capturamos errores
+    // de datos auténticos (decimal mal puesto, split no ajustado, etc.).
     if (prev.closePrice > 0 && curr.closePrice > 0) {
       const change = Math.abs(curr.closePrice / prev.closePrice - 1) * 100;
-      if (change > 30) {
+      if (change > 50) {
         suspiciousJumps.push({ date: curr.date, changePercent: Math.round(change) });
       }
     }
@@ -65,7 +69,7 @@ export function validatePriceData(
   let score = 100;
   score -= gaps.length * 3; // -3 por gap significativo
   score -= negativeOrZeroPrices.length * 20; // -20 por precio invalido
-  score -= suspiciousJumps.length * 15; // -15 por salto sospechoso
+  score -= suspiciousJumps.length * 10; // -10 por salto sospechoso (era -15)
   score = Math.max(0, Math.min(100, score));
 
   const isUsable =
