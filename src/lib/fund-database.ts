@@ -731,6 +731,22 @@ const INDEXED_FUNDS: Fund[] = [
 
 const ACTIVE_FUNDS: Fund[] = [
   {
+    // Fondo más antiguo de RV Global de la banca española disponible en EODHD:
+    // datos desde 1997-08-04 (28+ años). Útil para backtests muy largos contra
+    // carteras indexadas y mostrar el efecto del coste de gestión activa.
+    id: "ibercaja-internacional",
+    name: "Ibercaja Bolsa Internacional FI",
+    shortName: "Ibercaja Internacional",
+    isin: "ES0147641031",
+    ter: 1.75,
+    category: "RV Global",
+    type: "active",
+    bank: "Ibercaja",
+    currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
+  },
+  {
     id: "caixabank-global",
     name: "CaixaBank Bolsa Selección Global",
     shortName: "CaixaBank Global",
