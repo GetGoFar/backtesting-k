@@ -2236,9 +2236,12 @@ async function calculateIndividualAssetMetrics(
   }
 
   const results: AssetMetrics[] = [];
-  // Usar prefijo de mes para filtrar fechas diarias (YYYY-MM-DD >= YYYY-MM)
-  const startPrefix = startDate.substring(0, 7);
-  const endPrefix = endDate.substring(0, 7);
+  // Normalizar fechas exactas (YYYY-MM-DD). Si vienen como YYYY-MM las
+  // expandimos al primer día. Filtramos las fechas diarias del activo dentro
+  // del rango exacto del backtest, NO por prefijo de mes (eso incluía días
+  // sobrantes al principio del mes de inicio y desfasaba la rentabilidad).
+  const startExact = startDate.length === 7 ? `${startDate}-01` : startDate;
+  const endExact = endDate.length === 7 ? `${endDate}-31` : endDate;
 
   for (const holding of uniqueHoldings.values()) {
     const fund = getFundById(holding.fundId) || holding.fund;
@@ -2250,10 +2253,7 @@ async function calculateIndividualAssetMetrics(
       if (prices.size < 20) continue;
 
       const sortedDates = Array.from(prices.keys())
-        .filter((date) => {
-          const month = date.substring(0, 7);
-          return month >= startPrefix && month <= endPrefix;
-        })
+        .filter((date) => date >= startExact && date <= endExact)
         .sort();
 
       if (sortedDates.length < 20) continue;
