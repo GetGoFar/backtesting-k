@@ -23,7 +23,6 @@ const ALL_SECTIONS: NavSection[] = [
   { id: "section-tax-impact", label: "Cómo afectan los impuestos", group: "results", icon: "🧾" },
   { id: "section-performance", label: "Evolución patrimonio", group: "results", icon: "📈" },
   { id: "section-metrics", label: "Métricas comparativas", group: "results", icon: "📊" },
-  { id: "section-allocation", label: "Composición cartera", group: "results", icon: "🥧" },
   { id: "section-assets", label: "Métricas por activo", group: "results", icon: "🎯" },
   { id: "section-correlations", label: "Correlaciones", group: "results", icon: "🔗" },
   { id: "section-annual", label: "Rentabilidades anuales", group: "results", icon: "📅" },

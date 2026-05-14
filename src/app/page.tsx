@@ -126,14 +126,6 @@ const ReturnsHistogramChart = dynamic(
   }
 );
 
-const AllocationPieChart = dynamic(
-  () => import("@/components/AllocationPieChart").then((mod) => mod.AllocationPieChart),
-  {
-    loading: () => <ChartLoadingSkeleton height="h-64" />,
-    ssr: false,
-  }
-);
-
 const RebalanceLogTable = dynamic(
   () => import("@/components/RebalanceLogTable").then((mod) => mod.RebalanceLogTable),
   {
@@ -939,11 +931,6 @@ export default function Home() {
                   valueMode={valueMode}
                   onValueModeChange={setValueMode}
                 />
-              </div>
-
-              {/* 3b. Composición de la(s) cartera(s) — pie charts */}
-              <div id="section-allocation" className="scroll-mt-24">
-                <AllocationPieChart results={results} isLoading={false} />
               </div>
 
               {/* 4. Métricas individuales de cada activo */}
