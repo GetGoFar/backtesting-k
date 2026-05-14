@@ -186,9 +186,9 @@ export function AssetMetricsTable({ results, isLoading }: AssetMetricsTableProps
               />
             </svg>
             <h3 className="text-lg font-semibold text-slate-900">
-              M&eacute;tricas por Activo
+              Métricas por Activo
             </h3>
-            <Tooltip content="M&eacute;tricas de rendimiento calculadas para cada activo individual durante el per&iacute;odo del backtest.">
+            <Tooltip content="Métricas de rendimiento calculadas para cada activo individual durante el período del backtest.">
               <svg
                 className="w-4 h-4 text-slate-400 cursor-help"
                 fill="currentColor"
@@ -217,7 +217,7 @@ export function AssetMetricsTable({ results, isLoading }: AssetMetricsTableProps
                 Activo
               </th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                <Tooltip content="Rentabilidad total acumulada durante el per&iacute;odo">
+                <Tooltip content="Rentabilidad total acumulada durante el período">
                   <span className="cursor-help">Rent. Total</span>
                 </Tooltip>
               </th>
@@ -227,32 +227,32 @@ export function AssetMetricsTable({ results, isLoading }: AssetMetricsTableProps
                 </Tooltip>
               </th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                <Tooltip content="Total Expense Ratio: comisi&oacute;n anual del fondo">
+                <Tooltip content="Total Expense Ratio: comisión anual del fondo">
                   <span className="cursor-help">TER</span>
                 </Tooltip>
               </th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                <Tooltip content="&Iacute;ndice Saqueo = TER / (min(Vol,15%) &times; 0.75). Mide qu&eacute; porcentaje de la rentabilidad esperada (seg&uacute;n el riesgo asumido) se la lleva el banco. A menor valor, mejor para ti.">
-                  <span className="cursor-help whitespace-nowrap">&Iacute;nd. Saqueo</span>
+                <Tooltip content="Índice Saqueo = TER / (min(Vol,15%) × 0.75). Mide qué porcentaje de la rentabilidad esperada (según el riesgo asumido) se la lleva el banco. A menor valor, mejor para ti.">
+                  <span className="cursor-help whitespace-nowrap">Índ. Saqueo</span>
                 </Tooltip>
               </th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                <Tooltip content="Volatilidad anualizada del periodo seleccionado (desviaci&oacute;n est&aacute;ndar de retornos mensuales &times; &radic;12). Puede diferir de Morningstar, que usa solo los &uacute;ltimos 3 o 5 a&ntilde;os.">
+                <Tooltip content="Volatilidad anualizada del periodo seleccionado (desviación estándar de retornos mensuales × √12). Puede diferir de Morningstar, que usa solo los últimos 3 o 5 años.">
                   <span className="cursor-help">Volatilidad</span>
                 </Tooltip>
               </th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                <Tooltip content="M&aacute;xima ca&iacute;da desde un pico hasta el siguiente valle">
+                <Tooltip content="Máxima caída desde un pico hasta el siguiente valle">
                   <span className="cursor-help">Max DD</span>
                 </Tooltip>
               </th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                <Tooltip content="Ratio de Sharpe: (CAGR - tasa libre de riesgo) / volatilidad. Valores &gt; 1 son buenos.">
+                <Tooltip content="Ratio de Sharpe: (CAGR - tasa libre de riesgo) / volatilidad. Valores > 1 son buenos.">
                   <span className="cursor-help">Sharpe</span>
                 </Tooltip>
               </th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                <Tooltip content="N&uacute;mero de meses de datos disponibles">
+                <Tooltip content="Número de meses de datos disponibles">
                   <span className="cursor-help">Meses</span>
                 </Tooltip>
               </th>
@@ -334,7 +334,7 @@ export function AssetMetricsTable({ results, isLoading }: AssetMetricsTableProps
       <div className="px-4 sm:px-6 py-4 bg-slate-50 border-t border-slate-200">
         <div className="mb-3">
           <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-            Escala del &Iacute;ndice Saqueo &mdash; TER / (min(Vol,15%) &times; 0.75)
+            Escala del Índice Saqueo &mdash; TER / (min(Vol,15%) × 0.75)
           </h4>
           <div className="flex flex-wrap gap-2 text-xs">
             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 text-emerald-700">
@@ -358,9 +358,9 @@ export function AssetMetricsTable({ results, isLoading }: AssetMetricsTableProps
           </div>
         </div>
         <p className="text-xs text-slate-500 mb-3">
-          <strong>Nota:</strong> El &Iacute;ndice Saqueo estima qu&eacute; parte de la rentabilidad esperada se la lleva el gestor.
+          <strong>Nota:</strong> El Índice Saqueo estima qué parte de la rentabilidad esperada se la lleva el gestor.
           Se usa el ratio rentabilidad/riesgo del S&amp;P 500 (0.75) como referencia optimista, y la volatilidad se limita al 15%.
-          Un 10% significa que de cada euro que esperas ganar, 10 c&eacute;ntimos van al banco.
+          Un 10% significa que de cada euro que esperas ganar, 10 céntimos van al banco.
         </p>
 
         {/* Glosario de términos */}
@@ -371,7 +371,7 @@ export function AssetMetricsTable({ results, isLoading }: AssetMetricsTableProps
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-xs text-slate-500">
             <div>
               <dt className="font-medium text-slate-600 inline">Rent. Total: </dt>
-              <dd className="inline">Ganancia o p&eacute;rdida acumulada en todo el periodo analizado.</dd>
+              <dd className="inline">Ganancia o pérdida acumulada en todo el periodo analizado.</dd>
             </div>
             <div>
               <dt className="font-medium text-slate-600 inline">CAGR: </dt>
@@ -379,19 +379,19 @@ export function AssetMetricsTable({ results, isLoading }: AssetMetricsTableProps
             </div>
             <div>
               <dt className="font-medium text-slate-600 inline">TER: </dt>
-              <dd className="inline">Total Expense Ratio. Comisi&oacute;n anual que cobra el fondo sobre el patrimonio.</dd>
+              <dd className="inline">Total Expense Ratio. Comisión anual que cobra el fondo sobre el patrimonio.</dd>
             </div>
             <div>
-              <dt className="font-medium text-slate-600 inline">&Iacute;nd. Saqueo: </dt>
+              <dt className="font-medium text-slate-600 inline">Índ. Saqueo: </dt>
               <dd className="inline">Porcentaje de la rentabilidad esperada que se lleva el gestor en comisiones.</dd>
             </div>
             <div>
               <dt className="font-medium text-slate-600 inline">Volatilidad: </dt>
-              <dd className="inline">Variaci&oacute;n anualizada del precio durante el periodo del backtest. Puede diferir de Morningstar (que usa 3a o 5a fijos).</dd>
+              <dd className="inline">Variación anualizada del precio durante el periodo del backtest. Puede diferir de Morningstar (que usa 3a o 5a fijos).</dd>
             </div>
             <div>
               <dt className="font-medium text-slate-600 inline">Max DD: </dt>
-              <dd className="inline">M&aacute;ximo drawdown. La mayor ca&iacute;da desde un m&aacute;ximo hasta el siguiente m&iacute;nimo.</dd>
+              <dd className="inline">Máximo drawdown. La mayor caída desde un máximo hasta el siguiente mínimo.</dd>
             </div>
             <div>
               <dt className="font-medium text-slate-600 inline">Sharpe: </dt>
@@ -399,7 +399,7 @@ export function AssetMetricsTable({ results, isLoading }: AssetMetricsTableProps
             </div>
             <div>
               <dt className="font-medium text-slate-600 inline">Meses: </dt>
-              <dd className="inline">N&uacute;mero de meses con datos disponibles en el periodo seleccionado.</dd>
+              <dd className="inline">Número de meses con datos disponibles en el periodo seleccionado.</dd>
             </div>
           </dl>
         </div>
