@@ -63,7 +63,7 @@ export function Tooltip({ content, children, wide }: TooltipProps) {
               transform: "translate(-50%, -100%) translateY(-10px)",
             }}
           >
-            <div className="bg-brand-navy text-white text-sm leading-relaxed rounded-xl px-4 py-3 shadow-2xl border border-white/10">
+            <div className="bg-brand-navy text-white text-sm leading-relaxed rounded-xl px-4 py-3 shadow-2xl border border-white/10 whitespace-pre-line">
               {content}
             </div>
             <div className="flex justify-center -mt-1">

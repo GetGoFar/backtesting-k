@@ -895,20 +895,24 @@ export default function Home() {
                 <TaxImpactCard results={results} isLoading={false} />
               </div>
 
-              {/* Selector global de modo de valor — controla gráfico + métricas.
-                  Siempre visible. Si no hay fiscalidad relevante, los 3 modos
-                  dan el mismo número, pero el selector se queda como recordatorio
-                  pedagógico de que existen tres lentes distintas. */}
+              {/* 2. Gráfico principal de evolución */}
+              <div id="section-performance" className="scroll-mt-24">
+                <PerformanceChart results={results} isLoading={false} valueMode={valueMode} />
+              </div>
+
+              {/* Selector global de modo de valor — colocado encima de las hero
+                  stats (donde se nota más el cambio numérico) y no encima del
+                  gráfico (donde el escalado de las curvas pasa casi inadvertido). */}
               <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-xl border border-slate-100 px-4 py-3 shadow-sm">
                 <div className="text-xs text-brand-tertiary leading-snug">
                   <span className="font-semibold text-brand-navy">Mostrar valor como:</span>{" "}
-                  cambia la lente con la que ves el gráfico y las métricas.
+                  cambia la lente con la que ves las métricas y el gráfico.
                 </div>
                 <div className="inline-flex p-1 bg-slate-100 rounded-lg gap-1">
                   {([
                     { id: "bruto" as ValueMode, label: "Bruto", title: "Sin descontar ningún impuesto (la cifra del folleto)" },
                     { id: "camino" as ValueMode, label: "Neta del camino", title: "Descuenta solo los impuestos pagados en rebalanceos (lo que ves en tu broker)" },
-                    { id: "liquidar" as ValueMode, label: "Al liquidar", title: "Descuenta también los pendientes — lo que de verdad te llevas al bolsillo" },
+                    { id: "liquidar" as ValueMode, label: "Al liquidar", title: "Descuenta también los pendientes — lo que de verdad te llevas al bolsillo (siempre que hayas configurado un régimen fiscal)" },
                   ]).map((opt) => (
                     <button
                       key={opt.id}
@@ -925,11 +929,6 @@ export default function Home() {
                     </button>
                   ))}
                 </div>
-              </div>
-
-              {/* 2. Gráfico principal de evolución */}
-              <div id="section-performance" className="scroll-mt-24">
-                <PerformanceChart results={results} isLoading={false} valueMode={valueMode} />
               </div>
 
               {/* 3. Tabla de métricas */}

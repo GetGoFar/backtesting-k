@@ -86,7 +86,7 @@ function buildTooltips(granularity: DisplayGranularity) {
   const { singular, plural } = GRANULARITY_LABELS[granularity];
   return {
     finalValue:
-      "Lo que de verdad te llevas al bolsillo si vendieras toda la cartera hoy. Descuenta TER, comisión de gestión, impuestos ya pagados en rebalanceos Y los impuestos pendientes sobre la plusvalía latente. El sub-texto muestra el 'bruto' (sin descontar pendientes), que es el número que aparece típicamente en las apps de tu broker.",
+      "Valor según el modo elegido en el selector de arriba:\n\n• Bruto: antes de descontar ningún impuesto (la cifra que aparece en los folletos comerciales). Siempre descuenta TER y comisión de gestión.\n\n• Neta del camino: lo que ves hoy en la app de tu broker. Descuenta los impuestos ya pagados en cada rebalanceo (si configuraste un régimen fiscal en tu cartera).\n\n• Al liquidar: lo que de verdad te llevas al bolsillo si vendieras todo hoy. Descuenta también los impuestos pendientes sobre la plusvalía latente.\n\nIMPORTANTE: los tres modos solo dan números distintos si en tu cartera configuraste fiscalidad (IRPF España, tasa fija…). Si dejaste la fiscalidad en 'Sin impuestos', los tres valores coinciden porque nunca se han descontado ni se descontarán impuestos en la simulación.",
     totalReturn:
       "Rentabilidad total acumulada (TWRR). Encadena los retornos diarios eliminando el efecto de las aportaciones, así que mide únicamente lo que ha rentado la cartera — no el dinero que tú has metido. Es la métrica estándar de los fondos y la única comparable con un benchmark.",
     cagr:
