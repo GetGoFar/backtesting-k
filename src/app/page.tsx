@@ -204,7 +204,11 @@ export default function Home() {
   // Estado de configuración - usar fechas dinámicas
   const currentMonth = useMemo(() => getCurrentMonth(), []);
   const previousMonth = useMemo(() => getPreviousMonth(), []);
-  const [startDate, setStartDate] = useState("2015-01");
+  // Fecha de inicio por defecto: 1990-01. Cubre todo el histórico disponible
+  // para la mayoría de activos (XAUUSD desde 1979, Vanguard funds desde 1992,
+  // bancos españoles desde 1997). Si el backtest selecciona un activo con
+  // menos histórico, el motor ajusta automáticamente al primer dato disponible.
+  const [startDate, setStartDate] = useState("1990-01");
   const [endDate, setEndDate] = useState(currentMonth);
   const [initialInvestment, setInitialInvestment] = useState(10000);
   const [monthlyContribution, setMonthlyContribution] = useState(0);
