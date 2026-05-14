@@ -226,7 +226,7 @@ const K_INBESTME_PRESETS: PortfolioPreset[] = [
 // con datos largos (los Vanguard treasuries y XL* tienen histórico desde 2000+).
 //
 // Sustituciones realizadas vs portfoliovisualizer:
-//   ^GOLD (spot oro) → GLD (SPDR Gold Shares, TER 0,40%)
+//   ^GOLD (spot oro) → XAUUSD.FOREX (oro spot, mismo histórico desde 1979, TER 0)
 //   ^CASHUS (cash)   → BIL (SPDR Bloomberg 1-3M T-Bill, TER 0,14%)
 // -----------------------------------------------------------------------------
 
@@ -242,7 +242,7 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
       { fundId: "invesco-qqq", weight: 2.50 },
       { fundId: "spdr-xle", weight: 1.25 },
       { fundId: "vanguard-vgsix", weight: 1.25 },
-      { fundId: "spdr-gld", weight: 15 },
+      { fundId: "spot-gold", weight: 15 },
       { fundId: "vanguard-vfisx", weight: 20 },
       { fundId: "spdr-xlu", weight: 1.25 },
       { fundId: "spdr-bil", weight: 45 },
@@ -259,7 +259,7 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
       { fundId: "vanguard-vfisx", weight: 12 },
       { fundId: "ishares-lqd", weight: 18 },
       { fundId: "vanguard-vwehx", weight: 10 },
-      { fundId: "spdr-gld", weight: 15 },
+      { fundId: "spot-gold", weight: 15 },
       { fundId: "spdr-xlp", weight: 1.88 },
       { fundId: "spdr-xlv", weight: 3.75 },
       { fundId: "invesco-qqq", weight: 3.75 },
@@ -280,7 +280,7 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
       { fundId: "invesco-qqq", weight: 6.30 },
       { fundId: "spdr-xle", weight: 3.15 },
       { fundId: "vanguard-vgsix", weight: 3.15 },
-      { fundId: "spdr-gld", weight: 15 },
+      { fundId: "spot-gold", weight: 15 },
       { fundId: "vanguard-vfisx", weight: 35.80 },
       { fundId: "ishares-lqd", weight: 15 },
       { fundId: "vanguard-vwehx", weight: 9 },
@@ -303,7 +303,7 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
       { fundId: "vanguard-vfisx", weight: 20.80 },
       { fundId: "ishares-lqd", weight: 10 },
       { fundId: "vanguard-vwehx", weight: 5 },
-      { fundId: "spdr-gld", weight: 15 },
+      { fundId: "spot-gold", weight: 15 },
     ],
   },
   {
@@ -318,7 +318,7 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
       { fundId: "invesco-qqq", weight: 11.30 },
       { fundId: "spdr-xle", weight: 5.60 },
       { fundId: "vanguard-vgsix", weight: 5.60 },
-      { fundId: "spdr-gld", weight: 20 },
+      { fundId: "spot-gold", weight: 20 },
       { fundId: "vanguard-vfitx", weight: 8 },
       { fundId: "vanguard-vustx", weight: 3 },
       { fundId: "vanguard-vfisx", weight: 16.90 },
@@ -337,7 +337,7 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
       { fundId: "invesco-qqq", weight: 15.00 },
       { fundId: "spdr-xle", weight: 7.50 },
       { fundId: "vanguard-vgsix", weight: 7.50 },
-      { fundId: "spdr-gld", weight: 20 },
+      { fundId: "spot-gold", weight: 20 },
       { fundId: "vanguard-vfitx", weight: 20 },
       { fundId: "spdr-xlu", weight: 7.50 },
     ],
@@ -349,7 +349,7 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
     type: "index",
     holdings: [
       { fundId: "vanguard-vustx", weight: 15 },
-      { fundId: "spdr-gld", weight: 20 },
+      { fundId: "spot-gold", weight: 20 },
       { fundId: "spdr-xlp", weight: 8.10 },
       { fundId: "spdr-xlv", weight: 16.30 },
       { fundId: "invesco-qqq", weight: 16.30 },
@@ -365,7 +365,7 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
     type: "index",
     holdings: [
       { fundId: "vanguard-vustx", weight: 10 },
-      { fundId: "spdr-gld", weight: 20 },
+      { fundId: "spot-gold", weight: 20 },
       { fundId: "spdr-xlp", weight: 8.75 },
       { fundId: "spdr-xlv", weight: 17.50 },
       { fundId: "invesco-qqq", weight: 17.50 },
@@ -380,7 +380,7 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
     description: "Riesgo 9: 5% VUSTX + 20% Oro + 75% sectores",
     type: "index",
     holdings: [
-      { fundId: "spdr-gld", weight: 20 },
+      { fundId: "spot-gold", weight: 20 },
       { fundId: "vanguard-vustx", weight: 5 },
       { fundId: "spdr-xlp", weight: 9.38 },
       { fundId: "spdr-xlv", weight: 18.75 },
@@ -401,7 +401,7 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
       { fundId: "invesco-qqq", weight: 20 },
       { fundId: "spdr-xle", weight: 10 },
       { fundId: "vanguard-vgsix", weight: 10 },
-      { fundId: "spdr-gld", weight: 20 },
+      { fundId: "spot-gold", weight: 20 },
     ],
   },
 ];

@@ -477,6 +477,24 @@ const INDEXED_FUNDS: Fund[] = [
     terConfirmed: true,
   },
   {
+    // Oro spot (XAUUSD) — precio spot del oro en USD. Histórico desde 1979-12-26
+    // (46+ años). Equivalente a ^GOLD de portfoliovisualizer. TER 0 porque es
+    // el índice del precio del oro, no un ETF (los costes de custodia se
+    // ignoran, como hace portfoliovisualizer).
+    id: "spot-gold",
+    name: "Oro spot (XAUUSD)",
+    shortName: "Oro spot",
+    isin: "XAUUSD",
+    yahooTicker: "XAUUSD.FOREX",
+    ter: 0,
+    category: "Oro",
+    type: "index",
+    currency: "USD",
+    distributing: true,
+    terSource: "curated",
+    terConfirmed: true,
+  },
+  {
     id: "vanguard-vustx",
     name: "Vanguard Long-Term Treasury Investor",
     shortName: "VUSTX Long Treasury",
