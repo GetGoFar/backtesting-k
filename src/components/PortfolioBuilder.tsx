@@ -1069,9 +1069,19 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                 </div>
 
                 <p className="text-[10px] text-slate-500 italic leading-snug">
-                  {(bandRelativePct > 0 || bandAbsolutePct > 0)
-                    ? <>⚠ Bandas activas: sustituyen al rebalanceo por frecuencia.</>
-                    : <>Configurar una banda &gt; 0 hace que sustituya al rebalanceo por frecuencia.</>}
+                  {(bandRelativePct > 0 || bandAbsolutePct > 0) ? (
+                    <>
+                      <strong className="text-brand-coral not-italic">⚡ Bandas activas:</strong>{" "}
+                      la frecuencia indica cuándo se <strong>revisan</strong> las bandas;
+                      solo se rebalancea si están rotas en ese momento.{" "}
+                      {rebalanceFrequencyLocal === "none" && <>Con "Sin reb." se revisan <strong>cada día</strong>.</>}
+                      {rebalanceFrequencyLocal === "monthly" && <>Se revisan el <strong>1 de cada mes</strong>.</>}
+                      {rebalanceFrequencyLocal === "quarterly" && <>Se revisan <strong>cada trimestre</strong>.</>}
+                      {rebalanceFrequencyLocal === "annual" && <>Se revisan <strong>cada enero</strong>.</>}
+                    </>
+                  ) : (
+                    <>Sin bandas: rebalanceo periódico clásico en la frecuencia seleccionada.</>
+                  )}
                 </p>
               </div>
             </div>

@@ -723,19 +723,30 @@ function simulatePortfolioDaily(
       currentYear = yearNow;
     }
 
-    // Rebalanceo:
-    //   - Si hay bandas activas (relativa > 0 o absoluta > 0), las BANDAS SUSTITUYEN
-    //     al rebalanceo periódico. La cartera solo se rebalancea cuando algún
-    //     activo se desvía más allá de la banda configurada.
-    //   - Si no hay bandas (ambas = 0), se usa el rebalanceo temporal según
-    //     la frecuencia (mensual/trimestral/anual/none).
+    // Rebalanceo — semántica combinada de frecuencia + bandas:
+    //   1) SIN bandas (relativa=0 y absoluta=0): rebalanceo periódico clásico,
+    //      la frecuencia dice cuándo se rebalancea (siempre que toque).
+    //   2) CON bandas activas (alguna > 0): la frecuencia indica cada cuánto se
+    //      REVISAN las bandas. Si las bandas están rotas ese día, se rebalancea.
+    //      Frecuencia "none" con bandas activas = revisar todos los días.
+    //   3) "none" sin bandas = nunca rebalancear (buy and hold puro).
     const bandsActive = rebalanceBandRelative > 0 || rebalanceBandAbsolute > 0;
-    const isBandTriggered = bandsActive && checkBandsBreached(
-      positionValues, holdings, rebalanceBandRelative, rebalanceBandAbsolute
-    );
-    const isTimeTriggered = !bandsActive
-      && shouldRebalanceByDate(currentDate, previousDate, rebalanceFrequency);
-    if (isTimeTriggered || isBandTriggered) {
+    let shouldRebalance = false;
+    if (bandsActive) {
+      // "none" + bandas = check daily; otra frecuencia + bandas = check periódico
+      const isCheckDay = rebalanceFrequency === "none"
+        ? true
+        : shouldRebalanceByDate(currentDate, previousDate, rebalanceFrequency);
+      if (isCheckDay) {
+        shouldRebalance = checkBandsBreached(
+          positionValues, holdings, rebalanceBandRelative, rebalanceBandAbsolute
+        );
+      }
+    } else {
+      // Sin bandas: rebalanceo periódico clásico
+      shouldRebalance = shouldRebalanceByDate(currentDate, previousDate, rebalanceFrequency);
+    }
+    if (shouldRebalance) {
       const taxResult = rebalancePortfolioWithTax(
         positionValues, fundCostBasis, fundNames, holdings,
         taxMode, taxRate, annualRealizedGain
