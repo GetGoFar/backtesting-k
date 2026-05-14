@@ -177,8 +177,21 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
   const breakdownB = breakdownFor(resultB!, effectiveModeB, effectiveRateB);
   const feesA = breakdownA.total;
   const feesB = breakdownB.total;
-  const feeDifference = Math.abs(feesA - feesB);
-  const cheaperName = feesA < feesB ? resultA!.portfolioName : resultB!.portfolioName;
+  // El "Te ahorras" SOLO compara COSTES (TER + gestión), no incluye impuestos.
+  // Razón pedagógica: los impuestos son PROPORCIONALES a las ganancias — pagar
+  // más impuestos significa haber ganado más, no es "peor". Mezclarlos con los
+  // costes en un único "ahorro" invertía el mensaje (parecía que el peor fondo
+  // era mejor porque ganaba menos → tributaba menos).
+  const costsA = breakdownA.costes;
+  const costsB = breakdownB.costes;
+  const costsDifference = Math.abs(costsA - costsB);
+  const cheaperCostsName = costsA < costsB ? resultA!.portfolioName : resultB!.portfolioName;
+  // Impuestos totales (adelantados + pendientes) por separado
+  const taxesA = breakdownA.adelantados + breakdownA.pendientes;
+  const taxesB = breakdownB.adelantados + breakdownB.pendientes;
+  const taxesDifference = Math.abs(taxesA - taxesB);
+  const moreTaxesName = taxesA > taxesB ? resultA!.portfolioName : resultB!.portfolioName;
+  const hasAnyTax = taxesA > 0 || taxesB > 0;
   const showHypoNote = breakdownA.isHypothetical || breakdownB.isHypothetical;
   const hypoModeLabel = taxModeLabel(
     breakdownA.isHypothetical ? effectiveModeA : effectiveModeB,
@@ -231,107 +244,167 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
           </div>
         )}
 
-        {/* Stats comparativos grandes con desglose */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          {/* Cartera A */}
-          <div className="rounded-xl bg-blue-50/50 border border-blue-100/50 p-5">
-            <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-2">
-              {resultA!.portfolioName}
-            </p>
-            <p className="text-3xl sm:text-4xl font-bold tracking-tight font-serif text-brand-navy">
-              {formatEUR(feesA)}
-            </p>
-            <p className="text-[11px] text-brand-tertiary mt-1">Coste total acumulado</p>
-            {/* Desglose — siempre visible */}
-            <div className="mt-3 p-3 bg-white/60 rounded-lg border border-blue-200/60">
-              <p className="text-[10px] font-bold text-blue-700 uppercase tracking-wider mb-2">
-                💰 Desglose del coste
+        {/* === SECCIÓN 1: COSTES PUROS (TER + GESTIÓN) === */}
+        {/* Comparable directamente entre carteras: son costes que erosionan tu
+            rentabilidad independientemente de cuánto ganes. Aquí SÍ tiene
+            sentido el mensaje "Te ahorras X €". */}
+        <div className="mb-2">
+          <div className="flex items-center justify-between mb-2 px-1">
+            <h4 className="text-xs font-bold text-brand-navy uppercase tracking-wider">
+              💸 Costes (TER + gestión)
+            </h4>
+            <span className="text-[10px] text-brand-tertiary italic">
+              comparable directamente — más bajo = mejor
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div className="rounded-xl bg-blue-50/50 border border-blue-100/50 p-5">
+              <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-2">
+                {resultA!.portfolioName}
               </p>
-              <div className="space-y-1.5 text-xs">
-                <div className="flex justify-between items-baseline">
-                  <span className="text-brand-secondary">Costes (TER + gestión):</span>
-                  <span className="font-semibold text-brand-navy tabular-nums">{formatEUR(breakdownA.costes)}</span>
-                </div>
-                <div className="flex justify-between items-baseline">
-                  <span className="text-brand-secondary">Impuestos adelantados:</span>
-                  <span className={`font-semibold tabular-nums ${breakdownA.adelantados > 0 ? "text-amber-700" : "text-brand-tertiary"}`}>
-                    {breakdownA.adelantados > 0 ? formatEUR(breakdownA.adelantados) : "0 €"}
-                  </span>
-                </div>
-                <div className="flex justify-between items-baseline">
-                  <span className="text-brand-secondary">
-                    Impuestos pendientes{breakdownA.isHypothetical && <span className="ml-1 text-purple-600 font-bold">*</span>}:
-                  </span>
-                  <span className={`font-semibold tabular-nums ${breakdownA.pendientes > 0 ? "text-purple-700" : "text-brand-tertiary"}`}>
-                    {breakdownA.pendientes > 0 ? formatEUR(breakdownA.pendientes) : "0 €"}
-                  </span>
+              <p className="text-3xl sm:text-4xl font-bold tracking-tight font-serif text-brand-navy">
+                {formatEUR(costsA)}
+              </p>
+              <p className="text-[11px] text-brand-tertiary mt-1">
+                TER {resultA!.fees.weightedTer.toFixed(2)}%
+                {resultA!.fees.managementFee ? ` + Gestión ${resultA!.fees.managementFee.toFixed(2)}%` : ""}
+              </p>
+              <p className="text-[10px] text-brand-tertiary mt-2 pt-2 border-t border-blue-100/40">
+                {yearsA > 0 && <>{yearsA.toFixed(1)} años · {(costsA / yearsA).toFixed(0)} €/año</>}
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-rose-50/50 border border-rose-100/50 p-5">
+              <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider mb-2">
+                {resultB!.portfolioName}
+              </p>
+              <p className="text-3xl sm:text-4xl font-bold tracking-tight font-serif text-brand-navy">
+                {formatEUR(costsB)}
+              </p>
+              <p className="text-[11px] text-brand-tertiary mt-1">
+                TER {resultB!.fees.weightedTer.toFixed(2)}%
+                {resultB!.fees.managementFee ? ` + Gestión ${resultB!.fees.managementFee.toFixed(2)}%` : ""}
+              </p>
+              <p className="text-[10px] text-brand-tertiary mt-2 pt-2 border-t border-rose-100/40">
+                {yearsB > 0 && <>{yearsB.toFixed(1)} años · {(costsB / yearsB).toFixed(0)} €/año</>}
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-brand-navy p-5 text-white">
+              <p className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-2">
+                Te ahorras
+              </p>
+              <p className="text-3xl sm:text-4xl font-bold tracking-tight font-serif">
+                {formatEUR(costsDifference)}
+              </p>
+              <p className="text-sm text-white/70 mt-1">
+                en costes con {cheaperCostsName}
+              </p>
+              <p className="text-[10px] text-white/50 mt-3 pt-3 border-t border-white/10">
+                Comparación solo entre TER y comisión de gestión.
+                Estos costes son ineludibles: más bajos siempre es mejor.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* === SECCIÓN 2: IMPUESTOS (solo si hay) === */}
+        {hasAnyTax && (
+          <div className="mb-2">
+            <div className="flex items-center justify-between mb-2 px-1">
+              <h4 className="text-xs font-bold text-brand-navy uppercase tracking-wider">
+                🧾 Impuestos
+              </h4>
+              <span className="text-[10px] text-brand-tertiary italic">
+                proporcionales a la ganancia — no son "malos" en sí
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+              <div className="rounded-xl bg-amber-50/40 border border-amber-100/60 p-5">
+                <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-2">
+                  {resultA!.portfolioName}
+                </p>
+                <p className="text-3xl sm:text-4xl font-bold tracking-tight font-serif text-amber-700">
+                  {formatEUR(taxesA)}
+                </p>
+                <p className="text-[11px] text-amber-700/70 mt-1">Impuestos totales</p>
+                <div className="mt-3 space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-brand-secondary">Pagados:</span>
+                    <span className={`font-semibold tabular-nums ${breakdownA.adelantados > 0 ? "text-amber-700" : "text-brand-tertiary"}`}>
+                      {formatEUR(breakdownA.adelantados)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-brand-secondary">
+                      Pendientes{breakdownA.isHypothetical && <span className="ml-0.5 text-purple-600 font-bold">*</span>}:
+                    </span>
+                    <span className={`font-semibold tabular-nums ${breakdownA.pendientes > 0 ? "text-purple-700" : "text-brand-tertiary"}`}>
+                      {formatEUR(breakdownA.pendientes)}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <p className="text-[10px] text-brand-tertiary mt-2 pt-2 border-t border-blue-100/40">
-              TER: {resultA!.fees.weightedTer.toFixed(2)}%
-              {resultA!.fees.managementFee ? ` + Gestión: ${resultA!.fees.managementFee.toFixed(2)}%` : ""}
-              {yearsA > 0 && <> · {yearsA.toFixed(1)} años · {(feesA / yearsA).toFixed(0)} €/año</>}
-            </p>
-          </div>
 
-          {/* Cartera B */}
-          <div className="rounded-xl bg-rose-50/50 border border-rose-100/50 p-5">
-            <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider mb-2">
-              {resultB!.portfolioName}
-            </p>
-            <p className="text-3xl sm:text-4xl font-bold tracking-tight font-serif text-brand-navy">
-              {formatEUR(feesB)}
-            </p>
-            <p className="text-[11px] text-brand-tertiary mt-1">Coste total acumulado</p>
-            {/* Desglose — siempre visible */}
-            <div className="mt-3 p-3 bg-white/60 rounded-lg border border-rose-200/60">
-              <p className="text-[10px] font-bold text-rose-700 uppercase tracking-wider mb-2">
-                💰 Desglose del coste
-              </p>
-              <div className="space-y-1.5 text-xs">
-                <div className="flex justify-between items-baseline">
-                  <span className="text-brand-secondary">Costes (TER + gestión):</span>
-                  <span className="font-semibold text-brand-navy tabular-nums">{formatEUR(breakdownB.costes)}</span>
-                </div>
-                <div className="flex justify-between items-baseline">
-                  <span className="text-brand-secondary">Impuestos adelantados:</span>
-                  <span className={`font-semibold tabular-nums ${breakdownB.adelantados > 0 ? "text-amber-700" : "text-brand-tertiary"}`}>
-                    {breakdownB.adelantados > 0 ? formatEUR(breakdownB.adelantados) : "0 €"}
-                  </span>
-                </div>
-                <div className="flex justify-between items-baseline">
-                  <span className="text-brand-secondary">
-                    Impuestos pendientes{breakdownB.isHypothetical && <span className="ml-1 text-purple-600 font-bold">*</span>}:
-                  </span>
-                  <span className={`font-semibold tabular-nums ${breakdownB.pendientes > 0 ? "text-purple-700" : "text-brand-tertiary"}`}>
-                    {breakdownB.pendientes > 0 ? formatEUR(breakdownB.pendientes) : "0 €"}
-                  </span>
+              <div className="rounded-xl bg-amber-50/40 border border-amber-100/60 p-5">
+                <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-2">
+                  {resultB!.portfolioName}
+                </p>
+                <p className="text-3xl sm:text-4xl font-bold tracking-tight font-serif text-amber-700">
+                  {formatEUR(taxesB)}
+                </p>
+                <p className="text-[11px] text-amber-700/70 mt-1">Impuestos totales</p>
+                <div className="mt-3 space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-brand-secondary">Pagados:</span>
+                    <span className={`font-semibold tabular-nums ${breakdownB.adelantados > 0 ? "text-amber-700" : "text-brand-tertiary"}`}>
+                      {formatEUR(breakdownB.adelantados)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-brand-secondary">
+                      Pendientes{breakdownB.isHypothetical && <span className="ml-0.5 text-purple-600 font-bold">*</span>}:
+                    </span>
+                    <span className={`font-semibold tabular-nums ${breakdownB.pendientes > 0 ? "text-purple-700" : "text-brand-tertiary"}`}>
+                      {formatEUR(breakdownB.pendientes)}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <p className="text-[10px] text-brand-tertiary mt-2 pt-2 border-t border-rose-100/40">
-              TER: {resultB!.fees.weightedTer.toFixed(2)}%
-              {resultB!.fees.managementFee ? ` + Gestión: ${resultB!.fees.managementFee.toFixed(2)}%` : ""}
-              {yearsB > 0 && <> · {yearsB.toFixed(1)} años · {(feesB / yearsB).toFixed(0)} €/año</>}
-            </p>
-          </div>
 
-          {/* Te ahorras */}
-          <div className="rounded-xl bg-brand-navy p-5 text-white">
-            <p className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-2">
-              Te ahorras
-            </p>
-            <p className="text-3xl sm:text-4xl font-bold tracking-tight font-serif">
-              {formatEUR(feeDifference)}
-            </p>
-            <p className="text-sm text-white/70 mt-1">
-              con {cheaperName}
-            </p>
-            <p className="text-[10px] text-white/50 mt-3 pt-3 border-t border-white/10">
-              Incluye TER, comisión de gestión, impuestos pagados durante el periodo
-              y los pendientes que tributarías al liquidar la cartera.
-            </p>
+              <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-5">
+                <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider mb-2">
+                  Ojo al matiz
+                </p>
+                <p className="text-sm text-emerald-900 leading-snug font-medium">
+                  <strong>{moreTaxesName}</strong> paga{" "}
+                  <strong className="tabular-nums">{formatEUR(taxesDifference)}</strong>{" "}
+                  más en impuestos.
+                </p>
+                <p className="text-[11px] text-emerald-800/80 mt-3 leading-relaxed">
+                  Pero esto <strong>no es malo</strong>: los impuestos son proporcionales
+                  a la ganancia. Si paga más es porque ha ganado más. La comparación
+                  real es <strong>cuánto te llevas al bolsillo</strong> al final
+                  (ver "Cómo afectan los impuestos" arriba).
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Total acumulado — fila inferior compacta para referencia */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 -mt-2">
+          <div className="px-3 py-2 bg-slate-50 rounded-lg flex justify-between items-baseline">
+            <span className="text-[10px] text-brand-tertiary uppercase tracking-wider">Total {resultA!.portfolioName}</span>
+            <span className="text-sm font-bold text-brand-navy tabular-nums">{formatEUR(feesA)}</span>
+          </div>
+          <div className="px-3 py-2 bg-slate-50 rounded-lg flex justify-between items-baseline">
+            <span className="text-[10px] text-brand-tertiary uppercase tracking-wider">Total {resultB!.portfolioName}</span>
+            <span className="text-sm font-bold text-brand-navy tabular-nums">{formatEUR(feesB)}</span>
+          </div>
+          <div className="px-3 py-2 bg-slate-50 rounded-lg flex justify-between items-baseline">
+            <span className="text-[10px] text-brand-tertiary uppercase tracking-wider">Diferencia total</span>
+            <span className="text-sm font-bold text-brand-navy tabular-nums">{formatEUR(Math.abs(feesA - feesB))}</span>
           </div>
         </div>
 
