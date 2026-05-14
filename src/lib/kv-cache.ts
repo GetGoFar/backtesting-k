@@ -80,7 +80,11 @@ async function getRedis(): Promise<import("@upstash/redis").Redis | null> {
 //       en vez de close, para capturar dividendos en ETFs distribución (ej: DBMF/US53700T8273
 //       con $8.50 de dividendos acumulados que no se contabilizaban → -34% rentabilidad real).
 // v21 = Pictet Atlas: LU2206556016 (P Titan, desde 2020-10) → LU1433232698 (I, desde 2016-11, +4 años)
-const CACHE_VERSION = "v21";
+// v22 = BUG FIX masivo: USD assets (US ETFs + acciones individuales US + 2 EUR stocks
+//       ITX/MC) marcadas como distributing:true para usar adjusted_close de EODHD.
+//       Antes se usaba close → se PERDÍAN los dividendos (KO -3%/año, MSFT -1%/año,
+//       AAPL -0,5%/año, etc.) y los CAGR no coincidían con portfoliovisualizer.com.
+const CACHE_VERSION = "v22";
 
 function makeKey(fundId: string): string {
   return `${CACHE_VERSION}:prices:${fundId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
