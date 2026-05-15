@@ -3,6 +3,15 @@
 import type { BacktestResponse, BacktestResult } from "@/lib/types";
 import { formatEUR } from "@/lib/formatters";
 import { computeTaxOnGain, taxModeLabel, type TaxMode } from "@/lib/tax-utils";
+import { Tooltip } from "./Tooltip";
+
+// Texto reutilizado para explicar por qué dos carteras con el MISMO % de TER
+// pueden pagar comisiones totales muy distintas en EUR.
+const TER_TOOLTIP =
+  "El TER se cobra cada mes sobre el patrimonio actual de la cartera, no sobre la inversión inicial. Fórmula: comisión_mensual = (TER ÷ 12) × valor_cartera_ese_mes. Por eso, dos carteras con el mismo % de TER pueden pagar comisiones totales muy distintas: la que más crece tiene mayor patrimonio promedio y, sobre ese patrimonio mayor, el mismo % se traduce en más euros. No es un error de cálculo: es el efecto compuesto del coste sobre un capital creciente.";
+
+const COSTS_TOOLTIP =
+  "Comisión total acumulada (TER + comisión de gestión si aplica) durante todo el período del backtest. Se calcula mes a mes sobre el patrimonio real de la cartera. Cuanto mayor es el patrimonio promedio, mayor es la comisión en euros aunque el % sea el mismo.";
 
 interface FeeImpactCardProps {
   results: BacktestResponse;
@@ -75,14 +84,28 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
             </div>
 
             <div className="rounded-xl bg-slate-50 p-5">
-              <p className="text-xs font-medium text-brand-tertiary uppercase tracking-wider mb-2">Costes (TER + gestión)</p>
+              <div className="flex items-center gap-1.5 mb-2">
+                <p className="text-xs font-medium text-brand-tertiary uppercase tracking-wider">Costes (TER + gestión)</p>
+                <Tooltip content={COSTS_TOOLTIP} wide>
+                  <svg className="w-3.5 h-3.5 text-slate-300 hover:text-brand-coral transition-colors" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
+                  </svg>
+                </Tooltip>
+              </div>
               <p className="text-3xl sm:text-4xl font-bold tracking-tight font-serif text-brand-navy">
                 {formatEUR(costes)}
               </p>
-              <p className="text-xs text-brand-tertiary mt-1">
-                TER {singleResult.fees.weightedTer.toFixed(2)}%
-                {singleResult.fees.managementFee ? ` + Gestión ${singleResult.fees.managementFee.toFixed(2)}%` : ""}
-              </p>
+              <div className="flex items-center gap-1 mt-1">
+                <p className="text-xs text-brand-tertiary">
+                  TER {singleResult.fees.weightedTer.toFixed(3)}%
+                  {singleResult.fees.managementFee ? ` + Gestión ${singleResult.fees.managementFee.toFixed(2)}%` : ""}
+                </p>
+                <Tooltip content={TER_TOOLTIP} wide>
+                  <svg className="w-3 h-3 text-slate-300 hover:text-brand-coral transition-colors" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
+                  </svg>
+                </Tooltip>
+              </div>
             </div>
 
             {hasAnyTax && (
@@ -250,9 +273,16 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
             sentido el mensaje "Te ahorras X €". */}
         <div className="mb-2">
           <div className="flex items-center justify-between mb-2 px-1">
-            <h4 className="text-xs font-bold text-brand-navy uppercase tracking-wider">
-              💸 Costes (TER + gestión)
-            </h4>
+            <div className="flex items-center gap-1.5">
+              <h4 className="text-xs font-bold text-brand-navy uppercase tracking-wider">
+                💸 Costes (TER + gestión)
+              </h4>
+              <Tooltip content={COSTS_TOOLTIP} wide>
+                <svg className="w-3.5 h-3.5 text-slate-300 hover:text-brand-coral transition-colors" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
+                </svg>
+              </Tooltip>
+            </div>
             <span className="text-[10px] text-brand-tertiary italic">
               comparable directamente — más bajo = mejor
             </span>
@@ -265,10 +295,17 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
               <p className="text-3xl sm:text-4xl font-bold tracking-tight font-serif text-brand-navy">
                 {formatEUR(costsA)}
               </p>
-              <p className="text-[11px] text-brand-tertiary mt-1">
-                TER {resultA!.fees.weightedTer.toFixed(2)}%
-                {resultA!.fees.managementFee ? ` + Gestión ${resultA!.fees.managementFee.toFixed(2)}%` : ""}
-              </p>
+              <div className="flex items-center gap-1 mt-1">
+                <p className="text-[11px] text-brand-tertiary">
+                  TER {resultA!.fees.weightedTer.toFixed(3)}%
+                  {resultA!.fees.managementFee ? ` + Gestión ${resultA!.fees.managementFee.toFixed(2)}%` : ""}
+                </p>
+                <Tooltip content={TER_TOOLTIP} wide>
+                  <svg className="w-3 h-3 text-slate-300 hover:text-brand-coral transition-colors" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
+                  </svg>
+                </Tooltip>
+              </div>
               <p className="text-[10px] text-brand-tertiary mt-2 pt-2 border-t border-blue-100/40">
                 {yearsA > 0 && <>{yearsA.toFixed(1)} años · {(costsA / yearsA).toFixed(0)} €/año</>}
               </p>
@@ -281,10 +318,17 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
               <p className="text-3xl sm:text-4xl font-bold tracking-tight font-serif text-brand-navy">
                 {formatEUR(costsB)}
               </p>
-              <p className="text-[11px] text-brand-tertiary mt-1">
-                TER {resultB!.fees.weightedTer.toFixed(2)}%
-                {resultB!.fees.managementFee ? ` + Gestión ${resultB!.fees.managementFee.toFixed(2)}%` : ""}
-              </p>
+              <div className="flex items-center gap-1 mt-1">
+                <p className="text-[11px] text-brand-tertiary">
+                  TER {resultB!.fees.weightedTer.toFixed(3)}%
+                  {resultB!.fees.managementFee ? ` + Gestión ${resultB!.fees.managementFee.toFixed(2)}%` : ""}
+                </p>
+                <Tooltip content={TER_TOOLTIP} wide>
+                  <svg className="w-3 h-3 text-slate-300 hover:text-brand-coral transition-colors" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
+                  </svg>
+                </Tooltip>
+              </div>
               <p className="text-[10px] text-brand-tertiary mt-2 pt-2 border-t border-rose-100/40">
                 {yearsB > 0 && <>{yearsB.toFixed(1)} años · {(costsB / yearsB).toFixed(0)} €/año</>}
               </p>
@@ -301,8 +345,9 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
                 en costes con {cheaperCostsName}
               </p>
               <p className="text-[10px] text-white/50 mt-3 pt-3 border-t border-white/10">
-                Comparación solo entre TER y comisión de gestión.
-                Estos costes son ineludibles: más bajos siempre es mejor.
+                Comparación entre TER y comisión de gestión efectivamente pagados en EUR.
+                Ojo: dos carteras con el MISMO % de TER pueden pagar comisiones distintas
+                porque se cobran sobre el patrimonio mensual, que crece a ritmo diferente.
               </p>
             </div>
           </div>
