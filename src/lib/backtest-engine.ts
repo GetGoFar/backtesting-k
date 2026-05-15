@@ -37,6 +37,7 @@ import type {
   CorrelationEntry,
   AssetMetrics,
   DisplayGranularity,
+  Fund,
 } from "./types";
 import { getFundById } from "./fund-database";
 import { getBenchmarkById } from "./benchmarks";
@@ -188,44 +189,63 @@ export async function runBacktest(
     ? candidates_end.sort()[0]! // la más temprana (intersección)
     : effectiveEndDate;
 
-  // Benchmark: si se solicita, ejecutar backtest del benchmark y calcular métricas relativas
-  if (config.benchmarkId && (resultA || resultB)) {
+  // Benchmark: si se solicita, ejecutar backtest del benchmark y calcular métricas relativas.
+  // Prioridad:
+  //   1) customBenchmark (cartera ad-hoc o preset usado como benchmark)
+  //   2) benchmarkId (de la lista predefinida de índices)
+  const hasCustomBenchmark = config.customBenchmark
+    && config.customBenchmark.composition.length > 0;
+  if ((hasCustomBenchmark || config.benchmarkId) && (resultA || resultB)) {
     try {
-      const benchmarkDef = getBenchmarkById(config.benchmarkId);
-      if (benchmarkDef) {
-        const benchmarkPortfolio: Portfolio = {
-          name: benchmarkDef.name,
-          holdings: benchmarkDef.composition,
-        };
-        const benchmarkResult = await runPortfolioBacktest(
-          benchmarkPortfolio,
-          actualStartForBenchmark,
-          actualEndForBenchmark,
-          config.initialAmount,
-          config.rebalanceFrequency,
-          config.monthlyContribution ?? 0,
-          displayGranularity,
-          [] // no acumulamos warnings del benchmark
-        );
-        if (benchmarkResult) {
-          if (resultA) {
-            resultA.benchmark = computeBenchmarkComparison(
-              resultA,
-              benchmarkResult,
-              config.benchmarkId,
-              benchmarkDef.name,
-              displayGranularity
-            );
-          }
-          if (resultB) {
-            resultB.benchmark = computeBenchmarkComparison(
-              resultB,
-              benchmarkResult,
-              config.benchmarkId,
-              benchmarkDef.name,
-              displayGranularity
-            );
-          }
+      // Resolver la composición y nombres del benchmark
+      let benchmarkName: string;
+      let benchmarkHoldings: Array<{ fundId: string; weight: number; fund?: Fund }>;
+      let benchmarkIdForComparison: BenchmarkId;
+      if (hasCustomBenchmark) {
+        benchmarkName = config.customBenchmark!.name;
+        benchmarkHoldings = config.customBenchmark!.composition;
+        // ID sintético para identificar este benchmark en la respuesta
+        benchmarkIdForComparison = ("custom-" + benchmarkName.toLowerCase().replace(/[^a-z0-9]/g, "-").substring(0, 40)) as BenchmarkId;
+      } else {
+        const benchmarkDef = getBenchmarkById(config.benchmarkId!);
+        if (!benchmarkDef) throw new Error("Benchmark no encontrado");
+        benchmarkName = benchmarkDef.name;
+        benchmarkHoldings = benchmarkDef.composition;
+        benchmarkIdForComparison = config.benchmarkId!;
+      }
+
+      const benchmarkPortfolio: Portfolio = {
+        name: benchmarkName,
+        holdings: benchmarkHoldings,
+      };
+      const benchmarkResult = await runPortfolioBacktest(
+        benchmarkPortfolio,
+        actualStartForBenchmark,
+        actualEndForBenchmark,
+        config.initialAmount,
+        config.rebalanceFrequency,
+        config.monthlyContribution ?? 0,
+        displayGranularity,
+        [] // no acumulamos warnings del benchmark
+      );
+      if (benchmarkResult) {
+        if (resultA) {
+          resultA.benchmark = computeBenchmarkComparison(
+            resultA,
+            benchmarkResult,
+            benchmarkIdForComparison,
+            benchmarkName,
+            displayGranularity
+          );
+        }
+        if (resultB) {
+          resultB.benchmark = computeBenchmarkComparison(
+            resultB,
+            benchmarkResult,
+            benchmarkIdForComparison,
+            benchmarkName,
+            displayGranularity
+          );
         }
       }
     } catch (err) {

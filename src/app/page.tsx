@@ -15,10 +15,10 @@ import type {
   DisplayGranularity,
   PortfolioHolding,
   BacktestWarning,
-  BenchmarkId,
 } from "@/lib/types";
 import { getAllBenchmarks } from "@/lib/benchmarks";
 import { getFundById } from "@/lib/fund-database";
+import { getAllPresets } from "@/lib/portfolio-presets";
 
 // Función para obtener el mes actual en formato YYYY-MM
 function getCurrentMonth(): string {
@@ -218,7 +218,10 @@ export default function Home() {
   const [displayGranularity, setDisplayGranularity] =
     useState<DisplayGranularity>("monthly");
   const [useCommonDateRange, setUseCommonDateRange] = useState(true);
-  const [benchmarkId, setBenchmarkId] = useState<BenchmarkId | null>(null);
+  // Benchmark: puede ser un id predefinido ("bm:msci-world") o un preset
+  // ("preset:k-inbestme-6"). Permitir presets como benchmark da flexibilidad
+  // para comparar cartera vs cartera, no solo cartera vs índice.
+  const [benchmarkSelection, setBenchmarkSelection] = useState<string>("");
 
   // Estado de resultados y UI
   const [results, setResults] = useState<BacktestResponse | null>(null);
@@ -287,9 +290,28 @@ export default function Home() {
         rebalanceFrequency: "annual",
         displayGranularity,
         useCommonDateRange,
-        benchmarkId: benchmarkId ?? undefined,
         contributionRebalance: monthlyContribution > 0 ? contributionRebalance : undefined,
       };
+
+      // Resolver benchmark: si es predefinido va por benchmarkId; si es preset
+      // se convierte a customBenchmark con la composición de ese preset.
+      if (benchmarkSelection.startsWith("bm:")) {
+        payload.benchmarkId = benchmarkSelection.substring(3);
+      } else if (benchmarkSelection.startsWith("preset:")) {
+        const presetId = benchmarkSelection.substring(7);
+        const preset = getAllPresets().find((p) => p.id === presetId);
+        if (preset) {
+          payload.customBenchmark = {
+            name: preset.name,
+            description: preset.description,
+            composition: preset.holdings.map((h) => ({
+              fundId: h.fundId,
+              weight: h.weight,
+              fund: h.fund,
+            })),
+          };
+        }
+      }
 
       if (portfolioA.isValid) {
         payload.portfolioA = {
@@ -611,29 +633,55 @@ export default function Home() {
                 Benchmark de referencia (opcional)
               </label>
               <select
-                value={benchmarkId ?? ""}
-                onChange={(e) => setBenchmarkId(e.target.value ? (e.target.value as BenchmarkId) : null)}
+                value={benchmarkSelection}
+                onChange={(e) => setBenchmarkSelection(e.target.value)}
                 className="w-full sm:max-w-md px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral"
               >
                 <option value="">Sin benchmark</option>
-                {getAllBenchmarks().map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
+                <optgroup label="📊 Índices y benchmarks clásicos">
+                  {getAllBenchmarks().map((b) => (
+                    <option key={b.id} value={`bm:${b.id}`}>
+                      {b.name}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="📁 Carteras preconfiguradas (como benchmark)">
+                  {getAllPresets().map((p) => (
+                    <option key={p.id} value={`preset:${p.id}`}>
+                      {p.name}
+                    </option>
+                  ))}
+                </optgroup>
               </select>
               <p className="mt-1.5 text-xs text-brand-tertiary">
                 Si lo seleccionas, se calcularán alpha de Jensen, beta, tracking error, information ratio y capture ratios vs el benchmark.
+                Puedes usar tanto índices clásicos como cualquier cartera preconfigurada (K Inbestme, K Sectorial USA, Indexa, banca, etc.).
               </p>
               {/* Composición concreta del benchmark seleccionado */}
-              {benchmarkId && (() => {
-                const def = getAllBenchmarks().find((b) => b.id === benchmarkId);
-                if (!def) return null;
+              {benchmarkSelection && (() => {
+                let name: string;
+                let description: string | undefined;
+                let composition: Array<{ fundId: string; weight: number }>;
+                if (benchmarkSelection.startsWith("bm:")) {
+                  const def = getAllBenchmarks().find((b) => `bm:${b.id}` === benchmarkSelection);
+                  if (!def) return null;
+                  name = def.name;
+                  description = def.description;
+                  composition = def.composition;
+                } else if (benchmarkSelection.startsWith("preset:")) {
+                  const preset = getAllPresets().find((p) => `preset:${p.id}` === benchmarkSelection);
+                  if (!preset) return null;
+                  name = preset.name;
+                  description = preset.description;
+                  composition = preset.holdings.map((h) => ({ fundId: h.fundId, weight: h.weight }));
+                } else {
+                  return null;
+                }
                 return (
                   <div className="mt-2 sm:max-w-md p-3 bg-slate-50 border border-slate-200 rounded-lg">
                     <p className="text-xs text-brand-secondary">
-                      <span className="font-semibold">Composición usada como benchmark:</span>{" "}
-                      {def.composition.map((c, idx) => {
+                      <span className="font-semibold">Composición usada como benchmark ({name}):</span>{" "}
+                      {composition.map((c, idx) => {
                         const f = getFundById(c.fundId);
                         return (
                           <span key={c.fundId}>
@@ -644,11 +692,13 @@ export default function Home() {
                         );
                       })}
                     </p>
-                    <p className="mt-1 text-xs text-brand-tertiary italic">
-                      {def.description}
-                    </p>
+                    {description && (
+                      <p className="mt-1 text-xs text-brand-tertiary italic">
+                        {description}
+                      </p>
+                    )}
                     <p className="mt-1.5 text-xs text-brand-tertiary">
-                      Los precios del ETF incluyen el TER descontado del NAV, así que la comparación refleja el resultado real que obtendrías invirtiendo en este ETF (no el índice teórico sin costes).
+                      Los precios incluyen el TER descontado del NAV, así que la comparación refleja el resultado real que obtendrías invirtiendo en este benchmark (no el índice teórico sin costes).
                     </p>
                   </div>
                 );

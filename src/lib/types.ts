@@ -140,6 +140,16 @@ export interface BacktestConfig {
   displayGranularity?: DisplayGranularity;
   /** Benchmark a comparar (opcional). Si se incluye, se calcula alpha/beta/IR/etc. */
   benchmarkId?: BenchmarkId | null;
+  /** Benchmark a medida (alternativa a benchmarkId). Permite usar cualquier
+   *  composición de fondos como referencia: una cartera preset, una cartera
+   *  custom del usuario, o cualquier mix arbitrario. Si está definido, tiene
+   *  prioridad sobre benchmarkId. */
+  customBenchmark?: {
+    name: string;
+    shortName?: string;
+    description?: string;
+    composition: Array<{ fundId: string; weight: number; fund?: Fund }>;
+  } | null;
   /** Tasa impositiva sobre plusvalías realizadas en cada rebalanceo (decimal,
    *  ej: 0.21 para 21%). 0 = sin impuestos (fondos de inversión con traspaso).
    *  Aplicable solo a carteras de ETFs en España. */
