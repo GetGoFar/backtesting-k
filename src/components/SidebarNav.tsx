@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface SidebarNavProps {
   /** Si la sección de resultados existe (para mostrar las entradas de análisis) */
@@ -38,6 +38,10 @@ const ALL_SECTIONS: NavSection[] = [
 export function SidebarNav({ hasResults }: SidebarNavProps) {
   const [activeSection, setActiveSection] = useState<string>("");
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  // Cooldown del observer tras un click manual. Mientras está activo, el
+  // observer NO sobreescribe activeSection (porque durante el smooth scroll
+  // puede detectar erróneamente la sección anterior/intermedia).
+  const manualClickRef = useRef<number>(0);
 
   const visibleSections = ALL_SECTIONS.filter(
     (s) => s.group === "config" || (s.group === "results" && hasResults)
@@ -49,10 +53,13 @@ export function SidebarNav({ hasResults }: SidebarNavProps) {
 
     const observer = new IntersectionObserver(
       (entries) => {
-        // Encontrar la entrada más alta en el viewport
+        // Si el usuario acaba de hacer click, ignorar el observer durante 900ms
+        // (tiempo aproximado del smooth scroll). El active ya está fijado al
+        // valor correcto desde handleClick.
+        if (Date.now() - manualClickRef.current < 900) return;
+
         const visibleEntries = entries.filter((e) => e.isIntersecting);
         if (visibleEntries.length > 0) {
-          // La que está más cerca del top
           visibleEntries.sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
           const topVisible = visibleEntries[0];
           if (topVisible) setActiveSection(topVisible.target.id);
@@ -75,6 +82,11 @@ export function SidebarNav({ hasResults }: SidebarNavProps) {
   const handleClick = (id: string) => {
     const el = document.getElementById(id);
     if (el) {
+      // Marcar la sección como activa inmediatamente, antes incluso de scroll
+      setActiveSection(id);
+      // Registrar timestamp para que el observer no nos sobreescriba durante
+      // el smooth scroll (puede pasar por secciones intermedias).
+      manualClickRef.current = Date.now();
       el.scrollIntoView({ behavior: "smooth", block: "start" });
       setIsMobileOpen(false);
     }
