@@ -407,6 +407,175 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// Carteras K Geográfica USA (1-9, X) — versión "USA" con fondos Vanguard +
+// EWJ (Japón) cotizados en USD. Misma escala de riesgo que las K Sectorial
+// USA, pero la RV se distribuye por GEOGRAFÍA (USA + Desarrollados ex-US +
+// Emergentes + Europa + Japón) en lugar de por sectores.
+//
+// Fuente: Pablo González Vidal (portfoliovisualizer.com).
+// IMPORTANTE: cotizan en USD. El motor procesa los precios sin convertir a
+// EUR (las cifras del resultado aparecerán con símbolo "€" pero realmente
+// serán USD). Útil para alumnos con broker US o análisis histórico muy largo
+// (los Vanguard mutual funds tienen datos desde los años 90).
+//
+// Sustituciones realizadas vs portfoliovisualizer:
+//   ^GOLD (spot oro) → XAUUSD.FOREX (oro spot, histórico desde 1979)
+// -----------------------------------------------------------------------------
+
+const K_GEOGRAFICA_USA_PRESETS: PortfolioPreset[] = [
+  {
+    id: "k-geografica-usa-1",
+    name: "K1 Geográfica USA",
+    description: "Riesgo 1: ~10% RV global + 75% RF (treasuries + corp) + 15% Oro",
+    type: "index",
+    holdings: [
+      { fundId: "vanguard-vfitx", weight: 6.80 },
+      { fundId: "vanguard-vustx", weight: 4.50 },
+      { fundId: "vanguard-vfisx", weight: 33.60 },
+      { fundId: "vanguard-vfinx", weight: 6.70 },
+      { fundId: "vanguard-vtmgx", weight: 2.60 },
+      { fundId: "vanguard-veiex", weight: 0.80 },
+      { fundId: "ishares-lqd", weight: 22.50 },
+      { fundId: "vanguard-vwehx", weight: 7.50 },
+      { fundId: "spot-gold", weight: 15 },
+    ],
+  },
+  {
+    id: "k-geografica-usa-2",
+    name: "K2 Geográfica USA",
+    description: "Riesgo 2: 15% RV global + 70% RF + 15% Oro",
+    type: "index",
+    holdings: [
+      { fundId: "vanguard-vfisx", weight: 42 },
+      { fundId: "vanguard-vfinx", weight: 10 },
+      { fundId: "vanguard-vtmgx", weight: 4 },
+      { fundId: "vanguard-veiex", weight: 1 },
+      { fundId: "ishares-lqd", weight: 18 },
+      { fundId: "vanguard-vwehx", weight: 10 },
+      { fundId: "spot-gold", weight: 15 },
+    ],
+  },
+  {
+    id: "k-geografica-usa-3",
+    name: "K3 Geográfica USA",
+    description: "Riesgo 3: 25% RV global + 60% RF + 15% Oro",
+    type: "index",
+    holdings: [
+      { fundId: "vanguard-vfinx", weight: 16.70 },
+      { fundId: "vanguard-vtmgx", weight: 6.50 },
+      { fundId: "vanguard-veiex", weight: 1.80 },
+      { fundId: "vanguard-vfitx", weight: 9 },
+      { fundId: "vanguard-vustx", weight: 5 },
+      { fundId: "vanguard-vfisx", weight: 22 },
+      { fundId: "spot-gold", weight: 15 },
+      { fundId: "ishares-lqd", weight: 15 },
+      { fundId: "vanguard-vwehx", weight: 9 },
+    ],
+  },
+  {
+    id: "k-geografica-usa-4",
+    name: "K4 Geográfica USA",
+    description: "Riesgo 4: 35% RV global + 50% RF + 15% Oro",
+    type: "index",
+    holdings: [
+      { fundId: "vanguard-vfitx", weight: 5 },
+      { fundId: "vanguard-vustx", weight: 9 },
+      { fundId: "vanguard-vfisx", weight: 21 },
+      { fundId: "vanguard-vfinx", weight: 23.50 },
+      { fundId: "vanguard-vtmgx", weight: 9 },
+      { fundId: "vanguard-veiex", weight: 2.50 },
+      { fundId: "ishares-lqd", weight: 10 },
+      { fundId: "vanguard-vwehx", weight: 5 },
+      { fundId: "spot-gold", weight: 15 },
+    ],
+  },
+  {
+    id: "k-geografica-usa-5",
+    name: "K5 Geográfica USA",
+    description: "Riesgo 5 (equilibrada): 45% RV global + 35% RF + 20% Oro",
+    type: "index",
+    holdings: [
+      { fundId: "vanguard-vfinx", weight: 30 },
+      { fundId: "vanguard-vtmgx", weight: 12 },
+      { fundId: "vanguard-veiex", weight: 3 },
+      { fundId: "vanguard-vfitx", weight: 8 },
+      { fundId: "vanguard-vustx", weight: 3 },
+      { fundId: "vanguard-vfisx", weight: 17 },
+      { fundId: "spot-gold", weight: 20 },
+      { fundId: "ishares-lqd", weight: 5 },
+      { fundId: "vanguard-vwehx", weight: 2 },
+    ],
+  },
+  {
+    id: "k-geografica-usa-6",
+    name: "K6 Geográfica USA",
+    description: "Riesgo 6: 55% RV global + 25% Treasury + 20% Oro",
+    type: "index",
+    holdings: [
+      { fundId: "vanguard-vfinx", weight: 36.80 },
+      { fundId: "vanguard-vtmgx", weight: 14.30 },
+      { fundId: "vanguard-veiex", weight: 3.90 },
+      { fundId: "spot-gold", weight: 20 },
+      { fundId: "vanguard-vfitx", weight: 7.50 },
+      { fundId: "vanguard-vustx", weight: 5 },
+      { fundId: "vanguard-vfisx", weight: 12.50 },
+    ],
+  },
+  {
+    id: "k-geografica-usa-7",
+    name: "K7 Geográfica USA",
+    description: "Riesgo 7: 65% RV (USA + Europa + Japón + EM) + 15% VFITX + 20% Oro",
+    type: "index",
+    holdings: [
+      { fundId: "vanguard-veurx", weight: 13 },
+      { fundId: "vanguard-veiex", weight: 5 },
+      { fundId: "ishares-ewj", weight: 4 },
+      { fundId: "vanguard-vfitx", weight: 15 },
+      { fundId: "vanguard-vfinx", weight: 43 },
+      { fundId: "spot-gold", weight: 20 },
+    ],
+  },
+  {
+    id: "k-geografica-usa-8",
+    name: "K8 Geográfica USA",
+    description: "Riesgo 8: 70% RV global + 10% VUSTX + 20% Oro",
+    type: "index",
+    holdings: [
+      { fundId: "vanguard-vfinx", weight: 46.90 },
+      { fundId: "vanguard-vtmgx", weight: 18.20 },
+      { fundId: "vanguard-veiex", weight: 4.90 },
+      { fundId: "vanguard-vustx", weight: 10 },
+      { fundId: "spot-gold", weight: 20 },
+    ],
+  },
+  {
+    id: "k-geografica-usa-9",
+    name: "K9 Geográfica USA",
+    description: "Riesgo 9: 74% RV global + 6% VUSTX + 20% Oro",
+    type: "index",
+    holdings: [
+      { fundId: "vanguard-vfinx", weight: 49.60 },
+      { fundId: "vanguard-vtmgx", weight: 19.20 },
+      { fundId: "vanguard-veiex", weight: 5.20 },
+      { fundId: "spot-gold", weight: 20 },
+      { fundId: "vanguard-vustx", weight: 6 },
+    ],
+  },
+  {
+    id: "k-geografica-usa-x",
+    name: "KX Geográfica USA",
+    description: "Riesgo máximo: 80% RV global (USA + Desarrollados + EM) + 20% Oro (sin bonos)",
+    type: "index",
+    holdings: [
+      { fundId: "vanguard-vfinx", weight: 53.60 },
+      { fundId: "vanguard-vtmgx", weight: 20.80 },
+      { fundId: "vanguard-veiex", weight: 5.60 },
+      { fundId: "spot-gold", weight: 20 },
+    ],
+  },
+];
+
+// -----------------------------------------------------------------------------
 // Cartera de los participantes de las primeras ediciones del Taller K.
 // 10 acciones individuales equiponderadas (10% cada una). Mezcla USD/EUR —
 // el motor no convierte FX, las cifras quedarán en una mezcla de divisas. Útil
@@ -979,6 +1148,7 @@ const ALTERNATIVOS_CANIGUERAL_PRESETS: PortfolioPreset[] = [
 const ALL_PRESETS: PortfolioPreset[] = [
   ...K_INBESTME_PRESETS,
   ...K_SECTORIAL_USA_PRESETS,
+  ...K_GEOGRAFICA_USA_PRESETS,
   ...K_GEOGRAFICA_UCIT_PRESETS,
   ...INDEXA_PRESETS,
   ...K_PRESETS,
