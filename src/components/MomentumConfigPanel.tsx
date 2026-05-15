@@ -38,7 +38,12 @@ export function MomentumConfigPanel({ config, onChange, onRun, isLoading }: Prop
   }
 
   function loadPreset(
-    preset: "kx-sectorial" | "spdr-sectors" | "mag7" | "global-tactical"
+    preset:
+      | "kx-sectorial"
+      | "play-money-acciones"
+      | "spdr-sectors"
+      | "mag7"
+      | "global-tactical"
   ) {
     if (preset === "kx-sectorial") {
       // Cartera curada por el usuario — 6 sectores SPDR + Oro como activo
@@ -51,6 +56,53 @@ export function MomentumConfigPanel({ config, onChange, onRun, isLoading }: Prop
         { ticker: "XLE", displayName: "Energía" },
         { ticker: "VNQ", displayName: "Real Estate" },
         { ticker: "GLD", displayName: "Oro" },
+      ]);
+    } else if (preset === "play-money-acciones") {
+      // Cartera curada por el usuario — mezcla amplia de acciones (tech, large
+      // caps US/EU, mid caps especulativas) + algunos ETFs sectoriales/refugio
+      // como diversificación.
+      update("assets", [
+        // Tech / software / cloud
+        { ticker: "ZS", displayName: "Zscaler" },
+        { ticker: "PLTR", displayName: "Palantir" },
+        { ticker: "NOW", displayName: "ServiceNow" },
+        { ticker: "INTU", displayName: "Intuit" },
+        { ticker: "MDB", displayName: "MongoDB" },
+        { ticker: "META", displayName: "Meta" },
+        { ticker: "TSLA", displayName: "Tesla" },
+        { ticker: "RELX", displayName: "RELX" },
+        { ticker: "AMD", displayName: "AMD" },
+        { ticker: "MSFT", displayName: "Microsoft" },
+        { ticker: "AVGO", displayName: "Broadcom" },
+        { ticker: "NVDA", displayName: "NVIDIA" },
+        { ticker: "NFLX", displayName: "Netflix" },
+        { ticker: "IBM", displayName: "IBM" },
+        { ticker: "CRM", displayName: "Salesforce" },
+        { ticker: "CSCO", displayName: "Cisco" },
+        { ticker: "BABA", displayName: "Alibaba" },
+        { ticker: "AMZN", displayName: "Amazon" },
+        { ticker: "ORCL", displayName: "Oracle" },
+        { ticker: "SAP", displayName: "SAP" },
+        // Finance & other
+        { ticker: "BAC", displayName: "Bank of America" },
+        { ticker: "GOOG", displayName: "Alphabet" },
+        { ticker: "ROOT", displayName: "Root Inc." },
+        { ticker: "PANW", displayName: "Palo Alto Nw" },
+        { ticker: "VRT", displayName: "Vertiv" },
+        { ticker: "LLY", displayName: "Eli Lilly" },
+        { ticker: "VLO", displayName: "Valero" },
+        { ticker: "LOGI", displayName: "Logitech" },
+        { ticker: "DELL", displayName: "Dell" },
+        { ticker: "LPL", displayName: "LG Display" },
+        { ticker: "CRWD", displayName: "CrowdStrike" },
+        { ticker: "SMCI", displayName: "Super Micro" },
+        // ETFs sectoriales / refugio
+        { ticker: "XLE", displayName: "Energía" },
+        { ticker: "GLD", displayName: "Oro" },
+        { ticker: "VNQ", displayName: "Real Estate" },
+        { ticker: "XLP", displayName: "Consumo Bás." },
+        { ticker: "XLV", displayName: "Salud" },
+        { ticker: "QQQ", displayName: "Nasdaq-100" },
       ]);
     } else if (preset === "spdr-sectors") {
       update("assets", [
@@ -121,6 +173,13 @@ export function MomentumConfigPanel({ config, onChange, onRun, isLoading }: Prop
                 title="6 sectores SPDR (XLK, XLV, XLP, XLU, XLE) + VNQ (REITs) + GLD (Oro)"
               >
                 KX Sectorial
+              </button>
+              <button
+                onClick={() => loadPreset("play-money-acciones")}
+                className="text-[11px] font-medium px-2 py-1 rounded bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                title="32 acciones (mayormente tech) + 6 ETFs sectoriales/refugio (XLE, GLD, VNQ, XLP, XLV, QQQ)"
+              >
+                Play Money Acciones
               </button>
               <button
                 onClick={() => loadPreset("spdr-sectors")}
