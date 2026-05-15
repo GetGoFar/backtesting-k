@@ -1106,11 +1106,6 @@ export default function Home() {
                 <RollingStatsTable results={results} isLoading={false} />
               </div>
 
-              {/* 6f. Histograma de distribución de retornos */}
-              <div id="section-histogram" className="scroll-mt-24">
-                <ReturnsHistogramChart results={results} isLoading={false} />
-              </div>
-
               {/* 7. Rolling returns */}
               <div id="section-rolling-chart" className="scroll-mt-24">
                 <RollingReturnsChart results={results} isLoading={false} />
@@ -1121,7 +1116,14 @@ export default function Home() {
                 <RebalanceLogTable results={results} isLoading={false} />
               </div>
 
-              {/* 8. Disclaimer */}
+              {/* 9. Histograma de distribución de retornos (movido al final por
+                  ser técnico/estadístico — la mayoría de alumnos no lo necesitan
+                  para entender los resultados principales). */}
+              <div id="section-histogram" className="scroll-mt-24">
+                <ReturnsHistogramChart results={results} isLoading={false} />
+              </div>
+
+              {/* 10. Disclaimer */}
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                 <div className="flex gap-3">
                   <svg
