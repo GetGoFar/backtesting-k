@@ -182,47 +182,28 @@ function movingAverage(
 }
 
 /**
- * Volatilidad anualizada usando RETORNOS DIARIOS de los últimos `windowMonths`
- * meses calendario terminados en `month` (incluido). Replica el cálculo de
- * Portfoliovisualizer, que usa ~63 puntos diarios y los anualiza × √252 — mucho
- * más estable y representativo que std(3 retornos mensuales) × √12.
+ * Volatilidad anualizada usando RETORNOS MENSUALES de los últimos `windowMonths`
+ * meses terminados en `month`. Anualiza × √12. Mantenemos granularidad mensual
+ * tanto para retorno como para volatilidad — los datos diarios solo se usan
+ * para fijar el precio exacto de ejecución (modo nextClose).
  */
 function volatilityAt(
-  dailyPrices: Map<string, number>,
+  monthlyClose: Map<string, number>,
   month: string,
   windowMonths: number
 ): number | null {
-  // Ventana = primer día del mes (month - windowMonths + 1) hasta último día de `month`
-  const windowStartMonth = addMonths(month, -(windowMonths - 1));
-  const windowStartKey = `${windowStartMonth}-01`;
-  // Último día posible del mes `month`: probamos hasta el día 31
-  // (las fechas inexistentes simplemente no estarán en el Map).
-  const [endYearStr, endMonthStr] = month.split("-");
-  const endYear = parseInt(endYearStr!, 10);
-  const endMonth = parseInt(endMonthStr!, 10);
-  // Calcular el último día real del mes (ojo: getDate de un Date al día 0 del
-  // siguiente mes = último día del mes actual).
-  const lastDayDate = new Date(Date.UTC(endYear, endMonth, 0));
-  const windowEndKey = `${month}-${lastDayDate.getUTCDate().toString().padStart(2, "0")}`;
-
-  // Recopilar todas las fechas diarias dentro de la ventana
-  const datesInWindow: string[] = [];
-  for (const date of dailyPrices.keys()) {
-    if (date >= windowStartKey && date <= windowEndKey) {
-      datesInWindow.push(date);
+  const rets: number[] = [];
+  for (let i = 0; i < windowMonths; i++) {
+    const prevKey = addMonths(month, -i - 1);
+    const currKey = addMonths(month, -i);
+    const prev = monthlyClose.get(prevKey);
+    const curr = monthlyClose.get(currKey);
+    if (prev && curr && prev > 0) {
+      rets.push(curr / prev - 1);
     }
   }
-  datesInWindow.sort();
-
-  // Calcular retornos diarios
-  const rets: number[] = [];
-  for (let i = 1; i < datesInWindow.length; i++) {
-    const prev = dailyPrices.get(datesInWindow[i - 1]!)!;
-    const curr = dailyPrices.get(datesInWindow[i]!)!;
-    if (prev > 0) rets.push(curr / prev - 1);
-  }
-  if (rets.length < 5) return null; // mínimo razonable
-  return annualizeStdDev(rets, 252); // anualización por días hábiles
+  if (rets.length < 2) return null;
+  return annualizeStdDev(rets, 12);
 }
 
 // -----------------------------------------------------------------------------
@@ -572,7 +553,7 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
 
         let vol: number | null = null;
         if (rankingMethod === "sharpe" || config.weighting === "volatility") {
-          vol = volatilityAt(series.daily, signalMonth, volPeriod);
+          vol = volatilityAt(series.monthlyClose, signalMonth, volPeriod);
         }
 
         const score =
