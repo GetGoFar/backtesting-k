@@ -182,28 +182,40 @@ function movingAverage(
 }
 
 /**
- * Volatilidad anualizada usando RETORNOS MENSUALES de los últimos `windowMonths`
- * meses terminados en `month`. Anualiza × √12. Mantenemos granularidad mensual
- * tanto para retorno como para volatilidad — los datos diarios solo se usan
- * para fijar el precio exacto de ejecución (modo nextClose).
+ * Volatilidad anualizada usando RETORNOS DIARIOS de los últimos `windowMonths`
+ * meses calendario terminados en `month` (incluido). Anualiza × √252.
+ * Replica la columna "3-month volatility (ann)" de Portfoliovisualizer, que
+ * usa ~63 puntos diarios — mucho más estable que std(3 retornos mensuales) × √12.
  */
 function volatilityAt(
-  monthlyClose: Map<string, number>,
+  dailyPrices: Map<string, number>,
   month: string,
   windowMonths: number
 ): number | null {
-  const rets: number[] = [];
-  for (let i = 0; i < windowMonths; i++) {
-    const prevKey = addMonths(month, -i - 1);
-    const currKey = addMonths(month, -i);
-    const prev = monthlyClose.get(prevKey);
-    const curr = monthlyClose.get(currKey);
-    if (prev && curr && prev > 0) {
-      rets.push(curr / prev - 1);
+  const windowStartMonth = addMonths(month, -(windowMonths - 1));
+  const windowStartKey = `${windowStartMonth}-01`;
+  const [endYearStr, endMonthStr] = month.split("-");
+  const endYear = parseInt(endYearStr!, 10);
+  const endMonth = parseInt(endMonthStr!, 10);
+  const lastDayDate = new Date(Date.UTC(endYear, endMonth, 0));
+  const windowEndKey = `${month}-${lastDayDate.getUTCDate().toString().padStart(2, "0")}`;
+
+  const datesInWindow: string[] = [];
+  for (const date of dailyPrices.keys()) {
+    if (date >= windowStartKey && date <= windowEndKey) {
+      datesInWindow.push(date);
     }
   }
-  if (rets.length < 2) return null;
-  return annualizeStdDev(rets, 12);
+  datesInWindow.sort();
+
+  const rets: number[] = [];
+  for (let i = 1; i < datesInWindow.length; i++) {
+    const prev = dailyPrices.get(datesInWindow[i - 1]!)!;
+    const curr = dailyPrices.get(datesInWindow[i]!)!;
+    if (prev > 0) rets.push(curr / prev - 1);
+  }
+  if (rets.length < 5) return null;
+  return annualizeStdDev(rets, 252);
 }
 
 // -----------------------------------------------------------------------------
@@ -553,7 +565,7 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
 
         let vol: number | null = null;
         if (rankingMethod === "sharpe" || config.weighting === "volatility") {
-          vol = volatilityAt(series.monthlyClose, signalMonth, volPeriod);
+          vol = volatilityAt(series.daily, signalMonth, volPeriod);
         }
 
         const score =
