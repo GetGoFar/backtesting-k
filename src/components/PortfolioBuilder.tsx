@@ -327,7 +327,8 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   const sectorialUSAPresets = presets.filter((p) => p.id.startsWith("k-sectorial-usa"));
   const geograficaUSAPresets = presets.filter((p) => p.id.startsWith("k-geografica-usa"));
   const geograficaUCITPresets = presets.filter((p) => p.id.startsWith("k-geografica-ucit"));
-  const indexaPresets = presets.filter((p) => p.id.startsWith("indexa-"));
+  const indexaUSAPresets = presets.filter((p) => p.id.startsWith("indexa-usa-"));
+  const indexaPresets = presets.filter((p) => p.id.startsWith("indexa-") && !p.id.startsWith("indexa-usa-"));
   const indexPresets = presets.filter((p) => p.type === "index"
     && !p.id.startsWith("k-inbestme")
     && !p.id.startsWith("k-sectorial-usa")
@@ -509,7 +510,7 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
               {/* Carteras Indexa Capital (1-10) */}
               <div className="p-2 border-b border-slate-100">
                 <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider px-2 py-1">
-                  Indexa Capital (1-10)
+                  Indexa Capital (1-10) <span className="text-[10px] font-normal text-emerald-400">· EUR</span>
                 </p>
                 <div className="grid grid-cols-2 gap-1">
                   {indexaPresets.map((preset) => (
@@ -530,6 +531,33 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                   ))}
                 </div>
               </div>
+
+              {/* Carteras Indexa USA ETFs (1-10) — réplica desde Portfoliovisualizer */}
+              {indexaUSAPresets.length > 0 && (
+                <div className="p-2 border-b border-slate-100">
+                  <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider px-2 py-1">
+                    Indexa USA ETFs (1-10) <span className="text-[10px] font-normal text-rose-400">· USD</span>
+                  </p>
+                  <div className="grid grid-cols-2 gap-1">
+                    {indexaUSAPresets.map((preset) => (
+                      <button
+                        key={preset.id}
+                        onClick={() => handlePresetSelect(preset)}
+                        className={`text-left px-2 py-1.5 rounded-lg hover:bg-rose-50 transition-colors ${
+                          selectedPresetId === preset.id ? "bg-rose-50" : ""
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-rose-500" />
+                          <span className="font-medium text-xs text-slate-800">
+                            {preset.name}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Carteras Tradicionales (Indexadas) */}
               <div className="p-2 border-b border-slate-100">

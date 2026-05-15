@@ -654,6 +654,52 @@ const INDEXED_FUNDS: Fund[] = [
     terConfirmed: true,
   },
   // ---------------------------------------------------------------------------
+  // Fondos USA usados en presets Indexa USA ETFs (replica de Portfoliovisualizer).
+  // SPY: ETF S&P 500 de SPDR. VBMFX: bond fund agregado USA. NAESX: small caps.
+  // ---------------------------------------------------------------------------
+  {
+    id: "spdr-spy",
+    name: "SPDR S&P 500 ETF Trust",
+    shortName: "SPY S&P 500",
+    isin: "US78462F1030",
+    yahooTicker: "SPY",
+    ter: 0.09,
+    category: "RV EEUU",
+    type: "index",
+    currency: "USD",
+    distributing: true,
+    terSource: "curated",
+    terConfirmed: true,
+  },
+  {
+    id: "vanguard-vbmfx",
+    name: "Vanguard Total Bond Market Index Investor",
+    shortName: "VBMFX RF USA Agregada",
+    isin: "US9219371078",
+    yahooTicker: "VBMFX",
+    ter: 0.15,
+    category: "RF USD Gov",
+    type: "index",
+    currency: "USD",
+    distributing: true,
+    terSource: "curated",
+    terConfirmed: true,
+  },
+  {
+    id: "vanguard-naesx",
+    name: "Vanguard Small-Cap Index Investor",
+    shortName: "NAESX Small Caps USA",
+    isin: "US9229087682",
+    yahooTicker: "NAESX",
+    ter: 0.17,
+    category: "RV EEUU",
+    type: "index",
+    currency: "USD",
+    distributing: true,
+    terSource: "curated",
+    terConfirmed: true,
+  },
+  // ---------------------------------------------------------------------------
   // ACCIONES INDIVIDUALES — usadas en preset "Participantes Primeras Ediciones".
   // TER = 0% (las acciones no tienen TER). Mezcla de USD y EUR — recordar al
   // usuario que el motor no convierte FX.

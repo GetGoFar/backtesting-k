@@ -804,6 +804,152 @@ const INDEXA_PRESETS: PortfolioPreset[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// Carteras Indexa USA ETFs (USD) — Réplica desde Portfoliovisualizer
+// Mismas asignaciones porcentuales que Indexa 1-10, pero ejecutadas con
+// fondos USA (mutual funds Vanguard) en lugar de UCITS europeos.
+// Sirve para comparar a largo plazo (≥1990s) con datos de Yahoo Finance.
+// SPY (S&P 500 ETF) — VEURX (Europa) — VEIEX (Emergentes) — EWJ (Japón) —
+// NAESX (Small Caps USA) — VBMFX (Total Bond Market USA).
+// -----------------------------------------------------------------------------
+
+const INDEXA_USA_PRESETS: PortfolioPreset[] = [
+  {
+    id: "indexa-usa-1",
+    name: "Indexa USA 1/10",
+    description: "10% RV / 90% RF — Muy conservadora (USD)",
+    type: "index",
+    holdings: [
+      { fundId: "spdr-spy", weight: 6 },
+      { fundId: "vanguard-veurx", weight: 4 },
+      { fundId: "vanguard-vbmfx", weight: 90 },
+    ],
+  },
+  {
+    id: "indexa-usa-2",
+    name: "Indexa USA 2/10",
+    description: "20% RV / 80% RF — Conservadora (USD)",
+    type: "index",
+    holdings: [
+      { fundId: "spdr-spy", weight: 10 },
+      { fundId: "vanguard-veurx", weight: 7 },
+      { fundId: "vanguard-veiex", weight: 3 },
+      { fundId: "vanguard-vbmfx", weight: 80 },
+    ],
+  },
+  {
+    id: "indexa-usa-3",
+    name: "Indexa USA 3/10",
+    description: "30% RV / 70% RF — Moderada-conservadora (USD)",
+    type: "index",
+    holdings: [
+      { fundId: "spdr-spy", weight: 13 },
+      { fundId: "vanguard-veurx", weight: 8 },
+      { fundId: "vanguard-veiex", weight: 3 },
+      { fundId: "ishares-ewj", weight: 3 },
+      { fundId: "vanguard-naesx", weight: 3 },
+      { fundId: "vanguard-vbmfx", weight: 70 },
+    ],
+  },
+  {
+    id: "indexa-usa-4",
+    name: "Indexa USA 4/10",
+    description: "40% RV / 60% RF — Moderada (USD)",
+    type: "index",
+    holdings: [
+      { fundId: "spdr-spy", weight: 18 },
+      { fundId: "vanguard-veurx", weight: 11 },
+      { fundId: "vanguard-veiex", weight: 4 },
+      { fundId: "ishares-ewj", weight: 3 },
+      { fundId: "vanguard-naesx", weight: 4 },
+      { fundId: "vanguard-vbmfx", weight: 60 },
+    ],
+  },
+  {
+    id: "indexa-usa-5",
+    name: "Indexa USA 5/10",
+    description: "50% RV / 50% RF — Equilibrada (USD)",
+    type: "index",
+    holdings: [
+      { fundId: "spdr-spy", weight: 22 },
+      { fundId: "vanguard-veurx", weight: 14 },
+      { fundId: "vanguard-veiex", weight: 5 },
+      { fundId: "ishares-ewj", weight: 4 },
+      { fundId: "vanguard-naesx", weight: 5 },
+      { fundId: "vanguard-vbmfx", weight: 50 },
+    ],
+  },
+  {
+    id: "indexa-usa-6",
+    name: "Indexa USA 6/10",
+    description: "60% RV / 40% RF — Moderada-agresiva (USD)",
+    type: "index",
+    holdings: [
+      { fundId: "spdr-spy", weight: 27 },
+      { fundId: "vanguard-veurx", weight: 16 },
+      { fundId: "vanguard-veiex", weight: 6 },
+      { fundId: "ishares-ewj", weight: 5 },
+      { fundId: "vanguard-naesx", weight: 6 },
+      { fundId: "vanguard-vbmfx", weight: 40 },
+    ],
+  },
+  {
+    id: "indexa-usa-7",
+    name: "Indexa USA 7/10",
+    description: "70% RV / 30% RF — Agresiva (USD)",
+    type: "index",
+    holdings: [
+      { fundId: "spdr-spy", weight: 31 },
+      { fundId: "vanguard-veurx", weight: 19 },
+      { fundId: "vanguard-veiex", weight: 7 },
+      { fundId: "ishares-ewj", weight: 6 },
+      { fundId: "vanguard-naesx", weight: 7 },
+      { fundId: "vanguard-vbmfx", weight: 30 },
+    ],
+  },
+  {
+    id: "indexa-usa-8",
+    name: "Indexa USA 8/10",
+    description: "80% RV / 20% RF — Muy agresiva (USD)",
+    type: "index",
+    holdings: [
+      { fundId: "spdr-spy", weight: 35 },
+      { fundId: "vanguard-veurx", weight: 22 },
+      { fundId: "vanguard-veiex", weight: 9 },
+      { fundId: "ishares-ewj", weight: 6 },
+      { fundId: "vanguard-naesx", weight: 8 },
+      { fundId: "vanguard-vbmfx", weight: 20 },
+    ],
+  },
+  {
+    id: "indexa-usa-9",
+    name: "Indexa USA 9/10",
+    description: "90% RV / 10% RF — Máxima agresividad con RF (USD)",
+    type: "index",
+    holdings: [
+      { fundId: "spdr-spy", weight: 40 },
+      { fundId: "vanguard-veurx", weight: 24 },
+      { fundId: "vanguard-veiex", weight: 10 },
+      { fundId: "ishares-ewj", weight: 7 },
+      { fundId: "vanguard-naesx", weight: 9 },
+      { fundId: "vanguard-vbmfx", weight: 10 },
+    ],
+  },
+  {
+    id: "indexa-usa-10",
+    name: "Indexa USA 10/10",
+    description: "100% RV — Máxima agresividad (USD)",
+    type: "index",
+    holdings: [
+      { fundId: "spdr-spy", weight: 44 },
+      { fundId: "vanguard-veurx", weight: 27 },
+      { fundId: "vanguard-veiex", weight: 11 },
+      { fundId: "ishares-ewj", weight: 8 },
+      { fundId: "vanguard-naesx", weight: 10 },
+    ],
+  },
+];
+
+// -----------------------------------------------------------------------------
 // Carteras Tradicionales (para comparación)
 // -----------------------------------------------------------------------------
 
@@ -1154,6 +1300,7 @@ const ALL_PRESETS: PortfolioPreset[] = [
   ...K_GEOGRAFICA_USA_PRESETS,
   ...K_GEOGRAFICA_UCIT_PRESETS,
   ...INDEXA_PRESETS,
+  ...INDEXA_USA_PRESETS,
   ...K_PRESETS,
   ...PARTICIPANTES_PRIMERAS_PRESETS,
   ...BANK_PRESETS,
@@ -1217,6 +1364,14 @@ export function getKGeograficaUCITPresets(): PortfolioPreset[] {
  */
 export function getIndexaPresets(): PortfolioPreset[] {
   return INDEXA_PRESETS;
+}
+
+/**
+ * Obtiene presets de carteras Indexa USA ETFs (1-10) — réplica desde
+ * Portfoliovisualizer usando mutual funds Vanguard USD para histórico ≥1990s.
+ */
+export function getIndexaUSAPresets(): PortfolioPreset[] {
+  return INDEXA_USA_PRESETS;
 }
 
 /**
