@@ -230,6 +230,10 @@ function buildScaledSeries(
 export function PerformanceChart({ results, isLoading, valueMode = "camino" }: PerformanceChartProps) {
   // Toggle para mostrar/ocultar las líneas verticales de rebalanceo
   const [showRebalances, setShowRebalances] = useState(false);
+  // Escala del eje Y: lineal (por defecto) o logarítmica. La log es útil para
+  // comparar a largo plazo: porcentualmente la misma subida ocupa la misma
+  // distancia vertical en cualquier punto de la curva.
+  const [yScale, setYScale] = useState<"linear" | "log">("linear");
 
   if (isLoading) {
     return (
@@ -440,30 +444,58 @@ export function PerformanceChart({ results, isLoading, valueMode = "camino" }: P
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <h3 className="text-lg font-semibold text-slate-900">
           Evolución del patrimonio
         </h3>
-        {totalRebalances > 0 && (
-          <label className="inline-flex items-center gap-2 cursor-pointer text-xs">
-            <input
-              type="checkbox"
-              checked={showRebalances}
-              onChange={(e) => setShowRebalances(e.target.checked)}
-              className="sr-only peer"
-            />
-            <span className="relative inline-block w-9 h-5 bg-slate-200 rounded-full peer-checked:bg-brand-coral transition-colors">
-              <span className="absolute top-[2px] left-[2px] w-4 h-4 bg-white rounded-full border border-slate-300 transition-transform peer-checked:translate-x-4" />
-            </span>
-            <span className="text-slate-700 font-medium">
-              Mostrar rebalanceos{" "}
-              <span className="text-slate-400">
-                ({totalRebalances}
-                {truncated ? ` → ${filteredCount} relevantes` : ""})
+        <div className="flex items-center gap-4 flex-wrap">
+          {/* Toggle escala lineal / logarítmica */}
+          <div className="inline-flex items-center gap-1 bg-slate-100 rounded-lg p-0.5 text-xs">
+            <button
+              onClick={() => setYScale("linear")}
+              className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                yScale === "linear"
+                  ? "bg-white text-brand-navy shadow-sm"
+                  : "text-slate-500 hover:text-brand-navy"
+              }`}
+              title="Escala lineal: cada euro ocupa lo mismo en el eje Y."
+            >
+              Lineal
+            </button>
+            <button
+              onClick={() => setYScale("log")}
+              className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                yScale === "log"
+                  ? "bg-white text-brand-navy shadow-sm"
+                  : "text-slate-500 hover:text-brand-navy"
+              }`}
+              title="Escala logarítmica: cada % de subida ocupa lo mismo en el eje Y. Útil para ver el crecimiento compuesto a largo plazo."
+            >
+              Log
+            </button>
+          </div>
+
+          {totalRebalances > 0 && (
+            <label className="inline-flex items-center gap-2 cursor-pointer text-xs">
+              <input
+                type="checkbox"
+                checked={showRebalances}
+                onChange={(e) => setShowRebalances(e.target.checked)}
+                className="sr-only peer"
+              />
+              <span className="relative inline-block w-9 h-5 bg-slate-200 rounded-full peer-checked:bg-brand-coral transition-colors">
+                <span className="absolute top-[2px] left-[2px] w-4 h-4 bg-white rounded-full border border-slate-300 transition-transform peer-checked:translate-x-4" />
               </span>
-            </span>
-          </label>
-        )}
+              <span className="text-slate-700 font-medium">
+                Mostrar rebalanceos{" "}
+                <span className="text-slate-400">
+                  ({totalRebalances}
+                  {truncated ? ` → ${filteredCount} relevantes` : ""})
+                </span>
+              </span>
+            </label>
+          )}
+        </div>
       </div>
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
@@ -485,7 +517,19 @@ export function PerformanceChart({ results, isLoading, valueMode = "camino" }: P
               tick={{ fill: "#64748b", fontSize: 12 }}
               axisLine={{ stroke: "#e2e8f0" }}
               tickLine={{ stroke: "#e2e8f0" }}
-              domain={[Math.floor(minValue - padding), Math.ceil(maxValue + padding)]}
+              scale={yScale}
+              domain={
+                yScale === "log"
+                  ? [
+                      // En log el mínimo debe ser estrictamente > 0. Si por algún
+                      // valueMode hubiese 0 o negativo, lo recortamos a 1 € para
+                      // no romper la escala (es un caso patológico).
+                      Math.max(1, minValue * 0.9),
+                      maxValue * 1.1,
+                    ]
+                  : [Math.floor(minValue - padding), Math.ceil(maxValue + padding)]
+              }
+              allowDataOverflow={yScale === "log"}
               width={85}
             />
             <Tooltip content={<CustomTooltip />} />

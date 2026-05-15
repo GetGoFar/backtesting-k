@@ -4,7 +4,7 @@
 // MOMENTUM RESULTS VIEW — Equity curve, métricas, rebalanceos y holdings
 // =============================================================================
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   LineChart,
   Line,
@@ -23,6 +23,9 @@ interface Props {
 }
 
 export function MomentumResultsView({ results }: Props) {
+  // Escala Y del gráfico de patrimonio: lineal o logarítmica.
+  const [yScale, setYScale] = useState<"linear" | "log">("linear");
+
   // Combinamos equity curve de la estrategia y del benchmark para Recharts
   const chartData = useMemo(() => {
     const benchMap = new Map(
@@ -34,6 +37,17 @@ export function MomentumResultsView({ results }: Props) {
       Benchmark: benchMap.get(p.date),
     }));
   }, [results]);
+
+  // Cálculo de min/max para el domain logarítmico
+  const { minValue, maxValue } = useMemo(() => {
+    const values: number[] = [];
+    for (const row of chartData) {
+      if (typeof row.Estrategia === "number") values.push(row.Estrategia);
+      if (typeof row.Benchmark === "number") values.push(row.Benchmark);
+    }
+    if (values.length === 0) return { minValue: 1, maxValue: 1 };
+    return { minValue: Math.min(...values), maxValue: Math.max(...values) };
+  }, [chartData]);
 
   return (
     <div className="space-y-8">
@@ -128,9 +142,36 @@ export function MomentumResultsView({ results }: Props) {
 
       {/* Equity curve */}
       <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-brand-navy font-serif mb-4">
-          Evolución del patrimonio
-        </h3>
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+          <h3 className="text-lg font-semibold text-brand-navy font-serif">
+            Evolución del patrimonio
+          </h3>
+          {/* Toggle escala lineal / logarítmica */}
+          <div className="inline-flex items-center gap-1 bg-slate-100 rounded-lg p-0.5 text-xs">
+            <button
+              onClick={() => setYScale("linear")}
+              className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                yScale === "linear"
+                  ? "bg-white text-brand-navy shadow-sm"
+                  : "text-slate-500 hover:text-brand-navy"
+              }`}
+              title="Escala lineal: cada euro ocupa lo mismo en el eje Y."
+            >
+              Lineal
+            </button>
+            <button
+              onClick={() => setYScale("log")}
+              className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                yScale === "log"
+                  ? "bg-white text-brand-navy shadow-sm"
+                  : "text-slate-500 hover:text-brand-navy"
+              }`}
+              title="Escala logarítmica: cada % de subida ocupa lo mismo en el eje Y. Útil para ver el crecimiento compuesto a largo plazo."
+            >
+              Log
+            </button>
+          </div>
+        </div>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 5, right: 5, left: 10, bottom: 5 }}>
@@ -145,6 +186,13 @@ export function MomentumResultsView({ results }: Props) {
                 tick={{ fontSize: 11, fill: "#64748b" }}
                 tickFormatter={(v) => formatEUR(v as number)}
                 width={70}
+                scale={yScale}
+                domain={
+                  yScale === "log"
+                    ? [Math.max(1, minValue * 0.9), maxValue * 1.1]
+                    : ["auto", "auto"]
+                }
+                allowDataOverflow={yScale === "log"}
               />
               <RechartsTooltip
                 formatter={(value: number) => formatEUR(value)}
