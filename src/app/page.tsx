@@ -410,6 +410,20 @@ export default function Home() {
                 <p className="text-xs text-brand-tertiary hidden sm:block">El Proyecto K</p>
               </div>
             </a>
+
+            {/* Pestañas Backtest / Momentum */}
+            <nav className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+              <span className="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md bg-white text-brand-navy shadow-sm">
+                Backtest
+              </span>
+              <a
+                href="/momentum"
+                className="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md transition-colors text-brand-secondary hover:bg-white hover:text-brand-navy"
+              >
+                Momentum
+              </a>
+            </nav>
+
             <a
               href="https://elproyectok.com"
               target="_blank"
