@@ -276,24 +276,37 @@ function buildMetrics(
   };
 }
 
-function buildAnnualReturns(curve: MomentumEquityPoint[]): MomentumAnnualReturn[] {
-  if (curve.length < 2) return [];
-  const byYear = new Map<number, { start: number; end: number }>();
+function buildAnnualReturns(
+  curve: MomentumEquityPoint[],
+  initialValue: number
+): MomentumAnnualReturn[] {
+  if (curve.length < 1) return [];
+
+  // Para cada año guardamos SOLO el último valor del año (cierre anual).
+  const yearEnds = new Map<number, number>();
   for (const point of curve) {
     const year = parseInt(point.date.substring(0, 4), 10);
-    if (!byYear.has(year)) {
-      byYear.set(year, { start: point.value, end: point.value });
-    } else {
-      byYear.get(year)!.end = point.value;
-    }
+    yearEnds.set(year, point.value); // se va sobrescribiendo con cada punto
   }
-  return Array.from(byYear.entries())
-    .sort(([a], [b]) => a - b)
-    .map(([year, vals]) => ({
-      year,
-      returnPercent: vals.start > 0 ? (vals.end / vals.start - 1) * 100 : 0,
-      finalValue: vals.end,
-    }));
+
+  const sortedYears = Array.from(yearEnds.keys()).sort((a, b) => a - b);
+  const results: MomentumAnnualReturn[] = [];
+
+  // CONVENCIÓN (igual que el backtest engine):
+  // - Año Y: rentabilidad = (cierre_Y / cierre_{Y-1}) − 1
+  // - Primer año: usar `initialValue` como referencia de partida (para que
+  //   compongan correctamente desde el principio sin perder "ningún mes").
+  let previousYearEnd: number | null = null;
+
+  for (const year of sortedYears) {
+    const endValue = yearEnds.get(year)!;
+    const startValue = previousYearEnd ?? initialValue;
+    const returnPercent = startValue > 0 ? (endValue / startValue - 1) * 100 : 0;
+    results.push({ year, returnPercent, finalValue: endValue });
+    previousYearEnd = endValue;
+  }
+
+  return results;
 }
 
 // -----------------------------------------------------------------------------
@@ -579,7 +592,7 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
 
   // 4. Métricas
   const metrics = buildMetrics(equityCurve, rebalances.length);
-  const annualReturns = buildAnnualReturns(equityCurve);
+  const annualReturns = buildAnnualReturns(equityCurve, config.initialAmount);
 
   // 5. Benchmark
   let benchmarkCurve: MomentumEquityPoint[] | undefined;
