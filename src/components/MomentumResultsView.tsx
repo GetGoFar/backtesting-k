@@ -216,6 +216,11 @@ export function MomentumResultsView({ results }: Props) {
         </h3>
         <p className="text-xs text-brand-tertiary mb-4">
           Cada vez que cambiaron los activos seleccionados (no se muestran los meses sin cambios).
+          {results.config.rankingMethod === "sharpe" && (
+            <>
+              {" "}Ranking por <strong>retorno / volatilidad</strong> ({results.config.volatilityPeriodMonths ?? 3}m).
+            </>
+          )}
         </p>
         <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
           <table className="w-full text-sm">
@@ -231,7 +236,9 @@ export function MomentumResultsView({ results }: Props) {
                   Entra
                 </th>
                 <th className="text-left text-xs font-semibold text-brand-tertiary uppercase py-2 px-3 hidden lg:table-cell">
-                  Top 5 ranking (momentum %)
+                  {results.config.rankingMethod === "sharpe"
+                    ? "Top 5 (retorno · vol · ratio)"
+                    : "Top 5 ranking (momentum %)"}
                 </th>
               </tr>
             </thead>
@@ -271,8 +278,21 @@ export function MomentumResultsView({ results }: Props) {
                               ? "bg-slate-50 text-brand-secondary"
                               : "bg-red-50 text-red-700 line-through"
                           }`}
+                          title={
+                            results.config.rankingMethod === "sharpe" && c.volatilityPercent !== undefined
+                              ? `${c.ticker}: ret ${formatPct(c.momentumPercent / 100, 1)}, vol ${formatPct(c.volatilityPercent / 100, 1)}, ratio ${formatNumber(c.score, 2)}`
+                              : `${c.ticker}: momentum ${formatPct(c.momentumPercent / 100, 2)}`
+                          }
                         >
-                          {c.ticker} {formatPct(c.momentumPercent / 100, 0)}
+                          {results.config.rankingMethod === "sharpe" && c.volatilityPercent !== undefined ? (
+                            <>
+                              {c.ticker} {formatNumber(c.score, 2)}
+                            </>
+                          ) : (
+                            <>
+                              {c.ticker} {formatPct(c.momentumPercent / 100, 0)}
+                            </>
+                          )}
                         </span>
                       ))}
                     </div>

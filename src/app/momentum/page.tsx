@@ -45,6 +45,8 @@ function getDefaultConfig(): MomentumConfig {
     assetsToHold: 1,
     weighting: "equal",
     frequency: "monthly",
+    rankingMethod: "momentum",
+    volatilityPeriodMonths: 3,
     movingAverageMonths: 0,
     slippagePercent: 0,
     benchmarkTicker: "SPY",

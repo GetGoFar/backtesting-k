@@ -25,6 +25,14 @@ export type MomentumFrequency = "monthly" | "quarterly";
 /** Esquema de ponderación cuando se seleccionan varios activos top-N. */
 export type MomentumWeighting = "equal" | "rank" | "volatility";
 
+/**
+ * Método de ranking del universo:
+ * - "momentum": retorno acumulado en el lookback (relative strength clásico)
+ * - "sharpe":   retorno / volatilidad → rentabilidad ajustada al riesgo
+ *               (penaliza activos con buena rentabilidad pero muy volátiles)
+ */
+export type MomentumRankingMethod = "momentum" | "sharpe";
+
 export interface MomentumConfig {
   /** Lista de activos candidatos (universo). */
   assets: MomentumAsset[];
@@ -46,6 +54,17 @@ export interface MomentumConfig {
   weighting: MomentumWeighting;
   /** Frecuencia de re-evaluación. */
   frequency: MomentumFrequency;
+
+  // === Ranking ===
+  /** Método de ranking: "momentum" (solo retorno) o "sharpe" (ret/vol). Default: "momentum". */
+  rankingMethod?: MomentumRankingMethod;
+  /**
+   * Ventana en meses para calcular la volatilidad usada en:
+   *   - el ratio Sharpe-like del ranking (si rankingMethod = "sharpe")
+   *   - la ponderación inverse-volatility (si weighting = "volatility")
+   * Por defecto: 3 meses (como en Portfoliovisualizer).
+   */
+  volatilityPeriodMonths?: number;
 
   // === Filtros opcionales ===
   /**
@@ -83,8 +102,20 @@ export interface MomentumRebalance {
   date: string;            // "YYYY-MM"
   previousHoldings: string[];
   newHoldings: string[];
-  /** Ranking en el momento del rebalanceo (sorted desc por momentum). */
-  ranking: Array<{ ticker: string; momentumPercent: number; aboveMA: boolean }>;
+  /**
+   * Ranking en el momento del rebalanceo (sorted desc por el criterio elegido).
+   * - momentumPercent: retorno acumulado en el lookback (siempre presente)
+   * - volatilityPercent: volatilidad anualizada en volatilityPeriod (solo si se calculó)
+   * - score: el valor por el que realmente se ordenó (= momentum si rankingMethod=momentum,
+   *   = momentum/volatility si rankingMethod=sharpe)
+   */
+  ranking: Array<{
+    ticker: string;
+    momentumPercent: number;
+    volatilityPercent?: number;
+    score: number;
+    aboveMA: boolean;
+  }>;
   /** Indica si se forzó CASH por filtro MA. */
   forcedCash: boolean;
 }

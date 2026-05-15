@@ -96,5 +96,17 @@ function validateConfig(config: MomentumConfig): string | null {
   ) {
     return "movingAverageMonths debe estar entre 0 y 24";
   }
+  if (
+    config.rankingMethod !== undefined &&
+    !["momentum", "sharpe"].includes(config.rankingMethod)
+  ) {
+    return "rankingMethod debe ser 'momentum' o 'sharpe'";
+  }
+  if (
+    config.volatilityPeriodMonths !== undefined &&
+    (config.volatilityPeriodMonths < 2 || config.volatilityPeriodMonths > 36)
+  ) {
+    return "volatilityPeriodMonths debe estar entre 2 y 36";
+  }
   return null;
 }

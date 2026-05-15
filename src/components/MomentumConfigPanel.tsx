@@ -236,6 +236,38 @@ export function MomentumConfigPanel({ config, onChange, onRun, isLoading }: Prop
           </Field>
 
           <Field
+            label="Método de ranking"
+            tooltip="Cómo se ordenan los activos para elegir los top-N:&#10;• Momentum: solo retorno acumulado en el lookback (relative strength clásico).&#10;• Sharpe-like: retorno / volatilidad. Premia rentabilidad ajustada al riesgo y penaliza activos con buenos retornos pero muy volátiles. Es el ratio que usa el modelo 'Adaptive Asset Allocation' de Portfoliovisualizer."
+          >
+            <select
+              value={config.rankingMethod ?? "momentum"}
+              onChange={(e) =>
+                update("rankingMethod", e.target.value as MomentumConfig["rankingMethod"])
+              }
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30 bg-white"
+            >
+              <option value="momentum">Momentum (solo retorno)</option>
+              <option value="sharpe">Sharpe-like (retorno / volatilidad)</option>
+            </select>
+          </Field>
+
+          <Field
+            label="Periodo volatilidad (meses)"
+            tooltip="Ventana en meses para calcular la volatilidad anualizada. Se usa para:&#10;• El denominador del ratio Sharpe-like del ranking (si el método de ranking es Sharpe).&#10;• La ponderación inverse-volatility (si está activa).&#10;Recomendado: 3 meses (como en Portfoliovisualizer). Más corto = más reactivo, más largo = más estable."
+          >
+            <input
+              type="number"
+              min={2}
+              max={36}
+              value={config.volatilityPeriodMonths ?? 3}
+              onChange={(e) =>
+                update("volatilityPeriodMonths", Math.max(2, parseInt(e.target.value) || 3))
+              }
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30"
+            />
+          </Field>
+
+          <Field
             label="Top N activos a mantener"
             tooltip="Cuántos activos se mantienen en la cartera. 1 = el más fuerte. 3 = los 3 más fuertes ponderados según el esquema elegido."
           >

@@ -142,6 +142,30 @@ function movingAverage(
   return sum / count;
 }
 
+/**
+ * Volatilidad anualizada en los últimos `windowMonths` meses TERMINANDO en `date`.
+ * Calcula retornos mensuales y multiplica desv. típica × √12.
+ * Devuelve null si no hay datos suficientes.
+ */
+function volatilityAt(
+  prices: Map<string, number>,
+  date: string,
+  windowMonths: number
+): number | null {
+  const rets: number[] = [];
+  for (let i = 0; i < windowMonths; i++) {
+    const prevKey = addMonths(date, -i - 1);
+    const currKey = addMonths(date, -i);
+    const prev = prices.get(prevKey);
+    const curr = prices.get(currKey);
+    if (prev && curr && prev > 0) {
+      rets.push(curr / prev - 1);
+    }
+  }
+  if (rets.length < 2) return null;
+  return calcVolatility(rets);
+}
+
 // -----------------------------------------------------------------------------
 // Métricas
 // -----------------------------------------------------------------------------
@@ -400,7 +424,17 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
 
     if (isRebalanceMonth) {
       // Calcular ranking en este mes
-      const candidates: Array<{ ticker: string; mom: number; aboveMA: boolean }> = [];
+      const rankingMethod = config.rankingMethod ?? "momentum";
+      const volPeriod = config.volatilityPeriodMonths ?? 3;
+
+      const candidates: Array<{
+        ticker: string;
+        mom: number;
+        vol: number | null;
+        score: number;
+        aboveMA: boolean;
+      }> = [];
+
       for (const [ticker, prices] of pricesPerAsset) {
         const mom = momentumAt(
           prices,
@@ -409,16 +443,34 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
           config.excludePreviousMonth
         );
         if (mom === null) continue;
+
+        // Volatilidad: solo se calcula si el método la necesita o si se va a
+        // ponderar por inverse volatility (la usa más abajo igualmente).
+        let vol: number | null = null;
+        if (rankingMethod === "sharpe" || config.weighting === "volatility") {
+          vol = volatilityAt(prices, month, volPeriod);
+        }
+
+        // Score por el que se ordenará el universo
+        let score: number;
+        if (rankingMethod === "sharpe") {
+          // Si la volatilidad es 0 o no calculable, penalizar al final (-Inf)
+          score = vol && vol > 0 ? mom / vol : -Infinity;
+        } else {
+          score = mom; // momentum puro
+        }
+
         let aboveMA = true;
         if (config.movingAverageMonths && config.movingAverageMonths > 0) {
           const ma = movingAverage(prices, month, config.movingAverageMonths);
           const currentPrice = prices.get(month);
           aboveMA = ma !== null && currentPrice !== undefined && currentPrice > ma;
         }
-        candidates.push({ ticker, mom, aboveMA });
+
+        candidates.push({ ticker, mom, vol, score, aboveMA });
       }
 
-      candidates.sort((a, b) => b.mom - a.mom);
+      candidates.sort((a, b) => b.score - a.score);
       const topK = candidates.slice(0, config.assetsToHold);
 
       // Aplicar filtro MA: descartar los que no superan MA si está activo
@@ -444,18 +496,12 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
           for (const c of passing) newWeights.set(c.ticker, w);
         }
       } else if (config.weighting === "volatility") {
-        // Inverse volatility weighting (vol de últimos 3 meses)
+        // Inverse volatility weighting (vol de últimos volPeriod meses)
         const vols: Array<{ ticker: string; inv: number }> = [];
         for (const c of passing) {
-          const prices = pricesPerAsset.get(c.ticker)!;
-          const rets: number[] = [];
-          for (let i = 0; i < 3; i++) {
-            const a = prices.get(addMonths(month, -i - 1));
-            const b = prices.get(addMonths(month, -i));
-            if (a && b && a > 0) rets.push(b / a - 1);
-          }
-          const v = calcVolatility(rets);
-          vols.push({ ticker: c.ticker, inv: v > 0 ? 1 / v : 0 });
+          // Reutilizar la volatilidad ya calculada en el candidato si existe
+          const v = c.vol ?? volatilityAt(pricesPerAsset.get(c.ticker)!, month, volPeriod);
+          vols.push({ ticker: c.ticker, inv: v && v > 0 ? 1 / v : 0 });
         }
         const sumInv = vols.reduce((s, v) => s + v.inv, 0);
         if (sumInv > 0) {
@@ -481,6 +527,8 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
           ranking: candidates.map((c) => ({
             ticker: c.ticker,
             momentumPercent: c.mom * 100,
+            volatilityPercent: c.vol !== null ? c.vol * 100 : undefined,
+            score: c.score,
             aboveMA: c.aboveMA,
           })),
           forcedCash,
