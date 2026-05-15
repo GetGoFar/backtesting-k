@@ -500,27 +500,11 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
   ) {
     const isRebalanceMonth = monthIdx % rebalanceEvery === 0;
 
-    // 4.1. Aplicar return desde el periodo anterior con las weights actuales
-    if (equityCurve.length > 0 && currentWeights.size > 0) {
-      const prevMonth = addMonths(month, -1);
-      let weightedReturn = 0;
-      for (const [ticker, w] of currentWeights) {
-        if (ticker === "CASH") {
-          weightedReturn += w * (RISK_FREE_RATE / 12);
-          continue;
-        }
-        const series = seriesPerAsset.get(ticker);
-        if (!series) continue;
-        const prev = periodPriceFor(series, prevMonth);
-        const curr = periodPriceFor(series, month);
-        if (prev && curr && prev > 0) {
-          weightedReturn += w * (curr / prev - 1);
-        }
-      }
-      currentValue *= 1 + weightedReturn;
-    }
-
-    // 4.2. ¿Toca rebalancear?
+    // 4.1. REBALANCEAR PRIMERO. La señal con excludePrev=true sólo usa datos
+    //      hasta T-1, así que la decisión técnicamente se podría haber
+    //      computado al cierre de T-1 (= inicio del periodo de tenencia [T-1, T]).
+    //      Es decir, "iter T" representa la rotación al inicio de ese periodo,
+    //      y el nuevo activo captura el retorno [T-1, T].
     if (isRebalanceMonth) {
       // El ranking SIEMPRE usa monthlyClose (cierre del último día del mes de la señal)
       const signalMonth = month;
@@ -631,6 +615,30 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
 
       currentHoldings = newHoldings;
       currentWeights = newWeights;
+    }
+
+    // 4.2. APLICAR RETORNO con las weights actuales (potencialmente recién
+    //      cambiadas). El retorno cubre el periodo [T-1, T] o, en nextClose,
+    //      [firstDayOf T, firstDayOf T+1] — en cualquier caso, es el periodo
+    //      DE TENENCIA que termina en este iter T. La primera iteración no
+    //      tiene previo: se omite (anclamos equity = initialAmount).
+    if (equityCurve.length > 0 && currentWeights.size > 0) {
+      const prevMonth = addMonths(month, -1);
+      let weightedReturn = 0;
+      for (const [ticker, w] of currentWeights) {
+        if (ticker === "CASH") {
+          weightedReturn += w * (RISK_FREE_RATE / 12);
+          continue;
+        }
+        const series = seriesPerAsset.get(ticker);
+        if (!series) continue;
+        const prev = periodPriceFor(series, prevMonth);
+        const curr = periodPriceFor(series, month);
+        if (prev && curr && prev > 0) {
+          weightedReturn += w * (curr / prev - 1);
+        }
+      }
+      currentValue *= 1 + weightedReturn;
     }
 
     // 4.3. Push punto de equity (fecha = día exacto del periodo, no "YYYY-MM")
