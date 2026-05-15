@@ -7,7 +7,8 @@
 // bloqueamos rutas internas/dev no destinadas a usuarios.
 //
 // Rutas permitidas:
-//   - /                    → home con herramienta (AccessGate gestiona el código)
+//   - /                    → home con herramienta de Backtest (AccessGate gestiona el código)
+//   - /momentum            → herramienta de Momentum / Relative Strength
 //   - /informe/[isin]      → informe personalizado del lead capturado
 //   - /api/*               → endpoints REST que consume el widget de WordPress
 //   - /_next/*, /icon.svg  → assets de Next.js + favicon
@@ -24,6 +25,7 @@ import type { NextRequest } from "next/server";
 const RUTAS_PUBLICAS_PREFIJO = ["/api/", "/informe/", "/_next/", "/wordpress/"];
 const RUTAS_PUBLICAS_EXACTAS = new Set([
   "/",
+  "/momentum",
   "/favicon.ico",
   "/icon.svg",
   "/apple-icon.svg",
