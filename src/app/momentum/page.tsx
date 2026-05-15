@@ -20,18 +20,17 @@ import { MomentumConfigPanel } from "@/components/MomentumConfigPanel";
 import { MomentumResultsView } from "@/components/MomentumResultsView";
 import type { MomentumConfig, MomentumResponse, MomentumAsset } from "@/lib/momentum-types";
 
-// Universo por defecto: 10 sectores de SPDR + benchmark SPY como ejemplo clásico.
+// Universo por defecto: cartera "KX Sectorial" — 5 sectores SPDR clave
+// (Tecnología, Salud, Consumo Básico, Utilities, Energía) + VNQ (REITs USA)
+// + GLD (Oro) como activos defensivos / descorrelacionados.
 const DEFAULT_ASSETS: MomentumAsset[] = [
   { ticker: "XLK", displayName: "Tecnología" },
   { ticker: "XLV", displayName: "Salud" },
-  { ticker: "XLF", displayName: "Financiero" },
-  { ticker: "XLY", displayName: "Consumo Discr." },
   { ticker: "XLP", displayName: "Consumo Bás." },
-  { ticker: "XLE", displayName: "Energía" },
-  { ticker: "XLI", displayName: "Industrial" },
-  { ticker: "XLB", displayName: "Materiales" },
   { ticker: "XLU", displayName: "Utilities" },
-  { ticker: "XLRE", displayName: "Real Estate" },
+  { ticker: "XLE", displayName: "Energía" },
+  { ticker: "VNQ", displayName: "Real Estate" },
+  { ticker: "GLD", displayName: "Oro" },
 ];
 
 function getDefaultConfig(): MomentumConfig {

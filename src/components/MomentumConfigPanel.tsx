@@ -37,8 +37,22 @@ export function MomentumConfigPanel({ config, onChange, onRun, isLoading }: Prop
     );
   }
 
-  function loadPreset(preset: "spdr-sectors" | "mag7" | "global-tactical") {
-    if (preset === "spdr-sectors") {
+  function loadPreset(
+    preset: "kx-sectorial" | "spdr-sectors" | "mag7" | "global-tactical"
+  ) {
+    if (preset === "kx-sectorial") {
+      // Cartera curada por el usuario — 6 sectores SPDR + Oro como activo
+      // defensivo / descorrelacionado. Pensada para Momentum.
+      update("assets", [
+        { ticker: "XLK", displayName: "Tecnología" },
+        { ticker: "XLV", displayName: "Salud" },
+        { ticker: "XLP", displayName: "Consumo Bás." },
+        { ticker: "XLU", displayName: "Utilities" },
+        { ticker: "XLE", displayName: "Energía" },
+        { ticker: "VNQ", displayName: "Real Estate" },
+        { ticker: "GLD", displayName: "Oro" },
+      ]);
+    } else if (preset === "spdr-sectors") {
       update("assets", [
         { ticker: "XLK", displayName: "Tecnología" },
         { ticker: "XLV", displayName: "Salud" },
@@ -99,8 +113,15 @@ export function MomentumConfigPanel({ config, onChange, onRun, isLoading }: Prop
                 <InfoIcon />
               </Tooltip>
             </h4>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs text-brand-tertiary">Presets:</span>
+              <button
+                onClick={() => loadPreset("kx-sectorial")}
+                className="text-[11px] font-medium px-2 py-1 rounded bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors"
+                title="6 sectores SPDR (XLK, XLV, XLP, XLU, XLE) + VNQ (REITs) + GLD (Oro)"
+              >
+                KX Sectorial
+              </button>
               <button
                 onClick={() => loadPreset("spdr-sectors")}
                 className="text-[11px] font-medium px-2 py-1 rounded bg-orange-50 text-orange-700 hover:bg-orange-100 transition-colors"
