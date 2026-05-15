@@ -1,24 +1,35 @@
 // =============================================================================
-// MOMENTUM ENGINE — Relative Strength tactical asset allocation (DAILY)
+// MOMENTUM ENGINE — Relative Strength tactical asset allocation (MENSUAL)
 // =============================================================================
 //
 // Réplica del modelo "Relative Strength" de Portfoliovisualizer con simulación
-// DIARIA:
+// MENSUAL (un punto de equity por mes). Para cubrir las dos convenciones de
+// ejecución que admite PV utilizamos DOS series de precios por activo:
 //
-//   1. Cargamos precios diarios (adjusted_close) de cada activo del universo.
-//   2. Construimos un calendario de días hábiles (unión de fechas).
-//   3. Para el RANKING agregamos a mensual (último día hábil de cada mes).
-//   4. Programamos los rebalanceos según `tradeExecution`:
-//        - "lastClose": el rebalanceo se ejecuta al cierre del ÚLTIMO día
-//          hábil del mes (mismo día que se calcula la señal).
-//        - "nextClose": al cierre del PRIMER día hábil del mes siguiente
-//          (PortfolioVisualizer-style: 1 día hábil de delay entre señal y trade).
-//   5. Simulamos día a día: aplicamos retornos diarios a las holdings, y en
-//      los días marcados como rebalanceo cambiamos a las nuevas holdings.
+//   • monthlyClose[M]    = cierre del último día hábil de M  (para ranking)
+//   • firstDayClose[M]   = cierre del primer día hábil de M  (para ejecución
+//                           en modo "nextClose")
 //
-// Métricas: volatilidad anualizada con √252; los "mejores/peor mes" y "% meses
-// positivos" se calculan a partir de retornos MENSUALES re-agregados desde la
-// equity curve diaria (para que sigan teniendo sentido humano).
+// Ambas se extraen de los datos diarios de EODHD y luego trabajamos siempre
+// a granularidad mensual. Esto significa:
+//
+//   • Curva de equity:  un punto por mes (~250 puntos en 20 años, no 5300).
+//   • Vol anualizada:   σ_mensual × √12  (no √252).
+//   • Max DD:           sobre la curva mensual (no captura mínimos intra-mes).
+//
+// Modos:
+//
+//   "lastClose":   señal y trade en el mismo cierre = último día hábil de T.
+//                  Holding period [last_day_of_T, last_day_of_T+1].
+//                  Return mensual = monthlyClose[T+1] / monthlyClose[T] − 1.
+//
+//   "nextClose":   señal a último día de T, trade al primer día hábil de T+1
+//                  (PortfolioVisualizer default). Holding period
+//                  [first_day_of_T+1, first_day_of_T+2].
+//                  Return mensual = firstDayClose[T+2] / firstDayClose[T+1] − 1.
+//
+// El ranking SIEMPRE usa monthlyClose (la señal se calcula al cierre del mes,
+// independientemente de cuándo se ejecute el trade).
 // =============================================================================
 
 import { getDailyPrices } from "./data-fetcher";
@@ -34,10 +45,9 @@ import type {
 } from "./momentum-types";
 
 // -----------------------------------------------------------------------------
-// Utilidades de fechas
+// Utilidades de fechas mensuales ("YYYY-MM")
 // -----------------------------------------------------------------------------
 
-/** "YYYY-MM" → Date (1er día del mes UTC). */
 function monthKeyToDate(key: string): Date {
   const [y, m] = key.split("-").map((s) => parseInt(s, 10));
   return new Date(Date.UTC(y!, (m ?? 1) - 1, 1));
@@ -68,18 +78,10 @@ function monthsBetween(a: string, b: string): number {
   );
 }
 
-/** Días naturales entre dos "YYYY-MM-DD" (b - a). */
-function daysBetween(a: string, b: string): number {
-  const da = new Date(a + "T00:00:00Z").getTime();
-  const db = new Date(b + "T00:00:00Z").getTime();
-  return Math.round((db - da) / (1000 * 60 * 60 * 24));
-}
-
 // -----------------------------------------------------------------------------
-// Carga de datos
+// Carga y agregación de precios
 // -----------------------------------------------------------------------------
 
-/** Carga precios diarios para un activo. */
 async function fetchDailyForAsset(asset: MomentumAsset): Promise<Map<string, number>> {
   if (asset.fundId) {
     const fund = getFundById(asset.fundId);
@@ -92,37 +94,59 @@ async function fetchDailyForAsset(asset: MomentumAsset): Promise<Map<string, num
   return daily.prices;
 }
 
-/** Reduce diarias a mensuales: último precio observado en cada mes. */
-function aggregateDailyToMonthly(daily: Map<string, number>): Map<string, number> {
-  const monthly = new Map<string, number>();
+/**
+ * A partir de precios diarios, devuelve DOS series mensuales:
+ *  - lastClose:  precio del ÚLTIMO día hábil de cada mes
+ *  - firstClose: precio del PRIMER día hábil de cada mes
+ * Las claves son "YYYY-MM".
+ */
+function aggregateToMonthlyPair(daily: Map<string, number>): {
+  lastClose: Map<string, number>;
+  firstClose: Map<string, number>;
+  exactLastDay: Map<string, string>;
+  exactFirstDay: Map<string, string>;
+} {
   const sorted = Array.from(daily.keys()).sort();
+  const lastClose = new Map<string, number>();
+  const firstClose = new Map<string, number>();
+  const exactLastDay = new Map<string, string>();
+  const exactFirstDay = new Map<string, string>();
+
   for (const date of sorted) {
     const month = date.substring(0, 7);
-    monthly.set(month, daily.get(date)!); // se sobrescribe → queda el último
+    const price = daily.get(date)!;
+    if (!firstClose.has(month)) {
+      firstClose.set(month, price);
+      exactFirstDay.set(month, date);
+    }
+    // lastClose se sobrescribe en cada iteración → queda el último día observado
+    lastClose.set(month, price);
+    exactLastDay.set(month, date);
   }
-  return monthly;
+
+  return { lastClose, firstClose, exactLastDay, exactFirstDay };
 }
 
 // -----------------------------------------------------------------------------
-// Cálculo de momentum y volatilidad (sobre datos mensuales)
+// Momentum y volatilidad sobre datos mensuales (ranking)
 // -----------------------------------------------------------------------------
 
 function momentumAt(
-  monthlyPrices: Map<string, number>,
+  monthlyClose: Map<string, number>,
   month: string,
   lookbackMonths: number,
   excludePrevious: boolean
 ): number | null {
   const endKey = excludePrevious ? addMonths(month, -1) : month;
   const startKey = addMonths(endKey, -lookbackMonths);
-  const startPrice = monthlyPrices.get(startKey);
-  const endPrice = monthlyPrices.get(endKey);
+  const startPrice = monthlyClose.get(startKey);
+  const endPrice = monthlyClose.get(endKey);
   if (!startPrice || !endPrice || startPrice <= 0) return null;
   return endPrice / startPrice - 1;
 }
 
 function movingAverage(
-  monthlyPrices: Map<string, number>,
+  monthlyClose: Map<string, number>,
   month: string,
   windowMonths: number
 ): number | null {
@@ -130,7 +154,7 @@ function movingAverage(
   let count = 0;
   for (let i = 0; i < windowMonths; i++) {
     const k = addMonths(month, -i);
-    const p = monthlyPrices.get(k);
+    const p = monthlyClose.get(k);
     if (p && p > 0) {
       sum += p;
       count++;
@@ -141,7 +165,7 @@ function movingAverage(
 }
 
 function volatilityAt(
-  monthlyPrices: Map<string, number>,
+  monthlyClose: Map<string, number>,
   month: string,
   windowMonths: number
 ): number | null {
@@ -149,8 +173,8 @@ function volatilityAt(
   for (let i = 0; i < windowMonths; i++) {
     const prevKey = addMonths(month, -i - 1);
     const currKey = addMonths(month, -i);
-    const prev = monthlyPrices.get(prevKey);
-    const curr = monthlyPrices.get(currKey);
+    const prev = monthlyClose.get(prevKey);
+    const curr = monthlyClose.get(currKey);
     if (prev && curr && prev > 0) {
       rets.push(curr / prev - 1);
     }
@@ -160,10 +184,11 @@ function volatilityAt(
 }
 
 // -----------------------------------------------------------------------------
-// Helpers de estadística
+// Métricas
 // -----------------------------------------------------------------------------
 
-/** Volatilidad anualizada desde retornos de un periodo. */
+const RISK_FREE_RATE = 0.02;
+
 function annualizeStdDev(returns: number[], periodsPerYear: number): number {
   if (returns.length < 2) return 0;
   const mean = returns.reduce((s, r) => s + r, 0) / returns.length;
@@ -172,7 +197,6 @@ function annualizeStdDev(returns: number[], periodsPerYear: number): number {
   return Math.sqrt(variance) * Math.sqrt(periodsPerYear);
 }
 
-/** Downside deviation anualizada. */
 function annualizeDownsideDeviation(returns: number[], periodsPerYear: number): number {
   if (returns.length < 2) return 0;
   const downside = returns.map((r) => Math.min(r, 0) ** 2);
@@ -196,9 +220,6 @@ function calcMaxDrawdown(values: number[]): number {
   }
   return maxDD;
 }
-
-const RISK_FREE_RATE = 0.02; // anual, igual que el backtest engine
-const TRADING_DAYS_PER_YEAR = 252;
 
 function buildMetrics(
   equityCurve: MomentumEquityPoint[],
@@ -224,43 +245,30 @@ function buildMetrics(
   const finalValue = equityCurve[equityCurve.length - 1]!.value;
   const totalReturn = finalValue / initialValue - 1;
 
-  // Años efectivos (días naturales entre primer y último punto)
-  const days = daysBetween(
-    equityCurve[0]!.date,
-    equityCurve[equityCurve.length - 1]!.date
-  );
-  const years = days / 365.25;
+  // Años efectivos: medidos por meses entre primer y último punto.
+  // (Cada punto es UN mes — el último día del mes en lastClose, o el primero
+  //  del mes siguiente en nextClose; en ambos casos suficiente para CAGR.)
+  const firstMonth = equityCurve[0]!.date.substring(0, 7);
+  const lastMonth = equityCurve[equityCurve.length - 1]!.date.substring(0, 7);
+  const months = monthsBetween(firstMonth, lastMonth);
+  const years = months / 12;
   const cagr = calcCAGR(initialValue, finalValue, years);
 
-  // Retornos diarios para vol/sharpe (anualizamos × √252)
-  const dailyReturns: number[] = [];
+  // Retornos MENSUALES (uno entre cada par de puntos consecutivos)
+  const monthlyReturns: number[] = [];
   for (let i = 1; i < equityCurve.length; i++) {
     const prev = equityCurve[i - 1]!.value;
     const curr = equityCurve[i]!.value;
-    if (prev > 0) dailyReturns.push(curr / prev - 1);
+    if (prev > 0) monthlyReturns.push(curr / prev - 1);
   }
-  const vol = annualizeStdDev(dailyReturns, TRADING_DAYS_PER_YEAR);
-  const downsideDev = annualizeDownsideDeviation(dailyReturns, TRADING_DAYS_PER_YEAR);
+  const vol = annualizeStdDev(monthlyReturns, 12);
+  const downsideDev = annualizeDownsideDeviation(monthlyReturns, 12);
   const excess = cagr - RISK_FREE_RATE;
   const sharpe = vol > 0 ? excess / vol : 0;
   const sortino = downsideDev > 0 ? excess / downsideDev : 0;
 
   const maxDD = calcMaxDrawdown(equityCurve.map((p) => p.value));
 
-  // Retornos MENSUALES re-agregados desde la equity diaria — los usamos para
-  // los métricos "mejor mes / peor mes / % meses positivos" porque tienen
-  // sentido humano (los retornos diarios son extremos y poco informativos).
-  const monthlyValues = new Map<string, number>();
-  for (const p of equityCurve) {
-    monthlyValues.set(p.date.substring(0, 7), p.value); // último valor del mes
-  }
-  const sortedMonths = Array.from(monthlyValues.keys()).sort();
-  const monthlyReturns: number[] = [];
-  for (let i = 1; i < sortedMonths.length; i++) {
-    const a = monthlyValues.get(sortedMonths[i - 1]!)!;
-    const b = monthlyValues.get(sortedMonths[i]!)!;
-    if (a > 0) monthlyReturns.push(b / a - 1);
-  }
   const bestMonth = monthlyReturns.length > 0 ? Math.max(...monthlyReturns) : 0;
   const worstMonth = monthlyReturns.length > 0 ? Math.min(...monthlyReturns) : 0;
   const positiveMonths =
@@ -290,18 +298,13 @@ function buildAnnualReturns(
   initialValue: number
 ): MomentumAnnualReturn[] {
   if (curve.length < 1) return [];
-
-  // Último valor de cada año (= cierre anual del último día hábil)
   const yearEnds = new Map<number, number>();
   for (const point of curve) {
     const year = parseInt(point.date.substring(0, 4), 10);
-    yearEnds.set(year, point.value);
+    yearEnds.set(year, point.value); // sobrescribe → queda el último valor del año
   }
-
   const sortedYears = Array.from(yearEnds.keys()).sort((a, b) => a - b);
   const results: MomentumAnnualReturn[] = [];
-
-  // Año Y: (cierre_Y / cierre_{Y-1}) − 1. Primer año usa initialValue.
   let prev: number | null = null;
   for (const year of sortedYears) {
     const endValue = yearEnds.get(year)!;
@@ -313,7 +316,6 @@ function buildAnnualReturns(
   return results;
 }
 
-/** Turnover one-way entre dos asignaciones (suma de |delta_w| / 2). */
 function computeTurnover(
   prev: Map<string, number>,
   next: Map<string, number>
@@ -344,13 +346,20 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
   }
 
   const mode = config.tradeExecution ?? "lastClose";
-  const rebalanceMode = config.frequency === "quarterly" ? 3 : 1;
+  const rebalanceEvery = config.frequency === "quarterly" ? 3 : 1;
   const rankingMethod = config.rankingMethod ?? "momentum";
   const volPeriod = config.volatilityPeriodMonths ?? 3;
   const slippage = (config.slippagePercent ?? 0) / 100;
 
-  // 1. Cargar precios DIARIOS en paralelo
-  const dailyPricesPerAsset = new Map<string, Map<string, number>>();
+  // 1. Cargar precios diarios y agregar a las dos series mensuales
+  type AssetSeries = {
+    monthlyClose: Map<string, number>;  // para ranking
+    firstDayClose: Map<string, number>; // para ejecución en nextClose
+    exactLastDay: Map<string, string>;
+    exactFirstDay: Map<string, string>;
+  };
+  const seriesPerAsset = new Map<string, AssetSeries>();
+
   await Promise.all(
     config.assets.map(async (asset) => {
       try {
@@ -359,7 +368,14 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
           warnings.push(`Sin datos para ${asset.ticker} — excluido del universo`);
           return;
         }
-        dailyPricesPerAsset.set(asset.ticker, daily);
+        const { lastClose, firstClose, exactLastDay, exactFirstDay } =
+          aggregateToMonthlyPair(daily);
+        seriesPerAsset.set(asset.ticker, {
+          monthlyClose: lastClose,
+          firstDayClose: firstClose,
+          exactLastDay,
+          exactFirstDay,
+        });
       } catch (err) {
         warnings.push(
           `Error obteniendo ${asset.ticker}: ${err instanceof Error ? err.message : "desconocido"}`
@@ -368,12 +384,12 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
     })
   );
 
-  if (dailyPricesPerAsset.size < 2) {
+  if (seriesPerAsset.size < 2) {
     throw new Error("Menos de 2 activos con datos válidos — no se puede ejecutar momentum");
   }
 
-  // Benchmark opcional
-  let benchmarkDaily: Map<string, number> | null = null;
+  // Benchmark opcional (también dos series)
+  let benchmarkSeries: AssetSeries | null = null;
   if (config.benchmarkTicker) {
     try {
       const daily = await getDailyPrices(
@@ -381,7 +397,14 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
         config.benchmarkTicker,
         undefined
       );
-      benchmarkDaily = daily.prices;
+      const { lastClose, firstClose, exactLastDay, exactFirstDay } =
+        aggregateToMonthlyPair(daily.prices);
+      benchmarkSeries = {
+        monthlyClose: lastClose,
+        firstDayClose: firstClose,
+        exactLastDay,
+        exactFirstDay,
+      };
     } catch (err) {
       warnings.push(
         `Benchmark ${config.benchmarkTicker} no disponible: ${
@@ -391,41 +414,19 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
     }
   }
 
-  // 2. Agregar a mensual (para señales / ranking)
-  const monthlyPricesPerAsset = new Map<string, Map<string, number>>();
-  for (const [ticker, daily] of dailyPricesPerAsset) {
-    monthlyPricesPerAsset.set(ticker, aggregateDailyToMonthly(daily));
-  }
-
-  // 3. Calendario de días hábiles (unión de fechas de todos los activos)
-  const allDaysSet = new Set<string>();
-  for (const daily of dailyPricesPerAsset.values()) {
-    for (const day of daily.keys()) allDaysSet.add(day);
-  }
-  const allDays = Array.from(allDaysSet).sort();
-
-  // 4. Mapas mes → primer/último día hábil con datos en el calendario
-  const firstDayOfMonth = new Map<string, string>();
-  const lastDayOfMonth = new Map<string, string>();
-  for (const day of allDays) {
-    const m = day.substring(0, 7);
-    if (!firstDayOfMonth.has(m)) firstDayOfMonth.set(m, day);
-    lastDayOfMonth.set(m, day);
-  }
-
-  // 5. Determinar el rango efectivo de meses (limitado por lookback disponible)
+  // 2. Determinar rango efectivo de meses
   const minOffset = config.lookbackMonths + (config.excludePreviousMonth ? 1 : 0);
   const allFirstMonths: string[] = [];
   const allLastMonths: string[] = [];
-  for (const monthly of monthlyPricesPerAsset.values()) {
-    const sorted = Array.from(monthly.keys()).sort();
-    if (sorted.length > 0) {
-      allFirstMonths.push(sorted[0]!);
-      allLastMonths.push(sorted[sorted.length - 1]!);
+  for (const s of seriesPerAsset.values()) {
+    const sortedMonths = Array.from(s.monthlyClose.keys()).sort();
+    if (sortedMonths.length > 0) {
+      allFirstMonths.push(sortedMonths[0]!);
+      allLastMonths.push(sortedMonths[sortedMonths.length - 1]!);
     }
   }
-  const dataStartMonth = allFirstMonths.sort().pop()!; // intersección — el último "primer mes"
-  const dataEndMonth = allLastMonths.sort()[0]!;       // intersección — el primer "último mes"
+  const dataStartMonth = allFirstMonths.sort().pop()!;
+  const dataEndMonth = allLastMonths.sort()[0]!;
   const firstOperationalMonth = addMonths(dataStartMonth, minOffset);
 
   const requestedStartMonth = config.startDate.substring(0, 7);
@@ -455,79 +456,63 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
     );
   }
 
-  // 6. Construir el SCHEDULE de rebalanceos:
-  //    Cada entrada: (signalMonth, executionDay)
-  //    - signalMonth: mes cuyos cierres usamos para rankear (con excludePrev se
-  //      descuenta uno más adelante en momentumAt)
-  //    - executionDay: día hábil exacto en que cambiamos las holdings
-  type RebalanceSchedule = {
-    signalMonth: string;
-    executionDay: string;
-  };
-  const schedule: RebalanceSchedule[] = [];
-  let monthIdx = 0;
-  for (
-    let m = effectiveStartMonth;
-    compareMonths(m, effectiveEndMonth) <= 0;
-    m = addMonths(m, 1), monthIdx++
-  ) {
-    if (monthIdx % rebalanceMode !== 0) continue;
-
-    let executionDay: string | undefined;
+  // 3. Helper: precio que usamos para CADA mes según el modo de ejecución
+  //
+  // En lastClose:  el "valor del periodo M" = monthlyClose[M] (último día de M)
+  // En nextClose:  el "valor del periodo M" = firstDayClose[M+1] (1er día de M+1)
+  //                — porque el holding period M comienza al cierre del 1er día
+  //                  de M+1 y termina al cierre del 1er día de M+2.
+  //
+  // Asociamos a cada "iteración M" una fecha visible para la curva de equity:
+  function periodPriceFor(series: AssetSeries, month: string): number | undefined {
     if (mode === "lastClose") {
-      executionDay = lastDayOfMonth.get(m);
-    } else {
-      // "nextClose": ejecutar al primer día hábil del MES SIGUIENTE
-      const next = addMonths(m, 1);
-      executionDay = firstDayOfMonth.get(next);
+      return series.monthlyClose.get(month);
     }
-    if (executionDay) {
-      schedule.push({ signalMonth: m, executionDay });
+    const next = addMonths(month, 1);
+    return series.firstDayClose.get(next);
+  }
+  function periodDateFor(series: AssetSeries, month: string): string {
+    // Sólo para mostrar en el chart. Si no hay día exacto disponible volvemos a
+    // "YYYY-MM-01" como fallback.
+    if (mode === "lastClose") {
+      return series.exactLastDay.get(month) ?? `${month}-28`;
     }
+    const next = addMonths(month, 1);
+    return series.exactFirstDay.get(next) ?? `${next}-01`;
   }
 
-  if (schedule.length === 0) {
-    throw new Error("No se pudo programar ningún rebalanceo dentro del rango efectivo");
-  }
+  // Para fechas mostradas usamos el primer activo (o el benchmark) como referencia
+  const referenceSeries = seriesPerAsset.values().next().value as AssetSeries;
 
-  const rebalanceByDay = new Map<string, RebalanceSchedule>();
-  for (const reb of schedule) rebalanceByDay.set(reb.executionDay, reb);
-
-  // 7. Determinar el rango de días para la simulación
-  const firstSimDay = schedule[0]!.executionDay;
-  // Último día: el último día hábil que NO supera el effectiveEndMonth
-  // (ojo: si mode="nextClose" puede haber un schedule con executionDay > último día hábil del effectiveEndMonth — lo recortamos)
-  const effectiveEndLast = lastDayOfMonth.get(effectiveEndMonth)!;
-  const lastSimDay = effectiveEndLast;
-
-  // 8. Simulación día a día
+  // 4. Bucle mensual
   let currentValue = config.initialAmount;
   let currentWeights = new Map<string, number>();
   let currentHoldings: string[] = [];
-  let prevDay: string | null = null;
 
   const equityCurve: MomentumEquityPoint[] = [];
   const rebalances: MomentumRebalance[] = [];
 
-  // Cash daily rate (composición continua → discreto diario)
-  const dailyRfRate = Math.pow(1 + RISK_FREE_RATE, 1 / TRADING_DAYS_PER_YEAR) - 1;
+  let monthIdx = 0;
+  for (
+    let month = effectiveStartMonth;
+    compareMonths(month, effectiveEndMonth) <= 0;
+    month = addMonths(month, 1), monthIdx++
+  ) {
+    const isRebalanceMonth = monthIdx % rebalanceEvery === 0;
 
-  for (const day of allDays) {
-    if (day < firstSimDay) continue;
-    if (day > lastSimDay) break;
-
-    // 8.1. Aplicar retorno diario (prevDay → day) con las weights actuales
-    if (prevDay !== null && currentWeights.size > 0) {
+    // 4.1. Aplicar return desde el periodo anterior con las weights actuales
+    if (equityCurve.length > 0 && currentWeights.size > 0) {
+      const prevMonth = addMonths(month, -1);
       let weightedReturn = 0;
       for (const [ticker, w] of currentWeights) {
         if (ticker === "CASH") {
-          weightedReturn += w * dailyRfRate;
+          weightedReturn += w * (RISK_FREE_RATE / 12);
           continue;
         }
-        const prices = dailyPricesPerAsset.get(ticker);
-        if (!prices) continue;
-        const prev = prices.get(prevDay);
-        const curr = prices.get(day);
+        const series = seriesPerAsset.get(ticker);
+        if (!series) continue;
+        const prev = periodPriceFor(series, prevMonth);
+        const curr = periodPriceFor(series, month);
         if (prev && curr && prev > 0) {
           weightedReturn += w * (curr / prev - 1);
         }
@@ -535,10 +520,10 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
       currentValue *= 1 + weightedReturn;
     }
 
-    // 8.2. ¿Hoy es día de rebalanceo?
-    const reb = rebalanceByDay.get(day);
-    if (reb) {
-      // Calcular ranking usando precios mensuales en reb.signalMonth
+    // 4.2. ¿Toca rebalancear?
+    if (isRebalanceMonth) {
+      // El ranking SIEMPRE usa monthlyClose (cierre del último día del mes de la señal)
+      const signalMonth = month;
       const candidates: Array<{
         ticker: string;
         mom: number;
@@ -547,10 +532,10 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
         aboveMA: boolean;
       }> = [];
 
-      for (const [ticker, monthly] of monthlyPricesPerAsset) {
+      for (const [ticker, series] of seriesPerAsset) {
         const mom = momentumAt(
-          monthly,
-          reb.signalMonth,
+          series.monthlyClose,
+          signalMonth,
           config.lookbackMonths,
           config.excludePreviousMonth
         );
@@ -558,7 +543,7 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
 
         let vol: number | null = null;
         if (rankingMethod === "sharpe" || config.weighting === "volatility") {
-          vol = volatilityAt(monthly, reb.signalMonth, volPeriod);
+          vol = volatilityAt(series.monthlyClose, signalMonth, volPeriod);
         }
 
         const score =
@@ -570,8 +555,12 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
 
         let aboveMA = true;
         if (config.movingAverageMonths && config.movingAverageMonths > 0) {
-          const ma = movingAverage(monthly, reb.signalMonth, config.movingAverageMonths);
-          const currentPrice = monthly.get(reb.signalMonth);
+          const ma = movingAverage(
+            series.monthlyClose,
+            signalMonth,
+            config.movingAverageMonths
+          );
+          const currentPrice = series.monthlyClose.get(signalMonth);
           aboveMA = ma !== null && currentPrice !== undefined && currentPrice > ma;
         }
 
@@ -609,20 +598,19 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
           for (const c of passing) newWeights.set(c.ticker, w);
         }
       } else {
-        // equal
         const w = 1 / Math.max(1, passing.length);
         for (const c of passing) newWeights.set(c.ticker, w);
       }
 
-      // Detectar cambio respecto al anterior
       const prevSet = new Set(currentHoldings);
       const newSet = new Set(newHoldings);
       const changed =
         prevSet.size !== newSet.size || [...newSet].some((t) => !prevSet.has(t));
 
       if (changed || equityCurve.length === 0) {
+        // La fecha del rebalanceo refleja CUÁNDO se ejecuta el trade
         rebalances.push({
-          date: day,
+          date: periodDateFor(referenceSeries, month),
           previousHoldings: currentHoldings,
           newHoldings,
           ranking: candidates.map((c) => ({
@@ -645,52 +633,40 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
       currentWeights = newWeights;
     }
 
-    // 8.3. Empujar punto de equity diario
+    // 4.3. Push punto de equity (fecha = día exacto del periodo, no "YYYY-MM")
     equityCurve.push({
-      date: day,
+      date: periodDateFor(referenceSeries, month),
       value: currentValue,
       holdings: [...currentHoldings],
     });
-
-    prevDay = day;
   }
 
-  // 9. Métricas
+  // 5. Métricas
   const metrics = buildMetrics(equityCurve, rebalances.length);
   const annualReturns = buildAnnualReturns(equityCurve, config.initialAmount);
 
-  // 10. Benchmark (también diario)
+  // 6. Benchmark (mismo esquema mensual)
   let benchmarkCurve: MomentumEquityPoint[] | undefined;
   let benchmarkMetrics: MomentumMetrics | undefined;
-  if (benchmarkDaily) {
+  if (benchmarkSeries) {
     benchmarkCurve = [];
-    // Encontrar el precio del benchmark en firstSimDay (o el más próximo posterior)
     let basePrice: number | undefined;
-    let baseDay: string | undefined;
-    for (const day of allDays) {
-      if (day < firstSimDay) continue;
-      const p = benchmarkDaily.get(day);
-      if (p !== undefined) {
-        basePrice = p;
-        baseDay = day;
-        break;
-      }
+    for (
+      let month = effectiveStartMonth;
+      compareMonths(month, effectiveEndMonth) <= 0;
+      month = addMonths(month, 1)
+    ) {
+      const p = periodPriceFor(benchmarkSeries, month);
+      if (p === undefined) continue;
+      if (basePrice === undefined) basePrice = p;
+      benchmarkCurve.push({
+        date: periodDateFor(benchmarkSeries, month),
+        value: (p / basePrice) * config.initialAmount,
+        holdings: [config.benchmarkTicker!],
+      });
     }
-    if (basePrice && baseDay) {
-      for (const day of allDays) {
-        if (day < baseDay) continue;
-        if (day > lastSimDay) break;
-        const p = benchmarkDaily.get(day);
-        if (p === undefined) continue;
-        benchmarkCurve.push({
-          date: day,
-          value: (p / basePrice) * config.initialAmount,
-          holdings: [config.benchmarkTicker!],
-        });
-      }
-      if (benchmarkCurve.length > 0) {
-        benchmarkMetrics = buildMetrics(benchmarkCurve, 0);
-      }
+    if (benchmarkCurve.length > 1) {
+      benchmarkMetrics = buildMetrics(benchmarkCurve, 0);
     }
   }
 
@@ -706,5 +682,4 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
   };
 }
 
-// `monthsBetween` exposed in case future helpers need it
 export { monthsBetween };
