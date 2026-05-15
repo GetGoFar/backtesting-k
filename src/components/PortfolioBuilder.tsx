@@ -324,9 +324,16 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
 
   // Agrupar presets por tipo
   const inbestmePresets = presets.filter((p) => p.id.startsWith("k-inbestme"));
+  const sectorialUSAPresets = presets.filter((p) => p.id.startsWith("k-sectorial-usa"));
+  const geograficaUSAPresets = presets.filter((p) => p.id.startsWith("k-geografica-usa"));
   const geograficaUCITPresets = presets.filter((p) => p.id.startsWith("k-geografica-ucit"));
   const indexaPresets = presets.filter((p) => p.id.startsWith("indexa-"));
-  const indexPresets = presets.filter((p) => p.type === "index" && !p.id.startsWith("k-inbestme") && !p.id.startsWith("k-geografica-ucit") && !p.id.startsWith("indexa-"));
+  const indexPresets = presets.filter((p) => p.type === "index"
+    && !p.id.startsWith("k-inbestme")
+    && !p.id.startsWith("k-sectorial-usa")
+    && !p.id.startsWith("k-geografica-usa")
+    && !p.id.startsWith("k-geografica-ucit")
+    && !p.id.startsWith("indexa-"));
   const bancaPrivadaPresets = presets.filter((p) => p.id.startsWith("banca-privada"));
   const alternativosCanigueralPresets = presets.filter((p) => p.id.startsWith("alternativos-canigueral"));
   const activePresets = presets.filter((p) => p.type === "active" && !p.id.startsWith("banca-privada") && !p.id.startsWith("alternativos-canigueral"));
@@ -398,7 +405,7 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
               {/* Carteras K Inbestme (1-10) */}
               <div className="p-2 border-b border-slate-100">
                 <p className="text-xs font-semibold text-indigo-500 uppercase tracking-wider px-2 py-1">
-                  Carteras K Inbestme (1-10)
+                  Carteras K Inbestme (1-10) <span className="text-[10px] font-normal text-indigo-300">· EUR</span>
                 </p>
                 <div className="grid grid-cols-2 gap-1">
                   {inbestmePresets.map((preset) => (
@@ -420,10 +427,64 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                 </div>
               </div>
 
+              {/* Carteras K Sectorial USA (1-9, X) — ETFs USD */}
+              {sectorialUSAPresets.length > 0 && (
+                <div className="p-2 border-b border-slate-100">
+                  <p className="text-xs font-semibold text-orange-600 uppercase tracking-wider px-2 py-1">
+                    Carteras K Sectorial USA (1-9, X) <span className="text-[10px] font-normal text-orange-400">· USD</span>
+                  </p>
+                  <div className="grid grid-cols-2 gap-1">
+                    {sectorialUSAPresets.map((preset) => (
+                      <button
+                        key={preset.id}
+                        onClick={() => handlePresetSelect(preset)}
+                        className={`text-left px-2 py-1.5 rounded-lg hover:bg-orange-50 transition-colors ${
+                          selectedPresetId === preset.id ? "bg-orange-50" : ""
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-orange-500" />
+                          <span className="font-medium text-xs text-slate-800">
+                            {preset.name}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Carteras K Geográfica USA (1-9, X) — fondos Vanguard USD */}
+              {geograficaUSAPresets.length > 0 && (
+                <div className="p-2 border-b border-slate-100">
+                  <p className="text-xs font-semibold text-teal-600 uppercase tracking-wider px-2 py-1">
+                    Carteras K Geográfica USA (1-9, X) <span className="text-[10px] font-normal text-teal-400">· USD</span>
+                  </p>
+                  <div className="grid grid-cols-2 gap-1">
+                    {geograficaUSAPresets.map((preset) => (
+                      <button
+                        key={preset.id}
+                        onClick={() => handlePresetSelect(preset)}
+                        className={`text-left px-2 py-1.5 rounded-lg hover:bg-teal-50 transition-colors ${
+                          selectedPresetId === preset.id ? "bg-teal-50" : ""
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-teal-500" />
+                          <span className="font-medium text-xs text-slate-800">
+                            {preset.name}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Carteras K Geográfica UCIT (1-10) */}
               <div className="p-2 border-b border-slate-100">
                 <p className="text-xs font-semibold text-sky-600 uppercase tracking-wider px-2 py-1">
-                  Carteras K Geográfica UCIT (1-10)
+                  Carteras K Geográfica UCIT (1-10) <span className="text-[10px] font-normal text-sky-400">· EUR</span>
                 </p>
                 <div className="grid grid-cols-2 gap-1">
                   {geograficaUCITPresets.map((preset) => (
