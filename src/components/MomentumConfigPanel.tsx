@@ -313,6 +313,22 @@ export function MomentumConfigPanel({ config, onChange, onRun, isLoading }: Prop
           </Field>
 
           <Field
+            label="Ejecución del trade"
+            tooltip="Cuándo se materializa la rotación:&#10;• Último cierre del mes: ejecución instantánea al cierre del último día hábil del mes que se calcula la señal. Más optimista (no admite gap entre señal y trade).&#10;• Primer cierre del mes siguiente: la señal se calcula al cierre del mes y la orden se ejecuta el siguiente día hábil. Es el default de Portfoliovisualizer y refleja la imposibilidad real de operar exactamente en el cierre de hoy."
+          >
+            <select
+              value={config.tradeExecution ?? "nextClose"}
+              onChange={(e) =>
+                update("tradeExecution", e.target.value as MomentumConfig["tradeExecution"])
+              }
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30 bg-white"
+            >
+              <option value="nextClose">Primer cierre del mes siguiente (PV)</option>
+              <option value="lastClose">Último cierre del mes</option>
+            </select>
+          </Field>
+
+          <Field
             label="Filtro MA (meses)"
             tooltip="Si > 0, solo se entra en un activo si su precio supera su media móvil de N meses. Filtro de tendencia clásico (10 meses funciona bien). 0 = sin filtro. Si todos los top-N fallan el filtro, va a CASH."
           >

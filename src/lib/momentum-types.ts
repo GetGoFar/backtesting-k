@@ -33,6 +33,16 @@ export type MomentumWeighting = "equal" | "rank" | "volatility";
  */
 export type MomentumRankingMethod = "momentum" | "sharpe";
 
+/**
+ * Momento exacto en el que se ejecuta el rebalanceo dentro del calendario diario:
+ * - "lastClose": al cierre del ÚLTIMO día hábil del mes (mismo día que se calcula
+ *   la señal). Ejecución instantánea, "trade at last close".
+ * - "nextClose": al cierre del PRIMER día hábil del mes siguiente. La señal se
+ *   calcula al cierre del último día del mes, pero la orden se ejecuta el
+ *   siguiente día hábil. Es el default de Portfoliovisualizer.
+ */
+export type MomentumTradeExecution = "lastClose" | "nextClose";
+
 export interface MomentumConfig {
   /** Lista de activos candidatos (universo). */
   assets: MomentumAsset[];
@@ -65,6 +75,12 @@ export interface MomentumConfig {
    * Por defecto: 3 meses (como en Portfoliovisualizer).
    */
   volatilityPeriodMonths?: number;
+  /**
+   * Cuándo se materializa la rotación dentro del calendario diario. Default:
+   * "lastClose" (cierre del último día del mes, ejecución instantánea).
+   * "nextClose" replica el comportamiento por defecto de Portfoliovisualizer.
+   */
+  tradeExecution?: MomentumTradeExecution;
 
   // === Filtros opcionales ===
   /**
@@ -89,17 +105,17 @@ export interface MomentumConfig {
 
 /** Punto de la curva de equity. */
 export interface MomentumEquityPoint {
-  /** "YYYY-MM" — fin de mes representativo. */
+  /** "YYYY-MM-DD" — fecha del día hábil al que corresponde el valor. */
   date: string;
-  /** Valor del portfolio. */
+  /** Valor del portfolio al cierre de ese día. */
   value: number;
-  /** Tickers que se sostienen ESE mes. */
+  /** Tickers que se sostienen ESE día. */
   holdings: string[];
 }
 
 /** Una rotación / rebalanceo realizado. */
 export interface MomentumRebalance {
-  date: string;            // "YYYY-MM"
+  date: string;            // "YYYY-MM-DD" — día hábil exacto en que se ejecuta
   previousHoldings: string[];
   newHoldings: string[];
   /**

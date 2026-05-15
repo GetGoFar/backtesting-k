@@ -50,6 +50,7 @@ function getDefaultConfig(): MomentumConfig {
     movingAverageMonths: 0,
     slippagePercent: 0,
     benchmarkTicker: "SPY",
+    tradeExecution: "nextClose",
   };
 }
 

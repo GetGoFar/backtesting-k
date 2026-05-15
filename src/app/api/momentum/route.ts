@@ -108,5 +108,11 @@ function validateConfig(config: MomentumConfig): string | null {
   ) {
     return "volatilityPeriodMonths debe estar entre 2 y 36";
   }
+  if (
+    config.tradeExecution !== undefined &&
+    !["lastClose", "nextClose"].includes(config.tradeExecution)
+  ) {
+    return "tradeExecution debe ser 'lastClose' o 'nextClose'";
+  }
   return null;
 }
