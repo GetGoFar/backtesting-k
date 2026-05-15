@@ -182,32 +182,51 @@ function movingAverage(
 }
 
 /**
- * Volatilidad anualizada usando RETORNOS DIARIOS de los últimos `windowMonths`
- * meses calendario terminados en `month` (incluido). Anualiza × √252.
- * Replica la columna "3-month volatility (ann)" de Portfoliovisualizer, que
- * usa ~63 puntos diarios — mucho más estable que std(3 retornos mensuales) × √12.
+ * Volatilidad anualizada usando RETORNOS DIARIOS — réplica del cálculo de
+ * Portfoliovisualizer.
+ *
+ * PV usa una "rolling window" de N × 21 días HÁBILES (no meses calendario
+ * completos) que termina en el último día hábil del mes señal. Para
+ * `volatilityPeriodMonths = 3` eso son 63 días hábiles ~ 90 días naturales.
+ *
+ * Si el mes señal está en curso (no completado todavía), terminamos en el
+ * último día con datos disponibles dentro de ese mes.
+ *
+ * Anualiza × √252.
  */
 function volatilityAt(
   dailyPrices: Map<string, number>,
   month: string,
   windowMonths: number
 ): number | null {
-  const windowStartMonth = addMonths(month, -(windowMonths - 1));
-  const windowStartKey = `${windowStartMonth}-01`;
-  const [endYearStr, endMonthStr] = month.split("-");
-  const endYear = parseInt(endYearStr!, 10);
-  const endMonth = parseInt(endMonthStr!, 10);
-  const lastDayDate = new Date(Date.UTC(endYear, endMonth, 0));
-  const windowEndKey = `${month}-${lastDayDate.getUTCDate().toString().padStart(2, "0")}`;
+  const TRADING_DAYS_PER_MONTH = 21;
+  const windowSize = windowMonths * TRADING_DAYS_PER_MONTH;
 
-  const datesInWindow: string[] = [];
-  for (const date of dailyPrices.keys()) {
-    if (date >= windowStartKey && date <= windowEndKey) {
-      datesInWindow.push(date);
+  // 1. Localizar el último día hábil DENTRO del mes señal (con datos)
+  const monthPrefix = `${month}-`;
+  const allDates = Array.from(dailyPrices.keys()).sort();
+  let endIdx = -1;
+  for (let i = allDates.length - 1; i >= 0; i--) {
+    if (allDates[i]!.startsWith(monthPrefix)) {
+      endIdx = i;
+      break;
+    }
+    // Si ya pasamos el mes señal hacia atrás, no hay datos en él. Usamos el
+    // último día previo al mes (caso raro — solo si el mes señal no tiene
+    // datos diarios cargados).
+    if (allDates[i]! < monthPrefix) {
+      endIdx = i;
+      break;
     }
   }
-  datesInWindow.sort();
+  if (endIdx < 0) return null;
 
+  // 2. La ventana son los `windowSize` días hábiles previos (inclusive endIdx).
+  //    Si no hay tantos, usamos los que haya (con mínimo de 5).
+  const startIdx = Math.max(0, endIdx - windowSize + 1);
+  const datesInWindow = allDates.slice(startIdx, endIdx + 1);
+
+  // 3. Retornos diarios y std × √252
   const rets: number[] = [];
   for (let i = 1; i < datesInWindow.length; i++) {
     const prev = dailyPrices.get(datesInWindow[i - 1]!)!;
