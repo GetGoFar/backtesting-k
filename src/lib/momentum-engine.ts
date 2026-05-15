@@ -557,13 +557,34 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
   ) {
     const isRebalanceMonth = monthIdx % rebalanceEvery === 0;
 
-    // 4.1. REBALANCEAR PRIMERO. La señal con excludePrev=true sólo usa datos
-    //      hasta T-1, así que la decisión técnicamente se podría haber
-    //      computado al cierre de T-1 (= inicio del periodo de tenencia [T-1, T]).
-    //      Es decir, "iter T" representa la rotación al inicio de ese periodo,
-    //      y el nuevo activo captura el retorno [T-1, T].
+    // 4.1. APLICAR RETORNO PRIMERO con las weights ACTUALES (decididas en la
+    //      iteración anterior). Esto es el retorno [T-1, T] que ganó la cartera
+    //      que ya teníamos antes de tocar nada — convención PV-compatible
+    //      (decide al cierre de T, ejecuta al siguiente close, los nuevos pesos
+    //      no ganan nada todavía).
+    if (equityCurve.length > 0 && currentWeights.size > 0) {
+      const prevMonth = addMonths(month, -1);
+      let weightedReturn = 0;
+      for (const [ticker, w] of currentWeights) {
+        if (ticker === "CASH") {
+          weightedReturn += w * (RISK_FREE_RATE / 12);
+          continue;
+        }
+        const series = seriesPerAsset.get(ticker);
+        if (!series) continue;
+        const prev = periodPriceFor(series, prevMonth);
+        const curr = periodPriceFor(series, month);
+        if (prev && curr && prev > 0) {
+          weightedReturn += w * (curr / prev - 1);
+        }
+      }
+      currentValue *= 1 + weightedReturn;
+    }
+
+    // 4.2. AHORA REBALANCEAR a los nuevos pesos. La señal usa datos hasta T-1
+    //      (con excludePrev=true). Los nuevos pesos NO ganan nada en esta
+    //      iteración — empezarán a generar retorno en la siguiente.
     if (isRebalanceMonth) {
-      // El ranking SIEMPRE usa monthlyClose (cierre del último día del mes de la señal)
       const signalMonth = month;
       const candidates: Array<{
         ticker: string;
@@ -649,7 +670,6 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
         prevSet.size !== newSet.size || [...newSet].some((t) => !prevSet.has(t));
 
       if (changed || equityCurve.length === 0) {
-        // La fecha del rebalanceo refleja CUÁNDO se ejecuta el trade
         rebalances.push({
           date: periodDateFor(referenceSeries, month),
           previousHoldings: currentHoldings,
@@ -664,6 +684,7 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
           forcedCash,
         });
 
+        // Slippage: se cobra AHORA porque el rebalanceo se ejecuta a partir de aquí
         if (slippage > 0 && equityCurve.length > 0) {
           const turnover = computeTurnover(currentWeights, newWeights);
           currentValue *= 1 - turnover * slippage;
@@ -672,30 +693,6 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
 
       currentHoldings = newHoldings;
       currentWeights = newWeights;
-    }
-
-    // 4.2. APLICAR RETORNO con las weights actuales (potencialmente recién
-    //      cambiadas). El retorno cubre el periodo [T-1, T] o, en nextClose,
-    //      [firstDayOf T, firstDayOf T+1] — en cualquier caso, es el periodo
-    //      DE TENENCIA que termina en este iter T. La primera iteración no
-    //      tiene previo: se omite (anclamos equity = initialAmount).
-    if (equityCurve.length > 0 && currentWeights.size > 0) {
-      const prevMonth = addMonths(month, -1);
-      let weightedReturn = 0;
-      for (const [ticker, w] of currentWeights) {
-        if (ticker === "CASH") {
-          weightedReturn += w * (RISK_FREE_RATE / 12);
-          continue;
-        }
-        const series = seriesPerAsset.get(ticker);
-        if (!series) continue;
-        const prev = periodPriceFor(series, prevMonth);
-        const curr = periodPriceFor(series, month);
-        if (prev && curr && prev > 0) {
-          weightedReturn += w * (curr / prev - 1);
-        }
-      }
-      currentValue *= 1 + weightedReturn;
     }
 
     // 4.3. Push punto de equity (fecha = día exacto del periodo, no "YYYY-MM")
