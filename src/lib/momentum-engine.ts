@@ -131,6 +131,20 @@ function aggregateToMonthlyPair(daily: Map<string, number>): {
 // Momentum y volatilidad sobre datos mensuales (ranking)
 // -----------------------------------------------------------------------------
 
+/**
+ * Momentum acumulado del activo al mes señal `month`.
+ *
+ * Convención académica clásica ("12-1 momentum" de Jegadeesh & Titman, también
+ * la que usa Portfoliovisualizer):
+ *
+ *   • excludePrevious = false →  retorno = price[T]   / price[T-lookback] − 1
+ *     (lookback meses de retorno terminando en el mes señal incluido)
+ *
+ *   • excludePrevious = true  →  retorno = price[T-1] / price[T-lookback] − 1
+ *     (lookback − 1 meses de retorno, anclados en T-1 al final y T-lookback al
+ *      inicio. Ej. lookback=12, excludePrev=true → 11 meses de retorno desde
+ *      "12 meses atrás" hasta "1 mes atrás".)
+ */
 function momentumAt(
   monthlyClose: Map<string, number>,
   month: string,
@@ -138,7 +152,10 @@ function momentumAt(
   excludePrevious: boolean
 ): number | null {
   const endKey = excludePrevious ? addMonths(month, -1) : month;
-  const startKey = addMonths(endKey, -lookbackMonths);
+  // El startKey se ancla al MES SEÑAL (no al endKey). Con excludePrevious,
+  // esto da una ventana de (lookback − 1) meses, que es la definición "12-1
+  // momentum" estándar (start = 12 meses atrás, end = 1 mes atrás).
+  const startKey = addMonths(month, -lookbackMonths);
   const startPrice = monthlyClose.get(startKey);
   const endPrice = monthlyClose.get(endKey);
   if (!startPrice || !endPrice || startPrice <= 0) return null;
