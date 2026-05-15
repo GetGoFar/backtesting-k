@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { Fund } from "@/lib/types";
+import { fetchWithSource } from "@/lib/data-source";
 
 interface DataRangeInfo {
   firstDate: string;
@@ -30,7 +31,7 @@ export function FundDataRange({ fund }: { fund: Fund }) {
         if (fund.yahooTicker) params.set("yahooTicker", fund.yahooTicker);
         if (fund.isin) params.set("isin", fund.isin);
 
-        const res = await fetch(`/api/data-range?${params.toString()}`);
+        const res = await fetchWithSource(`/api/data-range?${params.toString()}`);
         if (!res.ok) throw new Error("fetch failed");
 
         const data = await res.json();

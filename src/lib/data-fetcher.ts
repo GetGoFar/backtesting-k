@@ -16,6 +16,7 @@ import { join } from "path";
 import { getFundById } from "./fund-database";
 import { getCachedPrices, setCachedPrices } from "./kv-cache";
 import { validatePriceData, cleanPriceData } from "./data-validator";
+import { getRequestContext } from "./request-context";
 import type { DailyPrice, MonthlyPrice } from "./types";
 
 // Ruta al CSV de fondos españoles
@@ -75,12 +76,27 @@ export interface MonthlyPricesResult {
 // Función principal — datos DIARIOS
 // -----------------------------------------------------------------------------
 
+/** Fuente de precios. Se puede pasar explícitamente o leerse del contexto. */
+export type DataSource = "eodhd" | "yahoo";
+
 /**
  * Obtiene los precios diarios de un fondo por su ID.
- * Estrategia: Cache → EODHD → Yahoo Finance → CSV
+ *
+ * @param dataSource Cuál es la fuente PRINCIPAL a probar primero. Si falla,
+ *                   se cae a las otras (en el orden EODHD → Yahoo → CSV o
+ *                   Yahoo → EODHD → CSV). El cache se segmenta por fuente.
  */
-export async function getDailyPrices(fundId: string, yahooTicker?: string, isin?: string): Promise<DailyPricesResult> {
-  console.log(`[DataFetcher] Obteniendo precios diarios para: ${fundId}`);
+export async function getDailyPrices(
+  fundId: string,
+  yahooTicker?: string,
+  isin?: string,
+  dataSource?: DataSource
+): Promise<DailyPricesResult> {
+  // Si no se pasa explícitamente, leer del contexto del request actual.
+  // Si tampoco hay contexto (script offline, test, etc.), default a "eodhd".
+  const effectiveSource: DataSource =
+    dataSource ?? getRequestContext()?.dataSource ?? "eodhd";
+  console.log(`[DataFetcher] Obteniendo precios diarios para: ${fundId} (fuente: ${effectiveSource})`);
 
   const fund = getFundById(fundId);
   const ticker = fund?.yahooTicker || yahooTicker;
@@ -90,10 +106,14 @@ export async function getDailyPrices(fundId: string, yahooTicker?: string, isin?
     throw new Error(`Fondo no encontrado: ${fundId}`);
   }
 
+  // El cache se segmenta por fuente — las series EODHD y Yahoo difieren en
+  // ajustes de dividendos y precios exactos, así que NO se pueden mezclar.
+  const cacheKey = `${fundId}::${effectiveSource}`;
+
   // 1. Intentar cache (memoria -> Redis)
-  const cached = await getCachedPrices(fundId);
+  const cached = await getCachedPrices(cacheKey);
   if (cached) {
-    console.log(`[DataFetcher] Cache hit: ${fundId} (${cached.length} días)`);
+    console.log(`[DataFetcher] Cache hit: ${cacheKey} (${cached.length} días)`);
     return dailyPricesToMap(cached);
   }
 
@@ -102,41 +122,57 @@ export async function getDailyPrices(fundId: string, yahooTicker?: string, isin?
   // Para fondos en la BD local: usar el flag distributing explícito (curado).
   // Para fondos dinámicos (búsqueda): default a adjusted_close (=distributing=true) porque
   // captura dividendos correctamente para ETFs distribución (DBMF, etc.) y para fondos
-  // acumulación limpios adjusted_close == close (no perjudica). Solo problemático en
-  // casos raros con "dividendos fantasma" en EODHD, que ya están curados en la BD local.
+  // acumulación limpios adjusted_close == close (no perjudica).
   const isDistributing = fund ? (fund.distributing ?? false) : true;
 
-  // 2a. Intentar EODHD primero (si hay API key y ticker)
-  if (EODHD_API_TOKEN && EODHD_API_TOKEN !== "demo" && ticker) {
-    const eodhTicker = yahooTickerToEODHD(ticker);
-    console.log(`[DataFetcher] Intentando EODHD diario: ${eodhTicker} (desde Yahoo: ${ticker}, distributing: ${isDistributing})`);
-    prices = await fetchDailyFromEODHD(eodhTicker, isDistributing);
+  if (effectiveSource === "eodhd") {
+    // === Orden: EODHD primero, Yahoo como fallback ===
+    if (EODHD_API_TOKEN && EODHD_API_TOKEN !== "demo" && ticker) {
+      const eodhTicker = yahooTickerToEODHD(ticker);
+      console.log(`[DataFetcher] Intentando EODHD diario: ${eodhTicker} (distributing: ${isDistributing})`);
+      prices = await fetchDailyFromEODHD(eodhTicker, isDistributing);
 
-    // Si EODHD falló con el ticker, intentar con el ISIN en EUFUND
-    if (prices.length === 0 && effectiveIsin) {
-      console.log(`[DataFetcher] EODHD ticker falló, intentando ISIN: ${effectiveIsin}.EUFUND`);
+      if (prices.length === 0 && effectiveIsin) {
+        console.log(`[DataFetcher] EODHD ticker falló, intentando ISIN: ${effectiveIsin}.EUFUND`);
+        prices = await fetchDailyFromEODHD(`${effectiveIsin}.EUFUND`, isDistributing);
+      }
+    }
+
+    if (prices.length === 0 && EODHD_API_TOKEN && EODHD_API_TOKEN !== "demo" && !ticker && effectiveIsin) {
+      console.log(`[DataFetcher] Intentando EODHD con ISIN directo: ${effectiveIsin}.EUFUND`);
+      prices = await fetchDailyFromEODHD(`${effectiveIsin}.EUFUND`, isDistributing);
+    }
+
+    // Fallback a Yahoo si EODHD no devolvió nada
+    if (prices.length === 0 && ticker) {
+      console.log(`[DataFetcher] EODHD vacío, fallback a Yahoo: ${ticker}`);
+      prices = await fetchDailyFromYahooFinance(ticker);
+    }
+  } else {
+    // === Orden: Yahoo primero, EODHD como fallback ===
+    if (ticker) {
+      console.log(`[DataFetcher] Intentando Yahoo diario: ${ticker}`);
+      prices = await fetchDailyFromYahooFinance(ticker);
+    }
+
+    // Fallback a EODHD si Yahoo no devolvió nada
+    if (prices.length === 0 && EODHD_API_TOKEN && EODHD_API_TOKEN !== "demo" && ticker) {
+      const eodhTicker = yahooTickerToEODHD(ticker);
+      console.log(`[DataFetcher] Yahoo vacío, fallback a EODHD: ${eodhTicker}`);
+      prices = await fetchDailyFromEODHD(eodhTicker, isDistributing);
+    }
+
+    if (prices.length === 0 && EODHD_API_TOKEN && EODHD_API_TOKEN !== "demo" && effectiveIsin) {
+      console.log(`[DataFetcher] Yahoo vacío, fallback a EODHD ISIN: ${effectiveIsin}.EUFUND`);
       prices = await fetchDailyFromEODHD(`${effectiveIsin}.EUFUND`, isDistributing);
     }
   }
 
-  // 2a-bis. Si no hay ticker pero sí ISIN, intentar EODHD con ISIN directamente
-  if (prices.length === 0 && EODHD_API_TOKEN && EODHD_API_TOKEN !== "demo" && !ticker && effectiveIsin) {
-    console.log(`[DataFetcher] Intentando EODHD con ISIN directo: ${effectiveIsin}.EUFUND`);
-    prices = await fetchDailyFromEODHD(`${effectiveIsin}.EUFUND`, isDistributing);
-  }
-
-  // 2b. Fallback a Yahoo Finance DESACTIVADO:
-  // Los precios de Yahoo NO coinciden con los de portfoliovisualizer.com
-  // (distintas series ajustadas, distintas fechas de splits/dividendos,
-  // diferencias de redondeo, etc.). Para garantizar consistencia con la
-  // referencia de Pablo, EODHD es la fuente única online. Si EODHD no tiene
-  // el dato, el motor lanza error en lugar de usar silenciosamente otra fuente.
-
-  // 2c. Fallback a CSV (fondos bancarios españoles — solo mensual, convertir a diario)
+  // 3. Fallback a CSV (fondos bancarios españoles — solo mensual, convertir a diario)
+  //    Igual en ambos modos: el CSV es la última red de seguridad.
   if (prices.length === 0 && fund) {
     console.log(`[DataFetcher] Leyendo CSV para fondo bancario: ${fund.isin}`);
     const monthlyPrices = await readFromCSV(fund.isin);
-    // Convertir mensual → pseudo-diario (un punto por mes, al día 1)
     prices = monthlyPrices.map((mp) => ({
       date: mp.exactDate || `${mp.month}-01`,
       closePrice: mp.closePrice,
@@ -148,7 +184,7 @@ export async function getDailyPrices(fundId: string, yahooTicker?: string, isin?
     throw new Error(`No hay datos disponibles para: ${fundId} (${name})`);
   }
 
-  // 3. Validar y limpiar datos
+  // 4. Validar y limpiar datos
   const quality = validatePriceData(fundId, prices);
   console.log(`[DataFetcher] Calidad ${fundId}: score=${quality.qualityScore}, gaps=${quality.gaps.length}, saltos=${quality.suspiciousJumps.length}`);
 
@@ -158,9 +194,9 @@ export async function getDailyPrices(fundId: string, yahooTicker?: string, isin?
 
   const cleanPrices = cleanPriceData(prices);
 
-  // 4. Guardar en cache (memoria + Redis)
-  await setCachedPrices(fundId, cleanPrices);
-  console.log(`[DataFetcher] Cacheado: ${fundId} (${cleanPrices.length} días)`);
+  // 5. Guardar en cache (memoria + Redis) bajo la key segmentada por fuente
+  await setCachedPrices(cacheKey, cleanPrices);
+  console.log(`[DataFetcher] Cacheado: ${cacheKey} (${cleanPrices.length} días)`);
 
   return dailyPricesToMap(cleanPrices);
 }
@@ -173,8 +209,13 @@ export async function getDailyPrices(fundId: string, yahooTicker?: string, isin?
  * Obtiene los precios mensuales de un fondo (último precio de cada mes).
  * Wrapper sobre getDailyPrices para compatibilidad con código existente.
  */
-export async function getMonthlyPrices(fundId: string, yahooTicker?: string, isin?: string): Promise<MonthlyPricesResult> {
-  const daily = await getDailyPrices(fundId, yahooTicker, isin);
+export async function getMonthlyPrices(
+  fundId: string,
+  yahooTicker?: string,
+  isin?: string,
+  dataSource?: DataSource
+): Promise<MonthlyPricesResult> {
+  const daily = await getDailyPrices(fundId, yahooTicker, isin, dataSource);
   return aggregateDailyToMonthly(daily);
 }
 
@@ -418,7 +459,6 @@ async function fetchDailyFromEODHD(ticker: string, distributing: boolean = false
  * Se mantiene en el código como referencia / para uso futuro si se necesita
  * reactivar el fallback.
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function fetchDailyFromYahooFinance(ticker: string): Promise<DailyPrice[]> {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=max&interval=1d`;
 

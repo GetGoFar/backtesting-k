@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runBacktest } from "@/lib/backtest-engine";
 import { getFundById } from "@/lib/fund-database";
+import { runWithContext } from "@/lib/request-context";
 import type { BacktestConfig, Portfolio, PortfolioHolding, BacktestWarning, DisplayGranularity } from "@/lib/types";
 
 // Timeout máximo para el backtest (60 segundos — datos diarios requieren más tiempo)
@@ -34,6 +35,14 @@ const WEIGHT_TOLERANCE = 10;
  * - 500: Error interno
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  // Fuente de precios elegida por el usuario (default: EODHD)
+  const headerSource = request.headers.get("x-data-source");
+  const dataSource: "eodhd" | "yahoo" = headerSource === "yahoo" ? "yahoo" : "eodhd";
+
+  // Envolvemos TODO el handler en el contexto para que getDailyPrices, las
+  // funciones del backtest-engine y cualquier llamada en cadena hereden la
+  // fuente sin tener que tocar sus firmas.
+  return runWithContext({ dataSource }, async () => {
   try {
     // Parsear el body
     let config: BacktestConfig;
@@ -193,6 +202,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       { status: 500 }
     );
   }
+  }); // cierre de runWithContext
 }
 
 // -----------------------------------------------------------------------------

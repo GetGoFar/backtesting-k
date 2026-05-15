@@ -166,6 +166,10 @@ export interface BacktestConfig {
    *  dirigen primero a los activos por debajo del peso objetivo, evitando
    *  realizar plusvalías. Solo aplica si hay monthlyContribution > 0. */
   contributionRebalance?: boolean;
+  /** Fuente de precios. "eodhd" (default) = EODHD primero, Yahoo como fallback.
+   *  "yahoo" = Yahoo primero, EODHD como fallback. El cache se segmenta por
+   *  fuente para que ambas series queden separadas y no se mezclen. */
+  dataSource?: "eodhd" | "yahoo";
 }
 
 // -----------------------------------------------------------------------------

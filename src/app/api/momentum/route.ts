@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { runMomentum } from "@/lib/momentum-engine";
+import { runWithContext } from "@/lib/request-context";
 import type { MomentumConfig } from "@/lib/momentum-types";
 
 const TIMEOUT_MS = 90_000; // 90s — cargar precios de muchos tickers puede ser lento
@@ -27,43 +28,46 @@ const TIMEOUT_MS = 90_000; // 90s — cargar precios de muchos tickers puede ser
  * Respuesta: MomentumResponse o { error, message }
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  try {
-    let config: MomentumConfig;
+  const headerSource = request.headers.get("x-data-source");
+  const dataSource: "eodhd" | "yahoo" = headerSource === "yahoo" ? "yahoo" : "eodhd";
+
+  return runWithContext({ dataSource }, async () => {
     try {
-      config = await request.json();
-    } catch {
+      let config: MomentumConfig;
+      try {
+        config = await request.json();
+      } catch {
+        return NextResponse.json(
+          { error: "JSON inválido", message: "El cuerpo de la petición no es JSON válido." },
+          { status: 400 }
+        );
+      }
+
+      const err = validateConfig(config);
+      if (err) {
+        return NextResponse.json({ error: "Validación fallida", message: err }, { status: 400 });
+      }
+
+      const result = await Promise.race([
+        runMomentum(config),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Timeout")), TIMEOUT_MS)
+        ),
+      ]);
+
+      return NextResponse.json(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error desconocido";
+      const status = message === "Timeout" ? 408 : 500;
       return NextResponse.json(
-        { error: "JSON inválido", message: "El cuerpo de la petición no es JSON válido." },
-        { status: 400 }
+        {
+          error: status === 408 ? "Timeout" : "Error interno",
+          message,
+        },
+        { status }
       );
     }
-
-    // Validaciones básicas
-    const err = validateConfig(config);
-    if (err) {
-      return NextResponse.json({ error: "Validación fallida", message: err }, { status: 400 });
-    }
-
-    // Ejecutar con timeout
-    const result = await Promise.race([
-      runMomentum(config),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Timeout")), TIMEOUT_MS)
-      ),
-    ]);
-
-    return NextResponse.json(result);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Error desconocido";
-    const status = message === "Timeout" ? 408 : 500;
-    return NextResponse.json(
-      {
-        error: status === 408 ? "Timeout" : "Error interno",
-        message,
-      },
-      { status }
-    );
-  }
+  });
 }
 
 function validateConfig(config: MomentumConfig): string | null {

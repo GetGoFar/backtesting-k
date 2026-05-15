@@ -10,6 +10,7 @@ import { TaxImpactCard } from "@/components/TaxImpactCard";
 import { ReportGeneratorModal } from "@/components/ReportGeneratorModal";
 import { AccessGate } from "@/components/AccessGate";
 import { SidebarNav } from "@/components/SidebarNav";
+import { DataSourceToggle } from "@/components/DataSourceToggle";
 import type {
   BacktestResponse,
   RebalanceFrequency,
@@ -21,6 +22,7 @@ import type {
 import { getAllBenchmarks } from "@/lib/benchmarks";
 import { getFundById } from "@/lib/fund-database";
 import { getAllPresets } from "@/lib/portfolio-presets";
+import { fetchWithSource } from "@/lib/data-source";
 
 // Función para obtener el mes actual en formato YYYY-MM
 function getCurrentMonth(): string {
@@ -363,7 +365,7 @@ export default function Home() {
         };
       }
 
-      const response = await fetch("/api/backtest", {
+      const response = await fetchWithSource("/api/backtest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -423,6 +425,9 @@ export default function Home() {
                 Momentum
               </a>
             </nav>
+
+            {/* Selector de fuente de datos */}
+            <DataSourceToggle />
 
             <a
               href="https://elproyectok.com"

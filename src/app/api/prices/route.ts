@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMonthlyPrices } from "@/lib/data-fetcher";
 import { getFundById } from "@/lib/fund-database";
+import { runWithContext } from "@/lib/request-context";
 
 /**
  * GET /api/prices
@@ -23,6 +24,10 @@ import { getFundById } from "@/lib/fund-database";
  * - 500: Error interno
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  const headerSource = request.headers.get("x-data-source");
+  const dataSource: "eodhd" | "yahoo" = headerSource === "yahoo" ? "yahoo" : "eodhd";
+
+  return runWithContext({ dataSource }, async () => {
   try {
     const { searchParams } = new URL(request.url);
     const fundId = searchParams.get("fundId");
@@ -127,4 +132,5 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       { status: 500 }
     );
   }
+  });
 }

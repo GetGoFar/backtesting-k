@@ -18,6 +18,8 @@ import Link from "next/link";
 import { AccessGate } from "@/components/AccessGate";
 import { MomentumConfigPanel } from "@/components/MomentumConfigPanel";
 import { MomentumResultsView } from "@/components/MomentumResultsView";
+import { DataSourceToggle } from "@/components/DataSourceToggle";
+import { fetchWithSource } from "@/lib/data-source";
 import type { MomentumConfig, MomentumResponse, MomentumAsset } from "@/lib/momentum-types";
 
 // Universo por defecto: cartera "KX Sectorial" — 5 sectores SPDR clave
@@ -63,7 +65,7 @@ export default function MomentumPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/momentum", {
+      const res = await fetchWithSource("/api/momentum", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config),
@@ -120,6 +122,9 @@ export default function MomentumPage() {
                   Momentum
                 </span>
               </nav>
+
+              {/* Selector de fuente de datos */}
+              <DataSourceToggle />
 
               <a
                 href="https://elproyectok.com"
