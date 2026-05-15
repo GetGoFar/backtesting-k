@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { PortfolioBuilder } from "@/components/PortfolioBuilder";
+import { FundSearch } from "@/components/FundSearch";
 import { MetricsTable, type ValueMode } from "@/components/MetricsTable";
 import { FeeImpactCard } from "@/components/FeeImpactCard";
 import { TaxImpactCard } from "@/components/TaxImpactCard";
@@ -15,6 +16,7 @@ import type {
   DisplayGranularity,
   PortfolioHolding,
   BacktestWarning,
+  Fund,
 } from "@/lib/types";
 import { getAllBenchmarks } from "@/lib/benchmarks";
 import { getFundById } from "@/lib/fund-database";
@@ -218,10 +220,11 @@ export default function Home() {
   const [displayGranularity, setDisplayGranularity] =
     useState<DisplayGranularity>("monthly");
   const [useCommonDateRange, setUseCommonDateRange] = useState(true);
-  // Benchmark: puede ser un id predefinido ("bm:msci-world") o un preset
-  // ("preset:k-inbestme-6"). Permitir presets como benchmark da flexibilidad
-  // para comparar cartera vs cartera, no solo cartera vs índice.
+  // Benchmark: puede ser un id predefinido ("bm:msci-world"), un preset
+  // ("preset:k-inbestme-6"), o un fondo a medida vía buscador.
   const [benchmarkSelection, setBenchmarkSelection] = useState<string>("");
+  // Fondo único añadido vía buscador como benchmark "a medida"
+  const [customBenchmarkFund, setCustomBenchmarkFund] = useState<Fund | null>(null);
 
   // Estado de resultados y UI
   const [results, setResults] = useState<BacktestResponse | null>(null);
@@ -293,9 +296,25 @@ export default function Home() {
         contributionRebalance: monthlyContribution > 0 ? contributionRebalance : undefined,
       };
 
-      // Resolver benchmark: si es predefinido va por benchmarkId; si es preset
-      // se convierte a customBenchmark con la composición de ese preset.
-      if (benchmarkSelection.startsWith("bm:")) {
+      // Resolver benchmark: 3 modos posibles.
+      //   1) Fondo a medida (vía buscador) → tiene prioridad
+      //   2) Preset existente → se envía como customBenchmark
+      //   3) Índice predefinido → se envía como benchmarkId
+      if (customBenchmarkFund) {
+        payload.customBenchmark = {
+          name: customBenchmarkFund.shortName || customBenchmarkFund.name,
+          description: `Benchmark a medida: ${customBenchmarkFund.name}`,
+          composition: [
+            {
+              fundId: customBenchmarkFund.id,
+              weight: 100,
+              fund: customBenchmarkFund.id.startsWith("yahoo-")
+                ? customBenchmarkFund
+                : undefined,
+            },
+          ],
+        };
+      } else if (benchmarkSelection.startsWith("bm:")) {
         payload.benchmarkId = benchmarkSelection.substring(3);
       } else if (benchmarkSelection.startsWith("preset:")) {
         const presetId = benchmarkSelection.substring(7);
@@ -657,8 +676,59 @@ export default function Home() {
                 Si lo seleccionas, se calcularán alpha de Jensen, beta, tracking error, information ratio y capture ratios vs el benchmark.
                 Puedes usar tanto índices clásicos como cualquier cartera preconfigurada (K Inbestme, K Sectorial USA, Indexa, banca, etc.).
               </p>
+
+              {/* Buscador de fondo/ETF/acción a medida como benchmark.
+                  Permite usar cualquier activo que no esté en la lista —
+                  útil para comparar contra un ETF específico que tiene
+                  el cliente, o contra una acción individual. */}
+              <div className="mt-3 sm:max-w-md">
+                <p className="text-xs font-semibold text-brand-secondary mb-1.5">
+                  …o buscar un fondo/ETF/acción a medida:
+                </p>
+                {customBenchmarkFund ? (
+                  <div className="flex items-center justify-between gap-2 p-2 bg-emerald-50 border border-emerald-200 rounded-lg">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-emerald-800 truncate">
+                        🎯 {customBenchmarkFund.shortName || customBenchmarkFund.name}
+                      </p>
+                      <p className="text-[11px] text-emerald-700/80 truncate">
+                        {customBenchmarkFund.isin}
+                        {customBenchmarkFund.yahooTicker && customBenchmarkFund.yahooTicker !== customBenchmarkFund.isin
+                          && ` · ${customBenchmarkFund.yahooTicker}`}
+                        {customBenchmarkFund.currency !== "EUR" && (
+                          <span className="ml-1 px-1 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                            ⚠ {customBenchmarkFund.currency}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCustomBenchmarkFund(null)}
+                      className="text-xs text-emerald-700 hover:text-red-600 px-2 py-1 font-medium"
+                      title="Quitar este benchmark a medida"
+                    >
+                      ✕ Quitar
+                    </button>
+                  </div>
+                ) : (
+                  <FundSearch
+                    onSelect={(fund) => {
+                      setCustomBenchmarkFund(fund);
+                      // El selector predefinido pierde efecto cuando hay fondo a medida
+                      setBenchmarkSelection("");
+                    }}
+                  />
+                )}
+                {customBenchmarkFund && (
+                  <p className="mt-1.5 text-[11px] text-brand-tertiary italic">
+                    El benchmark a medida tiene prioridad sobre el selector de arriba.
+                  </p>
+                )}
+              </div>
+
               {/* Composición concreta del benchmark seleccionado */}
-              {benchmarkSelection && (() => {
+              {!customBenchmarkFund && benchmarkSelection && (() => {
                 let name: string;
                 let description: string | undefined;
                 let composition: Array<{ fundId: string; weight: number }>;
