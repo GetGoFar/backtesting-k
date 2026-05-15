@@ -84,7 +84,11 @@ async function getRedis(): Promise<import("@upstash/redis").Redis | null> {
 //       ITX/MC) marcadas como distributing:true para usar adjusted_close de EODHD.
 //       Antes se usaba close → se PERDÍAN los dividendos (KO -3%/año, MSFT -1%/año,
 //       AAPL -0,5%/año, etc.) y los CAGR no coincidían con portfoliovisualizer.com.
-const CACHE_VERSION = "v22";
+// v23 = Cache key ahora segmenta por fuente (EODHD vs Yahoo). Versiones anteriores
+//       tenían datos contaminados de cuando Yahoo caía silenciosamente a EODHD bajo
+//       la clave de Yahoo. Esta versión invalida toda la cache previa para evitar
+//       servir datos cruzados.
+const CACHE_VERSION = "v23";
 
 function makeKey(fundId: string): string {
   return `${CACHE_VERSION}:prices:${fundId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
