@@ -34,6 +34,11 @@
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Zoom base 125% — la app se renderiza por defecto un 25% más grande
+     * para mejorar la legibilidad sin que el usuario tenga que hacer Ctrl+
+     * cada vez. El usuario sigue pudiendo ajustar más zoom (Ctrl+/-) si
+     * quiere. Soportado nativamente por Chrome, Edge, Safari y Firefox 126+. */
+    zoom: 1.25;
   }
 
   body {
