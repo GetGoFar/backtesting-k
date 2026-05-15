@@ -527,13 +527,13 @@ const K_GEOGRAFICA_USA_PRESETS: PortfolioPreset[] = [
   {
     id: "k-geografica-usa-7",
     name: "K7 Geográfica USA",
-    description: "Riesgo 7: 65% RV (USA + Europa + Japón + EM) + 15% VUSTX + 20% Oro",
+    description: "Riesgo 7: 65% RV geográfica (USA + Desarrollados + EM) + 15% VUSTX + 20% Oro",
     type: "index",
     holdings: [
-      { fundId: "vanguard-vfinx", weight: 43 },
-      { fundId: "vanguard-veurx", weight: 13 },
-      { fundId: "ishares-ewj", weight: 4 },
-      { fundId: "vanguard-veiex", weight: 5 },
+      // Mismo patrón que el resto: ~67% USA + 26% Desarrollados ex-US + 7% EM
+      { fundId: "vanguard-vfinx", weight: 43.55 },
+      { fundId: "vanguard-vtmgx", weight: 16.90 },
+      { fundId: "vanguard-veiex", weight: 4.55 },
       { fundId: "vanguard-vustx", weight: 15 },
       { fundId: "spot-gold", weight: 20 },
     ],
