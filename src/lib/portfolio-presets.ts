@@ -1315,12 +1315,12 @@ const BBVA_CAPITAL_PRESETS: PortfolioPreset[] = [
       { fundId: "bbvac-invesco-euro-short-term", weight: 7.55 },      // Invesco Euro Short Term Bond Z — LU1590491913
       { fundId: "bbvac-amundi-eur-liquidity", weight: 7.07 },         // Amundi EUR Liquidity Rated SRI
       { fundId: "bbvac-amundi-euro-corp-sri", weight: 7.02 },         // Amundi Index Euro AGG Corp SRI — LU1437018168
-      // Sustitutos por categoría (ISINs originales aún sin facilitar):
-      { fundId: "bp-eurizon-medium", weight: 6.59 },          // ← JPMorgan Euro Government Short
-      { fundId: "bp-robeco-fibd", weight: 5.52 },             // ← BBVA Crédito Europa
-      { fundId: "bp-nordea-covered", weight: 5.52 },          // ← Pictet EUR Short Term
+      { fundId: "bbvac-jpm-euro-govt", weight: 6.59 },                // JPM Euro Govt Short Duration D — LU0408877842
+      { fundId: "bbvac-bbva-credito-europa", weight: 5.52 },          // BBVA Crédito Europa FI — ES0117091035
+      { fundId: "bbvac-pictet-eur-short-term", weight: 5.52 },        // Pictet EUR Short Term Corp Bond I — LU0954602677
       // === Inversión Alternativa (10%) ===
-      { fundId: "alt-pictet-atlas-titan", weight: 3.44 },     // ← Pictet TR Diversified Alpha (mismo gestor)
+      { fundId: "bbvac-pictet-tr-diversified", weight: 3.44 },        // Pictet TR Diversified Alpha P — LU1055714452
+      // Sustitutos pendientes (ISINs aún sin facilitar):
       { fundId: "alt-dnca-alpha-bonds", weight: 3.39 },       // ← BlueBay IG Absolute Return
       { fundId: "alt-helium-selection", weight: 2.95 },       // ← Candriam Long Short Credit
     ],
