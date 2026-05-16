@@ -12,6 +12,7 @@ import { AccessGate } from "@/components/AccessGate";
 import { SidebarNav } from "@/components/SidebarNav";
 import { DataSourceToggle } from "@/components/DataSourceToggle";
 import { AnnualReturnsHeatmap } from "@/components/AnnualReturnsHeatmap";
+import { MonthlyReturnsHeatmap, type HeatmapSeries as MonthlySeries } from "@/components/MonthlyReturnsHeatmap";
 import type {
   BacktestResponse,
   RebalanceFrequency,
@@ -1130,6 +1131,44 @@ export default function Home() {
                       columns={cols}
                       title="Mapa de calor de rentabilidades anuales"
                       description="Cada celda colorea su rentabilidad anual respecto al máximo absoluto del rango. Los peores años se ven más rojos, los mejores más verdes — comparable año a año entre carteras."
+                    />
+                  </div>
+                );
+              })()}
+
+              {/* 6a-bis. Mapa de calor MENSUAL (matriz año × mes, apilada por cartera) */}
+              {(() => {
+                const initialAmount = results.config?.initialAmount ?? 10000;
+                const monthSeries: MonthlySeries[] = [];
+                if (results.resultA) {
+                  monthSeries.push({
+                    label: results.resultA.portfolioName,
+                    accentClass: "text-blue-600",
+                    initialValue: initialAmount,
+                    monthlyValues: results.resultA.timeSeries.map((p) => ({
+                      monthKey: p.date,
+                      value: p.value,
+                    })),
+                  });
+                }
+                if (results.resultB) {
+                  monthSeries.push({
+                    label: results.resultB.portfolioName,
+                    accentClass: "text-rose-600",
+                    initialValue: initialAmount,
+                    monthlyValues: results.resultB.timeSeries.map((p) => ({
+                      monthKey: p.date,
+                      value: p.value,
+                    })),
+                  });
+                }
+                if (monthSeries.length === 0) return null;
+                return (
+                  <div className="scroll-mt-24">
+                    <MonthlyReturnsHeatmap
+                      series={monthSeries}
+                      title="Mapa de calor mensual"
+                      description="Matriz año × mes. Lee horizontal para ver cómo evolucionó cada año, vertical para detectar estacionalidad (¿septiembre suele ser malo?). La intensidad se calcula sobre el máximo absoluto MENSUAL — los meses muy extremos saltan a la vista. La columna 'Año' a la derecha repite el total anual."
                     />
                   </div>
                 );

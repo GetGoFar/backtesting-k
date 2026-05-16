@@ -18,6 +18,7 @@ import {
 import { formatEUR, formatPct, formatNumber } from "@/lib/formatters";
 import type { MomentumResponse } from "@/lib/momentum-types";
 import { AnnualReturnsHeatmap, type HeatmapColumn } from "./AnnualReturnsHeatmap";
+import { MonthlyReturnsHeatmap, type HeatmapSeries as MonthlySeries } from "./MonthlyReturnsHeatmap";
 
 interface Props {
   results: MomentumResponse;
@@ -264,6 +265,42 @@ export function MomentumResultsView({ results }: Props) {
             columns={columns}
             title="Rentabilidades anuales (mapa de calor)"
             description="Intensidad proporcional al máximo absoluto del rango — los peores años en rojo, los mejores en verde. Pasa el cursor sobre cada celda para ver el detalle."
+          />
+        );
+      })()}
+
+      {/* Mapa de calor MENSUAL — matriz año × mes apilada por serie */}
+      {(() => {
+        const monthSeries: MonthlySeries[] = [];
+        const initialAmount = results.config.initialAmount;
+        if (results.equityCurve.length > 0) {
+          monthSeries.push({
+            label: "Estrategia",
+            accentClass: "text-rose-600",
+            initialValue: initialAmount,
+            monthlyValues: results.equityCurve.map((p) => ({
+              monthKey: p.date.substring(0, 7),
+              value: p.value,
+            })),
+          });
+        }
+        if (results.benchmarkCurve && results.benchmarkCurve.length > 0) {
+          monthSeries.push({
+            label: `Benchmark (${results.config.benchmarkTicker})`,
+            accentClass: "text-blue-600",
+            initialValue: initialAmount,
+            monthlyValues: results.benchmarkCurve.map((p) => ({
+              monthKey: p.date.substring(0, 7),
+              value: p.value,
+            })),
+          });
+        }
+        if (monthSeries.length === 0) return null;
+        return (
+          <MonthlyReturnsHeatmap
+            series={monthSeries}
+            title="Mapa de calor mensual"
+            description="Matriz año × mes. Lee horizontal para ver cómo evolucionó cada año, vertical para detectar estacionalidad. La intensidad se calcula sobre el máximo absoluto MENSUAL — los meses extremos saltan a la vista."
           />
         );
       })()}
