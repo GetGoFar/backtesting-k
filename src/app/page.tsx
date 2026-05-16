@@ -11,6 +11,7 @@ import { ReportGeneratorModal } from "@/components/ReportGeneratorModal";
 import { AccessGate } from "@/components/AccessGate";
 import { SidebarNav } from "@/components/SidebarNav";
 import { DataSourceToggle } from "@/components/DataSourceToggle";
+import { AnnualReturnsHeatmap } from "@/components/AnnualReturnsHeatmap";
 import type {
   BacktestResponse,
   RebalanceFrequency,
@@ -1104,6 +1105,35 @@ export default function Home() {
                 <AnnualReturnsChart results={results} isLoading={false} />
                 <DrawdownChart results={results} isLoading={false} />
               </div>
+
+              {/* 6a. Mapa de calor de rentabilidades anuales */}
+              {(() => {
+                const cols: { label: string; values: Map<number, number>; accentClass?: string }[] = [];
+                if (results.resultA) {
+                  cols.push({
+                    label: results.resultA.portfolioName,
+                    values: new Map(results.resultA.annualReturns.map((r) => [r.year, r.returnPct])),
+                    accentClass: "text-blue-600",
+                  });
+                }
+                if (results.resultB) {
+                  cols.push({
+                    label: results.resultB.portfolioName,
+                    values: new Map(results.resultB.annualReturns.map((r) => [r.year, r.returnPct])),
+                    accentClass: "text-rose-600",
+                  });
+                }
+                if (cols.length === 0) return null;
+                return (
+                  <div className="scroll-mt-24">
+                    <AnnualReturnsHeatmap
+                      columns={cols}
+                      title="Mapa de calor de rentabilidades anuales"
+                      description="Cada celda colorea su rentabilidad anual respecto al máximo absoluto del rango. Los peores años se ven más rojos, los mejores más verdes — comparable año a año entre carteras."
+                    />
+                  </div>
+                );
+              })()}
 
               {/* 6b. Top 10 drawdowns por cartera */}
               <div id="section-drawdowns-top" className="scroll-mt-24">

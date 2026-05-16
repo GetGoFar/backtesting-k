@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import { formatEUR, formatPct, formatNumber } from "@/lib/formatters";
 import type { MomentumResponse } from "@/lib/momentum-types";
+import { AnnualReturnsHeatmap, type HeatmapColumn } from "./AnnualReturnsHeatmap";
 
 interface Props {
   results: MomentumResponse;
@@ -227,35 +228,45 @@ export function MomentumResultsView({ results }: Props) {
         </div>
       </section>
 
-      {/* Rentabilidades anuales */}
-      {results.annualReturns.length > 0 && (
-        <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-brand-navy font-serif mb-4">
-            Rentabilidades anuales
-          </h3>
-          <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-7 gap-2">
-            {results.annualReturns.map((yr) => (
-              <div
-                key={yr.year}
-                className={`rounded-lg p-3 text-center border ${
-                  yr.returnPercent >= 0
-                    ? "bg-emerald-50 border-emerald-100"
-                    : "bg-red-50 border-red-100"
-                }`}
-              >
-                <div className="text-xs text-brand-tertiary">{yr.year}</div>
-                <div
-                  className={`text-sm font-semibold mt-0.5 ${
-                    yr.returnPercent >= 0 ? "text-emerald-700" : "text-red-700"
-                  }`}
-                >
-                  {formatPct(yr.returnPercent / 100, 1)}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      {/* Rentabilidades anuales — heatmap con gradiente rojo→verde */}
+      {results.annualReturns.length > 0 && (() => {
+        const stratValues = new Map<number, number>(
+          results.annualReturns.map((yr) => [yr.year, yr.returnPercent])
+        );
+        const columns: HeatmapColumn[] = [
+          { label: "Estrategia", values: stratValues, accentClass: "text-rose-600" },
+        ];
+        // Si hay benchmark, añadirlo como segunda columna para comparar año a año
+        if (results.benchmarkCurve && results.benchmarkCurve.length > 1) {
+          const benchByYear = new Map<number, number>();
+          // Agregar valores por año (último del año)
+          for (const p of results.benchmarkCurve) {
+            const year = parseInt(p.date.substring(0, 4), 10);
+            benchByYear.set(year, p.value);
+          }
+          const sortedYears = Array.from(benchByYear.keys()).sort((a, b) => a - b);
+          const benchReturns = new Map<number, number>();
+          let prev: number | null = null;
+          for (const year of sortedYears) {
+            const end = benchByYear.get(year)!;
+            const start = prev ?? results.config.initialAmount;
+            benchReturns.set(year, start > 0 ? (end / start - 1) * 100 : 0);
+            prev = end;
+          }
+          columns.push({
+            label: `Benchmark (${results.config.benchmarkTicker})`,
+            values: benchReturns,
+            accentClass: "text-blue-600",
+          });
+        }
+        return (
+          <AnnualReturnsHeatmap
+            columns={columns}
+            title="Rentabilidades anuales (mapa de calor)"
+            description="Intensidad proporcional al máximo absoluto del rango — los peores años en rojo, los mejores en verde. Pasa el cursor sobre cada celda para ver el detalle."
+          />
+        );
+      })()}
 
       {/* Historial de rebalanceos */}
       <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
