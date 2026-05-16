@@ -1164,7 +1164,7 @@ export default function Home() {
                 }
                 if (monthSeries.length === 0) return null;
                 return (
-                  <div className="scroll-mt-24">
+                  <div id="section-monthly" className="scroll-mt-24">
                     <MonthlyReturnsHeatmap
                       series={monthSeries}
                       title="Mapa de calor mensual"

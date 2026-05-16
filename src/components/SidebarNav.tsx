@@ -26,6 +26,7 @@ const ALL_SECTIONS: NavSection[] = [
   { id: "section-assets", label: "Métricas por activo", group: "results", icon: "🎯" },
   { id: "section-correlations", label: "Correlaciones", group: "results", icon: "🔗" },
   { id: "section-annual", label: "Rentabilidades anuales", group: "results", icon: "📅" },
+  { id: "section-monthly", label: "Rentabilidades mensuales", group: "results", icon: "🗓️" },
   { id: "section-drawdowns-top", label: "Top 10 drawdowns", group: "results", icon: "📉" },
   { id: "section-stress", label: "Crisis históricas", group: "results", icon: "🌪️" },
   { id: "section-benchmark", label: "Benchmark", group: "results", icon: "🏆" },
