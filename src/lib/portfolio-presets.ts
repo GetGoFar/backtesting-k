@@ -1302,25 +1302,29 @@ const BBVA_CAPITAL_PRESETS: PortfolioPreset[] = [
   {
     id: "bbva-capital",
     name: "Cartera gestionada BBVA Capital",
-    description: "11 fondos RF corta duración + 3 alternativos (gestión activa BBVA)",
+    description: "RF corta duración + credit + 3 alternativos (gestión activa, sustitutos por categoría)",
     type: "active",
     holdings: [
-      // Renta Fija (sumaba 18.65% sobre 20.94% total → normalizado a ~89.1%)
-      { fundId: "bbvac-ishares-eur-govt-1-3", weight: 12.93 },
-      { fundId: "bbvac-blackrock-euro-ultrashort", weight: 10.41 },
-      { fundId: "bbvac-franklin-eur-short", weight: 9.64 },
-      { fundId: "bbvac-ms-short-maturity", weight: 9.06 },
-      { fundId: "bbvac-axa-euro-credit-short", weight: 8.91 },
-      { fundId: "bbvac-invesco-euro-short-term", weight: 7.55 },
-      { fundId: "bbvac-amundi-eur-liquidity", weight: 7.07 },
-      { fundId: "bbvac-amundi-euro-corp-sri", weight: 7.02 },
-      { fundId: "bbvac-jpm-euro-govt", weight: 6.59 },
-      { fundId: "bbvac-bbva-credito-europa", weight: 5.52 },
-      { fundId: "bbvac-pictet-eur-short-term", weight: 5.52 },
-      // Inversión Alternativa (sumaba 2.02% sobre 20.94% → normalizado a ~9.7%)
-      { fundId: "bbvac-pictet-tr-diversified", weight: 3.44 },
-      { fundId: "bbvac-bluebay-ig-absolute", weight: 3.39 },
-      { fundId: "bbvac-candriam-long-short-credit", weight: 2.95 },
+      // === RF Corta Duración / Credit (89%) ===
+      // Fondos del extracto BBVA originales que SÍ tienen datos en EODHD:
+      { fundId: "bbvac-ishares-eur-govt-1-3", weight: 12.93 },        // iShares Govt 1-3y (ETF, IE)
+      { fundId: "bbvac-blackrock-euro-ultrashort", weight: 10.41 },   // BlackRock Euro Ultra Short
+      { fundId: "bbvac-amundi-eur-liquidity", weight: 7.07 },         // Amundi EUR Liquidity Rated SRI
+      // Sustitutos por categoría (los originales fallaban — usamos fondos del
+      // mismo perfil con datos EUFUND confirmados, ya validados en otras
+      // carteras del proyecto):
+      { fundId: "bp-eurizon-short", weight: 9.64 },           // ← Franklin EUR Short Duration
+      { fundId: "bp-groupama-ust", weight: 9.06 },            // ← MS Short Maturity Euro Bond
+      { fundId: "bp-lord-abbett", weight: 8.91 },             // ← AXA Euro Credit Short
+      { fundId: "bp-nordea-lowdur", weight: 7.55 },           // ← Invesco Euro Short Term
+      { fundId: "bp-pimco-credit", weight: 7.02 },            // ← Amundi Euro Corporate SRI
+      { fundId: "bp-eurizon-medium", weight: 6.59 },          // ← JPMorgan Euro Government Short
+      { fundId: "bp-robeco-fibd", weight: 5.52 },             // ← BBVA Crédito Europa
+      { fundId: "bp-nordea-covered", weight: 5.52 },          // ← Pictet EUR Short Term
+      // === Inversión Alternativa (10%) ===
+      { fundId: "alt-pictet-atlas-titan", weight: 3.44 },     // ← Pictet TR Diversified Alpha (mismo gestor)
+      { fundId: "alt-dnca-alpha-bonds", weight: 3.39 },       // ← BlueBay IG Absolute Return
+      { fundId: "alt-helium-selection", weight: 2.95 },       // ← Candriam Long Short Credit
     ],
   },
 ];
