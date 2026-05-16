@@ -1314,8 +1314,8 @@ const BBVA_CAPITAL_PRESETS: PortfolioPreset[] = [
       { fundId: "bbvac-axa-euro-credit-short", weight: 8.91 },        // AXA WF Euro Credit Short Duration A — LU0251661756
       { fundId: "bbvac-invesco-euro-short-term", weight: 7.55 },      // Invesco Euro Short Term Bond Z — LU1590491913
       { fundId: "bbvac-amundi-eur-liquidity", weight: 7.07 },         // Amundi EUR Liquidity Rated SRI
+      { fundId: "bbvac-amundi-euro-corp-sri", weight: 7.02 },         // Amundi Index Euro AGG Corp SRI — LU1437018168
       // Sustitutos por categoría (ISINs originales aún sin facilitar):
-      { fundId: "bp-pimco-credit", weight: 7.02 },            // ← Amundi Euro Corporate SRI
       { fundId: "bp-eurizon-medium", weight: 6.59 },          // ← JPMorgan Euro Government Short
       { fundId: "bp-robeco-fibd", weight: 5.52 },             // ← BBVA Crédito Europa
       { fundId: "bp-nordea-covered", weight: 5.52 },          // ← Pictet EUR Short Term
