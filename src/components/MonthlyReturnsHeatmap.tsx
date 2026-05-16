@@ -133,7 +133,7 @@ function MatrixForSeries({
   globalMaxMagnitude: number;
   globalMaxAnnualMagnitude: number;
 }) {
-  const { rows, annualByYear } = useMemo(() => {
+  const { rows, annualByYear, monthStats, annualStats } = useMemo(() => {
     const monthlyReturns = computeMonthlyReturns(
       series.monthlyValues,
       series.initialValue
@@ -153,7 +153,39 @@ function MatrixForSeries({
       year,
       months: yearMap.get(year)!,
     }));
-    return { rows, annualByYear: annual };
+
+    // Estadísticas por COLUMNA (mes): promedio aritmético y % de meses positivos
+    const monthStats: { avg: (number | null)[]; pctPos: (number | null)[] } = {
+      avg: new Array(12).fill(null),
+      pctPos: new Array(12).fill(null),
+    };
+    for (let m = 0; m < 12; m++) {
+      const values: number[] = [];
+      for (const row of rows) {
+        const v = row.months[m];
+        if (v !== undefined) values.push(v);
+      }
+      if (values.length > 0) {
+        monthStats.avg[m] = values.reduce((s, v) => s + v, 0) / values.length;
+        monthStats.pctPos[m] =
+          (values.filter((v) => v > 0).length / values.length) * 100;
+      }
+    }
+
+    // Estadísticas para la columna "Año" (total anual)
+    const annualValues = Array.from(annual.values());
+    const annualStats: { avg: number | null; pctPos: number | null } = {
+      avg: null,
+      pctPos: null,
+    };
+    if (annualValues.length > 0) {
+      annualStats.avg =
+        annualValues.reduce((s, v) => s + v, 0) / annualValues.length;
+      annualStats.pctPos =
+        (annualValues.filter((v) => v > 0).length / annualValues.length) * 100;
+    }
+
+    return { rows, annualByYear: annual, monthStats, annualStats };
   }, [series]);
 
   if (rows.length === 0) {
@@ -251,6 +283,104 @@ function MatrixForSeries({
               </tr>
             );
           })}
+
+          {/* ====== FILAS DE ESTADÍSTICAS (promedio + % positivos por mes) ====== */}
+          {/* Separador visual antes del bloque de stats */}
+          <tr>
+            <td colSpan={14} className="py-1">
+              <div className="border-t-2 border-slate-200 mt-1" />
+            </td>
+          </tr>
+
+          {/* Fila: PROMEDIO mensual a lo largo de todos los años */}
+          <tr>
+            <td className="text-[10px] font-semibold text-brand-tertiary uppercase tracking-wider px-1 py-1">
+              Promedio
+            </td>
+            {monthStats.avg.map((v, idx) =>
+              v === null ? (
+                <td
+                  key={idx}
+                  className="rounded p-1.5 text-center bg-slate-50 text-slate-300 text-[11px]"
+                >
+                  —
+                </td>
+              ) : (
+                (() => {
+                  const { bg, text } = getCellColor(v, globalMaxMagnitude);
+                  return (
+                    <td
+                      key={idx}
+                      className="rounded p-1.5 text-center text-[11px] font-semibold"
+                      style={{ backgroundColor: bg, color: text }}
+                      title={`${MONTH_LABELS[idx]}: promedio histórico ${formatReturn(v, 2)}`}
+                    >
+                      {formatReturn(v)}
+                    </td>
+                  );
+                })()
+              )
+            )}
+            {/* Promedio anual */}
+            {annualStats.avg === null ? (
+              <td className="rounded p-1.5 text-center bg-slate-50 text-slate-300 text-[11px] border-l-2 border-slate-100">
+                —
+              </td>
+            ) : (
+              (() => {
+                const { bg, text } = getCellColor(
+                  annualStats.avg,
+                  globalMaxAnnualMagnitude
+                );
+                return (
+                  <td
+                    className="rounded p-1.5 text-center text-[11px] font-bold border-l-2 border-slate-100"
+                    style={{ backgroundColor: bg, color: text }}
+                    title={`Promedio anual: ${formatReturn(annualStats.avg, 2)}`}
+                  >
+                    {formatReturn(annualStats.avg)}
+                  </td>
+                );
+              })()
+            )}
+          </tr>
+
+          {/* Fila: % MESES POSITIVOS por columna */}
+          <tr>
+            <td className="text-[10px] font-semibold text-brand-tertiary uppercase tracking-wider px-1 py-1">
+              % positivos
+            </td>
+            {monthStats.pctPos.map((v, idx) =>
+              v === null ? (
+                <td
+                  key={idx}
+                  className="rounded p-1.5 text-center bg-slate-50 text-slate-300 text-[11px]"
+                >
+                  —
+                </td>
+              ) : (
+                <td
+                  key={idx}
+                  className="rounded p-1.5 text-center text-[11px] font-medium bg-slate-50 text-brand-secondary"
+                  title={`${MONTH_LABELS[idx]}: ${v.toFixed(0)}% de los años fue positivo`}
+                >
+                  {v.toFixed(0)}%
+                </td>
+              )
+            )}
+            {annualStats.pctPos === null ? (
+              <td className="rounded p-1.5 text-center bg-slate-50 text-slate-300 text-[11px] border-l-2 border-slate-100">
+                —
+              </td>
+            ) : (
+              <td
+                className="rounded p-1.5 text-center text-[11px] font-bold bg-slate-100 text-brand-navy border-l-2 border-slate-100"
+                title={`${annualStats.pctPos.toFixed(0)}% de los años fueron positivos`}
+              >
+                {annualStats.pctPos.toFixed(0)}%
+              </td>
+            )}
+          </tr>
         </tbody>
       </table>
     </div>
