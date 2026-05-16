@@ -95,29 +95,29 @@ export function AnnualReturnsHeatmap({ columns, title, description }: Props) {
     <section className="rounded-2xl border border-slate-100 shadow-sm bg-white overflow-hidden">
       <div className="p-6">
         {title && (
-          <h3 className="text-lg font-semibold text-brand-navy font-serif mb-1">{title}</h3>
+          <h3 className="text-lg font-semibold text-brand-navy font-serif mb-2">{title}</h3>
         )}
         {description && (
-          <p className="text-xs text-brand-tertiary mb-4">{description}</p>
+          <p className="text-sm text-brand-tertiary mb-4">{description}</p>
         )}
 
         {/* Leyenda de gradiente */}
-        <div className="flex items-center gap-3 mb-4">
-          <span className="text-[10px] text-brand-tertiary uppercase tracking-wider">
+        <div className="flex items-center gap-3 mb-5 flex-wrap">
+          <span className="text-xs font-semibold text-brand-tertiary uppercase tracking-wider">
             Peor
           </span>
           <div
-            className="h-2 flex-1 max-w-[300px] rounded-full"
+            className="h-2.5 flex-1 max-w-[300px] rounded-full"
             style={{
               background:
                 "linear-gradient(to right, hsl(0,76%,32%), hsl(0,76%,80%), rgb(248,250,252), hsl(152,76%,80%), hsl(152,76%,32%))",
             }}
           />
-          <span className="text-[10px] text-brand-tertiary uppercase tracking-wider">
+          <span className="text-xs font-semibold text-brand-tertiary uppercase tracking-wider">
             Mejor
           </span>
-          <span className="text-[10px] text-brand-tertiary ml-2">
-            (intensidad relativa al máx. absoluto: {formatReturn(maxMagnitude)})
+          <span className="text-xs text-brand-tertiary ml-2">
+            (intensidad relativa al máx. absoluto: <strong>{formatReturn(maxMagnitude)}</strong>)
           </span>
         </div>
 
@@ -130,10 +130,10 @@ export function AnnualReturnsHeatmap({ columns, title, description }: Props) {
                 return (
                   <div
                     key={year}
-                    className="rounded-md p-2 text-center bg-slate-50 border border-slate-100"
+                    className="rounded-md p-2.5 text-center bg-slate-50 border border-slate-100"
                   >
-                    <div className="text-[10px] text-brand-tertiary">{year}</div>
-                    <div className="text-xs text-slate-300 mt-0.5">—</div>
+                    <div className="text-xs text-brand-tertiary">{year}</div>
+                    <div className="text-sm text-slate-300 mt-0.5">—</div>
                   </div>
                 );
               }
@@ -141,12 +141,12 @@ export function AnnualReturnsHeatmap({ columns, title, description }: Props) {
               return (
                 <div
                   key={year}
-                  className="rounded-md p-2 text-center border border-slate-100"
+                  className="rounded-md p-2.5 text-center border border-slate-100"
                   style={{ backgroundColor: bg, color: text }}
                   title={`${year}: ${formatReturn(value)}`}
                 >
-                  <div className="text-[10px] opacity-80">{year}</div>
-                  <div className="text-sm font-bold mt-0.5">{formatReturn(value)}</div>
+                  <div className="text-xs opacity-80">{year}</div>
+                  <div className="text-base font-bold mt-0.5">{formatReturn(value)}</div>
                 </div>
               );
             })}
@@ -154,25 +154,25 @@ export function AnnualReturnsHeatmap({ columns, title, description }: Props) {
         ) : (
           // Vista de MÚLTIPLES carteras: tabla con años en filas, carteras en columnas
           <div className="overflow-x-auto">
-            <table className="w-full table-fixed text-sm border-separate border-spacing-1">
+            <table className="w-full table-fixed border-separate border-spacing-1.5">
               {/* colgroup garantiza que todas las columnas de datos tengan el
                   MISMO ancho independientemente del largo del nombre de la
                   cartera. La columna "Año" tiene un ancho fijo pequeño. */}
               <colgroup>
-                <col style={{ width: "70px" }} />
+                <col style={{ width: "80px" }} />
                 {columns.map((col) => (
                   <col key={col.label} />
                 ))}
               </colgroup>
               <thead>
                 <tr>
-                  <th className="text-left text-[10px] font-semibold text-brand-tertiary uppercase tracking-wider px-2">
+                  <th className="text-left text-xs font-semibold text-brand-tertiary uppercase tracking-wider px-2 py-1">
                     Año
                   </th>
                   {columns.map((col) => (
                     <th
                       key={col.label}
-                      className={`text-[10px] font-semibold uppercase tracking-wider px-2 truncate ${
+                      className={`text-xs font-semibold uppercase tracking-wider px-2 py-1 truncate ${
                         col.accentClass ?? "text-brand-navy"
                       }`}
                       title={col.label}
@@ -185,14 +185,16 @@ export function AnnualReturnsHeatmap({ columns, title, description }: Props) {
               <tbody>
                 {years.map((year) => (
                   <tr key={year}>
-                    <td className="font-mono text-xs text-brand-secondary px-2">{year}</td>
+                    <td className="font-mono text-sm font-semibold text-brand-secondary px-2 py-1">
+                      {year}
+                    </td>
                     {columns.map((col) => {
                       const value = col.values.get(year);
                       if (value === undefined) {
                         return (
                           <td
                             key={col.label}
-                            className="rounded-md p-2 text-center bg-slate-50 text-slate-300 text-xs"
+                            className="rounded-md px-3 py-2.5 text-center bg-slate-50 text-slate-300 text-sm"
                           >
                             —
                           </td>
@@ -202,7 +204,7 @@ export function AnnualReturnsHeatmap({ columns, title, description }: Props) {
                       return (
                         <td
                           key={col.label}
-                          className="rounded-md p-2 text-center text-sm font-semibold"
+                          className="rounded-md px-3 py-2.5 text-center text-base font-bold"
                           style={{ backgroundColor: bg, color: text }}
                           title={`${col.label} en ${year}: ${formatReturn(value)}`}
                         >
