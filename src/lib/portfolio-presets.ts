@@ -1306,17 +1306,15 @@ const BBVA_CAPITAL_PRESETS: PortfolioPreset[] = [
     type: "active",
     holdings: [
       // === RF Corta Duración / Credit (89%) ===
-      // Fondos del extracto BBVA originales que SÍ tienen datos en EODHD:
-      { fundId: "bbvac-ishares-eur-govt-1-3", weight: 12.93 },        // iShares Govt 1-3y (ETF, IE)
+      // Fondos del extracto BBVA originales (ISINs reales facilitados por el cliente):
+      { fundId: "bbvac-ishares-eur-govt-1-3", weight: 12.93 },        // iShares Govt 1-3y (ETF, IE00B14X4Q57)
       { fundId: "bbvac-blackrock-euro-ultrashort", weight: 10.41 },   // BlackRock Euro Ultra Short
+      { fundId: "bbvac-franklin-eur-short", weight: 9.64 },           // Franklin EUR Short Duration A — LU1022658667
+      { fundId: "bbvac-ms-short-maturity", weight: 9.06 },            // MS Short Maturity Euro Bond A — LU0073235904
+      { fundId: "bbvac-axa-euro-credit-short", weight: 8.91 },        // AXA WF Euro Credit Short Duration A — LU0251661756
+      { fundId: "bbvac-invesco-euro-short-term", weight: 7.55 },      // Invesco Euro Short Term Bond Z — LU1590491913
       { fundId: "bbvac-amundi-eur-liquidity", weight: 7.07 },         // Amundi EUR Liquidity Rated SRI
-      // Sustitutos por categoría (los originales fallaban — usamos fondos del
-      // mismo perfil con datos EUFUND confirmados, ya validados en otras
-      // carteras del proyecto):
-      { fundId: "bp-eurizon-short", weight: 9.64 },           // ← Franklin EUR Short Duration
-      { fundId: "bp-groupama-ust", weight: 9.06 },            // ← MS Short Maturity Euro Bond
-      { fundId: "bp-lord-abbett", weight: 8.91 },             // ← AXA Euro Credit Short
-      { fundId: "bp-nordea-lowdur", weight: 7.55 },           // ← Invesco Euro Short Term
+      // Sustitutos por categoría (ISINs originales aún sin facilitar):
       { fundId: "bp-pimco-credit", weight: 7.02 },            // ← Amundi Euro Corporate SRI
       { fundId: "bp-eurizon-medium", weight: 6.59 },          // ← JPMorgan Euro Government Short
       { fundId: "bp-robeco-fibd", weight: 5.52 },             // ← BBVA Crédito Europa
