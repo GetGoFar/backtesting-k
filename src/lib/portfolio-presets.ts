@@ -1291,6 +1291,41 @@ const ALTERNATIVOS_CANIGUERAL_PRESETS: PortfolioPreset[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// Cartera gestionada BBVA Capital — Réplica del extracto del cliente
+// 11 fondos de RF (corta duración + credit) + 3 fondos alternativos.
+// Los pesos del extracto original suman 20.94% (era una sub-estrategia del
+// portfolio total del cliente). Aquí los normalizamos a 100% para usarla
+// como portfolio independiente.
+// -----------------------------------------------------------------------------
+
+const BBVA_CAPITAL_PRESETS: PortfolioPreset[] = [
+  {
+    id: "bbva-capital",
+    name: "Cartera gestionada BBVA Capital",
+    description: "11 fondos RF corta duración + 3 alternativos (gestión activa BBVA)",
+    type: "active",
+    holdings: [
+      // Renta Fija (sumaba 18.65% sobre 20.94% total → normalizado a ~89.1%)
+      { fundId: "bbvac-ishares-eur-govt-1-3", weight: 12.93 },
+      { fundId: "bbvac-blackrock-euro-ultrashort", weight: 10.41 },
+      { fundId: "bbvac-franklin-eur-short", weight: 9.64 },
+      { fundId: "bbvac-ms-short-maturity", weight: 9.06 },
+      { fundId: "bbvac-axa-euro-credit-short", weight: 8.91 },
+      { fundId: "bbvac-invesco-euro-short-term", weight: 7.55 },
+      { fundId: "bbvac-amundi-eur-liquidity", weight: 7.07 },
+      { fundId: "bbvac-amundi-euro-corp-sri", weight: 7.02 },
+      { fundId: "bbvac-jpm-euro-govt", weight: 6.59 },
+      { fundId: "bbvac-bbva-credito-europa", weight: 5.52 },
+      { fundId: "bbvac-pictet-eur-short-term", weight: 5.52 },
+      // Inversión Alternativa (sumaba 2.02% sobre 20.94% → normalizado a ~9.7%)
+      { fundId: "bbvac-pictet-tr-diversified", weight: 3.44 },
+      { fundId: "bbvac-bluebay-ig-absolute", weight: 3.39 },
+      { fundId: "bbvac-candriam-long-short-credit", weight: 2.95 },
+    ],
+  },
+];
+
+// -----------------------------------------------------------------------------
 // Todos los presets combinados
 // -----------------------------------------------------------------------------
 
@@ -1306,6 +1341,7 @@ const ALL_PRESETS: PortfolioPreset[] = [
   ...BANK_PRESETS,
   ...BANCA_PRIVADA_PRESETS,
   ...ALTERNATIVOS_CANIGUERAL_PRESETS,
+  ...BBVA_CAPITAL_PRESETS,
 ];
 
 // Mapa para búsqueda rápida por ID

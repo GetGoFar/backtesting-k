@@ -1372,6 +1372,176 @@ const ALTERNATIVOS_CANIGUERAL_FUNDS: Fund[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// Fondos Cartera Gestionada BBVA Capital
+// 11 fondos de RF (corta duración + credit) + 3 fondos alternativos.
+// La mayoría son LU* (Luxemburgo, requieren EUFUND de EODHD); BBVA Crédito
+// Europa es ES* (mutual fund español). ISINs marcados como "estimated"
+// requieren verificación contra los ISINs reales del extracto BBVA.
+// -----------------------------------------------------------------------------
+
+const BBVA_CAPITAL_FUNDS: Fund[] = [
+  // --- Renta Fija (corta duración + credit + liquidez) ---
+  {
+    id: "bbvac-ishares-eur-govt-1-3",
+    name: "iShares Euro Government Bond 1-3yr UCITS ETF",
+    shortName: "iShares Govt 1-3y",
+    isin: "IE00B14X4Q57",
+    yahooTicker: "IBGS.AS",
+    ter: 0.20,
+    category: "RF EUR Gov Corto",
+    type: "active",
+    currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
+  },
+  {
+    id: "bbvac-blackrock-euro-ultrashort",
+    name: "BlackRock Euro Ultra Short Bond",
+    shortName: "BlackRock Ultra Short",
+    isin: "LU1191877379",
+    ter: 0.20,
+    category: "RF EUR Corp",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "bbvac-franklin-eur-short",
+    name: "Franklin Euro Short Duration Bond Fund",
+    shortName: "Franklin EUR Short",
+    isin: "LU0260869275",
+    ter: 0.55,
+    category: "RF EUR Corp",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "bbvac-ms-short-maturity",
+    name: "Morgan Stanley INVF Short Maturity Euro Bond",
+    shortName: "MS Short Maturity EUR",
+    isin: "LU0073234505",
+    ter: 0.40,
+    category: "RF EUR Corp",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "bbvac-axa-euro-credit-short",
+    name: "AXA WF Euro Credit Short Duration I Acc",
+    shortName: "AXA Credit Short",
+    isin: "LU0251660700",
+    ter: 0.40,
+    category: "RF EUR Corp",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "bbvac-invesco-euro-short-term",
+    name: "Invesco Euro Short Term Bond Z Acc",
+    shortName: "Invesco EUR Short Term",
+    isin: "LU0173783459",
+    ter: 0.45,
+    category: "RF EUR Corp",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "bbvac-amundi-eur-liquidity",
+    name: "Amundi Funds Euro Liquidity Rated SRI",
+    shortName: "Amundi EUR Liquidity",
+    isin: "LU0568621618",
+    ter: 0.20,
+    category: "RF EUR",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "bbvac-amundi-euro-corp-sri",
+    name: "Amundi Funds Euro Corporate Bond SRI",
+    shortName: "Amundi EUR Corp SRI",
+    isin: "LU1882450165",
+    ter: 0.55,
+    category: "RF EUR Corp",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "bbvac-jpm-euro-govt",
+    name: "JPMorgan Funds Euro Government Short Duration Bond",
+    shortName: "JPM EUR Govt Short",
+    isin: "LU0858574311",
+    ter: 0.40,
+    category: "RF EUR Gov Corto",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "bbvac-bbva-credito-europa",
+    name: "BBVA Bonos Crédito Europa FI",
+    shortName: "BBVA Crédito Europa",
+    isin: "ES0114907018",
+    ter: 0.85,
+    category: "RF EUR Corp",
+    type: "active",
+    bank: "BBVA",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "bbvac-pictet-eur-short-term",
+    name: "Pictet EUR Short Term High Yield C",
+    shortName: "Pictet EUR Short Term",
+    isin: "LU0853558699",
+    ter: 0.75,
+    category: "RF EUR Corp",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  // --- Inversión Alternativa ---
+  {
+    id: "bbvac-pictet-tr-diversified",
+    name: "Pictet TR-Diversified Alpha",
+    shortName: "Pictet TR Diversified",
+    isin: "LU0269414267",
+    ter: 1.50,
+    category: "Alternativo",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "bbvac-bluebay-ig-absolute",
+    name: "BlueBay Investment Grade Absolute Return Bond",
+    shortName: "BlueBay IG Absolute",
+    isin: "LU0549537179",
+    ter: 1.00,
+    category: "Alternativo",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "bbvac-candriam-long-short-credit",
+    name: "Candriam Bonds Credit Opportunities (Long Short Credit)",
+    shortName: "Candriam LS Credit",
+    isin: "LU0151324027",
+    ter: 1.20,
+    category: "Alternativo",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+];
+
+// -----------------------------------------------------------------------------
 // Todos los fondos combinados
 // -----------------------------------------------------------------------------
 
@@ -1380,6 +1550,7 @@ const ALL_FUNDS: Fund[] = [
   ...ACTIVE_FUNDS,
   ...BANCA_PRIVADA_FUNDS,
   ...ALTERNATIVOS_CANIGUERAL_FUNDS,
+  ...BBVA_CAPITAL_FUNDS,
 ];
 
 // Mapa para búsqueda rápida por ID
