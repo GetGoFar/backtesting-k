@@ -112,7 +112,7 @@ function PortfolioBenchmarkPanel({
             Exceso anualizado
           </p>
           <p className={`text-2xl font-bold font-serif ${portfolioExcess >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-            {portfolioExcess >= 0 ? "+" : ""}{formatPct(portfolioExcess)}
+            {formatPct(portfolioExcess)}
           </p>
         </div>
       </div>
