@@ -359,9 +359,27 @@ export function PerformanceChart({ results, isLoading, valueMode = "camino" }: P
   }
 
   if (hasBenchmark) {
+    // Para que el primer punto del benchmark coincida con el primer punto de
+    // la cartera (= initialAmount) en cualquier modo de valoración, aplicamos
+    // scaleBench DE FORMA PROPORCIONAL AL TIEMPO en lugar de uniforme:
+    //   • t = 0           → factor = 1            (benchmark[0] = initialAmount)
+    //   • t = final       → factor = scaleBench   (igual que antes al final)
+    // Es una interpolación lineal — el efecto fiscal (impuestos sobre plusvalías)
+    // crece con el tiempo de la misma forma que en buildScaledSeries.
+    const benchFirstDate =
+      benchmarkSeries[0]?.exactDate || benchmarkSeries[0]?.date || "";
+    const benchLastDate =
+      benchmarkSeries[benchmarkSeries.length - 1]?.exactDate ||
+      benchmarkSeries[benchmarkSeries.length - 1]?.date ||
+      "";
+    const totalMonthsBench = Math.max(1, monthsBetween(benchFirstDate, benchLastDate));
     for (const point of benchmarkSeries) {
       const entry = dataMap.get(point.date);
-      const scaledValue = point.value * benchmarkScale * scaleBench;
+      const pDate = point.exactDate || point.date;
+      const monthsElapsed = Math.max(0, monthsBetween(benchFirstDate, pDate));
+      const t = monthsElapsed / totalMonthsBench; // 0 al inicio, 1 al final
+      const proportionalScaleBench = 1 + (scaleBench - 1) * t;
+      const scaledValue = point.value * benchmarkScale * proportionalScaleBench;
       if (entry) {
         entry[benchmarkName] = scaledValue;
       } else {
@@ -379,11 +397,18 @@ export function PerformanceChart({ results, isLoading, valueMode = "camino" }: P
     (a.date as string).localeCompare(b.date as string)
   );
 
-  // Calcular el dominio del eje Y con margen (con las series escaladas)
+  // Calcular el dominio del eje Y con margen. Para el benchmark cogemos los
+  // valores ya escalados desde dataMap (incluye el factor proporcional en lugar
+  // del uniforme), así el dominio coincide exactamente con lo que se pinta.
+  const benchmarkScaledValues = hasBenchmark
+    ? Array.from(dataMap.values())
+        .map((row) => row[benchmarkName])
+        .filter((v): v is number => typeof v === "number")
+    : [];
   const allValues = [
     ...(resultA ? Array.from(seriesA.values()) : []),
     ...(resultB ? Array.from(seriesB.values()) : []),
-    ...(hasBenchmark ? benchmarkSeries.map((p) => p.value * benchmarkScale * scaleBench) : []),
+    ...benchmarkScaledValues,
   ];
   const minValue = Math.min(...allValues);
   const maxValue = Math.max(...allValues);
