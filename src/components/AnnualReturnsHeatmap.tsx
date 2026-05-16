@@ -154,7 +154,16 @@ export function AnnualReturnsHeatmap({ columns, title, description }: Props) {
         ) : (
           // Vista de MÚLTIPLES carteras: tabla con años en filas, carteras en columnas
           <div className="overflow-x-auto">
-            <table className="w-full text-sm border-separate border-spacing-1">
+            <table className="w-full table-fixed text-sm border-separate border-spacing-1">
+              {/* colgroup garantiza que todas las columnas de datos tengan el
+                  MISMO ancho independientemente del largo del nombre de la
+                  cartera. La columna "Año" tiene un ancho fijo pequeño. */}
+              <colgroup>
+                <col style={{ width: "70px" }} />
+                {columns.map((col) => (
+                  <col key={col.label} />
+                ))}
+              </colgroup>
               <thead>
                 <tr>
                   <th className="text-left text-[10px] font-semibold text-brand-tertiary uppercase tracking-wider px-2">
@@ -163,9 +172,10 @@ export function AnnualReturnsHeatmap({ columns, title, description }: Props) {
                   {columns.map((col) => (
                     <th
                       key={col.label}
-                      className={`text-[10px] font-semibold uppercase tracking-wider px-2 ${
+                      className={`text-[10px] font-semibold uppercase tracking-wider px-2 truncate ${
                         col.accentClass ?? "text-brand-navy"
                       }`}
+                      title={col.label}
                     >
                       {col.label}
                     </th>
