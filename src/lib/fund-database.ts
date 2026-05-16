@@ -1519,9 +1519,9 @@ const BBVA_CAPITAL_FUNDS: Fund[] = [
   },
   {
     id: "bbvac-bluebay-ig-absolute",
-    name: "BlueBay Investment Grade Absolute Return Bond",
+    name: "BlueBay Investment Grade Absolute Return Bond I EUR",
     shortName: "BlueBay IG Absolute",
-    isin: "LU0549537179",
+    isin: "LU0627763740",
     ter: 1.00,
     category: "Alternativo",
     type: "active",
@@ -1530,9 +1530,9 @@ const BBVA_CAPITAL_FUNDS: Fund[] = [
   },
   {
     id: "bbvac-candriam-long-short-credit",
-    name: "Candriam Bonds Credit Opportunities (Long Short Credit)",
+    name: "Candriam Long Short Credit Classique",
     shortName: "Candriam LS Credit",
-    isin: "LU0151324027",
+    isin: "FR0010760694",
     ter: 1.20,
     category: "Alternativo",
     type: "active",

@@ -1318,11 +1318,10 @@ const BBVA_CAPITAL_PRESETS: PortfolioPreset[] = [
       { fundId: "bbvac-jpm-euro-govt", weight: 6.59 },                // JPM Euro Govt Short Duration D — LU0408877842
       { fundId: "bbvac-bbva-credito-europa", weight: 5.52 },          // BBVA Crédito Europa FI — ES0117091035
       { fundId: "bbvac-pictet-eur-short-term", weight: 5.52 },        // Pictet EUR Short Term Corp Bond I — LU0954602677
-      // === Inversión Alternativa (10%) ===
+      // === Inversión Alternativa (10%) — todos con ISINs reales del extracto ===
       { fundId: "bbvac-pictet-tr-diversified", weight: 3.44 },        // Pictet TR Diversified Alpha P — LU1055714452
-      // Sustitutos pendientes (ISINs aún sin facilitar):
-      { fundId: "alt-dnca-alpha-bonds", weight: 3.39 },       // ← BlueBay IG Absolute Return
-      { fundId: "alt-helium-selection", weight: 2.95 },       // ← Candriam Long Short Credit
+      { fundId: "bbvac-bluebay-ig-absolute", weight: 3.39 },          // BlueBay IG Absolute Return I — LU0627763740
+      { fundId: "bbvac-candriam-long-short-credit", weight: 2.95 },   // Candriam Long Short Credit — FR0010760694
     ],
   },
 ];
