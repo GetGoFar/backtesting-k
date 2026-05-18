@@ -36,9 +36,34 @@ const ALL_SECTIONS: NavSection[] = [
   { id: "section-histogram", label: "Distribución retornos", group: "results", icon: "📐" },
 ];
 
+const COLLAPSED_STORAGE_KEY = "epk-sidebar-collapsed";
+
 export function SidebarNav({ hasResults }: SidebarNavProps) {
   const [activeSection, setActiveSection] = useState<string>("");
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  // Estado "oculto en escritorio" — persistido en localStorage para recordarlo
+  // entre sesiones. Inicializamos en false para evitar mismatch SSR/cliente;
+  // el efecto siguiente lee el valor real al montar.
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(COLLAPSED_STORAGE_KEY);
+      if (stored === "true") setIsCollapsed(true);
+    } catch {
+      // localStorage no disponible — ignoramos
+    }
+  }, []);
+
+  const setCollapsedPersistent = (collapsed: boolean) => {
+    setIsCollapsed(collapsed);
+    try {
+      localStorage.setItem(COLLAPSED_STORAGE_KEY, collapsed ? "true" : "false");
+    } catch {
+      // no-op
+    }
+  };
+
   // Cooldown del observer tras un click manual. Mientras está activo, el
   // observer NO sobreescribe activeSection (porque durante el smooth scroll
   // puede detectar erróneamente la sección anterior/intermedia).
@@ -121,20 +146,47 @@ export function SidebarNav({ hasResults }: SidebarNavProps) {
         />
       )}
 
+      {/* Botón flotante "Mostrar menú" — solo cuando el sidebar está colapsado
+          en escritorio. Pegado al borde izquierdo, debajo del header sticky. */}
+      {isCollapsed && (
+        <button
+          onClick={() => setCollapsedPersistent(false)}
+          className="hidden lg:flex fixed top-20 left-2 z-30 items-center justify-center w-8 h-12 rounded-r-lg bg-white border border-l-0 border-slate-200 text-brand-secondary hover:text-brand-navy hover:bg-slate-50 shadow-md transition-colors"
+          aria-label="Mostrar menú de navegación"
+          title="Mostrar menú de navegación"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      )}
+
       {/* Sidebar */}
       <aside
         className={`
           fixed lg:sticky top-0 lg:top-16 left-0 h-screen lg:h-[calc(100vh-4rem)]
-          w-64 bg-white border-r border-slate-200 shadow-lg lg:shadow-none
-          z-[58] lg:z-30 transition-transform overflow-y-auto
-          ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+          bg-white border-r border-slate-200 shadow-lg lg:shadow-none
+          z-[58] lg:z-30 transition-all overflow-y-auto
+          ${isCollapsed ? "lg:w-0 lg:border-r-0 lg:overflow-hidden" : "w-64"}
+          ${isMobileOpen ? "translate-x-0 w-64" : "-translate-x-full lg:translate-x-0"}
         `}
       >
-        <div className="p-4">
-          <div className="mb-4 lg:mb-3">
+        <div className={`p-4 ${isCollapsed ? "lg:hidden" : ""}`}>
+          <div className="mb-4 lg:mb-3 flex items-center justify-between gap-2">
             <h3 className="text-xs font-bold text-brand-tertiary uppercase tracking-wider">
               Navegación rápida
             </h3>
+            {/* Botón colapsar — sólo escritorio */}
+            <button
+              onClick={() => setCollapsedPersistent(true)}
+              className="hidden lg:flex items-center justify-center w-6 h-6 rounded text-brand-tertiary hover:text-brand-navy hover:bg-slate-100 transition-colors"
+              aria-label="Ocultar menú de navegación"
+              title="Ocultar menú"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
           </div>
 
           {/* Grupo: Configuración */}
