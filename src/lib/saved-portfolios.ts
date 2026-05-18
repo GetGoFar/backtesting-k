@@ -127,3 +127,137 @@ export function renameSavedPortfolio(id: string, newName: string): boolean {
   }
   return true;
 }
+
+// =============================================================================
+// EXPORT / IMPORT — Para llevar las carteras entre navegadores / dispositivos
+// =============================================================================
+//
+// Las carteras viven en localStorage, así que son locales al navegador. Estas
+// utilidades permiten descargarlas como JSON y volver a cargarlas en otro
+// navegador. El JSON resultante es un objeto con `version` (por si cambia el
+// esquema en el futuro), `exportedAt` y `portfolios` (el array completo).
+// =============================================================================
+
+/** Formato del archivo de exportación. La `version` permite detectar archivos
+ *  futuros con esquema diferente. */
+export interface SavedPortfoliosExport {
+  version: 1;
+  exportedAt: number;
+  portfolios: SavedPortfolio[];
+}
+
+/** Devuelve el contenido del export como JSON string (UTF-8, indentado). */
+export function buildSavedPortfoliosExport(): string {
+  const data: SavedPortfoliosExport = {
+    version: 1,
+    exportedAt: Date.now(),
+    portfolios: getSavedPortfolios(),
+  };
+  return JSON.stringify(data, null, 2);
+}
+
+/** Descarga el export como archivo .json desde el navegador. */
+export function downloadSavedPortfoliosExport(): void {
+  if (typeof window === "undefined") return;
+  const json = buildSavedPortfoliosExport();
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const stamp = new Date().toISOString().slice(0, 10);
+  a.download = `epk-carteras-${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/** Resultado de una importación: cuántas se añadieron, cuántas se saltaron
+ *  (por duplicado de ID/nombre) y cualquier error. */
+export interface ImportResult {
+  added: number;
+  skipped: number;
+  total: number;
+  error?: string;
+}
+
+/** Importa carteras desde un JSON string. Estrategia: MERGE — añade las nuevas
+ *  manteniendo las existentes; si una cartera importada tiene el mismo ID que
+ *  una local, se le asigna un ID nuevo para evitar colisiones; si tiene el
+ *  mismo nombre, se sufija " (importada)" para que el usuario las distinga. */
+export function importSavedPortfolios(jsonString: string): ImportResult {
+  if (typeof window === "undefined") {
+    return { added: 0, skipped: 0, total: 0, error: "No disponible en servidor" };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonString);
+  } catch {
+    return { added: 0, skipped: 0, total: 0, error: "El archivo no es un JSON válido" };
+  }
+  // Permitimos dos formatos: el objeto con metadata, o directamente el array
+  // (por si alguien edita a mano).
+  let incoming: SavedPortfolio[] = [];
+  if (Array.isArray(parsed)) {
+    incoming = parsed as SavedPortfolio[];
+  } else if (parsed && typeof parsed === "object" && "portfolios" in parsed) {
+    const obj = parsed as SavedPortfoliosExport;
+    if (!Array.isArray(obj.portfolios)) {
+      return { added: 0, skipped: 0, total: 0, error: "Formato no reconocido" };
+    }
+    incoming = obj.portfolios;
+  } else {
+    return { added: 0, skipped: 0, total: 0, error: "Formato no reconocido" };
+  }
+
+  const existing = getSavedPortfolios();
+  const existingIds = new Set(existing.map((p) => p.id));
+  const existingNames = new Set(existing.map((p) => p.name));
+
+  let added = 0;
+  let skipped = 0;
+  for (const p of incoming) {
+    // Validación mínima — un objeto sin nombre o sin holdings no es importable
+    if (!p || typeof p !== "object" || !Array.isArray(p.holdings) || !p.name) {
+      skipped++;
+      continue;
+    }
+    // Resolver colisión de ID
+    let id = p.id;
+    if (!id || existingIds.has(id)) {
+      id = `saved-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    }
+    // Resolver colisión de nombre (sufijo " (importada)" si ya existe)
+    let name = p.name;
+    if (existingNames.has(name)) {
+      name = `${name} (importada)`;
+      let n = 2;
+      while (existingNames.has(name)) {
+        name = `${p.name} (importada ${n++})`;
+      }
+    }
+    existing.push({
+      ...p,
+      id,
+      name,
+      createdAt: typeof p.createdAt === "number" ? p.createdAt : Date.now(),
+    });
+    existingIds.add(id);
+    existingNames.add(name);
+    added++;
+  }
+
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
+    window.dispatchEvent(new CustomEvent("epk-saved-portfolios-changed"));
+  } catch {
+    return {
+      added,
+      skipped,
+      total: incoming.length,
+      error: "No se pudo guardar — espacio insuficiente en localStorage",
+    };
+  }
+
+  return { added, skipped, total: incoming.length };
+}

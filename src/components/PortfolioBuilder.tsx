@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { FundSearch } from "./FundSearch";
 import { FundDataRange } from "./FundDataRange";
 import type { Fund, PortfolioPreset, PortfolioHolding, RebalanceFrequency } from "@/lib/types";
@@ -55,6 +55,8 @@ import {
   getSavedPortfolios,
   savePortfolio,
   deleteSavedPortfolio,
+  downloadSavedPortfoliosExport,
+  importSavedPortfolios,
   type SavedPortfolio,
 } from "@/lib/saved-portfolios";
 
@@ -65,6 +67,8 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   // Estado del modal de guardado (nombre temporal antes de confirmar)
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveDialogName, setSaveDialogName] = useState("");
+  // Input oculto para importar carteras desde JSON
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   // Cargar carteras guardadas al montar y suscribirse a cambios entre pestañas
   useEffect(() => {
@@ -315,6 +319,46 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
     }
   };
 
+  // Exporta todas las carteras guardadas como archivo .json
+  const handleExportSaved = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (savedPortfolios.length === 0) {
+      alert("No hay carteras guardadas para exportar.");
+      return;
+    }
+    downloadSavedPortfoliosExport();
+  };
+
+  // Dispara el selector de archivo oculto
+  const handleImportClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    importInputRef.current?.click();
+  };
+
+  // Lee el archivo seleccionado y lo importa
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const result = importSavedPortfolios(text);
+      if (result.error) {
+        alert(`Error al importar: ${result.error}`);
+      } else {
+        const msg = [
+          `${result.added} cartera${result.added === 1 ? "" : "s"} importada${result.added === 1 ? "" : "s"} con éxito.`,
+          result.skipped > 0 ? `${result.skipped} omitida${result.skipped === 1 ? "" : "s"} (formato inválido).` : "",
+        ].filter(Boolean).join(" ");
+        alert(msg);
+      }
+    } catch {
+      alert("No se pudo leer el archivo.");
+    } finally {
+      // Reset para permitir importar el mismo archivo dos veces seguidas
+      if (importInputRef.current) importInputRef.current.value = "";
+    }
+  };
+
   const handlePresetSelect = (preset: PortfolioPreset) => {
     // Convertir holdings del preset a allocaciones con fondos completos
     const presetAllocations: FundAllocation[] = [];
@@ -550,15 +594,54 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
 
           {showPresetDropdown && (
             <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-96 overflow-auto">
-              {/* Mis carteras guardadas (localStorage) — siempre arriba si hay alguna */}
-              {savedPortfolios.length > 0 && (
-                <div className="p-2 border-b border-slate-100 bg-amber-50/30">
-                  <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider px-2 py-1 flex items-center gap-1.5">
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
-                    </svg>
-                    Mis carteras guardadas
-                  </p>
+              {/* Mis carteras guardadas (localStorage) — siempre visible para
+                  permitir importar carteras desde otro navegador aunque la
+                  lista local esté vacía. */}
+              <div className="p-2 border-b border-slate-100 bg-amber-50/30">
+                  <div className="flex items-center justify-between px-2 py-1">
+                    <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider flex items-center gap-1.5">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
+                      </svg>
+                      Mis carteras guardadas
+                    </p>
+                    <div className="flex items-center gap-1">
+                      {savedPortfolios.length > 0 && (
+                        <button
+                          onClick={handleExportSaved}
+                          className="text-[10px] font-medium text-amber-700 hover:text-amber-900 hover:bg-amber-100 px-2 py-0.5 rounded transition-colors flex items-center gap-1"
+                          title="Descargar todas las carteras como archivo .json"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          Exportar
+                        </button>
+                      )}
+                      <button
+                        onClick={handleImportClick}
+                        className="text-[10px] font-medium text-amber-700 hover:text-amber-900 hover:bg-amber-100 px-2 py-0.5 rounded transition-colors flex items-center gap-1"
+                        title="Cargar carteras desde un archivo .json exportado en otro navegador"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                        Importar
+                      </button>
+                      <input
+                        ref={importInputRef}
+                        type="file"
+                        accept="application/json,.json"
+                        className="hidden"
+                        onChange={handleImportFile}
+                      />
+                    </div>
+                  </div>
+                  {savedPortfolios.length === 0 && (
+                    <p className="text-[11px] text-amber-700/70 italic px-2 py-1">
+                      Aún no tienes carteras guardadas. Usa <b>Importar</b> para cargar un archivo .json desde otro navegador.
+                    </p>
+                  )}
                   {savedPortfolios.map((saved) => (
                     <div
                       key={saved.id}
@@ -596,7 +679,6 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                     </div>
                   ))}
                 </div>
-              )}
 
               {/* Carteras K Inbestme (1-10) */}
               <div className="p-2 border-b border-slate-100">
