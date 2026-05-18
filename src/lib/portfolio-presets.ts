@@ -1368,6 +1368,47 @@ const BBVA_CAPITAL_PRESETS: PortfolioPreset[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// Cartera BBVA Acumulación — Estrategia Acumulación (BBVA Gestión Discrecional)
+// 20 fondos: 13 RF (30.67%) + 4 RV (4.96%) + 3 Alternativos (resto hasta 100%).
+// Subtotales RF y RV proporcionados por el cliente; Alt completa el 100%.
+// Pesos distribuidos uniformemente dentro de cada bloque.
+// -----------------------------------------------------------------------------
+
+const BBVA_ACUMULACION_PRESETS: PortfolioPreset[] = [
+  {
+    id: "bbva-acumulacion",
+    name: "Cartera BBVA Acumulación",
+    description: "Estrategia Acumulación (BBVA Gestión Discrecional): 13 RF + 4 RV + 3 Alternativos",
+    type: "active",
+    holdings: [
+      // === Renta Fija (30.67% — 13 fondos a 2.36% cada uno, último 2.35% por redondeo) ===
+      { fundId: "bbvaa-ms-euro-corp", weight: 2.36 },              // Morgan Stanley Euro Corporate Bond — LU0073232471
+      { fundId: "bbvaa-mg-euro-credit", weight: 2.36 },            // M&G Lux Euro Credit — LU1670724373
+      { fundId: "bbvaa-bluebay-euro-govt", weight: 2.36 },         // BlueBay Euro Government Bond — LU0434109764
+      { fundId: "bbvaa-pimco-em-bond", weight: 2.36 },             // PIMCO EM Bond — IE00B11XZ103
+      { fundId: "bbvaa-invesco-eur-corp", weight: 2.36 },          // Invesco EUR Corporate Bond — LU0243957239
+      { fundId: "bbvaa-bnp-euro-govt", weight: 2.36 },             // BNP Euro Government Bond — LU0823411888
+      { fundId: "bbvaa-dws-euro-hy", weight: 2.36 },               // DWS Invest Euro High Yield — LU0145655824
+      { fundId: "bbvaa-amundi-euro-govt", weight: 2.36 },          // Amundi Euro Government Bond — LU1882440842
+      { fundId: "bbvaa-gs-em-debt", weight: 2.36 },                // GS Emerging Markets Debt — LU0119195377
+      { fundId: "bbvaa-fidelity-eur-hy", weight: 2.36 },           // Fidelity European HY — LU0261948227
+      { fundId: "bbvaa-ishares-china-bond", weight: 2.36 },        // iShares China Bond ETF — IE00BYPC1H27
+      { fundId: "bbvaa-muzinich-em-sd", weight: 2.36 },            // Muzinich EM Short Duration — IE00B4Z6HC18
+      { fundId: "bbvaa-blackrock-asia-hy", weight: 2.35 },         // BlackRock Asian HY Bond — LU0408222510
+      // === Renta Variable (4.96% — 4 fondos a 1.24% cada uno) ===
+      { fundId: "bbvaa-janus-eur-focus", weight: 1.24 },           // Janus Henderson European Focus — LU0200080918
+      { fundId: "bbvaa-xtrackers-eu-reit", weight: 1.24 },         // Xtrackers EU Real Estate ETF — LU0489337690
+      { fundId: "bbvaa-dws-top-dividend", weight: 1.24 },          // DWS Invest Top Dividend — LU0507265923
+      { fundId: "bbvaa-gs-eurozone-equity", weight: 1.24 },        // GS Eurozone Equity — LU0119258803
+      // === Inversión Alternativa (64.37% restante — 3 fondos a 21.46% / 21.46% / 21.45%) ===
+      { fundId: "bbvaa-betaminer", weight: 21.46 },                // BetaMiner I A EUR — ES0111965036
+      { fundId: "bbvaa-janus-uk-abs-return", weight: 21.46 },      // Janus UK Absolute Return — IE00B4P7Q881
+      { fundId: "bbvaa-lumyna-market-neutral", weight: 21.45 },    // Lumyna Market Neutral — LU0834815101
+    ],
+  },
+];
+
+// -----------------------------------------------------------------------------
 // Todos los presets combinados
 // -----------------------------------------------------------------------------
 
@@ -1385,6 +1426,7 @@ const ALL_PRESETS: PortfolioPreset[] = [
   ...ALTERNATIVOS_CANIGUERAL_PRESETS,
   ...BBVA_CAPITAL_PRESETS,
   ...BBVA_INVERSION_RV_PRESETS,
+  ...BBVA_ACUMULACION_PRESETS,
 ];
 
 // Mapa para búsqueda rápida por ID
