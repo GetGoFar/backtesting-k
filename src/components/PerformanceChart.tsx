@@ -434,6 +434,45 @@ export function PerformanceChart({ results, isLoading, valueMode = "camino" }: P
     }
   }
 
+  // Anclar el inicio del gráfico al capital inicial. El motor de backtest
+  // produce timeSeries[0] al FIN del primer mes (después de aplicar ~20 días de
+  // retornos diarios), no al inicio con el valor invertido. Por eso la curva
+  // empezaba "rara", a un valor distinto de los €10.000 iniciales.
+  //
+  // Solución visual: añadimos un punto sintético al MES ANTERIOR al primero
+  // con valor = initialAmount, para todas las series (carteras + benchmark).
+  // La línea arranca entonces en el capital inicial y baja/sube en el primer
+  // mes de simulación, que es lo natural.
+  //
+  // El año extra (ej. "2016" si el primer mes real es "2017-01") se OMITE
+  // del eje X para que el etiquetado de años no aporte ruido — sólo afecta
+  // a la posición donde arranca la línea.
+  const referenceFirstMonth =
+    resultA?.timeSeries[0]?.date ?? resultB?.timeSeries[0]?.date;
+  let anchorMonthKey: string | null = null;
+  if (referenceFirstMonth && initialAmount > 0) {
+    const parts = referenceFirstMonth.split("-");
+    if (parts.length >= 2) {
+      const y = parseInt(parts[0]!, 10);
+      const m = parseInt(parts[1]!, 10);
+      if (!isNaN(y) && !isNaN(m)) {
+        anchorMonthKey =
+          m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+        const anchorEntry: Record<string, number | string> = {
+          date: anchorMonthKey,
+          exactDate: `${anchorMonthKey}-28`,
+        };
+        if (resultA) anchorEntry[resultA.portfolioName] = initialAmount;
+        if (resultB) anchorEntry[resultB.portfolioName] = initialAmount;
+        if (hasBenchmark && benchmarkName) anchorEntry[benchmarkName] = initialAmount;
+        // No sobreescribimos si ya hay algo en esa fecha (caso raro)
+        if (!dataMap.has(anchorMonthKey)) {
+          dataMap.set(anchorMonthKey, anchorEntry);
+        }
+      }
+    }
+  }
+
   const chartData = Array.from(dataMap.values()).sort((a, b) =>
     (a.date as string).localeCompare(b.date as string)
   );
@@ -455,10 +494,13 @@ export function PerformanceChart({ results, isLoading, valueMode = "camino" }: P
   const maxValue = Math.max(...allValues);
   const padding = (maxValue - minValue) * 0.05;
 
-  // Determinar qué años mostrar en el eje X (primer punto de cada año)
+  // Determinar qué años mostrar en el eje X (primer punto de cada año).
+  // Se OMITE el punto sintético de anclaje al capital inicial para que el año
+  // anterior (donde no se ejecutó backtest) no aparezca como tick en el eje.
   const yearTicks: string[] = [];
   const seenYears = new Set<string>();
   chartData.forEach((point) => {
+    if (anchorMonthKey && point.date === anchorMonthKey) return;
     const year = getYear(point.date as string);
     if (!seenYears.has(year)) {
       seenYears.add(year);
