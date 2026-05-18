@@ -262,10 +262,18 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
       setShowSaveDialog(false);
       return;
     }
-    savePortfolio(
-      trimmed,
-      allocations.map((a) => ({ fundId: a.fund.id, weight: a.weight }))
-    );
+    // Guardamos TODOS los ajustes propios de la cartera, no sólo holdings —
+    // así al recargarla queda EXACTAMENTE como estaba.
+    savePortfolio({
+      name: trimmed,
+      holdings: allocations.map((a) => ({ fundId: a.fund.id, weight: a.weight })),
+      managementFee,
+      taxMode,
+      taxRatePct,
+      rebalanceFrequency: rebalanceFrequencyLocal,
+      rebalanceBandRelativePct: bandRelativePct,
+      rebalanceBandAbsolutePct: bandAbsolutePct,
+    });
     setShowSaveDialog(false);
   };
 
@@ -280,6 +288,14 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
     setShowPresetDropdown(false);
     setNameManuallyEdited(false);
     setName(saved.name);
+    // Restaurar ajustes propios de la cartera (con fallback a defaults si la
+    // cartera guardada es anterior a v2 del schema y no los tiene).
+    if (saved.managementFee !== undefined) setManagementFee(saved.managementFee);
+    if (saved.taxMode !== undefined) setTaxMode(saved.taxMode);
+    if (saved.taxRatePct !== undefined) setTaxRatePct(saved.taxRatePct);
+    if (saved.rebalanceFrequency !== undefined) setRebalanceFrequencyLocal(saved.rebalanceFrequency);
+    if (saved.rebalanceBandRelativePct !== undefined) setBandRelativePct(saved.rebalanceBandRelativePct);
+    if (saved.rebalanceBandAbsolutePct !== undefined) setBandAbsolutePct(saved.rebalanceBandAbsolutePct);
   };
 
   const handleDeleteSaved = (e: React.MouseEvent, id: string, savedName: string) => {

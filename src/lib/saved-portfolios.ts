@@ -14,6 +14,9 @@
 
 const STORAGE_KEY = "epk-saved-portfolios";
 
+export type SavedTaxMode = "none" | "flat" | "spain-irpf";
+export type SavedRebalanceFrequency = "monthly" | "quarterly" | "annual" | "none";
+
 export interface SavedPortfolio {
   /** ID único interno, p.ej. "saved-1715000000000-abc" */
   id: string;
@@ -23,7 +26,23 @@ export interface SavedPortfolio {
   createdAt: number;
   /** Composición de la cartera */
   holdings: Array<{ fundId: string; weight: number }>;
+  // === Ajustes propios de la cartera (opcionales para compat. retro) ===
+  /** Comisión de gestión adicional aplicada por la cartera (%) */
+  managementFee?: number;
+  /** Modo fiscal: sin impuestos / tasa fija / IRPF español */
+  taxMode?: SavedTaxMode;
+  /** Tasa fija en % (solo si taxMode = "flat") */
+  taxRatePct?: number;
+  /** Frecuencia de rebalanceo */
+  rebalanceFrequency?: SavedRebalanceFrequency;
+  /** Banda RELATIVA de drift (%) — 0 = desactivada */
+  rebalanceBandRelativePct?: number;
+  /** Banda ABSOLUTA de drift (puntos %) — 0 = desactivada */
+  rebalanceBandAbsolutePct?: number;
 }
+
+/** Datos que se reciben al crear / guardar una cartera. */
+export type NewSavedPortfolio = Omit<SavedPortfolio, "id" | "createdAt">;
 
 /** Lee la lista actual desde localStorage. */
 export function getSavedPortfolios(): SavedPortfolio[] {
@@ -39,17 +58,20 @@ export function getSavedPortfolios(): SavedPortfolio[] {
   }
 }
 
-/** Guarda una nueva cartera con el nombre dado. Devuelve el SavedPortfolio creado. */
-export function savePortfolio(
-  name: string,
-  holdings: Array<{ fundId: string; weight: number }>
-): SavedPortfolio {
+/** Guarda una nueva cartera con todos sus ajustes. Devuelve el SavedPortfolio creado. */
+export function savePortfolio(data: NewSavedPortfolio): SavedPortfolio {
   const portfolios = getSavedPortfolios();
   const newPortfolio: SavedPortfolio = {
     id: `saved-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    name: name.trim() || "Cartera sin nombre",
     createdAt: Date.now(),
-    holdings: holdings.map((h) => ({ fundId: h.fundId, weight: h.weight })),
+    name: data.name.trim() || "Cartera sin nombre",
+    holdings: data.holdings.map((h) => ({ fundId: h.fundId, weight: h.weight })),
+    managementFee: data.managementFee,
+    taxMode: data.taxMode,
+    taxRatePct: data.taxRatePct,
+    rebalanceFrequency: data.rebalanceFrequency,
+    rebalanceBandRelativePct: data.rebalanceBandRelativePct,
+    rebalanceBandAbsolutePct: data.rebalanceBandAbsolutePct,
   };
   portfolios.push(newPortfolio);
   try {
