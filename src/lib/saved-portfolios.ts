@@ -12,10 +12,23 @@
 // se pierden. Estructura simple: array JSON bajo una única clave.
 // =============================================================================
 
+import type { Fund } from "./types";
+
 const STORAGE_KEY = "epk-saved-portfolios";
 
 export type SavedTaxMode = "none" | "flat" | "spain-irpf";
 export type SavedRebalanceFrequency = "monthly" | "quarterly" | "annual" | "none";
+
+/** Holding guardado: incluye el objeto Fund COMPLETO para que los fondos
+ *  añadidos por búsqueda dinámica (Yahoo / EODHD search) — y que NO están
+ *  en fund-database — se restauren correctamente al recargar. El campo
+ *  `fund` es opcional para mantener compatibilidad retro con carteras
+ *  guardadas con un esquema antiguo que sólo tenía `fundId`. */
+export interface SavedHolding {
+  fundId: string;
+  weight: number;
+  fund?: Fund;
+}
 
 export interface SavedPortfolio {
   /** ID único interno, p.ej. "saved-1715000000000-abc" */
@@ -25,7 +38,7 @@ export interface SavedPortfolio {
   /** Timestamp de creación (ms) */
   createdAt: number;
   /** Composición de la cartera */
-  holdings: Array<{ fundId: string; weight: number }>;
+  holdings: SavedHolding[];
   // === Ajustes propios de la cartera (opcionales para compat. retro) ===
   /** Comisión de gestión adicional aplicada por la cartera (%) */
   managementFee?: number;
@@ -65,7 +78,13 @@ export function savePortfolio(data: NewSavedPortfolio): SavedPortfolio {
     id: `saved-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     createdAt: Date.now(),
     name: data.name.trim() || "Cartera sin nombre",
-    holdings: data.holdings.map((h) => ({ fundId: h.fundId, weight: h.weight })),
+    holdings: data.holdings.map((h) => ({
+      fundId: h.fundId,
+      weight: h.weight,
+      // Snapshot del Fund completo — clave para que los fondos añadidos vía
+      // búsqueda dinámica (no presentes en fund-database) se restauren bien.
+      ...(h.fund ? { fund: h.fund } : {}),
+    })),
     managementFee: data.managementFee,
     taxMode: data.taxMode,
     taxRatePct: data.taxRatePct,

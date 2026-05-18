@@ -263,10 +263,17 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
       return;
     }
     // Guardamos TODOS los ajustes propios de la cartera, no sólo holdings —
-    // así al recargarla queda EXACTAMENTE como estaba.
+    // así al recargarla queda EXACTAMENTE como estaba. Además guardamos el
+    // OBJETO Fund completo en cada holding (no sólo el fundId): así los
+    // fondos añadidos por búsqueda dinámica (que no están en fund-database)
+    // se pueden restaurar correctamente al recargar la cartera.
     savePortfolio({
       name: trimmed,
-      holdings: allocations.map((a) => ({ fundId: a.fund.id, weight: a.weight })),
+      holdings: allocations.map((a) => ({
+        fundId: a.fund.id,
+        weight: a.weight,
+        fund: a.fund,
+      })),
       managementFee,
       taxMode,
       taxRatePct,
@@ -280,7 +287,10 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   const handleSavedPortfolioSelect = (saved: SavedPortfolio) => {
     const allocs: FundAllocation[] = [];
     for (const h of saved.holdings) {
-      const fund = getFundById(h.fundId);
+      // Preferimos el snapshot del Fund guardado (cubre fondos dinámicos no
+      // presentes en fund-database). Si no está (carteras guardadas con un
+      // esquema antiguo), recurrimos a getFundById como fallback.
+      const fund = h.fund ?? getFundById(h.fundId);
       if (fund) allocs.push({ fund, weight: h.weight });
     }
     setAllocations(allocs);
