@@ -1298,6 +1298,47 @@ const ALTERNATIVOS_CANIGUERAL_PRESETS: PortfolioPreset[] = [
 // como portfolio independiente.
 // -----------------------------------------------------------------------------
 
+// -----------------------------------------------------------------------------
+// Cartera BBVA Inversión Renta Variable — Réplica del extracto del cliente
+// 19 fondos / ETFs (mezcla indexados + activos) que componen la pata de RV
+// de un perfil de inversión BBVA. Pesos normalizados a 100% (en el extracto
+// original sumaban 32.86% del total de la cartera).
+// -----------------------------------------------------------------------------
+
+const BBVA_INVERSION_RV_PRESETS: PortfolioPreset[] = [
+  {
+    id: "bbva-inversion-rv",
+    name: "Cartera BBVA Inversión Renta Variable",
+    description: "19 fondos/ETFs de RV global (USA, Europa, Japón, Emergentes, small caps, factor value, ISR)",
+    type: "active",
+    holdings: [
+      // === USA (~37%) ===
+      { fundId: "bbvar-invesco-msci-usa", weight: 11.87 },       // Invesco MSCI USA UCITS ETF — IE00B60SX170
+      { fundId: "bbvar-jpm-us-select", weight: 6.18 },           // JPM US Select Equity — LU0210526637
+      { fundId: "bbvar-ab-select-us", weight: 5.02 },            // AB SICAV Select US Equity — LU0079474960
+      { fundId: "bbvar-vontobel-us-equity", weight: 4.56 },      // Vontobel US Equity — LU0136412771
+      { fundId: "bbvar-bbva-usa-isr", weight: 4.26 },            // BBVA Bolsa USA Desarrollo ISR — ES0114205034
+      { fundId: "bbvar-amundi-us-equity", weight: 3.99 },        // Amundi US Equity — LU1883320993
+      { fundId: "bbvar-ossiam-us-sector-value", weight: 3.47 },  // Ossiam US Sector Value ETF — LU1079841273
+      // === Europa (~38%) ===
+      { fundId: "bbvar-ishares-msci-europe", weight: 11.08 },    // iShares Core MSCI Europe ETF — IE00B1YZSC51
+      { fundId: "bbvar-jpm-eur-equity", weight: 7.73 },          // JPM Europe Equity Fund — LU0053685029
+      { fundId: "bbvar-bbva-bolsa-europa-isr", weight: 7.18 },   // BBVA Bolsa Europa ISR — ES0113211835
+      { fundId: "bbvar-mfs-european-research", weight: 5.60 },   // MFS European Research — LU0125941194
+      { fundId: "bbvar-invesco-pan-european", weight: 5.42 },    // Invesco Pan European — LU0119750205
+      { fundId: "bbvar-gs-europe-core", weight: 4.90 },          // GS Europe CORE Equity — LU0115295882
+      { fundId: "bbvar-threadneedle-smaller", weight: 2.04 },    // Threadneedle Smaller Co. — GB0002771383
+      // === Emergentes (~11%) ===
+      { fundId: "bbvar-schroder-em", weight: 6.66 },             // Schroder ISF EM — LU0106252389
+      { fundId: "bbvar-amundi-msci-em", weight: 4.02 },          // Amundi Index MSCI EM — LU0996177134
+      { fundId: "bbvar-xtrackers-msci-em", weight: 0.55 },       // Xtrackers MSCI EM ETF — IE00BTJRMP35
+      // === Japón (~5%) ===
+      { fundId: "bbvar-nomura-japan-value", weight: 2.77 },      // Nomura Japan Value — IE0005111313
+      { fundId: "bbvar-gs-japan-equity", weight: 2.68 },         // GS Japan Equity — LU0234572450
+    ],
+  },
+];
+
 const BBVA_CAPITAL_PRESETS: PortfolioPreset[] = [
   {
     id: "bbva-capital",
@@ -1343,6 +1384,7 @@ const ALL_PRESETS: PortfolioPreset[] = [
   ...BANCA_PRIVADA_PRESETS,
   ...ALTERNATIVOS_CANIGUERAL_PRESETS,
   ...BBVA_CAPITAL_PRESETS,
+  ...BBVA_INVERSION_RV_PRESETS,
 ];
 
 // Mapa para búsqueda rápida por ID

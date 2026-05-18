@@ -338,12 +338,14 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   const bancaPrivadaPresets = presets.filter((p) => p.id.startsWith("banca-privada"));
   const alternativosCanigueralPresets = presets.filter((p) => p.id.startsWith("alternativos-canigueral"));
   const bbvaCapitalPresets = presets.filter((p) => p.id.startsWith("bbva-capital"));
+  const bbvaInversionRvPresets = presets.filter((p) => p.id.startsWith("bbva-inversion-rv"));
   const activePresets = presets.filter(
     (p) =>
       p.type === "active" &&
       !p.id.startsWith("banca-privada") &&
       !p.id.startsWith("alternativos-canigueral") &&
-      !p.id.startsWith("bbva-capital")
+      !p.id.startsWith("bbva-capital") &&
+      !p.id.startsWith("bbva-inversion-rv")
   );
 
   return (
@@ -655,6 +657,34 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                     Cartera gestionada BBVA Capital
                   </p>
                   {bbvaCapitalPresets.map((preset) => (
+                    <button
+                      key={preset.id}
+                      onClick={() => handlePresetSelect(preset)}
+                      className={`w-full text-left px-3 py-2 rounded-lg hover:bg-blue-50 transition-colors ${
+                        selectedPresetId === preset.id ? "bg-blue-50" : ""
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-blue-600" />
+                        <span className="font-medium text-sm text-slate-800">
+                          {preset.name}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 ml-4 mt-0.5">
+                        {preset.description}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Cartera BBVA Inversión Renta Variable — sección propia */}
+              {bbvaInversionRvPresets.length > 0 && (
+                <div className="p-2 border-b border-slate-100">
+                  <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider px-2 py-1">
+                    Cartera BBVA Inversión Renta Variable
+                  </p>
+                  {bbvaInversionRvPresets.map((preset) => (
                     <button
                       key={preset.id}
                       onClick={() => handlePresetSelect(preset)}
