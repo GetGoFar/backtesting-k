@@ -277,17 +277,6 @@ export function PerformanceChart({ results, isLoading, valueMode = "camino" }: P
   const benchmarkSeries = benchmarkSeriesRaw.filter((p) => carteraDates.has(p.date));
   const hasBenchmark = benchmarkSeries.length > 0;
 
-  // Si el benchmark tiene valor inicial distinto al de la cartera (porque arrancó
-  // antes o no estaba normalizado), lo reescalamos para que ambos partan del mismo
-  // patrimonio inicial (el del primer punto de la cartera con datos).
-  // Esto solo afecta a visualización — las métricas del benchmark se calcularon
-  // sobre su propio backtest.
-  const firstCarteraValue = resultA?.timeSeries[0]?.value ?? resultB?.timeSeries[0]?.value;
-  const firstBenchmarkValue = benchmarkSeries[0]?.value;
-  const benchmarkScale = firstCarteraValue && firstBenchmarkValue && firstBenchmarkValue > 0
-    ? firstCarteraValue / firstBenchmarkValue
-    : 1;
-
   // Construir las series ESCALADAS POR PUNTO según el modo activo. Esto hace
   // que el gap entre modos crezca con la plusvalía / impuestos pagados, en
   // lugar de aplicar un desplazamiento uniforme que dejaría la forma idéntica.
@@ -299,6 +288,25 @@ export function PerformanceChart({ results, isLoading, valueMode = "camino" }: P
   const seriesB = resultB
     ? buildScaledSeries(resultB, valueMode, resultA ?? null, monthlyContribution, initialAmount)
     : new Map<string, number>();
+
+  // Escalado del benchmark: lo anclamos al VALOR DE LA CARTERA en su primera
+  // fecha disponible (no en la primera fecha raw de la cartera). De este modo,
+  // en cualquier modo de valoración (bruto / camino / liquidar) las dos líneas
+  // coinciden visualmente en el primer punto que tienen en común.
+  const firstBenchmarkDate = benchmarkSeries[0]?.date;
+  const firstBenchmarkValue = benchmarkSeries[0]?.value;
+  // Cartera al mismo día en que arranca el benchmark
+  const carteraValueAtBenchStart = firstBenchmarkDate
+    ? (seriesA.get(firstBenchmarkDate) ?? seriesB.get(firstBenchmarkDate))
+    : undefined;
+  // Fallback al primer punto raw si no hay overlap (caso poco común)
+  const firstCarteraValue =
+    carteraValueAtBenchStart ??
+    resultA?.timeSeries[0]?.value ??
+    resultB?.timeSeries[0]?.value;
+  const benchmarkScale = firstCarteraValue && firstBenchmarkValue && firstBenchmarkValue > 0
+    ? firstCarteraValue / firstBenchmarkValue
+    : 1;
   // Para el benchmark: hereda el modo de la cartera principal. Como no tiene
   // su propio rebalanceLog rico, usamos un escalado simple proporcional al
   // valor final (igual que antes).
@@ -388,6 +396,39 @@ export function PerformanceChart({ results, isLoading, valueMode = "camino" }: P
           date: point.date,
           exactDate: point.exactDate || point.date,
           [benchmarkName]: scaledValue,
+        });
+      }
+    }
+
+    // Si el benchmark no tiene datos en la PRIMERA fecha de la cartera, añadimos
+    // un punto de anclaje sintético con el valor inicial de la cartera para que
+    // ambas líneas arranquen visualmente en el mismo punto (X, Y) en el gráfico.
+    // Sin este anchor, la línea del benchmark "empieza después" en el eje X y
+    // parece que arranca a una altura distinta cuando en realidad solo le faltan
+    // los primeros meses de datos.
+    const carteraFirstDate =
+      resultA?.timeSeries[0]?.date ?? resultB?.timeSeries[0]?.date;
+    const carteraFirstExactDate =
+      resultA?.timeSeries[0]?.exactDate ??
+      resultB?.timeSeries[0]?.exactDate ??
+      carteraFirstDate;
+    const carteraFirstValueScaled =
+      (carteraFirstDate
+        ? seriesA.get(carteraFirstDate) ?? seriesB.get(carteraFirstDate)
+        : undefined) ?? initialAmount;
+    if (
+      carteraFirstDate &&
+      benchmarkSeries[0]?.date &&
+      carteraFirstDate < benchmarkSeries[0].date
+    ) {
+      const entry = dataMap.get(carteraFirstDate);
+      if (entry && entry[benchmarkName] === undefined) {
+        entry[benchmarkName] = carteraFirstValueScaled;
+      } else if (!entry) {
+        dataMap.set(carteraFirstDate, {
+          date: carteraFirstDate,
+          exactDate: carteraFirstExactDate ?? carteraFirstDate,
+          [benchmarkName]: carteraFirstValueScaled,
         });
       }
     }
