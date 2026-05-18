@@ -51,8 +51,28 @@ const SIDE_COLORS = {
   },
 };
 
+import {
+  getSavedPortfolios,
+  savePortfolio,
+  deleteSavedPortfolio,
+  type SavedPortfolio,
+} from "@/lib/saved-portfolios";
+
 export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   const [allocations, setAllocations] = useState<FundAllocation[]>([]);
+  // Carteras guardadas localmente por el usuario (localStorage)
+  const [savedPortfolios, setSavedPortfolios] = useState<SavedPortfolio[]>([]);
+  // Estado del modal de guardado (nombre temporal antes de confirmar)
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveDialogName, setSaveDialogName] = useState("");
+
+  // Cargar carteras guardadas al montar y suscribirse a cambios entre pestañas
+  useEffect(() => {
+    setSavedPortfolios(getSavedPortfolios());
+    const onChange = () => setSavedPortfolios(getSavedPortfolios());
+    window.addEventListener("epk-saved-portfolios-changed", onChange);
+    return () => window.removeEventListener("epk-saved-portfolios-changed", onChange);
+  }, []);
   const defaultName = side === "a" ? "Cartera A" : "Cartera B";
   const [name, setName] = useState(defaultName);
   const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
@@ -227,6 +247,48 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
     markAsCustom();
   };
 
+  // === Carteras guardadas (localStorage) ===
+
+  const handleSaveClick = () => {
+    // Solo abre el diálogo si hay activos en la cartera
+    if (allocations.length === 0) return;
+    setSaveDialogName(name);
+    setShowSaveDialog(true);
+  };
+
+  const handleSaveConfirm = () => {
+    const trimmed = saveDialogName.trim();
+    if (!trimmed || allocations.length === 0) {
+      setShowSaveDialog(false);
+      return;
+    }
+    savePortfolio(
+      trimmed,
+      allocations.map((a) => ({ fundId: a.fund.id, weight: a.weight }))
+    );
+    setShowSaveDialog(false);
+  };
+
+  const handleSavedPortfolioSelect = (saved: SavedPortfolio) => {
+    const allocs: FundAllocation[] = [];
+    for (const h of saved.holdings) {
+      const fund = getFundById(h.fundId);
+      if (fund) allocs.push({ fund, weight: h.weight });
+    }
+    setAllocations(allocs);
+    setSelectedPresetId(null);
+    setShowPresetDropdown(false);
+    setNameManuallyEdited(false);
+    setName(saved.name);
+  };
+
+  const handleDeleteSaved = (e: React.MouseEvent, id: string, savedName: string) => {
+    e.stopPropagation();
+    if (confirm(`¿Eliminar la cartera guardada "${savedName}"? No se puede deshacer.`)) {
+      deleteSavedPortfolio(id);
+    }
+  };
+
   const handlePresetSelect = (preset: PortfolioPreset) => {
     // Convertir holdings del preset a allocaciones con fondos completos
     const presetAllocations: FundAllocation[] = [];
@@ -371,12 +433,60 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
             </svg>
           </div>
-          {selectedPresetId && (
-            <span className="text-xs text-white/70 bg-white/10 px-2 py-1 rounded">
-              Preset
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {selectedPresetId && (
+              <span className="text-xs text-white/70 bg-white/10 px-2 py-1 rounded">
+                Preset
+              </span>
+            )}
+            <button
+              onClick={handleSaveClick}
+              disabled={allocations.length === 0}
+              className="text-xs text-white/90 bg-white/10 hover:bg-white/25 disabled:opacity-40 disabled:cursor-not-allowed px-2.5 py-1 rounded flex items-center gap-1.5 transition-colors"
+              title={
+                allocations.length === 0
+                  ? "Añade al menos un activo para poder guardar la cartera"
+                  : "Guardar esta cartera en mi navegador (localStorage)"
+              }
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+              </svg>
+              <span>Guardar</span>
+            </button>
+          </div>
         </div>
+
+        {/* Diálogo inline de guardado */}
+        {showSaveDialog && (
+          <div className="mt-3 bg-white/10 backdrop-blur-sm rounded-lg p-3 flex items-center gap-2">
+            <input
+              type="text"
+              value={saveDialogName}
+              onChange={(e) => setSaveDialogName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSaveConfirm();
+                if (e.key === "Escape") setShowSaveDialog(false);
+              }}
+              autoFocus
+              placeholder="Nombre de la cartera..."
+              className="flex-1 bg-white/90 text-brand-navy placeholder-slate-400 px-3 py-1.5 rounded text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
+            />
+            <button
+              onClick={handleSaveConfirm}
+              disabled={!saveDialogName.trim()}
+              className="bg-white text-brand-navy hover:bg-white/90 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded text-sm font-semibold transition-colors"
+            >
+              Guardar
+            </button>
+            <button
+              onClick={() => setShowSaveDialog(false)}
+              className="text-white/80 hover:text-white px-2 py-1.5 rounded text-sm transition-colors"
+            >
+              Cancelar
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="p-4 space-y-4">
@@ -412,6 +522,54 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
 
           {showPresetDropdown && (
             <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-96 overflow-auto">
+              {/* Mis carteras guardadas (localStorage) — siempre arriba si hay alguna */}
+              {savedPortfolios.length > 0 && (
+                <div className="p-2 border-b border-slate-100 bg-amber-50/30">
+                  <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider px-2 py-1 flex items-center gap-1.5">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
+                    </svg>
+                    Mis carteras guardadas
+                  </p>
+                  {savedPortfolios.map((saved) => (
+                    <div
+                      key={saved.id}
+                      className="flex items-center gap-1 group"
+                    >
+                      <button
+                        onClick={() => handleSavedPortfolioSelect(saved)}
+                        className="flex-1 text-left px-3 py-2 rounded-lg hover:bg-amber-100/60 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-amber-500" />
+                          <span className="font-medium text-sm text-slate-800">
+                            {saved.name}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 ml-4 mt-0.5">
+                          {saved.holdings.length} activos · guardada{" "}
+                          {new Date(saved.createdAt).toLocaleDateString("es-ES", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </p>
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteSaved(e, saved.id, saved.name)}
+                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-red-600 transition-all"
+                        title={`Eliminar "${saved.name}"`}
+                        aria-label={`Eliminar ${saved.name}`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Carteras K Inbestme (1-10) */}
               <div className="p-2 border-b border-slate-100">
                 <p className="text-xs font-semibold text-indigo-500 uppercase tracking-wider px-2 py-1">
