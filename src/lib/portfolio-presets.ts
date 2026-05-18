@@ -1323,7 +1323,7 @@ const BBVA_INVERSION_RV_PRESETS: PortfolioPreset[] = [
       // === Europa (~38%) ===
       { fundId: "bbvar-ishares-msci-europe", weight: 11.08 },    // iShares Core MSCI Europe ETF — IE00B1YZSC51
       { fundId: "bbvar-jpm-eur-equity", weight: 7.73 },          // JPM Europe Equity Fund — LU0053685029
-      { fundId: "bbvar-bbva-bolsa-europa-isr", weight: 7.18 },   // BBVA Bolsa Europa ISR — ES0113211835
+      { fundId: "bbvar-bbva-bolsa-euro", weight: 7.18 },         // BBVA Bolsa Euro FI — ES0110101039
       { fundId: "bbvar-mfs-european-research", weight: 5.60 },   // MFS European Research — LU0125941194
       { fundId: "bbvar-invesco-pan-european", weight: 5.42 },    // Invesco Pan European — LU0119750205
       { fundId: "bbvar-gs-europe-core", weight: 4.90 },          // GS Europe CORE Equity — LU0115295882
