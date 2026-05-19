@@ -81,6 +81,13 @@ export function MomentumResultsView({ results }: Props) {
     if (results.rebalances.length === 0 || results.equityCurve.length === 0) {
       return [];
     }
+    // El motor ya descarta las rotaciones agendadas para el futuro (nextClose
+    // mode) y reemplaza el último equity point por uno en HOY con la
+    // rentabilidad MTD real. Mantenemos un filtro defensivo por si acaso.
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const pastRebalances = results.rebalances.filter((r) => r.date <= todayStr);
+    if (pastRebalances.length === 0) return [];
+
     const equityByDate = new Map(
       results.equityCurve.map((p) => [p.date, p.value])
     );
@@ -98,13 +105,13 @@ export function MomentumResultsView({ results }: Props) {
 
     const ops: Operation[] = [];
     const lastEquity = results.equityCurve[results.equityCurve.length - 1]!;
-    for (let i = 0; i < results.rebalances.length; i++) {
-      const r = results.rebalances[i]!;
+    for (let i = 0; i < pastRebalances.length; i++) {
+      const r = pastRebalances[i]!;
       const startEquity = equityAt(r.date);
-      const isOpen = i === results.rebalances.length - 1;
+      const isOpen = i === pastRebalances.length - 1;
       const endDate = isOpen
         ? lastEquity.date
-        : results.rebalances[i + 1]!.date;
+        : pastRebalances[i + 1]!.date;
       const endEquity = isOpen ? lastEquity.value : equityAt(endDate);
       if (startEquity == null || endEquity == null || startEquity <= 0) continue;
       const returnPct = (endEquity / startEquity - 1) * 100;
@@ -789,7 +796,7 @@ export function MomentumResultsView({ results }: Props) {
                     {formatNumber(op.returnPct, 2)}%
                     {op.isOpen && (
                       <span className="block text-[9px] font-normal text-brand-tertiary uppercase">
-                        no realizada
+                        MTD · no realizada
                       </span>
                     )}
                   </td>

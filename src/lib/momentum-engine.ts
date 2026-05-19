@@ -729,6 +729,95 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
     });
   }
 
+  // 4.5. CORRECCIÓN DEL "FUTURO" EN nextClose MODE
+  //
+  // En modo nextClose el motor agenda la próxima rotación (basada en la señal
+  // del mes en curso) con fecha "primer día del mes siguiente". Si ese día
+  // aún no ha llegado:
+  //
+  //  - El último punto de equity tiene fecha FUTURA con un valor "congelado"
+  //    (la rentabilidad del mes en curso no se aplicó porque
+  //    firstClose[mesQueViene] no existe todavía).
+  //  - La última rotación en `rebalances` está agendada para esa fecha futura
+  //    pero AÚN NO se ha ejecutado. El usuario tiene las posiciones del mes
+  //    anterior, no las de esta rotación.
+  //
+  // Para que la UI muestre correctamente "EN CURSO = las posiciones que
+  // realmente sostienes" con su rentabilidad MTD:
+  //
+  //  1. Reemplazar el último punto de equity por uno con fecha = último día
+  //     con datos diarios, valor = (equity del mes anterior) × (precio diario
+  //     actual / precio diario del inicio del periodo) — calculado sobre las
+  //     posiciones REALMENTE activas (= holdings del punto anterior).
+  //  2. Descartar la última rotación agendada (su fecha es futura).
+  //
+  // Nota: usamos peso equiponderado para el cálculo MTD. Para estrategias
+  // con pesos rank/volatility la rentabilidad MTD será aproximada (los pesos
+  // reales no se trackean punto a punto). El historial cerrado SÍ usa pesos
+  // exactos (calculados dentro del bucle).
+  if (mode === "nextClose" && equityCurve.length >= 2) {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const lastPoint = equityCurve[equityCurve.length - 1]!;
+    if (lastPoint.date > todayStr) {
+      const prevPoint = equityCurve[equityCurve.length - 2]!;
+      const activeHoldings = prevPoint.holdings; // las que realmente sostienes
+
+      // Encontrar la fecha diaria más reciente común a las posiciones activas
+      let effectiveToday: string | null = null;
+      for (const ticker of activeHoldings) {
+        if (ticker === "CASH") continue;
+        const series = seriesPerAsset.get(ticker);
+        if (!series) continue;
+        const dates = Array.from(series.daily.keys()).sort();
+        if (dates.length === 0) continue;
+        const lastDate = dates[dates.length - 1]!;
+        if (effectiveToday === null || lastDate < effectiveToday) {
+          effectiveToday = lastDate;
+        }
+      }
+
+      if (
+        effectiveToday &&
+        effectiveToday <= todayStr &&
+        effectiveToday > prevPoint.date
+      ) {
+        const n = activeHoldings.length;
+        const w = 1 / n;
+        let weightedReturn = 0;
+        for (const ticker of activeHoldings) {
+          if (ticker === "CASH") {
+            const yearsBetween =
+              (new Date(effectiveToday).getTime() -
+                new Date(prevPoint.date).getTime()) /
+              (1000 * 60 * 60 * 24 * 365);
+            weightedReturn += w * (RISK_FREE_RATE * yearsBetween);
+            continue;
+          }
+          const series = seriesPerAsset.get(ticker);
+          if (!series) continue;
+          const startPrice = series.daily.get(prevPoint.date);
+          const currPrice = series.daily.get(effectiveToday);
+          if (startPrice && currPrice && startPrice > 0) {
+            weightedReturn += w * (currPrice / startPrice - 1);
+          }
+        }
+
+        // Reemplazar el último equity point por la versión "real de hoy"
+        lastPoint.date = effectiveToday;
+        lastPoint.value = prevPoint.value * (1 + weightedReturn);
+        lastPoint.holdings = [...activeHoldings]; // las que de verdad sostienes
+
+        // Descartar la rotación agendada para el futuro (si la hay)
+        if (rebalances.length > 0) {
+          const lastRebal = rebalances[rebalances.length - 1]!;
+          if (lastRebal.date > todayStr) {
+            rebalances.pop();
+          }
+        }
+      }
+    }
+  }
+
   // 5. Métricas
   const metrics = buildMetrics(equityCurve, rebalances.length);
   const annualReturns = buildAnnualReturns(equityCurve, config.initialAmount);
