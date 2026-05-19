@@ -16,12 +16,33 @@ import {
   Legend,
 } from "recharts";
 import { formatEUR, formatPct, formatNumber } from "@/lib/formatters";
-import type { MomentumResponse } from "@/lib/momentum-types";
+import type { MomentumResponse, MomentumRebalance } from "@/lib/momentum-types";
 import { AnnualReturnsHeatmap, type HeatmapColumn } from "./AnnualReturnsHeatmap";
 import { MonthlyReturnsHeatmap, type HeatmapSeries as MonthlySeries } from "./MonthlyReturnsHeatmap";
 
 interface Props {
   results: MomentumResponse;
+}
+
+/** Una "operación" cerrada o en curso: holding period entre dos rebalanceos
+ *  consecutivos (o desde el último hasta hoy si está abierta). */
+interface Operation {
+  rebalance: MomentumRebalance;
+  /** Fecha exacta donde se entró (= rebalance.date). */
+  startDate: string;
+  /** Fecha exacta donde se cerró (= siguiente rebalance.date) o último día
+   *  de la equity curve si está abierta. */
+  endDate: string;
+  /** Equity al entrar. */
+  startEquity: number;
+  /** Equity al cerrar (o equity actual si está abierta). */
+  endEquity: number;
+  /** Rentabilidad de la operación en %. */
+  returnPct: number;
+  /** Cuántos meses ha durado (aprox). */
+  durationMonths: number;
+  /** True si es la operación más reciente y aún no se ha cerrado. */
+  isOpen: boolean;
 }
 
 export function MomentumResultsView({ results }: Props) {
@@ -50,6 +71,128 @@ export function MomentumResultsView({ results }: Props) {
     if (values.length === 0) return { minValue: 1, maxValue: 1 };
     return { minValue: Math.min(...values), maxValue: Math.max(...values) };
   }, [chartData]);
+
+  // === OPERACIONES ===
+  // Una operación es el holding period entre dos rebalanceos consecutivos.
+  // Para cada uno calculamos la rentabilidad obtenida con el set de holdings
+  // mantenido durante ese periodo. La última operación se marca como abierta
+  // y su rentabilidad es "no realizada" — el último valor de la equity curve.
+  const operations = useMemo<Operation[]>(() => {
+    if (results.rebalances.length === 0 || results.equityCurve.length === 0) {
+      return [];
+    }
+    const equityByDate = new Map(
+      results.equityCurve.map((p) => [p.date, p.value])
+    );
+    const sortedDates = results.equityCurve.map((p) => p.date);
+
+    // Devuelve el valor de equity en `date`, o el primer punto disponible
+    // posterior (por si el rebalanceo cayó en un día sin equity exacto).
+    function equityAt(date: string): number | null {
+      if (equityByDate.has(date)) return equityByDate.get(date)!;
+      for (const d of sortedDates) {
+        if (d >= date) return equityByDate.get(d)!;
+      }
+      return null;
+    }
+
+    const ops: Operation[] = [];
+    const lastEquity = results.equityCurve[results.equityCurve.length - 1]!;
+    for (let i = 0; i < results.rebalances.length; i++) {
+      const r = results.rebalances[i]!;
+      const startEquity = equityAt(r.date);
+      const isOpen = i === results.rebalances.length - 1;
+      const endDate = isOpen
+        ? lastEquity.date
+        : results.rebalances[i + 1]!.date;
+      const endEquity = isOpen ? lastEquity.value : equityAt(endDate);
+      if (startEquity == null || endEquity == null || startEquity <= 0) continue;
+      const returnPct = (endEquity / startEquity - 1) * 100;
+
+      // Duración en meses (aproximada por diferencia de YYYY-MM)
+      const [y1, m1] = r.date.substring(0, 7).split("-").map(Number);
+      const [y2, m2] = endDate.substring(0, 7).split("-").map(Number);
+      const durationMonths = Math.max(
+        0,
+        (y2! - y1!) * 12 + (m2! - m1!)
+      );
+
+      ops.push({
+        rebalance: r,
+        startDate: r.date,
+        endDate,
+        startEquity,
+        endEquity,
+        returnPct,
+        durationMonths,
+        isOpen,
+      });
+    }
+    return ops;
+  }, [results]);
+
+  // === ESTADÍSTICAS DE LA ESTRATEGIA ===
+  // Calculadas sobre las operaciones CERRADAS (excluye la abierta).
+  const opStats = useMemo(() => {
+    const closed = operations.filter((o) => !o.isOpen);
+    if (closed.length === 0) return null;
+
+    const total = closed.length;
+    const winners = closed.filter((o) => o.returnPct > 0);
+    const losers = closed.filter((o) => o.returnPct < 0);
+    const winRate = winners.length / total;
+
+    const avgWin =
+      winners.length > 0
+        ? winners.reduce((s, o) => s + o.returnPct, 0) / winners.length
+        : 0;
+    const avgLoss =
+      losers.length > 0
+        ? losers.reduce((s, o) => s + o.returnPct, 0) / losers.length
+        : 0;
+
+    // Win/Loss ratio: media de las ganadoras / |media de las perdedoras|.
+    // Si no hay perdedoras, devolvemos null (sin denominador).
+    const winLossRatio =
+      losers.length > 0 ? avgWin / Math.abs(avgLoss) : null;
+
+    // Esperanza matemática = E[X] sobre la distribución de operaciones.
+    // = winRate * avgWin + (1-winRate) * avgLoss  (avgLoss es negativo).
+    const expectancy = winRate * avgWin + (1 - winRate) * avgLoss;
+
+    const avgReturn = closed.reduce((s, o) => s + o.returnPct, 0) / total;
+    const bestOp = Math.max(...closed.map((o) => o.returnPct));
+    const worstOp = Math.min(...closed.map((o) => o.returnPct));
+
+    // Calmar = CAGR / |Max DD|. Lo usamos como "ratio rentabilidad/riesgo"
+    // de la estrategia entera (cuántos puntos de rentabilidad anual por cada
+    // punto de drawdown máximo).
+    const calmar =
+      results.metrics.maxDrawdown !== 0
+        ? results.metrics.cagr / Math.abs(results.metrics.maxDrawdown)
+        : null;
+
+    return {
+      total,
+      winnerCount: winners.length,
+      loserCount: losers.length,
+      winRate,
+      avgWin,
+      avgLoss,
+      winLossRatio,
+      expectancy,
+      avgReturn,
+      bestOp,
+      worstOp,
+      calmar,
+    };
+  }, [operations, results.metrics]);
+
+  // Operaciones ordenadas MÁS RECIENTE PRIMERO para el historial
+  const operationsDesc = useMemo(
+    () => [...operations].slice().reverse(),
+    [operations]
+  );
 
   return (
     <div className="space-y-8">
@@ -305,66 +448,348 @@ export function MomentumResultsView({ results }: Props) {
         );
       })()}
 
-      {/* Historial de rebalanceos */}
+      {/* Ranking ACTUAL VIVO — qué se mantendría si rebalanceáramos hoy */}
+      {results.liveRanking && (
+        <section className="bg-white rounded-2xl border border-emerald-200 shadow-sm p-6">
+          <div className="flex items-start justify-between flex-wrap gap-3 mb-1">
+            <div>
+              <h3 className="text-lg font-semibold text-brand-navy font-serif flex items-center gap-2">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                Ranking actual (vivo)
+              </h3>
+              <p className="text-xs text-brand-tertiary mt-1">
+                Posiciones que se sostendrían si el rebalanceo se ejecutara HOY,
+                con el último mes con datos completos ({results.liveRanking.signalMonth}) como señal.
+                Útil para anticipar si las posiciones cambiarán en el próximo cierre de mes.
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-semibold text-brand-tertiary uppercase tracking-wider mb-1">
+                Posiciones VIVAS
+              </p>
+              <p className="text-base font-bold text-emerald-700">
+                {results.liveRanking.forcedCash
+                  ? "CASH (filtro MA)"
+                  : results.liveRanking.holdings.join(", ")}
+              </p>
+            </div>
+          </div>
+
+          {/* Comparación con las posiciones REALES de la última rotación */}
+          {operations.length > 0 && (() => {
+            const lastOp = operations[operations.length - 1]!;
+            const liveSet = new Set(results.liveRanking!.holdings);
+            const realSet = new Set(lastOp.rebalance.newHoldings);
+            const wouldChange =
+              liveSet.size !== realSet.size ||
+              [...liveSet].some((t) => !realSet.has(t));
+            return (
+              <div
+                className={`mt-3 px-3 py-2 rounded-lg text-xs font-medium ${
+                  wouldChange
+                    ? "bg-amber-50 border border-amber-200 text-amber-800"
+                    : "bg-emerald-50 border border-emerald-200 text-emerald-800"
+                }`}
+              >
+                {wouldChange ? (
+                  <>
+                    ⚠ Cambio previsto: ahora mantienes{" "}
+                    <strong>{lastOp.rebalance.newHoldings.join(", ")}</strong>{" "}
+                    pero el ranking vivo apunta a{" "}
+                    <strong>{results.liveRanking!.holdings.join(", ")}</strong>.
+                  </>
+                ) : (
+                  <>
+                    ✓ Sin cambios: el ranking vivo coincide con las posiciones actuales.
+                  </>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Tabla del ranking completo */}
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-slate-200">
+                <tr>
+                  <th className="text-left text-[10px] font-semibold text-brand-tertiary uppercase py-2 px-3">
+                    #
+                  </th>
+                  <th className="text-left text-[10px] font-semibold text-brand-tertiary uppercase py-2 px-3">
+                    Ticker
+                  </th>
+                  <th className="text-right text-[10px] font-semibold text-brand-tertiary uppercase py-2 px-3">
+                    Momentum
+                  </th>
+                  {results.config.rankingMethod === "sharpe" && (
+                    <>
+                      <th className="text-right text-[10px] font-semibold text-brand-tertiary uppercase py-2 px-3">
+                        Volatilidad
+                      </th>
+                      <th className="text-right text-[10px] font-semibold text-brand-tertiary uppercase py-2 px-3">
+                        Ratio (ret/vol)
+                      </th>
+                    </>
+                  )}
+                  {results.config.movingAverageMonths != null &&
+                    results.config.movingAverageMonths > 0 && (
+                      <th className="text-center text-[10px] font-semibold text-brand-tertiary uppercase py-2 px-3">
+                        &gt; MA{results.config.movingAverageMonths}
+                      </th>
+                    )}
+                </tr>
+              </thead>
+              <tbody>
+                {results.liveRanking.ranking.map((c, idx) => {
+                  const inHoldings = results.liveRanking!.holdings.includes(c.ticker);
+                  return (
+                    <tr
+                      key={c.ticker}
+                      className={`border-b border-slate-100 ${
+                        inHoldings ? "bg-emerald-50/40" : "hover:bg-slate-50/50"
+                      }`}
+                    >
+                      <td className="py-2 px-3 text-xs font-mono text-brand-tertiary">
+                        {idx + 1}
+                      </td>
+                      <td className="py-2 px-3 text-xs">
+                        <span
+                          className={`font-mono font-semibold ${
+                            inHoldings ? "text-emerald-700" : "text-brand-navy"
+                          }`}
+                        >
+                          {c.ticker}
+                        </span>
+                        {inHoldings && (
+                          <span className="ml-2 text-[9px] font-semibold text-emerald-700 uppercase">
+                            ✓ holding
+                          </span>
+                        )}
+                      </td>
+                      <td
+                        className={`py-2 px-3 text-xs text-right font-mono ${
+                          c.momentumPercent >= 0
+                            ? "text-emerald-700"
+                            : "text-red-600"
+                        }`}
+                      >
+                        {formatPct(c.momentumPercent / 100, 2)}
+                      </td>
+                      {results.config.rankingMethod === "sharpe" && (
+                        <>
+                          <td className="py-2 px-3 text-xs text-right font-mono text-brand-secondary">
+                            {c.volatilityPercent !== undefined
+                              ? formatPct(c.volatilityPercent / 100, 2)
+                              : "—"}
+                          </td>
+                          <td className="py-2 px-3 text-xs text-right font-mono font-semibold text-brand-navy">
+                            {formatNumber(c.score, 2)}
+                          </td>
+                        </>
+                      )}
+                      {results.config.movingAverageMonths != null &&
+                        results.config.movingAverageMonths > 0 && (
+                          <td className="py-2 px-3 text-xs text-center">
+                            {c.aboveMA ? (
+                              <span className="text-emerald-600">✓</span>
+                            ) : (
+                              <span className="text-red-600">✗</span>
+                            )}
+                          </td>
+                        )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {/* Estadísticas de la estrategia — métricas operacionales (no de mercado) */}
+      {opStats && (
+        <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <h3 className="text-lg font-semibold text-brand-navy font-serif mb-1">
+            Estadísticas de la estrategia
+          </h3>
+          <p className="text-xs text-brand-tertiary mb-4">
+            Análisis trade-by-trade sobre las {opStats.total} operaciones cerradas
+            (la operación abierta no cuenta hasta que se cierre).
+          </p>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            <Metric
+              label="Operaciones totales"
+              value={opStats.total.toString()}
+            />
+            <Metric
+              label="% ganadoras"
+              value={`${formatPct(opStats.winRate, 1)} (${opStats.winnerCount}/${opStats.total})`}
+              color={opStats.winRate >= 0.5 ? "emerald" : undefined}
+            />
+            <Metric
+              label="Win / Loss ratio"
+              value={
+                opStats.winLossRatio === null
+                  ? "∞"
+                  : formatNumber(opStats.winLossRatio, 2)
+              }
+              color={
+                opStats.winLossRatio === null || opStats.winLossRatio >= 1
+                  ? "emerald"
+                  : "red"
+              }
+              hint="Media de las ganadoras dividida entre |media de las perdedoras|. > 1 significa que cuando aciertas ganas más de lo que pierdes cuando te equivocas."
+            />
+            <Metric
+              label="Esperanza matemática"
+              value={formatPct(opStats.expectancy / 100, 2)}
+              color={opStats.expectancy >= 0 ? "emerald" : "red"}
+              hint="Rentabilidad esperada por operación = winRate × media ganadoras + (1 − winRate) × media perdedoras. Positivo = la estrategia tiene ventaja matemática."
+            />
+            <Metric
+              label="Beneficio medio / op"
+              value={formatPct(opStats.avgReturn / 100, 2)}
+              color={opStats.avgReturn >= 0 ? "emerald" : "red"}
+            />
+            <Metric
+              label="Mejor operación"
+              value={formatPct(opStats.bestOp / 100, 2)}
+              color="emerald"
+            />
+            <Metric
+              label="Peor operación"
+              value={formatPct(opStats.worstOp / 100, 2)}
+              color="red"
+            />
+            <Metric
+              label="Mejor mes"
+              value={formatPct(results.metrics.bestMonth / 100)}
+              color="emerald"
+            />
+            <Metric
+              label="Peor mes"
+              value={formatPct(results.metrics.worstMonth / 100)}
+              color="red"
+            />
+            <Metric
+              label="Media ganadoras"
+              value={formatPct(opStats.avgWin / 100, 2)}
+              color="emerald"
+            />
+            <Metric
+              label="Media perdedoras"
+              value={formatPct(opStats.avgLoss / 100, 2)}
+              color="red"
+            />
+            <Metric
+              label="Rentabilidad / Riesgo"
+              value={
+                opStats.calmar === null
+                  ? "—"
+                  : formatNumber(opStats.calmar, 2)
+              }
+              color={
+                opStats.calmar !== null && opStats.calmar >= 1
+                  ? "emerald"
+                  : undefined
+              }
+              hint="Ratio Calmar = CAGR / |Max Drawdown|. Cuántos puntos de rentabilidad anual obtienes por cada punto de caída máxima sufrida. > 1 se considera bueno."
+            />
+          </div>
+        </section>
+      )}
+
+      {/* Historial de rotaciones — MÁS RECIENTE PRIMERO, con rentabilidad por op */}
       <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
         <h3 className="text-lg font-semibold text-brand-navy font-serif mb-1">
-          Historial de rotaciones
+          Historial de operaciones
         </h3>
         <p className="text-xs text-brand-tertiary mb-4">
-          Cada vez que cambiaron los activos seleccionados (no se muestran los meses sin cambios).
+          Ordenado de más reciente a más antigua. Cada fila es una "operación":
+          el holding period entre dos rotaciones. La rentabilidad mostrada es la
+          obtenida con esos holdings durante ese periodo.{" "}
           {results.config.rankingMethod === "sharpe" && (
             <>
-              {" "}Ranking por <strong>retorno / volatilidad</strong> ({results.config.volatilityPeriodMonths ?? 3}m).
+              Ranking por <strong>retorno / volatilidad</strong> ({results.config.volatilityPeriodMonths ?? 3}m).
             </>
           )}
         </p>
-        <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-white border-b border-slate-200">
               <tr>
                 <th className="text-left text-xs font-semibold text-brand-tertiary uppercase py-2 px-3">
-                  Mes
+                  Entrada
                 </th>
                 <th className="text-left text-xs font-semibold text-brand-tertiary uppercase py-2 px-3">
-                  Sale
+                  Salida
                 </th>
                 <th className="text-left text-xs font-semibold text-brand-tertiary uppercase py-2 px-3">
-                  Entra
+                  Posiciones
+                </th>
+                <th className="text-right text-xs font-semibold text-brand-tertiary uppercase py-2 px-3">
+                  Rentabilidad
                 </th>
                 <th className="text-left text-xs font-semibold text-brand-tertiary uppercase py-2 px-3 hidden lg:table-cell">
                   {results.config.rankingMethod === "sharpe"
-                    ? "Top 5 (retorno · vol · ratio)"
+                    ? "Top 5 ranking (retorno · ratio)"
                     : "Top 5 ranking (momentum %)"}
                 </th>
               </tr>
             </thead>
             <tbody>
-              {results.rebalances.map((r, i) => (
-                <tr key={i} className="border-b border-slate-100 hover:bg-slate-50/50">
+              {operationsDesc.map((op, i) => (
+                <tr
+                  key={i}
+                  className={`border-b border-slate-100 hover:bg-slate-50/50 ${
+                    op.isOpen ? "bg-emerald-50/30" : ""
+                  }`}
+                >
                   <td className="py-2 px-3 font-mono text-xs text-brand-secondary">
-                    {r.date}
+                    {op.startDate}
                   </td>
-                  <td className="py-2 px-3 text-xs">
-                    {r.previousHoldings.length > 0 ? (
-                      <span className="text-brand-tertiary">
-                        {r.previousHoldings.join(", ")}
+                  <td className="py-2 px-3 font-mono text-xs">
+                    {op.isOpen ? (
+                      <span className="text-emerald-700 font-semibold">
+                        EN CURSO
                       </span>
                     ) : (
-                      <span className="text-brand-tertiary italic">—</span>
+                      <span className="text-brand-secondary">{op.endDate}</span>
                     )}
                   </td>
                   <td className="py-2 px-3 text-xs font-semibold">
-                    {r.forcedCash ? (
+                    {op.rebalance.forcedCash ? (
                       <span className="px-2 py-0.5 bg-slate-100 text-brand-navy rounded">
                         CASH (filtro MA)
                       </span>
                     ) : (
-                      <span className="text-brand-coral">{r.newHoldings.join(", ")}</span>
+                      <span className="text-brand-coral">
+                        {op.rebalance.newHoldings.join(", ")}
+                      </span>
+                    )}
+                    {op.durationMonths > 0 && (
+                      <span className="ml-2 text-[10px] text-brand-tertiary">
+                        ({op.durationMonths}{op.durationMonths === 1 ? "m" : "m"})
+                      </span>
+                    )}
+                  </td>
+                  <td
+                    className={`py-2 px-3 text-xs text-right font-mono font-bold ${
+                      op.returnPct >= 0 ? "text-emerald-700" : "text-red-600"
+                    }`}
+                  >
+                    {op.returnPct >= 0 ? "+" : ""}
+                    {formatNumber(op.returnPct, 2)}%
+                    {op.isOpen && (
+                      <span className="block text-[9px] font-normal text-brand-tertiary uppercase">
+                        no realizada
+                      </span>
                     )}
                   </td>
                   <td className="py-2 px-3 text-[11px] hidden lg:table-cell">
                     <div className="flex flex-wrap gap-1">
-                      {r.ranking.slice(0, 5).map((c, idx) => (
+                      {op.rebalance.ranking.slice(0, 5).map((c, idx) => (
                         <span
                           key={c.ticker}
                           className={`px-1.5 py-0.5 rounded font-mono ${
@@ -408,11 +833,14 @@ function Metric({
   value,
   color,
   compact,
+  hint,
 }: {
   label: string;
   value: string;
   color?: "emerald" | "red";
   compact?: boolean;
+  /** Tooltip educativo opcional sobre la métrica (se muestra en title HTML). */
+  hint?: string;
 }) {
   const colorClass =
     color === "emerald"
@@ -421,9 +849,19 @@ function Metric({
       ? "text-red-600"
       : "text-brand-navy";
   return (
-    <div className={`rounded-lg bg-slate-50 ${compact ? "p-3" : "p-4"}`}>
-      <p className="text-[10px] sm:text-[11px] font-medium text-brand-tertiary uppercase tracking-wider mb-1">
+    <div
+      className={`rounded-lg bg-slate-50 ${compact ? "p-3" : "p-4"} ${
+        hint ? "cursor-help" : ""
+      }`}
+      title={hint}
+    >
+      <p className="text-[10px] sm:text-[11px] font-medium text-brand-tertiary uppercase tracking-wider mb-1 flex items-center gap-1">
         {label}
+        {hint && (
+          <span className="text-brand-tertiary/60" aria-hidden="true">
+            ⓘ
+          </span>
+        )}
       </p>
       <p className={`${compact ? "text-base" : "text-lg sm:text-xl"} font-bold font-serif ${colorClass}`}>
         {value}

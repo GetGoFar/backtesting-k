@@ -160,6 +160,29 @@ export interface MomentumAnnualReturn {
   finalValue: number;
 }
 
+/**
+ * Ranking "vivo" — calculado en el momento del último dato disponible,
+ * AUNQUE no toque rebalanceo. Útil para que el usuario vea si las posiciones
+ * cambiarían si el rebalanceo se ejecutara HOY (p.ej. en una estrategia
+ * trimestral, ver el ranking mensual intermedio).
+ */
+export interface MomentumLiveRanking {
+  /** Mes señal usado (último mes con datos completos). */
+  signalMonth: string;
+  /** Qué tickers se sostendrían si rebalanceáramos HOY. */
+  holdings: string[];
+  /** True si todos los candidatos top-K están por debajo de la MA. */
+  forcedCash: boolean;
+  /** Ranking completo, mismo formato que `MomentumRebalance.ranking`. */
+  ranking: Array<{
+    ticker: string;
+    momentumPercent: number;
+    volatilityPercent?: number;
+    score: number;
+    aboveMA: boolean;
+  }>;
+}
+
 export interface MomentumResponse {
   config: MomentumConfig;
   equityCurve: MomentumEquityPoint[];
@@ -169,6 +192,8 @@ export interface MomentumResponse {
   /** Benchmark equity curve si benchmarkTicker está definido. */
   benchmarkCurve?: MomentumEquityPoint[];
   benchmarkMetrics?: MomentumMetrics;
+  /** Ranking actual "vivo" — siempre presente si hay datos suficientes. */
+  liveRanking?: MomentumLiveRanking;
   /** Avisos no fatales — p.ej. ticker sin datos, lookback ajustado, etc. */
   warnings: string[];
 }

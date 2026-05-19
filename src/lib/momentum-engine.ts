@@ -42,6 +42,7 @@ import type {
   MomentumMetrics,
   MomentumAnnualReturn,
   MomentumAsset,
+  MomentumLiveRanking,
 } from "./momentum-types";
 
 // -----------------------------------------------------------------------------
@@ -541,7 +542,98 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
   // Para fechas mostradas usamos el primer activo (o el benchmark) como referencia
   const referenceSeries = seriesPerAsset.values().next().value as AssetSeries;
 
-  // 4. Bucle mensual
+  // 4. Helper: calcula el ranking + holdings que resultarían si rebalanceásemos
+  //    en el mes señal `signalMonth`. Encapsula la lógica de candidatos +
+  //    aplicación de pesos para reutilizarla tanto en el bucle principal como
+  //    en el cálculo del "liveRanking" final.
+  type Candidate = {
+    ticker: string;
+    mom: number;
+    vol: number | null;
+    score: number;
+    aboveMA: boolean;
+  };
+  function computeRankingAt(signalMonth: string): {
+    candidates: Candidate[];
+    newHoldings: string[];
+    newWeights: Map<string, number>;
+    forcedCash: boolean;
+  } {
+    const candidates: Candidate[] = [];
+    for (const [ticker, series] of seriesPerAsset) {
+      const mom = momentumAt(
+        series.monthlyClose,
+        signalMonth,
+        config.lookbackMonths,
+        config.excludePreviousMonth
+      );
+      if (mom === null) continue;
+
+      let vol: number | null = null;
+      if (rankingMethod === "sharpe" || config.weighting === "volatility") {
+        vol = volatilityAt(series.daily, signalMonth, volPeriod);
+      }
+
+      const score =
+        rankingMethod === "sharpe"
+          ? vol && vol > 0
+            ? mom / vol
+            : -Infinity
+          : mom;
+
+      let aboveMA = true;
+      if (config.movingAverageMonths && config.movingAverageMonths > 0) {
+        const ma = movingAverage(
+          series.monthlyClose,
+          signalMonth,
+          config.movingAverageMonths
+        );
+        const currentPrice = series.monthlyClose.get(signalMonth);
+        aboveMA = ma !== null && currentPrice !== undefined && currentPrice > ma;
+      }
+
+      candidates.push({ ticker, mom, vol, score, aboveMA });
+    }
+
+    candidates.sort((a, b) => b.score - a.score);
+    const topK = candidates.slice(0, config.assetsToHold);
+    const passing = config.movingAverageMonths
+      ? topK.filter((c) => c.aboveMA)
+      : topK;
+    const forcedCash =
+      config.movingAverageMonths != null && passing.length === 0;
+
+    const newHoldings = forcedCash ? ["CASH"] : passing.map((c) => c.ticker);
+    const newWeights = new Map<string, number>();
+    if (forcedCash) {
+      newWeights.set("CASH", 1);
+    } else if (config.weighting === "rank") {
+      const N = passing.length;
+      const totalRank = (N * (N + 1)) / 2;
+      passing.forEach((c, i) => {
+        newWeights.set(c.ticker, (N - i) / totalRank);
+      });
+    } else if (config.weighting === "volatility") {
+      const vols = passing.map((c) => ({
+        ticker: c.ticker,
+        inv: c.vol && c.vol > 0 ? 1 / c.vol : 0,
+      }));
+      const sumInv = vols.reduce((s, v) => s + v.inv, 0);
+      if (sumInv > 0) {
+        for (const v of vols) newWeights.set(v.ticker, v.inv / sumInv);
+      } else {
+        const w = 1 / passing.length;
+        for (const c of passing) newWeights.set(c.ticker, w);
+      }
+    } else {
+      const w = 1 / Math.max(1, passing.length);
+      for (const c of passing) newWeights.set(c.ticker, w);
+    }
+
+    return { candidates, newHoldings, newWeights, forcedCash };
+  }
+
+  // 5. Bucle mensual
   let currentValue = config.initialAmount;
   let currentWeights = new Map<string, number>();
   let currentHoldings: string[] = [];
@@ -586,83 +678,8 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
     //      iteración — empezarán a generar retorno en la siguiente.
     if (isRebalanceMonth) {
       const signalMonth = month;
-      const candidates: Array<{
-        ticker: string;
-        mom: number;
-        vol: number | null;
-        score: number;
-        aboveMA: boolean;
-      }> = [];
-
-      for (const [ticker, series] of seriesPerAsset) {
-        const mom = momentumAt(
-          series.monthlyClose,
-          signalMonth,
-          config.lookbackMonths,
-          config.excludePreviousMonth
-        );
-        if (mom === null) continue;
-
-        let vol: number | null = null;
-        if (rankingMethod === "sharpe" || config.weighting === "volatility") {
-          vol = volatilityAt(series.daily, signalMonth, volPeriod);
-        }
-
-        const score =
-          rankingMethod === "sharpe"
-            ? vol && vol > 0
-              ? mom / vol
-              : -Infinity
-            : mom;
-
-        let aboveMA = true;
-        if (config.movingAverageMonths && config.movingAverageMonths > 0) {
-          const ma = movingAverage(
-            series.monthlyClose,
-            signalMonth,
-            config.movingAverageMonths
-          );
-          const currentPrice = series.monthlyClose.get(signalMonth);
-          aboveMA = ma !== null && currentPrice !== undefined && currentPrice > ma;
-        }
-
-        candidates.push({ ticker, mom, vol, score, aboveMA });
-      }
-
-      candidates.sort((a, b) => b.score - a.score);
-      const topK = candidates.slice(0, config.assetsToHold);
-      const passing = config.movingAverageMonths
-        ? topK.filter((c) => c.aboveMA)
-        : topK;
-      const forcedCash =
-        config.movingAverageMonths != null && passing.length === 0;
-
-      const newHoldings = forcedCash ? ["CASH"] : passing.map((c) => c.ticker);
-      const newWeights = new Map<string, number>();
-      if (forcedCash) {
-        newWeights.set("CASH", 1);
-      } else if (config.weighting === "rank") {
-        const N = passing.length;
-        const totalRank = (N * (N + 1)) / 2;
-        passing.forEach((c, i) => {
-          newWeights.set(c.ticker, (N - i) / totalRank);
-        });
-      } else if (config.weighting === "volatility") {
-        const vols = passing.map((c) => ({
-          ticker: c.ticker,
-          inv: c.vol && c.vol > 0 ? 1 / c.vol : 0,
-        }));
-        const sumInv = vols.reduce((s, v) => s + v.inv, 0);
-        if (sumInv > 0) {
-          for (const v of vols) newWeights.set(v.ticker, v.inv / sumInv);
-        } else {
-          const w = 1 / passing.length;
-          for (const c of passing) newWeights.set(c.ticker, w);
-        }
-      } else {
-        const w = 1 / Math.max(1, passing.length);
-        for (const c of passing) newWeights.set(c.ticker, w);
-      }
+      const { candidates, newHoldings, newWeights, forcedCash } =
+        computeRankingAt(signalMonth);
 
       const prevSet = new Set(currentHoldings);
       const newSet = new Set(newHoldings);
@@ -732,6 +749,33 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
     }
   }
 
+  // 7. Ranking ACTUAL / VIVO — siempre calculado con el último mes disponible,
+  //    AUNQUE no sea mes de rebalanceo. Útil para que el usuario vea si las
+  //    posiciones cambiarían si rebalanceáramos hoy (p.ej. en estrategia
+  //    trimestral, ver el ranking mensual intermedio).
+  let liveRanking: MomentumLiveRanking | undefined;
+  try {
+    const liveSignalMonth = effectiveEndMonth;
+    const live = computeRankingAt(liveSignalMonth);
+    if (live.candidates.length > 0) {
+      liveRanking = {
+        signalMonth: liveSignalMonth,
+        holdings: live.newHoldings,
+        forcedCash: live.forcedCash,
+        ranking: live.candidates.map((c) => ({
+          ticker: c.ticker,
+          momentumPercent: c.mom * 100,
+          volatilityPercent: c.vol !== null ? c.vol * 100 : undefined,
+          score: c.score,
+          aboveMA: c.aboveMA,
+        })),
+      };
+    }
+  } catch {
+    // Si por algún motivo no se puede calcular, lo dejamos undefined
+    // y el frontend simplemente no muestra la sección.
+  }
+
   return {
     config,
     equityCurve,
@@ -740,6 +784,7 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
     annualReturns,
     benchmarkCurve,
     benchmarkMetrics,
+    liveRanking,
     warnings,
   };
 }
