@@ -459,8 +459,14 @@ export function MomentumResultsView({ results }: Props) {
               </h3>
               <p className="text-xs text-brand-tertiary mt-1">
                 Posiciones que se sostendrían si el rebalanceo se ejecutara HOY,
-                con el último mes con datos completos ({results.liveRanking.signalMonth}) como señal.
-                Útil para anticipar si las posiciones cambiarán en el próximo cierre de mes.
+                usando datos diarios desde{" "}
+                <span className="font-mono">{results.liveRanking.startDate}</span> hasta{" "}
+                <span className="font-mono">{results.liveRanking.signalDate}</span>.
+                Replica la página <em>Model Signals</em> de Portfoliovisualizer:
+                no excluye el mes en curso y usa el último precio diario disponible.
+                Pequeñas diferencias frente a PV pueden deberse a la fuente de
+                datos (PV usa Yahoo; aquí EODHD por defecto — cámbialo con el
+                engranaje del header si quieres alinear exactamente).
               </p>
             </div>
             <div className="text-right">

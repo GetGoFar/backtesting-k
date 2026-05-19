@@ -167,8 +167,14 @@ export interface MomentumAnnualReturn {
  * trimestral, ver el ranking mensual intermedio).
  */
 export interface MomentumLiveRanking {
-  /** Mes señal usado (último mes con datos completos). */
-  signalMonth: string;
+  /**
+   * Fecha del último dato disponible usado como cierre del cálculo
+   * ("YYYY-MM-DD"). Equivale al "Signal Date" de la página Model Signals
+   * de Portfoliovisualizer.
+   */
+  signalDate: string;
+  /** Fecha aproximada usada como inicio del lookback (~lookbackMonths atrás). */
+  startDate: string;
   /** Qué tickers se sostendrían si rebalanceáramos HOY. */
   holdings: string[];
   /** True si todos los candidatos top-K están por debajo de la MA. */

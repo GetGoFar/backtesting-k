@@ -553,19 +553,28 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
     score: number;
     aboveMA: boolean;
   };
-  function computeRankingAt(signalMonth: string): {
+  function computeRankingAt(
+    signalMonth: string,
+    options?: { excludePrevOverride?: boolean }
+  ): {
     candidates: Candidate[];
     newHoldings: string[];
     newWeights: Map<string, number>;
     forcedCash: boolean;
   } {
+    // Para el liveRanking pasamos excludePrevOverride=false: queremos que el
+    // ranking actual incluya el mes en curso (igual que hace Portfoliovisualizer
+    // en su página "Model Signals", que usa el dato más reciente sin
+    // exclusiones). Para los rebalanceos históricos respetamos config.
+    const excludePrev =
+      options?.excludePrevOverride ?? config.excludePreviousMonth;
     const candidates: Candidate[] = [];
     for (const [ticker, series] of seriesPerAsset) {
       const mom = momentumAt(
         series.monthlyClose,
         signalMonth,
         config.lookbackMonths,
-        config.excludePreviousMonth
+        excludePrev
       );
       if (mom === null) continue;
 
@@ -749,27 +758,141 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
     }
   }
 
-  // 7. Ranking ACTUAL / VIVO — siempre calculado con el último mes disponible,
-  //    AUNQUE no sea mes de rebalanceo. Útil para que el usuario vea si las
-  //    posiciones cambiarían si rebalanceáramos hoy (p.ej. en estrategia
-  //    trimestral, ver el ranking mensual intermedio).
+  // 7. Ranking ACTUAL / VIVO — replica EXACTA de la página "Model Signals" de
+  //    Portfoliovisualizer. A diferencia del backtest histórico (que trabaja
+  //    en granularidad mensual y opcionalmente excluye el mes anterior), PV
+  //    calcula su Model Signal usando datos DIARIOS:
+  //
+  //      end   = último precio diario disponible (hoy)
+  //      start = precio del día más cercano a (hoy − lookbackMonths)
+  //
+  //    Esto garantiza que el "ranking vivo" muestre exactamente los mismos
+  //    números que el usuario ve en PV — sin la desviación que introduce
+  //    el alineamiento mensual ni la exclusión del mes en curso.
   let liveRanking: MomentumLiveRanking | undefined;
   try {
-    const liveSignalMonth = effectiveEndMonth;
-    const live = computeRankingAt(liveSignalMonth);
-    if (live.candidates.length > 0) {
-      liveRanking = {
-        signalMonth: liveSignalMonth,
-        holdings: live.newHoldings,
-        forcedCash: live.forcedCash,
-        ranking: live.candidates.map((c) => ({
-          ticker: c.ticker,
-          momentumPercent: c.mom * 100,
-          volatilityPercent: c.vol !== null ? c.vol * 100 : undefined,
-          score: c.score,
-          aboveMA: c.aboveMA,
-        })),
+    // 7.1. Encontrar la fecha de señal: la EARLIEST de las "últimas fechas"
+    //      de cada activo, para que todos tengan dato a esa fecha.
+    const latestPerAsset: string[] = [];
+    for (const series of seriesPerAsset.values()) {
+      const dates = Array.from(series.daily.keys()).sort();
+      if (dates.length > 0) latestPerAsset.push(dates[dates.length - 1]!);
+    }
+    if (latestPerAsset.length > 0) {
+      latestPerAsset.sort();
+      const signalDate = latestPerAsset[0]!;
+
+      // 7.2. Fecha de inicio del lookback (signalDate - lookbackMonths)
+      const startD = new Date(signalDate);
+      startD.setUTCMonth(startD.getUTCMonth() - config.lookbackMonths);
+      const startDateTarget = startD.toISOString().slice(0, 10);
+      let firstFoundStart: string | null = null;
+
+      // 7.3. Calcular momentum + vol + MA por activo usando datos diarios
+      type LiveCandidate = {
+        ticker: string;
+        mom: number;
+        vol: number | null;
+        score: number;
+        aboveMA: boolean;
       };
+      const liveCandidates: LiveCandidate[] = [];
+
+      for (const [ticker, series] of seriesPerAsset) {
+        const sortedDates = Array.from(series.daily.keys()).sort();
+
+        // Precio final: último dato <= signalDate
+        let endIdx = -1;
+        for (let i = sortedDates.length - 1; i >= 0; i--) {
+          if (sortedDates[i]! <= signalDate) {
+            endIdx = i;
+            break;
+          }
+        }
+        if (endIdx < 0) continue;
+        const endPrice = series.daily.get(sortedDates[endIdx]!)!;
+
+        // Precio inicial: primer dato >= startDateTarget
+        let startPrice: number | undefined;
+        let startDateFound: string | undefined;
+        for (const d of sortedDates) {
+          if (d >= startDateTarget) {
+            startPrice = series.daily.get(d);
+            startDateFound = d;
+            break;
+          }
+        }
+        if (!startPrice || startPrice <= 0 || !startDateFound) continue;
+        if (firstFoundStart === null) firstFoundStart = startDateFound;
+
+        const mom = endPrice / startPrice - 1;
+
+        // Volatilidad: ventana de volPeriod × 21 días hábiles que termina
+        // EN endIdx (= signalDate). Mismo cálculo que volatilityAt pero
+        // anclado al día concreto, no al fin de mes.
+        let vol: number | null = null;
+        if (rankingMethod === "sharpe" || config.weighting === "volatility") {
+          const windowSize = volPeriod * 21;
+          const volStartIdx = Math.max(0, endIdx - windowSize + 1);
+          const datesInWindow = sortedDates.slice(volStartIdx, endIdx + 1);
+          const rets: number[] = [];
+          for (let i = 1; i < datesInWindow.length; i++) {
+            const prev = series.daily.get(datesInWindow[i - 1]!)!;
+            const curr = series.daily.get(datesInWindow[i]!)!;
+            if (prev > 0) rets.push(curr / prev - 1);
+          }
+          if (rets.length >= 5) vol = annualizeStdDev(rets, 252);
+        }
+
+        const score =
+          rankingMethod === "sharpe"
+            ? vol && vol > 0
+              ? mom / vol
+              : -Infinity
+            : mom;
+
+        // MA filter: mantenemos coherencia con el motor — usa la MA mensual
+        // del último mes con datos.
+        let aboveMA = true;
+        if (config.movingAverageMonths && config.movingAverageMonths > 0) {
+          const ma = movingAverage(
+            series.monthlyClose,
+            signalDate.substring(0, 7),
+            config.movingAverageMonths
+          );
+          aboveMA = ma !== null && endPrice > ma;
+        }
+
+        liveCandidates.push({ ticker, mom, vol, score, aboveMA });
+      }
+
+      // 7.4. Ordenar y aplicar filtros top-K + MA + ponderación
+      liveCandidates.sort((a, b) => b.score - a.score);
+      const liveTopK = liveCandidates.slice(0, config.assetsToHold);
+      const livePassing = config.movingAverageMonths
+        ? liveTopK.filter((c) => c.aboveMA)
+        : liveTopK;
+      const liveForcedCash =
+        config.movingAverageMonths != null && livePassing.length === 0;
+      const liveHoldings = liveForcedCash
+        ? ["CASH"]
+        : livePassing.map((c) => c.ticker);
+
+      if (liveCandidates.length > 0) {
+        liveRanking = {
+          signalDate,
+          startDate: firstFoundStart ?? startDateTarget,
+          holdings: liveHoldings,
+          forcedCash: liveForcedCash,
+          ranking: liveCandidates.map((c) => ({
+            ticker: c.ticker,
+            momentumPercent: c.mom * 100,
+            volatilityPercent: c.vol !== null ? c.vol * 100 : undefined,
+            score: c.score,
+            aboveMA: c.aboveMA,
+          })),
+        };
+      }
     }
   } catch {
     // Si por algún motivo no se puede calcular, lo dejamos undefined
