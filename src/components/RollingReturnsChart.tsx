@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import type { BacktestResponse } from "@/lib/types";
 import { formatDateLabel, formatNumber } from "@/lib/formatters";
+import { getDisambiguatedPortfolioNames } from "@/lib/chart-naming";
 
 // Colores para las carteras
 const COLORS = {
@@ -127,6 +128,8 @@ export function RollingReturnsChart({ results, isLoading }: RollingReturnsChartP
 
   const resultA = results.resultA;
   const resultB = results.resultB;
+  // Desambiguación de nombres si A y B comparten portfolioName.
+  const { nameA, nameB } = getDisambiguatedPortfolioNames(resultA, resultB);
 
   // Obtener los datos según la ventana seleccionada
   const getWindowData = (window: RollingWindow) => {
@@ -159,7 +162,7 @@ export function RollingReturnsChart({ results, isLoading }: RollingReturnsChartP
       dataMap.set(point.date, {
         date: point.date,
         exactDate: point.exactDate || point.date,
-        [resultA.portfolioName]: point.value * 100, // Convertir a porcentaje
+        [nameA]: point.value * 100, // Convertir a porcentaje
       });
     }
   }
@@ -168,12 +171,12 @@ export function RollingReturnsChart({ results, isLoading }: RollingReturnsChartP
     for (const point of windowData.b) {
       const entry = dataMap.get(point.date);
       if (entry) {
-        entry[resultB.portfolioName] = point.value * 100;
+        entry[nameB] = point.value * 100;
       } else {
         dataMap.set(point.date, {
           date: point.date,
           exactDate: point.exactDate || point.date,
-          [resultB.portfolioName]: point.value * 100,
+          [nameB]: point.value * 100,
         });
       }
     }
@@ -309,8 +312,8 @@ export function RollingReturnsChart({ results, isLoading }: RollingReturnsChartP
             {resultA && (
               <Line
                 type="monotone"
-                dataKey={resultA.portfolioName}
-                name={resultA.portfolioName}
+                dataKey={nameA}
+                name={nameA}
                 stroke={COLORS.a}
                 strokeWidth={2}
                 dot={false}
@@ -320,8 +323,8 @@ export function RollingReturnsChart({ results, isLoading }: RollingReturnsChartP
             {resultB && (
               <Line
                 type="monotone"
-                dataKey={resultB.portfolioName}
-                name={resultB.portfolioName}
+                dataKey={nameB}
+                name={nameB}
                 stroke={COLORS.b}
                 strokeWidth={2}
                 dot={false}

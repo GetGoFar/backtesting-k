@@ -16,6 +16,7 @@ import type { BacktestResponse, BacktestResult, RebalanceEvent } from "@/lib/typ
 import type { ValueMode } from "./MetricsTable";
 import { computeTaxOnGain, type TaxMode } from "@/lib/tax-utils";
 import { formatEUR, formatDateLabel } from "@/lib/formatters";
+import { getDisambiguatedPortfolioNames } from "@/lib/chart-naming";
 
 // Colores para las carteras
 const COLORS = {
@@ -267,6 +268,11 @@ export function PerformanceChart({ results, isLoading, valueMode = "camino" }: P
   const benchmarkSeriesRaw = benchmark?.benchmarkTimeSeries ?? [];
   const benchmarkName = benchmark?.benchmarkName ?? "";
 
+  // Si los dos slots tienen el mismo `portfolioName` (típico cuando el usuario
+  // compara la MISMA cartera con rebalanceos distintos), desambiguamos para
+  // que Recharts no colapse las dos líneas en una sola. Helper compartido.
+  const { nameA, nameB } = getDisambiguatedPortfolioNames(resultA, resultB);
+
   // Construir set de fechas válidas (las que aparecen en al menos una cartera)
   // para limitar el benchmark a ese rango y evitar la "cola extra" inicial cuando
   // el benchmark tiene datos anteriores al inicio real de las carteras.
@@ -345,7 +351,7 @@ export function PerformanceChart({ results, isLoading, valueMode = "camino" }: P
       dataMap.set(point.date, {
         date: point.date,
         exactDate: point.exactDate || point.date,
-        [resultA.portfolioName]: scaledValue,
+        [nameA]: scaledValue,
       });
     }
   }
@@ -355,12 +361,12 @@ export function PerformanceChart({ results, isLoading, valueMode = "camino" }: P
       const scaledValue = seriesB.get(point.date) ?? point.value;
       const entry = dataMap.get(point.date);
       if (entry) {
-        entry[resultB.portfolioName] = scaledValue;
+        entry[nameB] = scaledValue;
       } else {
         dataMap.set(point.date, {
           date: point.date,
           exactDate: point.exactDate || point.date,
-          [resultB.portfolioName]: scaledValue,
+          [nameB]: scaledValue,
         });
       }
     }
@@ -462,8 +468,8 @@ export function PerformanceChart({ results, isLoading, valueMode = "camino" }: P
           date: anchorMonthKey,
           exactDate: `${anchorMonthKey}-28`,
         };
-        if (resultA) anchorEntry[resultA.portfolioName] = initialAmount;
-        if (resultB) anchorEntry[resultB.portfolioName] = initialAmount;
+        if (resultA) anchorEntry[nameA] = initialAmount;
+        if (resultB) anchorEntry[nameB] = initialAmount;
         if (hasBenchmark && benchmarkName) anchorEntry[benchmarkName] = initialAmount;
         // No sobreescribimos si ya hay algo en esa fecha (caso raro)
         if (!dataMap.has(anchorMonthKey)) {
@@ -527,7 +533,7 @@ export function PerformanceChart({ results, isLoading, valueMode = "camino" }: P
         const cd = mapRebalanceDateToChartDate(ev.date, chartDates);
         if (cd) markers.push({
           chartDate: cd, color: COLORS.a, portfolio: "a",
-          portfolioName: resultA.portfolioName, event: ev,
+          portfolioName: nameA, event: ev,
         });
       }
     }
@@ -537,7 +543,7 @@ export function PerformanceChart({ results, isLoading, valueMode = "camino" }: P
         const cd = mapRebalanceDateToChartDate(ev.date, chartDates);
         if (cd) markers.push({
           chartDate: cd, color: COLORS.b, portfolio: "b",
-          portfolioName: resultB.portfolioName, event: ev,
+          portfolioName: nameB, event: ev,
         });
       }
     }
@@ -651,8 +657,8 @@ export function PerformanceChart({ results, isLoading, valueMode = "camino" }: P
             {resultA && (
               <Line
                 type="monotone"
-                dataKey={resultA.portfolioName}
-                name={resultA.portfolioName}
+                dataKey={nameA}
+                name={nameA}
                 stroke={COLORS.a}
                 strokeWidth={2}
                 dot={false}
@@ -662,8 +668,8 @@ export function PerformanceChart({ results, isLoading, valueMode = "camino" }: P
             {resultB && (
               <Line
                 type="monotone"
-                dataKey={resultB.portfolioName}
-                name={resultB.portfolioName}
+                dataKey={nameB}
+                name={nameB}
                 stroke={COLORS.b}
                 strokeWidth={2}
                 dot={false}

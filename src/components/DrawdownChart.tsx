@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import type { BacktestResponse } from "@/lib/types";
 import { formatDateLabel, formatNumber } from "@/lib/formatters";
+import { getDisambiguatedPortfolioNames } from "@/lib/chart-naming";
 
 // Colores para las carteras (con transparencia para áreas)
 const COLORS = {
@@ -113,6 +114,9 @@ export function DrawdownChart({ results, isLoading }: DrawdownChartProps) {
 
   const resultA = results.resultA;
   const resultB = results.resultB;
+  // Si ambas tienen el mismo nombre (mismo preset en los dos slots), evitamos
+  // que Recharts colapse las dos áreas en una sola.
+  const { nameA, nameB } = getDisambiguatedPortfolioNames(resultA, resultB);
 
   // Combinar datos de las carteras disponibles por fecha
   const dataMap = new Map<string, Record<string, number | string>>();
@@ -122,7 +126,7 @@ export function DrawdownChart({ results, isLoading }: DrawdownChartProps) {
       dataMap.set(point.date, {
         date: point.date,
         exactDate: point.exactDate || point.date,
-        [resultA.portfolioName]: point.drawdown,
+        [nameA]: point.drawdown,
       });
     }
   }
@@ -131,12 +135,12 @@ export function DrawdownChart({ results, isLoading }: DrawdownChartProps) {
     for (const point of resultB.drawdowns) {
       const entry = dataMap.get(point.date);
       if (entry) {
-        entry[resultB.portfolioName] = point.drawdown;
+        entry[nameB] = point.drawdown;
       } else {
         dataMap.set(point.date, {
           date: point.date,
           exactDate: point.exactDate || point.date,
-          [resultB.portfolioName]: point.drawdown,
+          [nameB]: point.drawdown,
         });
       }
     }
@@ -214,8 +218,8 @@ export function DrawdownChart({ results, isLoading }: DrawdownChartProps) {
             {resultA && (
               <Area
                 type="monotone"
-                dataKey={resultA.portfolioName}
-                name={resultA.portfolioName}
+                dataKey={nameA}
+                name={nameA}
                 stroke={COLORS.a.stroke}
                 fill="url(#gradientA)"
                 strokeWidth={2}
@@ -224,8 +228,8 @@ export function DrawdownChart({ results, isLoading }: DrawdownChartProps) {
             {resultB && (
               <Area
                 type="monotone"
-                dataKey={resultB.portfolioName}
-                name={resultB.portfolioName}
+                dataKey={nameB}
+                name={nameB}
                 stroke={COLORS.b.stroke}
                 fill="url(#gradientB)"
                 strokeWidth={2}

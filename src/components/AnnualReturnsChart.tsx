@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import type { BacktestResponse } from "@/lib/types";
 import { formatNumber } from "@/lib/formatters";
+import { getDisambiguatedPortfolioNames } from "@/lib/chart-naming";
 
 // Colores para las carteras
 const COLORS = {
@@ -108,6 +109,9 @@ export function AnnualReturnsChart({ results, isLoading }: AnnualReturnsChartPro
 
   const resultA = results.resultA;
   const resultB = results.resultB;
+  // Si ambas tienen el mismo nombre (mismo preset en los dos slots), evitamos
+  // que Recharts colapse las dos barras en una sola.
+  const { nameA, nameB } = getDisambiguatedPortfolioNames(resultA, resultB);
 
   // Combinar datos de las carteras disponibles por año
   const dataMap = new Map<number, Record<string, number>>();
@@ -116,7 +120,7 @@ export function AnnualReturnsChart({ results, isLoading }: AnnualReturnsChartPro
     for (const annual of resultA.annualReturns) {
       dataMap.set(annual.year, {
         year: annual.year,
-        [resultA.portfolioName]: annual.returnPct,
+        [nameA]: annual.returnPct,
       });
     }
   }
@@ -125,11 +129,11 @@ export function AnnualReturnsChart({ results, isLoading }: AnnualReturnsChartPro
     for (const annual of resultB.annualReturns) {
       const entry = dataMap.get(annual.year);
       if (entry) {
-        entry[resultB.portfolioName] = annual.returnPct;
+        entry[nameB] = annual.returnPct;
       } else {
         dataMap.set(annual.year, {
           year: annual.year,
-          [resultB.portfolioName]: annual.returnPct,
+          [nameB]: annual.returnPct,
         });
       }
     }
@@ -186,8 +190,8 @@ export function AnnualReturnsChart({ results, isLoading }: AnnualReturnsChartPro
             <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1} />
             {resultA && (
               <Bar
-                dataKey={resultA.portfolioName}
-                name={resultA.portfolioName}
+                dataKey={nameA}
+                name={nameA}
                 fill={COLORS.a}
                 radius={[4, 4, 0, 0]}
               >
@@ -195,7 +199,7 @@ export function AnnualReturnsChart({ results, isLoading }: AnnualReturnsChartPro
                   <Cell
                     key={`cell-a-${index}`}
                     fill={
-                      (entry[resultA.portfolioName] ?? 0) >= 0
+                      (entry[nameA] ?? 0) >= 0
                         ? COLORS.a
                         : "#93c5fd"
                     }
@@ -205,8 +209,8 @@ export function AnnualReturnsChart({ results, isLoading }: AnnualReturnsChartPro
             )}
             {resultB && (
               <Bar
-                dataKey={resultB.portfolioName}
-                name={resultB.portfolioName}
+                dataKey={nameB}
+                name={nameB}
                 fill={COLORS.b}
                 radius={[4, 4, 0, 0]}
               >
@@ -214,7 +218,7 @@ export function AnnualReturnsChart({ results, isLoading }: AnnualReturnsChartPro
                   <Cell
                     key={`cell-b-${index}`}
                     fill={
-                      (entry[resultB.portfolioName] ?? 0) >= 0
+                      (entry[nameB] ?? 0) >= 0
                         ? COLORS.b
                         : "#fda4af"
                     }
