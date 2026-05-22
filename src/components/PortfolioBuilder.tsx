@@ -407,13 +407,17 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
       // 2) Reescalar pesos del preset para que sumen satelliteWeight
       const presetScale = satelliteWeight / presetTotal;
 
-      // Mapa fundId → allocation final (combinando duplicados si los hay)
+      // Mapa fundId → allocation final (combinando duplicados si los hay).
+      // IMPORTANTE: preservamos `momentumConfig` al merger — si no, al
+      // añadir un preset de momentum como satélite la config se pierde
+      // y el backend rechaza el holding por falta de ticker Yahoo.
       const merged = new Map<string, FundAllocation>();
 
       for (const a of allocations) {
         merged.set(a.fund.id, {
           fund: a.fund,
           weight: Math.round(a.weight * existingScale * 100) / 100,
+          ...(a.momentumConfig ? { momentumConfig: a.momentumConfig } : {}),
         });
       }
 
@@ -424,9 +428,20 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
           merged.set(a.fund.id, {
             fund: a.fund,
             weight: Math.round((existing.weight + scaledWeight) * 100) / 100,
+            // El preset gana en momentumConfig si lo trae (es la rama nueva);
+            // si no, mantenemos la del existing.
+            ...(a.momentumConfig
+              ? { momentumConfig: a.momentumConfig }
+              : existing.momentumConfig
+              ? { momentumConfig: existing.momentumConfig }
+              : {}),
           });
         } else {
-          merged.set(a.fund.id, { fund: a.fund, weight: scaledWeight });
+          merged.set(a.fund.id, {
+            fund: a.fund,
+            weight: scaledWeight,
+            ...(a.momentumConfig ? { momentumConfig: a.momentumConfig } : {}),
+          });
         }
       }
 
