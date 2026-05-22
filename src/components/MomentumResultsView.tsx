@@ -430,13 +430,43 @@ export function MomentumResultsView({ results, idSuffix = "" }: Props) {
       {(() => {
         const monthSeries: MonthlySeries[] = [];
         const initialAmount = results.config.initialAmount;
+
+        // En nextClose mode el motor data cada equity point con la fecha del
+        // PRIMER CIERRE del mes SIGUIENTE (= firstClose[M+1]). Eso significa
+        // que el retorno entre dos puntos consecutivos representa la subida/
+        // bajada del MES ANTERIOR a la fecha del punto destino. Si no
+        // corregimos, el heatmap etiqueta cada retorno con el mes que viene
+        // (un mes adelantado): un retorno que materialmente sucedió en abril
+        // se mostraría en la celda "MAY" — confuso.
+        //
+        // Fix: para puntos canónicos (día 1–7 del mes, todos los nextClose
+        // canónicos caen ahí) retrocedemos el monthKey un mes. El último
+        // punto que añade nuestro "future-fix" cuando el mes en curso no
+        // tiene firstClose del siguiente sale con fecha = HOY (mid-mes) —
+        // a ése NO lo retrocedemos: su mes representa el mes en curso
+        // parcial (MTD).
+        const isNextClose =
+          (results.config.tradeExecution ?? "lastClose") === "nextClose";
+        function adjustedMonthKey(date: string): string {
+          if (!isNextClose) return date.substring(0, 7);
+          const day = parseInt(date.substring(8, 10), 10);
+          // Día > 7 = punto NO canónico (TODAY mid-mes en nextClose) → no shift
+          if (!isFinite(day) || day > 7) return date.substring(0, 7);
+          const [y, m] = date.substring(0, 7).split("-").map(Number);
+          const adj = new Date(Date.UTC(y!, m! - 1, 1));
+          adj.setUTCMonth(adj.getUTCMonth() - 1);
+          const yy = adj.getUTCFullYear();
+          const mm = (adj.getUTCMonth() + 1).toString().padStart(2, "0");
+          return `${yy}-${mm}`;
+        }
+
         if (results.equityCurve.length > 0) {
           monthSeries.push({
             label: "Estrategia",
             accentClass: "text-rose-600",
             initialValue: initialAmount,
             monthlyValues: results.equityCurve.map((p) => ({
-              monthKey: p.date.substring(0, 7),
+              monthKey: adjustedMonthKey(p.date),
               value: p.value,
             })),
           });
@@ -447,7 +477,7 @@ export function MomentumResultsView({ results, idSuffix = "" }: Props) {
             accentClass: "text-blue-600",
             initialValue: initialAmount,
             monthlyValues: results.benchmarkCurve.map((p) => ({
-              monthKey: p.date.substring(0, 7),
+              monthKey: adjustedMonthKey(p.date),
               value: p.value,
             })),
           });
