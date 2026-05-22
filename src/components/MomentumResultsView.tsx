@@ -22,6 +22,10 @@ import { MonthlyReturnsHeatmap, type HeatmapSeries as MonthlySeries } from "./Mo
 
 interface Props {
   results: MomentumResponse;
+  /** Sufijo opcional para los IDs de las sub-secciones (p.ej. "-a" o "-b"
+   *  en modo comparación). Permite al sidebar saltar a cada sub-sección
+   *  por estrategia. En modo single, dejar undefined → IDs sin sufijo. */
+  idSuffix?: string;
 }
 
 /** Una "operación" cerrada o en curso: holding period entre dos rebalanceos
@@ -45,7 +49,8 @@ interface Operation {
   isOpen: boolean;
 }
 
-export function MomentumResultsView({ results }: Props) {
+export function MomentumResultsView({ results, idSuffix = "" }: Props) {
+  const sid = (base: string) => `section-${base}${idSuffix}`;
   // Escala Y del gráfico de patrimonio: lineal o logarítmica.
   const [yScale, setYScale] = useState<"linear" | "log">("linear");
 
@@ -216,7 +221,7 @@ export function MomentumResultsView({ results }: Props) {
       )}
 
       {/* Métricas resumen */}
-      <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+      <section id={sid("metrics")} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 scroll-mt-24">
         <h3 className="text-lg font-semibold text-brand-navy font-serif mb-4">Métricas</h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
           <Metric
@@ -293,7 +298,7 @@ export function MomentumResultsView({ results }: Props) {
       </section>
 
       {/* Equity curve */}
-      <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+      <section id={sid("equity")} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 scroll-mt-24">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
           <h3 className="text-lg font-semibold text-brand-navy font-serif">
             Evolución del patrimonio
@@ -411,11 +416,13 @@ export function MomentumResultsView({ results }: Props) {
           });
         }
         return (
-          <AnnualReturnsHeatmap
-            columns={columns}
-            title="Rentabilidades anuales (mapa de calor)"
-            description="Intensidad proporcional al máximo absoluto del rango — los peores años en rojo, los mejores en verde. Pasa el cursor sobre cada celda para ver el detalle."
-          />
+          <div id={sid("annual")} className="scroll-mt-24">
+            <AnnualReturnsHeatmap
+              columns={columns}
+              title="Rentabilidades anuales (mapa de calor)"
+              description="Intensidad proporcional al máximo absoluto del rango — los peores años en rojo, los mejores en verde. Pasa el cursor sobre cada celda para ver el detalle."
+            />
+          </div>
         );
       })()}
 
@@ -447,17 +454,19 @@ export function MomentumResultsView({ results }: Props) {
         }
         if (monthSeries.length === 0) return null;
         return (
-          <MonthlyReturnsHeatmap
-            series={monthSeries}
-            title="Mapa de calor mensual"
-            description="Matriz año × mes. Lee horizontal para ver cómo evolucionó cada año, vertical para detectar estacionalidad. La intensidad se calcula sobre el máximo absoluto MENSUAL — los meses extremos saltan a la vista."
-          />
+          <div id={sid("monthly")} className="scroll-mt-24">
+            <MonthlyReturnsHeatmap
+              series={monthSeries}
+              title="Mapa de calor mensual"
+              description="Matriz año × mes. Lee horizontal para ver cómo evolucionó cada año, vertical para detectar estacionalidad. La intensidad se calcula sobre el máximo absoluto MENSUAL — los meses extremos saltan a la vista."
+            />
+          </div>
         );
       })()}
 
       {/* Ranking ACTUAL VIVO — qué se mantendría si rebalanceáramos hoy */}
       {results.liveRanking && (
-        <section className="bg-white rounded-2xl border border-emerald-200 shadow-sm p-6">
+        <section id={sid("live")} className="bg-white rounded-2xl border border-emerald-200 shadow-sm p-6 scroll-mt-24">
           <div className="flex items-start justify-between flex-wrap gap-3 mb-1">
             <div>
               <h3 className="text-lg font-semibold text-brand-navy font-serif flex items-center gap-2">
@@ -621,7 +630,7 @@ export function MomentumResultsView({ results }: Props) {
 
       {/* Estadísticas de la estrategia — métricas operacionales (no de mercado) */}
       {opStats && (
-        <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+        <section id={sid("stats")} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 scroll-mt-24">
           <h3 className="text-lg font-semibold text-brand-navy font-serif mb-1">
             Estadísticas de la estrategia
           </h3>
@@ -714,7 +723,7 @@ export function MomentumResultsView({ results }: Props) {
       )}
 
       {/* Historial de rotaciones — MÁS RECIENTE PRIMERO, con rentabilidad por op */}
-      <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+      <section id={sid("history")} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 scroll-mt-24">
         <h3 className="text-lg font-semibold text-brand-navy font-serif mb-1">
           Historial de operaciones
         </h3>

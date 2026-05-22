@@ -213,6 +213,8 @@ export default function MomentumPage() {
           <MomentumSidebarNav
             hasResults={hasAnyResults}
             comparisonMode={mode === "ab"}
+            nameA={nameA}
+            nameB={nameB}
           />
 
           <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-8 sm:py-12 max-w-[1600px] mx-auto w-full">
@@ -343,7 +345,7 @@ export default function MomentumPage() {
                     {nameA}
                   </h2>
                 </div>
-                <MomentumResultsView results={resultsA} />
+                <MomentumResultsView results={resultsA} idSuffix="-a" />
               </section>
             )}
             {mode === "ab" && hasResultsB && resultsB && (
@@ -356,7 +358,7 @@ export default function MomentumPage() {
                     {nameB}
                   </h2>
                 </div>
-                <MomentumResultsView results={resultsB} />
+                <MomentumResultsView results={resultsB} idSuffix="-b" />
               </section>
             )}
 
