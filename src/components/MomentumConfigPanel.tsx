@@ -13,9 +13,32 @@ interface Props {
   onChange: (next: MomentumConfig) => void;
   onRun: () => void;
   isLoading: boolean;
+  /** Lado para comparación A/B. Si está definido, cambia el color del header
+   *  y oculta el botón Ejecutar (que pasa a controlarse desde la página). */
+  side?: "a" | "b";
+  /** Nombre legible de la estrategia, mostrado en el header A/B. */
+  strategyName?: string;
+  /** Callback para renombrar la estrategia. */
+  onStrategyNameChange?: (next: string) => void;
 }
 
-export function MomentumConfigPanel({ config, onChange, onRun, isLoading }: Props) {
+// Colores por lado, alineados con los del PortfolioBuilder de la página de
+// backtest (azul navy para A, coral rosa para B). Así A y B son
+// inmediatamente reconocibles entre páginas.
+const SIDE_HEADER_BG: Record<"a" | "b", string> = {
+  a: "bg-brand-navy",
+  b: "bg-brand-coral",
+};
+
+export function MomentumConfigPanel({
+  config,
+  onChange,
+  onRun,
+  isLoading,
+  side,
+  strategyName,
+  onStrategyNameChange,
+}: Props) {
   const [newTicker, setNewTicker] = useState("");
 
   function update<K extends keyof MomentumConfig>(key: K, value: MomentumConfig[K]) {
@@ -139,20 +162,50 @@ export function MomentumConfigPanel({ config, onChange, onRun, isLoading }: Prop
     }
   }
 
+  // Color del header: si estamos en modo A/B usamos el color del lado;
+  // si no, mantenemos el azul navy clásico.
+  const headerBg = side ? SIDE_HEADER_BG[side] : "bg-brand-navy";
+
   return (
     <section className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-      <div className="bg-brand-navy px-6 py-4 flex items-center justify-between">
-        <div>
-          <h3 className="text-white font-semibold font-serif text-lg">Configuración del modelo</h3>
-          <p className="text-xs text-white/70 mt-0.5">Relative Strength · tactical asset allocation</p>
+      <div className={`${headerBg} px-6 py-4 flex items-center justify-between gap-4`}>
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          {side && (
+            <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center text-white font-bold text-sm">
+              {side.toUpperCase()}
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            {side && onStrategyNameChange ? (
+              <input
+                type="text"
+                value={strategyName ?? ""}
+                onChange={(e) => onStrategyNameChange(e.target.value)}
+                className="bg-transparent text-white font-semibold font-serif text-lg w-full focus:outline-none focus:bg-white/10 rounded px-1 -mx-1 placeholder-white/50"
+                placeholder="Nombre de la estrategia"
+              />
+            ) : (
+              <h3 className="text-white font-semibold font-serif text-lg">
+                {strategyName ?? "Configuración del modelo"}
+              </h3>
+            )}
+            <p className="text-xs text-white/70 mt-0.5">
+              Relative Strength · tactical asset allocation
+            </p>
+          </div>
         </div>
-        <button
-          onClick={onRun}
-          disabled={isLoading || config.assets.length < 2}
-          className="px-5 py-2 bg-brand-coral text-white text-sm font-semibold rounded-lg hover:bg-brand-coral/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {isLoading ? "Ejecutando..." : "Ejecutar"}
-        </button>
+        {/* El botón Ejecutar SOLO se muestra cuando NO estamos en modo A/B
+            (el modo A/B usa un único botón "Ejecutar comparación" en la
+            página, que dispara las dos estrategias en paralelo). */}
+        {!side && (
+          <button
+            onClick={onRun}
+            disabled={isLoading || config.assets.length < 2}
+            className="px-5 py-2 bg-brand-coral text-white text-sm font-semibold rounded-lg hover:bg-brand-coral/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isLoading ? "Ejecutando..." : "Ejecutar"}
+          </button>
+        )}
       </div>
 
       <div className="p-6 space-y-6">
