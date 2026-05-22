@@ -43,6 +43,8 @@ import { getFundById } from "./fund-database";
 import { getBenchmarkById } from "./benchmarks";
 import { getDailyPrices, getMonthlyPrices } from "./data-fetcher";
 import { getExcludedAssetWarnings, getTerWarnings } from "./data-warnings";
+import { runMomentum } from "./momentum-engine";
+import type { MomentumConfig } from "./momentum-types";
 import {
   getLastDatePerPeriod,
   shouldRebalanceByDate,
@@ -334,8 +336,118 @@ async function runPortfolioBacktest(
 
   const failedFundIds = new Set<string>();
 
-  // Descargar datos de todos los fondos EN PARALELO (crítico para carteras con muchos fondos)
-  const holdingsWithFunds = portfolio.holdings.map((holding) => ({
+  // 1.A. Separar holdings: fondos normales vs estrategias de momentum.
+  // Las estrategias de momentum se ejecutan PRIMERO y su equity curve mensual
+  // se convierte en una serie de precios diarios sintética (forward-fill),
+  // que luego se trata como un fondo más. Esto permite usar el momentum como
+  // satélite de una cartera estática y ver su correlación con índices.
+  const regularHoldings: typeof portfolio.holdings = [];
+  const momentumHoldings: typeof portfolio.holdings = [];
+  for (const h of portfolio.holdings) {
+    if (h.momentumConfig) momentumHoldings.push(h);
+    else regularHoldings.push(h);
+  }
+
+  // Ejecutar estrategias de momentum en paralelo, cada una con el rango de
+  // fechas del backtest. Convertir cada equity curve mensual en una serie
+  // de precios diaria (normalizada a 100 al primer punto, forward-fill entre
+  // meses) y registrarla en fundPrices junto a un Fund sintético.
+  if (momentumHoldings.length > 0) {
+    console.log(
+      `[BacktestEngine] Ejecutando ${momentumHoldings.length} estrategia(s) de momentum como satélite…`
+    );
+  }
+  const momentumResults = await Promise.allSettled(
+    momentumHoldings.map(async (h) => {
+      // Overrideamos las fechas y el capital inicial del momentum config con
+      // los del backtest — no nos interesa el equity ABSOLUTO del momentum,
+      // sino su FORMA (que luego se normaliza a precio inicial 100).
+      const cfg: MomentumConfig = {
+        ...h.momentumConfig!,
+        startDate,
+        endDate,
+        initialAmount: 100,
+      };
+      const res = await runMomentum(cfg);
+      return { holding: h, response: res };
+    })
+  );
+
+  for (let i = 0; i < momentumResults.length; i++) {
+    const result = momentumResults[i]!;
+    const h = momentumHoldings[i]!;
+    if (result.status !== "fulfilled") {
+      console.error(
+        `[BacktestEngine] Error ejecutando momentum ${h.fundId}:`,
+        result.reason
+      );
+      failedFundIds.add(h.fundId);
+      if (warnings) {
+        warnings.push({
+          type: "data_missing",
+          severity: "error",
+          message: `No se pudo ejecutar la estrategia de momentum "${
+            h.fund?.shortName ?? h.fund?.name ?? h.fundId
+          }". Su peso se ha redistribuido entre los demás holdings.`,
+          fundId: h.fundId,
+        });
+      }
+      continue;
+    }
+    const equityCurve = result.value.response.equityCurve;
+    if (equityCurve.length < 2) {
+      console.warn(
+        `[BacktestEngine] Momentum ${h.fundId} produjo equity curve con <2 puntos`
+      );
+      failedFundIds.add(h.fundId);
+      continue;
+    }
+
+    // Forward-fill: para cada día entre startDate y endDate, el precio = el
+    // último valor mensual de equity disponible <= ese día. La normalización
+    // a precio inicial 100 hace que el motor lo trate como un fondo igual a
+    // cualquier otro.
+    const baseValue = equityCurve[0]!.value;
+    if (baseValue <= 0) {
+      failedFundIds.add(h.fundId);
+      continue;
+    }
+    const dailyPrices = new Map<string, number>();
+    // Generamos día a día entre la primera y última fecha de la equity curve
+    const firstDate = equityCurve[0]!.date;
+    const lastDate = equityCurve[equityCurve.length - 1]!.date;
+    // Iterar día por día llenando con el último valor mensual <= ese día.
+    let monthlyIdx = 0;
+    const start = new Date(firstDate);
+    const end = new Date(lastDate);
+    for (
+      let d = new Date(start);
+      d <= end;
+      d.setUTCDate(d.getUTCDate() + 1)
+    ) {
+      const dStr = d.toISOString().substring(0, 10);
+      // Avanzar el índice mientras el siguiente equity point ≤ dStr
+      while (
+        monthlyIdx + 1 < equityCurve.length &&
+        equityCurve[monthlyIdx + 1]!.date <= dStr
+      ) {
+        monthlyIdx++;
+      }
+      const normalized = (equityCurve[monthlyIdx]!.value / baseValue) * 100;
+      dailyPrices.set(dStr, normalized);
+    }
+
+    fundPrices.set(h.fundId, dailyPrices);
+    fundTers.set(h.fundId, 0); // El momentum ya tiene los TER de los activos subyacentes baked-in
+    fundTypes.set(h.fundId, "active");
+    console.log(
+      `[BacktestEngine] Momentum ${h.fundId}: ${dailyPrices.size} días de datos sintéticos`
+    );
+  }
+
+  // Descargar datos de los fondos NORMALES (no momentum) EN PARALELO
+  // (crítico para carteras con muchos fondos)
+  const holdingsWithFunds = regularHoldings.map((holding) => ({
     holding,
     fund: getFundById(holding.fundId) || holding.fund,
   }));

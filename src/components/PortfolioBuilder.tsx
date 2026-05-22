@@ -11,6 +11,10 @@ import { getFundById } from "@/lib/fund-database";
 export interface FundAllocation {
   fund: Fund;
   weight: number;
+  /** Si el allocation es una estrategia de momentum dinámica, esta config se
+   *  reenvía al backend para que el motor del backtest la ejecute y trate su
+   *  equity curve como serie de precios del holding. */
+  momentumConfig?: PortfolioHolding["momentumConfig"];
 }
 
 interface PortfolioBuilderProps {
@@ -114,8 +118,15 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
       holdings: allocations.map((a) => ({
         fundId: a.fund.id,
         weight: a.weight,
-        // Incluir datos del fondo para fondos dinámicos (Yahoo Finance)
-        fund: a.fund.id.startsWith("yahoo-") ? a.fund : undefined,
+        // Incluir datos del fondo para fondos dinámicos (Yahoo Finance) o
+        // para estrategias de momentum (también dinámicas).
+        fund:
+          a.fund.id.startsWith("yahoo-") || a.fund.id.startsWith("momentum-")
+            ? a.fund
+            : undefined,
+        // Reenviar momentumConfig para que el motor del backtest ejecute la
+        // estrategia y use su equity como serie de precios del holding.
+        ...(a.momentumConfig ? { momentumConfig: a.momentumConfig } : {}),
       })),
       isValid,
       managementFee,
@@ -360,12 +371,22 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   };
 
   const handlePresetSelect = (preset: PortfolioPreset) => {
-    // Convertir holdings del preset a allocaciones con fondos completos
+    // Convertir holdings del preset a allocaciones con fondos completos.
+    // Resolvemos el Fund desde la BD; si no está (caso de estrategias de
+    // momentum dinámicas), usamos el `fund` adjunto al holding del preset.
+    // El `momentumConfig`, si lo trae, se reenvía tal cual a la allocation
+    // para que llegue al motor del backtest cuando se ejecute.
     const presetAllocations: FundAllocation[] = [];
     for (const holding of preset.holdings) {
-      const fund = getFundById(holding.fundId);
+      const fund = getFundById(holding.fundId) ?? holding.fund;
       if (fund) {
-        presetAllocations.push({ fund, weight: holding.weight });
+        presetAllocations.push({
+          fund,
+          weight: holding.weight,
+          ...(holding.momentumConfig
+            ? { momentumConfig: holding.momentumConfig }
+            : {}),
+        });
       }
     }
 
@@ -472,6 +493,10 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   const bbvaCapitalPresets = presets.filter((p) => p.id.startsWith("bbva-capital"));
   const bbvaInversionRvPresets = presets.filter((p) => p.id.startsWith("bbva-inversion-rv"));
   const bbvaAcumulacionPresets = presets.filter((p) => p.id.startsWith("bbva-acumulacion"));
+  // Estrategias de momentum dinámicas — se ejecutan en cada backtest con
+  // las fechas elegidas. Ideales para añadir como SATÉLITE de carteras
+  // estáticas (modo "Activo satélite") y ver correlaciones.
+  const momentumPresets = presets.filter((p) => p.id.startsWith("momentum-"));
   const activePresets = presets.filter(
     (p) =>
       p.type === "active" &&
@@ -479,7 +504,8 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
       !p.id.startsWith("alternativos-canigueral") &&
       !p.id.startsWith("bbva-capital") &&
       !p.id.startsWith("bbva-inversion-rv") &&
-      !p.id.startsWith("bbva-acumulacion")
+      !p.id.startsWith("bbva-acumulacion") &&
+      !p.id.startsWith("momentum-")
   );
 
   return (
@@ -990,6 +1016,42 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                     >
                       <div className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-blue-600" />
+                        <span className="font-medium text-sm text-slate-800">
+                          {preset.name}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 ml-4 mt-0.5">
+                        {preset.description}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Estrategias de Momentum — para usar como SATÉLITE de
+                  carteras estáticas. El motor las ejecuta dinámicamente
+                  con las fechas del backtest y las trata como un fondo. */}
+              {momentumPresets.length > 0 && (
+                <div className="p-2 border-b border-slate-100 bg-emerald-50/30">
+                  <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider px-2 py-1 flex items-center gap-1.5">
+                    <span className="text-sm">🚀</span>
+                    Estrategias dinámicas · Momentum
+                  </p>
+                  <p className="text-[10px] text-emerald-700/70 px-2 mb-1 italic">
+                    Rotación mensual con los mejores activos por momentum. Ideal
+                    como satélite (activa "Activo satélite" antes de elegirla)
+                    para ver correlaciones con tu cartera estática.
+                  </p>
+                  {momentumPresets.map((preset) => (
+                    <button
+                      key={preset.id}
+                      onClick={() => handlePresetSelect(preset)}
+                      className={`w-full text-left px-3 py-2 rounded-lg hover:bg-emerald-100/60 transition-colors ${
+                        selectedPresetId === preset.id ? "bg-emerald-100/60" : ""
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-600" />
                         <span className="font-medium text-sm text-slate-800">
                           {preset.name}
                         </span>

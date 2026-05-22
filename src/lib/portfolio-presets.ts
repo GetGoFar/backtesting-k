@@ -3,6 +3,7 @@
 // =============================================================================
 
 import type { PortfolioPreset, FundType } from "./types";
+import { MOMENTUM_CARTERA_PRESETS } from "./momentum-carteras";
 
 // -----------------------------------------------------------------------------
 // Carteras K (Indexadas)
@@ -1427,6 +1428,7 @@ const ALL_PRESETS: PortfolioPreset[] = [
   ...BBVA_CAPITAL_PRESETS,
   ...BBVA_INVERSION_RV_PRESETS,
   ...BBVA_ACUMULACION_PRESETS,
+  ...MOMENTUM_CARTERA_PRESETS,
 ];
 
 // Mapa para búsqueda rápida por ID

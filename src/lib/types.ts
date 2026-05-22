@@ -85,6 +85,14 @@ export interface PortfolioHolding {
   weight: number;
   /** Datos completos del fondo (opcional, para fondos dinámicos de Yahoo Finance) */
   fund?: Fund;
+  /** Si está definido, este holding NO es un fondo normal sino una ESTRATEGIA
+   *  DE MOMENTUM dinámica: el motor del backtest ejecuta la estrategia primero
+   *  con las fechas del backtest, convierte su equity curve mensual en una
+   *  serie de precios diarios (normalizada a 100), y la usa como serie de
+   *  precios de este holding. Permite combinar carteras estáticas con
+   *  estrategias dinámicas (p.ej. 90 % indexado + 10 % momentum como
+   *  satélite) y ver correlaciones cruzadas. */
+  momentumConfig?: import("./momentum-types").MomentumConfig;
 }
 
 /** Definición de una cartera de inversión */
