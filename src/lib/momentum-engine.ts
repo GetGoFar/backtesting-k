@@ -871,11 +871,40 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
       latestPerAsset.sort();
       const signalDate = latestPerAsset[0]!;
 
-      // 7.2. Fecha de inicio del lookback (signalDate - lookbackMonths)
+      // 7.2. Determinar la fecha de cierre del cálculo según excludePreviousMonth:
+      //
+      //  - excludePrev=FALSE: usamos la última fecha disponible (= signalDate, el
+      //    último día con datos para todos los activos). Equivale al precio
+      //    "ahora mismo" — el cálculo incluye el mes en curso.
+      //
+      //  - excludePrev=TRUE: usamos el último día hábil del mes ANTERIOR al
+      //    mes en curso. El mes en curso queda excluido — el cálculo termina
+      //    al cierre del mes pasado. Replica el "12-1 momentum" académico.
+      //
+      // La fecha de inicio (startDateTarget) NO cambia entre los dos modos —
+      // siempre es signalDate − lookbackMonths. Es la fecha FINAL la que se
+      // recorta cuando se excluye el último mes (idéntico al comportamiento
+      // del motor mensual que usa monthlyClose).
+      const signalMonth = signalDate.substring(0, 7);
+      let endDateTarget: string;
+      if (config.excludePreviousMonth) {
+        // Último día del mes anterior al mes señal: tomar el primer día del
+        // mes señal y restar 1 día.
+        const [sy, sm] = signalMonth.split("-").map((s) => parseInt(s, 10));
+        const firstOfSignalMonth = new Date(Date.UTC(sy!, (sm ?? 1) - 1, 1));
+        const lastOfPrevMonth = new Date(firstOfSignalMonth);
+        lastOfPrevMonth.setUTCDate(0); // retrocede al último día del mes previo
+        endDateTarget = lastOfPrevMonth.toISOString().slice(0, 10);
+      } else {
+        endDateTarget = signalDate;
+      }
+
+      // Fecha de inicio del lookback (signalDate − lookbackMonths)
       const startD = new Date(signalDate);
       startD.setUTCMonth(startD.getUTCMonth() - config.lookbackMonths);
       const startDateTarget = startD.toISOString().slice(0, 10);
       let firstFoundStart: string | null = null;
+      let firstFoundEnd: string | null = null;
 
       // 7.3. Calcular momentum + vol + MA por activo usando datos diarios
       type LiveCandidate = {
@@ -890,16 +919,19 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
       for (const [ticker, series] of seriesPerAsset) {
         const sortedDates = Array.from(series.daily.keys()).sort();
 
-        // Precio final: último dato <= signalDate
+        // Precio final: último dato <= endDateTarget. Si excludePrev=true,
+        // endDateTarget es el último día del mes pasado, así que esto
+        // automáticamente excluye los días del mes en curso.
         let endIdx = -1;
         for (let i = sortedDates.length - 1; i >= 0; i--) {
-          if (sortedDates[i]! <= signalDate) {
+          if (sortedDates[i]! <= endDateTarget) {
             endIdx = i;
             break;
           }
         }
         if (endIdx < 0) continue;
         const endPrice = series.daily.get(sortedDates[endIdx]!)!;
+        if (firstFoundEnd === null) firstFoundEnd = sortedDates[endIdx]!;
 
         // Precio inicial: primer dato >= startDateTarget
         let startPrice: number | undefined;
@@ -917,8 +949,9 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
         const mom = endPrice / startPrice - 1;
 
         // Volatilidad: ventana de volPeriod × 21 días hábiles que termina
-        // EN endIdx (= signalDate). Mismo cálculo que volatilityAt pero
-        // anclado al día concreto, no al fin de mes.
+        // EN endIdx (= endDateTarget). Mismo cálculo que volatilityAt pero
+        // anclado al día concreto. Con excludePrev=true la ventana de vol
+        // también termina en el mes anterior, coherente con la lógica.
         let vol: number | null = null;
         if (rankingMethod === "sharpe" || config.weighting === "volatility") {
           const windowSize = volPeriod * 21;
@@ -940,13 +973,16 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
               : -Infinity
             : mom;
 
-        // MA filter: mantenemos coherencia con el motor — usa la MA mensual
-        // del último mes con datos.
+        // MA filter: usa la MA mensual del último mes COMPLETADO (signalMonth-1)
+        // si excludePrev=true, o del mes señal si excludePrev=false.
         let aboveMA = true;
         if (config.movingAverageMonths && config.movingAverageMonths > 0) {
+          const maMonth = config.excludePreviousMonth
+            ? addMonths(signalMonth, -1)
+            : signalMonth;
           const ma = movingAverage(
             series.monthlyClose,
-            signalDate.substring(0, 7),
+            maMonth,
             config.movingAverageMonths
           );
           aboveMA = ma !== null && endPrice > ma;
@@ -969,7 +1005,10 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
 
       if (liveCandidates.length > 0) {
         liveRanking = {
-          signalDate,
+          // signalDate = fecha FINAL real usada por el cálculo (con o sin
+          // exclusión del mes en curso). El usuario ve aquí el día concreto
+          // hasta el que se mide el momentum.
+          signalDate: firstFoundEnd ?? endDateTarget,
           startDate: firstFoundStart ?? startDateTarget,
           holdings: liveHoldings,
           forcedCash: liveForcedCash,
