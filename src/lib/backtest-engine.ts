@@ -2239,8 +2239,66 @@ async function findCommonDateRangeForPortfolios(
 
   const allHoldings = [...portfolioA.holdings, ...portfolioB.holdings];
   const allDateSets: Set<string>[] = [];
+  // Fechas mínimas DERIVADAS — para holdings que no son fondos reales sino
+  // estrategias dinámicas (momentum), no podemos pedir sus precios (no existen
+  // aún). En su lugar, calculamos manualmente la primera fecha en que la
+  // estrategia podría producir señal: latest first date entre sus activos
+  // subyacentes + el lookback necesario.
+  const derivedFirstDates: string[] = [];
 
   for (const holding of allHoldings) {
+    // === RAMA 1: Holding de momentum dinámico ===
+    if (holding.momentumConfig) {
+      const cfg = holding.momentumConfig;
+      try {
+        // Fetch prices de TODOS los activos del universo del momentum en
+        // paralelo; el momentum sólo puede arrancar cuando todos tienen
+        // dato y ha pasado el lookback completo.
+        const assetFirstDates: string[] = [];
+        const assetPriceFetches = await Promise.allSettled(
+          cfg.assets.map(async (a) => {
+            const innerFund = a.fundId ? getFundById(a.fundId) : undefined;
+            const { prices } = await getDailyPrices(
+              innerFund?.id ?? a.ticker,
+              innerFund?.yahooTicker ?? a.ticker,
+              innerFund?.isin
+            );
+            return prices;
+          })
+        );
+        for (const res of assetPriceFetches) {
+          if (res.status !== "fulfilled") continue;
+          const dates = Array.from(res.value.keys()).sort();
+          if (dates[0]) assetFirstDates.push(dates[0]);
+        }
+        if (assetFirstDates.length === 0) continue;
+        // La señal necesita: lookback meses de histórico + (1 mes si
+        // excludePreviousMonth) + (1 mes extra si trade execution = nextClose
+        // porque en ese modo el primer punto de equity se data al firstClose
+        // del mes siguiente). Sumamos esos meses al "latest first" de los
+        // activos para obtener la primera fecha viable del momentum.
+        const latestAssetFirst = assetFirstDates.sort().pop()!;
+        const minMonthsNeeded =
+          cfg.lookbackMonths +
+          (cfg.excludePreviousMonth ? 1 : 0) +
+          ((cfg.tradeExecution ?? "lastClose") === "nextClose" ? 1 : 0);
+        const firstViable = new Date(latestAssetFirst);
+        firstViable.setUTCMonth(firstViable.getUTCMonth() + minMonthsNeeded);
+        const firstViableStr = firstViable.toISOString().substring(0, 10);
+        derivedFirstDates.push(firstViableStr);
+        console.log(
+          `[BacktestEngine] Momentum holding ${holding.fundId}: primer dato viable ≈ ${firstViableStr} (assets desde ${latestAssetFirst} + ${minMonthsNeeded}m lookback)`
+        );
+      } catch (error) {
+        console.error(
+          `[BacktestEngine] Error calculando rango para momentum ${holding.fundId}:`,
+          error
+        );
+      }
+      continue;
+    }
+
+    // === RAMA 2: Fondo normal ===
     const fund = getFundById(holding.fundId) || holding.fund;
     if (!fund) continue;
 
@@ -2255,7 +2313,7 @@ async function findCommonDateRangeForPortfolios(
     }
   }
 
-  if (allDateSets.length === 0) return null;
+  if (allDateSets.length === 0 && derivedFirstDates.length === 0) return null;
 
   // Unión de todas las fechas (forward fill cubrirá huecos en la simulación)
   const allDatesUnion = new Set<string>();
@@ -2265,13 +2323,18 @@ async function findCommonDateRangeForPortfolios(
     }
   }
 
-  // Solo desde el día en que TODOS los fondos tienen al menos un dato
+  // Solo desde el día en que TODOS los holdings tienen dato disponible.
+  // Para fondos normales: primer día de su serie de precios.
+  // Para momentum dinámico: primera fecha en que la estrategia produce señal
+  // (latest first de sus activos + lookback meses).
   const fundFirstDates: string[] = [];
   for (const dateSet of allDateSets) {
     const sorted = Array.from(dateSet).sort();
     if (sorted[0]) fundFirstDates.push(sorted[0]);
   }
-  const latestFirstDate = fundFirstDates.sort().pop() ?? "";
+  // Combinar con las fechas derivadas de momentum holdings.
+  const allFirstDates = [...fundFirstDates, ...derivedFirstDates];
+  const latestFirstDate = allFirstDates.sort().pop() ?? "";
 
   const startPrefix = requestedStart.substring(0, 7);
   const endPrefix = requestedEnd.substring(0, 7);
