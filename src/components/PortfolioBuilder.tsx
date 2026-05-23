@@ -63,11 +63,22 @@ import {
   importSavedPortfolios,
   type SavedPortfolio,
 } from "@/lib/saved-portfolios";
+import {
+  getSavedMomentumStrategies,
+  deleteSavedMomentumStrategy,
+  type SavedMomentumStrategy,
+} from "@/lib/saved-momentum-strategies";
 
 export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   const [allocations, setAllocations] = useState<FundAllocation[]>([]);
   // Carteras guardadas localmente por el usuario (localStorage)
   const [savedPortfolios, setSavedPortfolios] = useState<SavedPortfolio[]>([]);
+  // Estrategias momentum guardadas por el usuario (también en localStorage).
+  // Aparecen en el dropdown bajo "Momentum guardadas" — ideales para usar
+  // como satélite de carteras estáticas.
+  const [savedMomentumStrategies, setSavedMomentumStrategies] = useState<
+    SavedMomentumStrategy[]
+  >([]);
   // Estado del modal de guardado (nombre temporal antes de confirmar)
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveDialogName, setSaveDialogName] = useState("");
@@ -80,6 +91,16 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
     const onChange = () => setSavedPortfolios(getSavedPortfolios());
     window.addEventListener("epk-saved-portfolios-changed", onChange);
     return () => window.removeEventListener("epk-saved-portfolios-changed", onChange);
+  }, []);
+
+  // Cargar estrategias momentum guardadas al montar + sincronización entre
+  // pestañas (custom event disparado por saveMomentumStrategy).
+  useEffect(() => {
+    setSavedMomentumStrategies(getSavedMomentumStrategies());
+    const onChange = () => setSavedMomentumStrategies(getSavedMomentumStrategies());
+    window.addEventListener("epk-saved-momentum-strategies-changed", onChange);
+    return () =>
+      window.removeEventListener("epk-saved-momentum-strategies-changed", onChange);
   }, []);
   const defaultName = side === "a" ? "Cartera A" : "Cartera B";
   const [name, setName] = useState(defaultName);
@@ -327,6 +348,57 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
     e.stopPropagation();
     if (confirm(`¿Eliminar la cartera guardada "${savedName}"? No se puede deshacer.`)) {
       deleteSavedPortfolio(id);
+    }
+  };
+
+  // Inserta una estrategia momentum guardada por el usuario como holding.
+  // Construye un PortfolioPreset sintético de UN SOLO holding (con el
+  // momentumConfig adjunto) y reutiliza handlePresetSelect → así hereda
+  // toda la lógica (incluyendo modo satélite con reescalado de pesos).
+  const handleSavedMomentumSelect = (saved: SavedMomentumStrategy) => {
+    const synthFundId = `momentum-saved-${saved.id}`;
+    const cfg = saved.config;
+    const subtitle = `${cfg.assets.length} activos · top-${cfg.assetsToHold} · lookback ${cfg.lookbackMonths}m${
+      cfg.excludePreviousMonth ? " · excl. último mes" : ""
+    } · ${cfg.frequency === "monthly" ? "mensual" : "trimestral"}`;
+    const fakePreset: PortfolioPreset = {
+      id: synthFundId,
+      name: saved.name,
+      description: subtitle,
+      type: "active",
+      holdings: [
+        {
+          fundId: synthFundId,
+          weight: 100,
+          fund: {
+            id: synthFundId,
+            name: `Momentum: ${saved.name}`,
+            shortName: saved.name,
+            isin: synthFundId.toUpperCase(),
+            ter: 0,
+            category: "Alternativo",
+            type: "active",
+            currency: "USD",
+          },
+          momentumConfig: cfg,
+        },
+      ],
+    };
+    handlePresetSelect(fakePreset);
+  };
+
+  const handleDeleteSavedMomentum = (
+    e: React.MouseEvent,
+    id: string,
+    savedName: string
+  ) => {
+    e.stopPropagation();
+    if (
+      confirm(
+        `¿Eliminar la estrategia momentum guardada "${savedName}"? No se puede deshacer.`
+      )
+    ) {
+      deleteSavedMomentumStrategy(id);
     }
   };
 
@@ -1075,6 +1147,72 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                         {preset.description}
                       </p>
                     </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Estrategias de Momentum PERSONALIZADAS — las que el usuario
+                  haya configurado y guardado desde la página /momentum.
+                  Aparecen aquí para poder combinarlas con carteras estáticas
+                  (modo satélite, normalmente). */}
+              {savedMomentumStrategies.length > 0 && (
+                <div className="p-2 border-b border-slate-100 bg-emerald-50/50">
+                  <div className="flex items-center justify-between px-2 py-1">
+                    <p className="text-xs font-semibold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="text-sm">⭐</span>
+                      Momentum guardadas
+                    </p>
+                    <a
+                      href="/momentum"
+                      className="text-[10px] font-medium text-emerald-700 hover:text-emerald-900 hover:underline"
+                      title="Configurar y guardar una nueva estrategia"
+                    >
+                      + Nueva en /momentum
+                    </a>
+                  </div>
+                  <p className="text-[10px] text-emerald-700/70 px-2 mb-1 italic">
+                    Tus estrategias personalizadas. Cada una se ejecuta con su
+                    universo de activos y parámetros propios.
+                  </p>
+                  {savedMomentumStrategies.map((saved) => (
+                    <div
+                      key={saved.id}
+                      className="flex items-center gap-1 group"
+                    >
+                      <button
+                        onClick={() => handleSavedMomentumSelect(saved)}
+                        className="flex-1 text-left px-3 py-2 rounded-lg hover:bg-emerald-100/70 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-emerald-700" />
+                          <span className="font-medium text-sm text-slate-800">
+                            {saved.name}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 ml-4 mt-0.5">
+                          {saved.config.assets.length} activos · top-
+                          {saved.config.assetsToHold} · lookback{" "}
+                          {saved.config.lookbackMonths}m
+                          {saved.config.excludePreviousMonth ? " · excl. último mes" : ""}
+                          {" · "}
+                          {saved.config.frequency === "monthly"
+                            ? "mensual"
+                            : "trimestral"}
+                        </p>
+                      </button>
+                      <button
+                        onClick={(e) =>
+                          handleDeleteSavedMomentum(e, saved.id, saved.name)
+                        }
+                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-red-600 transition-all"
+                        title={`Eliminar "${saved.name}"`}
+                        aria-label={`Eliminar ${saved.name}`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+                        </svg>
+                      </button>
+                    </div>
                   ))}
                 </div>
               )}

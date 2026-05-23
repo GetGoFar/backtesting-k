@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { Tooltip } from "./Tooltip";
 import type { MomentumConfig, MomentumAsset } from "@/lib/momentum-types";
+import { saveMomentumStrategy } from "@/lib/saved-momentum-strategies";
 
 interface Props {
   config: MomentumConfig;
@@ -40,6 +41,27 @@ export function MomentumConfigPanel({
   onStrategyNameChange,
 }: Props) {
   const [newTicker, setNewTicker] = useState("");
+  // Modal "Guardar estrategia": pide nombre y persiste en localStorage. La
+  // estrategia guardada aparece luego en el dropdown del PortfolioBuilder
+  // para usarla como satélite de carteras estáticas en el backtest.
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveName, setSaveName] = useState("");
+  const [justSaved, setJustSaved] = useState(false);
+
+  function openSaveDialog() {
+    // Pre-rellenamos el nombre con el strategyName del header A/B si lo hay,
+    // si no con un placeholder neutro.
+    setSaveName(strategyName?.trim() || "");
+    setShowSaveDialog(true);
+  }
+  function confirmSave() {
+    const name = saveName.trim() || "Mi estrategia momentum";
+    saveMomentumStrategy({ name, config });
+    setShowSaveDialog(false);
+    setJustSaved(true);
+    // Volver al estado normal del botón tras 2 s
+    setTimeout(() => setJustSaved(false), 2000);
+  }
 
   function update<K extends keyof MomentumConfig>(key: K, value: MomentumConfig[K]) {
     onChange({ ...config, [key]: value });
@@ -194,19 +216,88 @@ export function MomentumConfigPanel({
             </p>
           </div>
         </div>
-        {/* El botón Ejecutar SOLO se muestra cuando NO estamos en modo A/B
-            (el modo A/B usa un único botón "Ejecutar comparación" en la
-            página, que dispara las dos estrategias en paralelo). */}
-        {!side && (
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Botón "Guardar estrategia": persiste el config en localStorage
+              para que el usuario pueda seleccionarlo luego en el dropdown
+              del PortfolioBuilder (página de backtest) como satélite. */}
           <button
-            onClick={onRun}
-            disabled={isLoading || config.assets.length < 2}
-            className="px-5 py-2 bg-brand-coral text-white text-sm font-semibold rounded-lg hover:bg-brand-coral/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            onClick={openSaveDialog}
+            disabled={config.assets.length < 2}
+            className="px-3 py-2 bg-white/15 hover:bg-white/25 text-white text-xs font-medium rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+            title="Guardar para usar como satélite en el backtest"
           >
-            {isLoading ? "Ejecutando..." : "Ejecutar"}
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
+            </svg>
+            <span className="hidden sm:inline">
+              {justSaved ? "Guardado ✓" : "Guardar"}
+            </span>
           </button>
-        )}
+          {/* El botón Ejecutar SOLO se muestra cuando NO estamos en modo A/B
+              (el modo A/B usa un único botón "Ejecutar comparación" en la
+              página, que dispara las dos estrategias en paralelo). */}
+          {!side && (
+            <button
+              onClick={onRun}
+              disabled={isLoading || config.assets.length < 2}
+              className="px-5 py-2 bg-brand-coral text-white text-sm font-semibold rounded-lg hover:bg-brand-coral/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isLoading ? "Ejecutando..." : "Ejecutar"}
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Modal "Guardar estrategia" — preguntar nombre y persistir. */}
+      {showSaveDialog && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-brand-navy font-serif mb-1">
+              Guardar estrategia momentum
+            </h3>
+            <p className="text-sm text-brand-tertiary mb-4">
+              Se guardará localmente en este navegador. Aparecerá luego en el
+              dropdown del backtest bajo "Momentum guardadas" para usarla como
+              satélite de cualquier cartera.
+            </p>
+            <label className="block text-xs font-semibold text-brand-tertiary uppercase tracking-wider mb-1.5">
+              Nombre de la estrategia
+            </label>
+            <input
+              type="text"
+              value={saveName}
+              onChange={(e) => setSaveName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") confirmSave();
+                if (e.key === "Escape") setShowSaveDialog(false);
+              }}
+              placeholder="Ej. Mi momentum sectorial USA"
+              autoFocus
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral"
+            />
+            <p className="text-[11px] text-brand-tertiary mt-2">
+              Universo: <strong>{config.assets.length} activos</strong> · Lookback{" "}
+              <strong>{config.lookbackMonths}m</strong> · Top-{config.assetsToHold} ·{" "}
+              {config.frequency === "monthly" ? "Mensual" : "Trimestral"}
+              {config.excludePreviousMonth && " · Excluye último mes"}
+            </p>
+            <div className="flex items-center justify-end gap-2 mt-5">
+              <button
+                onClick={() => setShowSaveDialog(false)}
+                className="px-4 py-2 text-sm font-medium text-brand-secondary hover:text-brand-navy hover:bg-slate-50 rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmSave}
+                className="px-4 py-2 text-sm font-semibold text-white bg-brand-coral hover:bg-brand-coral/90 rounded-lg transition-colors"
+              >
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="p-6 space-y-6">
         {/* Universo de activos */}
