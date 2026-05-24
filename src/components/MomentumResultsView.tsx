@@ -16,7 +16,7 @@ import {
   Legend,
 } from "recharts";
 import { formatEUR, formatPct, formatNumber } from "@/lib/formatters";
-import type { MomentumResponse } from "@/lib/momentum-types";
+import type { MomentumResponse, ProvisionalRanking, MomentumRankingMethod } from "@/lib/momentum-types";
 import { AnnualReturnsHeatmap, type HeatmapColumn } from "./AnnualReturnsHeatmap";
 import { MonthlyReturnsHeatmap, type HeatmapSeries as MonthlySeries } from "./MonthlyReturnsHeatmap";
 import { CorrelationMatrix } from "./CorrelationMatrix";
@@ -143,135 +143,17 @@ export function MomentumResultsView({ results }: Props) {
       )}
 
       {/* Ranking actual — posiciones que la estrategia mantiene HOY y ranking
-          completo del último rebalanceo. Útil para saber qué tendrías que
-          tener en cartera AHORA mismo según el modelo. */}
+          completo del último rebalanceo. Tabs internos:
+          - "Último rebalanceo": snapshot del momento en que se decidió la
+            rotación actual (puede ser de hace semanas)
+          - "Provisional (hoy)": recalculado con los datos más recientes
+            disponibles. Útil si endDate < hoy o frecuencia trimestral/anual */}
       {currentRanking && (
-        <section className="bg-white rounded-2xl border border-brand-coral/20 shadow-sm p-6">
-          <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
-            <h3 className="text-lg font-semibold text-brand-navy font-serif">
-              Ranking actual
-            </h3>
-            <span className="text-xs text-brand-tertiary">
-              Último rebalanceo: <strong>{currentRanking.date}</strong>
-            </span>
-          </div>
-
-          {/* Posiciones activas */}
-          <div className="mb-4">
-            <p className="text-[11px] font-semibold text-brand-tertiary uppercase tracking-wider mb-2">
-              Posiciones activas
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {currentRanking.forcedCash ? (
-                <span className="px-3 py-1.5 bg-slate-100 text-brand-navy rounded-full text-sm font-semibold">
-                  CASH (filtro MA)
-                </span>
-              ) : (
-                currentRanking.holdings.map((ticker) => (
-                  <span
-                    key={ticker}
-                    className="px-3 py-1.5 bg-brand-coral/10 text-brand-coral border border-brand-coral/30 rounded-full text-sm font-semibold"
-                  >
-                    {ticker}
-                  </span>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Ranking completo del universo */}
-          <div>
-            <p className="text-[11px] font-semibold text-brand-tertiary uppercase tracking-wider mb-2">
-              Ranking completo del universo
-              {results.config.rankingMethod === "sharpe" && (
-                <span className="ml-2 normal-case text-brand-tertiary/80 font-normal">
-                  · ordenado por retorno / volatilidad
-                </span>
-              )}
-            </p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200">
-                    <th className="text-left text-[10px] font-semibold text-brand-tertiary uppercase py-1.5 px-2">
-                      #
-                    </th>
-                    <th className="text-left text-[10px] font-semibold text-brand-tertiary uppercase py-1.5 px-2">
-                      Ticker
-                    </th>
-                    <th className="text-right text-[10px] font-semibold text-brand-tertiary uppercase py-1.5 px-2">
-                      Momentum
-                    </th>
-                    {results.config.rankingMethod === "sharpe" && (
-                      <>
-                        <th className="text-right text-[10px] font-semibold text-brand-tertiary uppercase py-1.5 px-2">
-                          Volatilidad
-                        </th>
-                        <th className="text-right text-[10px] font-semibold text-brand-tertiary uppercase py-1.5 px-2">
-                          Ratio
-                        </th>
-                      </>
-                    )}
-                    <th className="text-center text-[10px] font-semibold text-brand-tertiary uppercase py-1.5 px-2">
-                      Filtro MA
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {currentRanking.ranking.map((c, idx) => {
-                    const isHeld = currentRanking.holdings.includes(c.ticker);
-                    return (
-                      <tr
-                        key={c.ticker}
-                        className={`border-b border-slate-100 ${
-                          isHeld ? "bg-brand-coral/5" : ""
-                        }`}
-                      >
-                        <td className="py-1.5 px-2 text-xs font-mono text-brand-tertiary">
-                          {idx + 1}
-                        </td>
-                        <td className="py-1.5 px-2 text-xs font-mono font-semibold text-brand-navy">
-                          {c.ticker}
-                          {isHeld && (
-                            <span className="ml-1.5 text-[10px] text-brand-coral">●</span>
-                          )}
-                        </td>
-                        <td
-                          className={`py-1.5 px-2 text-xs text-right font-mono ${
-                            c.momentumPercent >= 0 ? "text-emerald-600" : "text-red-600"
-                          }`}
-                        >
-                          {formatPct(c.momentumPercent / 100, 2)}
-                        </td>
-                        {results.config.rankingMethod === "sharpe" && (
-                          <>
-                            <td className="py-1.5 px-2 text-xs text-right font-mono text-brand-secondary">
-                              {c.volatilityPercent !== undefined
-                                ? formatPct(c.volatilityPercent / 100, 1)
-                                : "—"}
-                            </td>
-                            <td className="py-1.5 px-2 text-xs text-right font-mono font-semibold text-brand-navy">
-                              {formatNumber(c.score, 2)}
-                            </td>
-                          </>
-                        )}
-                        <td className="py-1.5 px-2 text-xs text-center">
-                          {c.aboveMA ? (
-                            <span className="text-emerald-600">✓</span>
-                          ) : (
-                            <span className="text-red-500" title="Por debajo de la media móvil">
-                              ✗
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
+        <RankingActualSection
+          currentRanking={currentRanking}
+          provisional={results.provisionalRanking}
+          rankingMethod={results.config.rankingMethod ?? "momentum"}
+        />
       )}
 
       {/* Métricas resumen */}
@@ -679,5 +561,222 @@ function Metric({
         {value}
       </p>
     </div>
+  );
+}
+
+// =============================================================================
+// RANKING ACTUAL — con tabs "Último rebalanceo" / "Provisional (hoy)"
+// =============================================================================
+
+interface CurrentRankingView {
+  date: string;
+  asOf: string;
+  holdings: string[];
+  ranking: Array<{
+    ticker: string;
+    momentumPercent: number;
+    volatilityPercent?: number;
+    score: number;
+    aboveMA: boolean;
+  }>;
+  forcedCash: boolean;
+}
+
+function RankingActualSection({
+  currentRanking,
+  provisional,
+  rankingMethod,
+}: {
+  currentRanking: CurrentRankingView;
+  provisional: ProvisionalRanking | undefined;
+  rankingMethod: MomentumRankingMethod;
+}) {
+  const [view, setView] = useState<"last" | "provisional">("last");
+
+  // Si no hay provisional o coincide con el último rebalanceo, no merece la
+  // pena ofrecer el tab — el contenido sería idéntico.
+  const provisionalDiffers =
+    provisional &&
+    JSON.stringify(provisional.ranking.map((c) => [c.ticker, c.score])) !==
+      JSON.stringify(currentRanking.ranking.map((c) => [c.ticker, c.score]));
+
+  const activeView = view === "provisional" && provisional ? "provisional" : "last";
+
+  const displayHoldings =
+    activeView === "provisional" && provisional
+      ? provisional.wouldHold
+      : currentRanking.holdings;
+  const displayRanking =
+    activeView === "provisional" && provisional
+      ? provisional.ranking
+      : currentRanking.ranking;
+  const displayForcedCash =
+    activeView === "provisional" && provisional
+      ? provisional.wouldForceCash
+      : currentRanking.forcedCash;
+  const displayDateLabel =
+    activeView === "provisional" && provisional
+      ? `Datos hasta ${provisional.asOfDate} · señal ${provisional.signalMonth}`
+      : `Último rebalanceo: ${currentRanking.date}`;
+
+  return (
+    <section className="bg-white rounded-2xl border border-brand-coral/20 shadow-sm p-6">
+      <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
+        <h3 className="text-lg font-semibold text-brand-navy font-serif">
+          Ranking actual
+        </h3>
+        <span className="text-xs text-brand-tertiary">{displayDateLabel}</span>
+      </div>
+
+      {/* Tabs sólo si tenemos provisional Y difiere del último rebalanceo */}
+      {provisional && provisionalDiffers && (
+        <div className="inline-flex items-center gap-1 bg-slate-100 rounded-lg p-0.5 text-xs mb-4">
+          <button
+            onClick={() => setView("last")}
+            className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+              activeView === "last"
+                ? "bg-white text-brand-navy shadow-sm"
+                : "text-slate-500 hover:text-brand-navy"
+            }`}
+            title="Snapshot del último rebalanceo del backtest"
+          >
+            Último rebalanceo
+          </button>
+          <button
+            onClick={() => setView("provisional")}
+            className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+              activeView === "provisional"
+                ? "bg-white text-brand-coral shadow-sm"
+                : "text-slate-500 hover:text-brand-navy"
+            }`}
+            title="Recalculado con los datos más recientes disponibles"
+          >
+            Provisional (hoy)
+          </button>
+        </div>
+      )}
+
+      {provisional && !provisionalDiffers && (
+        <p className="text-[11px] text-brand-tertiary mb-3 italic">
+          El ranking provisional coincide con el último rebalanceo — el modelo no cambiaría de decisión hoy.
+        </p>
+      )}
+
+      {/* Posiciones activas / que mantendría el modelo */}
+      <div className="mb-4">
+        <p className="text-[11px] font-semibold text-brand-tertiary uppercase tracking-wider mb-2">
+          {activeView === "provisional" ? "Mantendría hoy" : "Posiciones activas"}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {displayForcedCash ? (
+            <span className="px-3 py-1.5 bg-slate-100 text-brand-navy rounded-full text-sm font-semibold">
+              CASH (filtro MA)
+            </span>
+          ) : (
+            displayHoldings.map((ticker) => (
+              <span
+                key={ticker}
+                className="px-3 py-1.5 bg-brand-coral/10 text-brand-coral border border-brand-coral/30 rounded-full text-sm font-semibold"
+              >
+                {ticker}
+              </span>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Ranking completo del universo */}
+      <div>
+        <p className="text-[11px] font-semibold text-brand-tertiary uppercase tracking-wider mb-2">
+          Ranking completo del universo
+          {rankingMethod === "sharpe" && (
+            <span className="ml-2 normal-case text-brand-tertiary/80 font-normal">
+              · ordenado por retorno / volatilidad
+            </span>
+          )}
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200">
+                <th className="text-left text-[10px] font-semibold text-brand-tertiary uppercase py-1.5 px-2">
+                  #
+                </th>
+                <th className="text-left text-[10px] font-semibold text-brand-tertiary uppercase py-1.5 px-2">
+                  Ticker
+                </th>
+                <th className="text-right text-[10px] font-semibold text-brand-tertiary uppercase py-1.5 px-2">
+                  Momentum
+                </th>
+                {rankingMethod === "sharpe" && (
+                  <>
+                    <th className="text-right text-[10px] font-semibold text-brand-tertiary uppercase py-1.5 px-2">
+                      Volatilidad
+                    </th>
+                    <th className="text-right text-[10px] font-semibold text-brand-tertiary uppercase py-1.5 px-2">
+                      Ratio
+                    </th>
+                  </>
+                )}
+                <th className="text-center text-[10px] font-semibold text-brand-tertiary uppercase py-1.5 px-2">
+                  Filtro MA
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayRanking.map((c, idx) => {
+                const isHeld = displayHoldings.includes(c.ticker);
+                return (
+                  <tr
+                    key={c.ticker}
+                    className={`border-b border-slate-100 ${
+                      isHeld ? "bg-brand-coral/5" : ""
+                    }`}
+                  >
+                    <td className="py-1.5 px-2 text-xs font-mono text-brand-tertiary">
+                      {idx + 1}
+                    </td>
+                    <td className="py-1.5 px-2 text-xs font-mono font-semibold text-brand-navy">
+                      {c.ticker}
+                      {isHeld && (
+                        <span className="ml-1.5 text-[10px] text-brand-coral">●</span>
+                      )}
+                    </td>
+                    <td
+                      className={`py-1.5 px-2 text-xs text-right font-mono ${
+                        c.momentumPercent >= 0 ? "text-emerald-600" : "text-red-600"
+                      }`}
+                    >
+                      {formatPct(c.momentumPercent / 100, 2)}
+                    </td>
+                    {rankingMethod === "sharpe" && (
+                      <>
+                        <td className="py-1.5 px-2 text-xs text-right font-mono text-brand-secondary">
+                          {c.volatilityPercent !== undefined
+                            ? formatPct(c.volatilityPercent / 100, 1)
+                            : "—"}
+                        </td>
+                        <td className="py-1.5 px-2 text-xs text-right font-mono font-semibold text-brand-navy">
+                          {formatNumber(c.score, 2)}
+                        </td>
+                      </>
+                    )}
+                    <td className="py-1.5 px-2 text-xs text-center">
+                      {c.aboveMA ? (
+                        <span className="text-emerald-600">✓</span>
+                      ) : (
+                        <span className="text-red-500" title="Por debajo de la media móvil">
+                          ✗
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   );
 }

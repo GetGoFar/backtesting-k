@@ -162,6 +162,31 @@ export interface MomentumAnnualReturn {
   finalValue: number;
 }
 
+/**
+ * Ranking provisional — qué decidiría el modelo si rebalanceara AHORA usando
+ * los datos más recientes disponibles, independientemente del endDate del
+ * backtest. Útil cuando el endDate es del pasado o cuando la frecuencia es
+ * trimestral/anual y estamos en mitad del periodo.
+ */
+export interface ProvisionalRanking {
+  /** Mes señal usado para el cálculo (último mes con datos para TODOS los activos). */
+  signalMonth: string;
+  /** Fecha calendario hasta la que se incluyeron datos. */
+  asOfDate: string;
+  /** Ranking equivalente al de un rebalanceo, pero recalculado con datos de hoy. */
+  ranking: Array<{
+    ticker: string;
+    momentumPercent: number;
+    volatilityPercent?: number;
+    score: number;
+    aboveMA: boolean;
+  }>;
+  /** Si el modelo forzaría CASH por filtro MA. */
+  wouldForceCash: boolean;
+  /** Tickers que mantendría el modelo si rebalanceara AHORA. */
+  wouldHold: string[];
+}
+
 export interface MomentumResponse {
   config: MomentumConfig;
   equityCurve: MomentumEquityPoint[];
@@ -180,4 +205,9 @@ export interface MomentumResponse {
    * efectivo. Ausente si no hay datos suficientes (<3 meses).
    */
   correlationMatrix?: CorrelationMatrix;
+  /**
+   * Ranking que el modelo elegiría AHORA con los datos más recientes
+   * disponibles. Ausente si no hay histórico suficiente para el lookback.
+   */
+  provisionalRanking?: ProvisionalRanking;
 }
