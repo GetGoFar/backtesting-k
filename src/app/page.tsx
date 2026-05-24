@@ -1089,7 +1089,8 @@ export default function Home() {
               {results.correlationMatrix && results.correlationMatrix.fundIds.length >= 2 && (
                 <div id="section-correlations" className="scroll-mt-24">
                   <CorrelationMatrix
-                    results={results}
+                    correlationMatrix={results.correlationMatrix}
+                    warnings={results.warnings}
                     isLoading={false}
                     portfolioAFundIds={portfolioA.holdings.map(h => h.fundId)}
                     portfolioBFundIds={portfolioB.holdings.map(h => h.fundId)}

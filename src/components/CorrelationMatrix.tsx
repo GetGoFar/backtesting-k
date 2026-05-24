@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import type { BacktestResponse, CorrelationMatrix as CorrelationMatrixType, PortfolioHolding } from "@/lib/types";
+import type { BacktestWarning, CorrelationMatrix as CorrelationMatrixType, PortfolioHolding } from "@/lib/types";
 import { Tooltip } from "./Tooltip";
 import { formatNumber } from "@/lib/formatters";
 
 interface CorrelationMatrixProps {
-  results: BacktestResponse;
+  /** Matriz precalculada (resultado de un backtest o de una estrategia). */
+  correlationMatrix: CorrelationMatrixType | undefined;
+  /** Avisos asociados al cálculo (p.ej. activos excluidos). */
+  warnings?: BacktestWarning[];
   isLoading?: boolean;
   /** Fund IDs in portfolio A */
   portfolioAFundIds?: string[];
@@ -485,7 +488,8 @@ function MatrixSummary({ matrix }: { matrix: CorrelationMatrixType }) {
  * Componente principal de la matriz de correlaciones
  */
 export function CorrelationMatrix({
-  results,
+  correlationMatrix,
+  warnings = [],
   isLoading,
   portfolioAFundIds = [],
   portfolioBFundIds = [],
@@ -494,7 +498,7 @@ export function CorrelationMatrix({
   portfolioAName = "Cartera A",
   portfolioBName = "Cartera B",
 }: CorrelationMatrixProps) {
-  const fullMatrix = results.correlationMatrix;
+  const fullMatrix = correlationMatrix;
   const [viewMode, setViewMode] = useState<ViewMode>("all");
 
   // Determinar qué tabs mostrar
@@ -504,10 +508,10 @@ export function CorrelationMatrix({
 
   // Filtrar warnings de activos excluidos
   const excludedWarnings = useMemo(() => {
-    return (results.warnings || []).filter(
+    return warnings.filter(
       (w) => w.type === "asset_excluded" && w.message.includes("correlaciones")
     );
-  }, [results.warnings]);
+  }, [warnings]);
 
   // Matrices filtradas por cartera
   const matrixA = useMemo(() => {

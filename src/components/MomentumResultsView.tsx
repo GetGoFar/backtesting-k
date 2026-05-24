@@ -19,6 +19,7 @@ import { formatEUR, formatPct, formatNumber } from "@/lib/formatters";
 import type { MomentumResponse } from "@/lib/momentum-types";
 import { AnnualReturnsHeatmap, type HeatmapColumn } from "./AnnualReturnsHeatmap";
 import { MonthlyReturnsHeatmap, type HeatmapSeries as MonthlySeries } from "./MonthlyReturnsHeatmap";
+import { CorrelationMatrix } from "./CorrelationMatrix";
 
 interface Props {
   results: MomentumResponse;
@@ -304,6 +305,21 @@ export function MomentumResultsView({ results }: Props) {
           />
         );
       })()}
+
+      {/* Matriz de correlaciones — estrategia vs cada activo del universo */}
+      {results.correlationMatrix && results.correlationMatrix.fundIds.length >= 2 && (
+        <section>
+          <p className="text-xs text-brand-tertiary mb-3 px-1">
+            La primera fila/columna es la propia <strong>Estrategia Momentum</strong>. Te dice
+            cuánto se aleja la rotación del comportamiento individual de cada componente —
+            valores bajos significan que la estrategia aporta diversificación real.
+          </p>
+          <CorrelationMatrix
+            correlationMatrix={results.correlationMatrix}
+            warnings={[]}
+          />
+        </section>
+      )}
 
       {/* Historial de rebalanceos */}
       <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">

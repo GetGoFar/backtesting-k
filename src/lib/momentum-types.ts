@@ -1,3 +1,5 @@
+import type { CorrelationMatrix } from "./types";
+
 // =============================================================================
 // MOMENTUM — Tipos para estrategia de Relative Strength (tactical asset allocation)
 // =============================================================================
@@ -171,4 +173,11 @@ export interface MomentumResponse {
   benchmarkMetrics?: MomentumMetrics;
   /** Avisos no fatales — p.ej. ticker sin datos, lookback ajustado, etc. */
   warnings: string[];
+  /**
+   * Matriz de correlaciones entre la propia estrategia y cada activo del
+   * universo. La primera fila/columna corresponde a la estrategia (id sintético
+   * "__momentum_strategy__"). Calculada sobre retornos mensuales del rango
+   * efectivo. Ausente si no hay datos suficientes (<3 meses).
+   */
+  correlationMatrix?: CorrelationMatrix;
 }
