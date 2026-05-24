@@ -917,6 +917,106 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
     effectiveEndMonth,
   });
 
+  // Provisional ranking — qué decidiría el modelo si rebalanceara AHORA con
+  // los datos MÁS RECIENTES disponibles, independientemente del endDate del
+  // backtest. Usa exactamente las mismas reglas del modelo (lookback,
+  // excludePreviousMonth, rankingMethod, filtro MA) que un rebalanceo en loop.
+  let provisionalRanking: import("./momentum-types").ProvisionalRanking | undefined;
+  {
+    // Último mes con datos para TODOS los activos (intersección).
+    const lastMonthPerTicker: string[] = [];
+    for (const [, s] of seriesPerAsset) {
+      const months = Array.from(s.monthlyClose.keys()).sort();
+      if (months.length > 0) lastMonthPerTicker.push(months[months.length - 1]!);
+    }
+    lastMonthPerTicker.sort();
+    const latestCommonMonth = lastMonthPerTicker[0];
+
+    // Necesitamos al menos `lookback + (excludePrev ? 1 : 0)` meses hacia atrás
+    // desde el mes señal para que la fórmula de momentum tenga datos.
+    if (
+      latestCommonMonth &&
+      compareMonths(latestCommonMonth, effectiveStartMonth) >= 0
+    ) {
+      const provSignalMonth = latestCommonMonth;
+      const provCandidates: Array<{
+        ticker: string;
+        mom: number;
+        vol: number | null;
+        score: number;
+        aboveMA: boolean;
+      }> = [];
+
+      for (const [ticker, series] of seriesPerAsset) {
+        const mom = momentumAt(
+          series.monthlyClose,
+          provSignalMonth,
+          config.lookbackMonths,
+          config.excludePreviousMonth
+        );
+        if (mom === null) continue;
+
+        let vol: number | null = null;
+        if (rankingMethod === "sharpe" || config.weighting === "volatility") {
+          vol = volatilityAt(series.daily, provSignalMonth, volPeriod);
+        }
+
+        const score =
+          rankingMethod === "sharpe"
+            ? vol && vol > 0
+              ? mom / vol
+              : -Infinity
+            : mom;
+
+        let aboveMA = true;
+        if (config.movingAverageMonths && config.movingAverageMonths > 0) {
+          const ma = movingAverage(
+            series.monthlyClose,
+            provSignalMonth,
+            config.movingAverageMonths
+          );
+          const currentPrice = series.monthlyClose.get(provSignalMonth);
+          aboveMA = ma !== null && currentPrice !== undefined && currentPrice > ma;
+        }
+
+        provCandidates.push({ ticker, mom, vol, score, aboveMA });
+      }
+
+      if (provCandidates.length > 0) {
+        provCandidates.sort((a, b) => b.score - a.score);
+        const provTopK = provCandidates.slice(0, config.assetsToHold);
+        const provPassing = config.movingAverageMonths
+          ? provTopK.filter((c) => c.aboveMA)
+          : provTopK;
+        const wouldForceCash =
+          config.movingAverageMonths != null && provPassing.length === 0;
+        const wouldHold = wouldForceCash
+          ? ["CASH"]
+          : provPassing.map((c) => c.ticker);
+
+        // Fecha exacta del último día con datos en el mes señal (cualquier
+        // serie referencia vale — están alineadas mensualmente).
+        const refSeries = seriesPerAsset.values().next().value as AssetSeries;
+        const asOfDate =
+          refSeries?.exactLastDay.get(provSignalMonth) ?? `${provSignalMonth}-28`;
+
+        provisionalRanking = {
+          signalMonth: provSignalMonth,
+          asOfDate,
+          ranking: provCandidates.map((c) => ({
+            ticker: c.ticker,
+            momentumPercent: c.mom * 100,
+            volatilityPercent: c.vol !== null ? c.vol * 100 : undefined,
+            score: c.score,
+            aboveMA: c.aboveMA,
+          })),
+          wouldForceCash,
+          wouldHold,
+        };
+      }
+    }
+  }
+
   return {
     config,
     equityCurve,
@@ -927,6 +1027,7 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
     benchmarkMetrics,
     warnings,
     correlationMatrix,
+    provisionalRanking,
   };
 }
 
