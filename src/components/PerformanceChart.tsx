@@ -447,8 +447,33 @@ export function PerformanceChart({ results, isLoading, valueMode = "camino" }: P
   // El año extra (ej. "2016" si el primer mes real es "2017-01") se OMITE
   // del eje X para que el etiquetado de años no aporte ruido — sólo afecta
   // a la posición donde arranca la línea.
+  //
+  // Cuando hay DOS carteras, las alineamos visualmente al mes más tardío de las
+  // dos. El motor de backtest descarta los primeros meses de una cartera si
+  // alguno de sus fondos aún no tiene cotización ese día — eso provoca que B
+  // arranque "un mes después" que A. Sin esta alineación, el ancla quedaba en
+  // el mes anterior a A y la línea de B quedaba flotando con un hueco visual.
+  const firstMonthA = resultA?.timeSeries[0]?.date;
+  const firstMonthB = resultB?.timeSeries[0]?.date;
   const referenceFirstMonth =
-    resultA?.timeSeries[0]?.date ?? resultB?.timeSeries[0]?.date;
+    firstMonthA && firstMonthB
+      ? firstMonthA > firstMonthB
+        ? firstMonthA
+        : firstMonthB
+      : firstMonthA ?? firstMonthB;
+
+  // Si hay desfase entre A y B (el motor descarta los meses iniciales de la
+  // cartera con más fondos cuando alguno no tiene cotización ese día),
+  // recortamos las entradas anteriores al mes más tardío para que ambas
+  // líneas arranquen alineadas. El bloque siguiente añade un ancla común a
+  // initialAmount un mes antes del cutoff, así que las tres series (A, B y
+  // benchmark) quedan alineadas visualmente en el mismo punto de partida.
+  if (firstMonthA && firstMonthB && firstMonthA !== firstMonthB) {
+    const cutoff = referenceFirstMonth!;
+    for (const key of Array.from(dataMap.keys())) {
+      if (key < cutoff) dataMap.delete(key);
+    }
+  }
   let anchorMonthKey: string | null = null;
   if (referenceFirstMonth && initialAmount > 0) {
     const parts = referenceFirstMonth.split("-");
