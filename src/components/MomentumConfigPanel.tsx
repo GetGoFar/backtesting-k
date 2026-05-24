@@ -4,9 +4,16 @@
 // MOMENTUM CONFIG PANEL — Replica el panel "Model Configuration" de PV
 // =============================================================================
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tooltip } from "./Tooltip";
 import type { MomentumConfig, MomentumAsset } from "@/lib/momentum-types";
+import {
+  getSavedMomentumStrategies,
+  saveMomentumStrategy,
+  deleteMomentumStrategy,
+  SAVED_MOMENTUM_CHANGE_EVENT,
+  type SavedMomentumStrategy,
+} from "@/lib/saved-momentum-strategies";
 
 interface Props {
   config: MomentumConfig;
@@ -17,6 +24,36 @@ interface Props {
 
 export function MomentumConfigPanel({ config, onChange, onRun, isLoading }: Props) {
   const [newTicker, setNewTicker] = useState("");
+  const [savedStrategies, setSavedStrategies] = useState<SavedMomentumStrategy[]>([]);
+
+  // Cargar y escuchar cambios en localStorage de estrategias guardadas
+  useEffect(() => {
+    setSavedStrategies(getSavedMomentumStrategies());
+    const onChange = () => setSavedStrategies(getSavedMomentumStrategies());
+    window.addEventListener(SAVED_MOMENTUM_CHANGE_EVENT, onChange);
+    return () => window.removeEventListener(SAVED_MOMENTUM_CHANGE_EVENT, onChange);
+  }, []);
+
+  function handleSave() {
+    const defaultName = `Estrategia ${new Date().toLocaleDateString("es-ES")}`;
+    const name = window.prompt(
+      "Nombre para la estrategia:",
+      defaultName
+    );
+    if (name === null) return; // canceló
+    saveMomentumStrategy({ name, config });
+  }
+
+  function handleLoad(strategy: SavedMomentumStrategy) {
+    onChange(strategy.config);
+  }
+
+  function handleDelete(e: React.MouseEvent, id: string, name: string) {
+    e.stopPropagation();
+    if (window.confirm(`¿Eliminar la estrategia "${name}"? No se puede deshacer.`)) {
+      deleteMomentumStrategy(id);
+    }
+  }
 
   function update<K extends keyof MomentumConfig>(key: K, value: MomentumConfig[K]) {
     onChange({ ...config, [key]: value });
@@ -146,14 +183,68 @@ export function MomentumConfigPanel({ config, onChange, onRun, isLoading }: Prop
           <h3 className="text-white font-semibold font-serif text-lg">Configuración del modelo</h3>
           <p className="text-xs text-white/70 mt-0.5">Relative Strength · tactical asset allocation</p>
         </div>
-        <button
-          onClick={onRun}
-          disabled={isLoading || config.assets.length < 2}
-          className="px-5 py-2 bg-brand-coral text-white text-sm font-semibold rounded-lg hover:bg-brand-coral/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {isLoading ? "Ejecutando..." : "Ejecutar"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSave}
+            disabled={config.assets.length < 2}
+            title="Guarda la configuración actual en este navegador"
+            className="px-4 py-2 bg-white/10 text-white text-sm font-medium rounded-lg border border-white/20 hover:bg-white/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            Guardar
+          </button>
+          <button
+            onClick={onRun}
+            disabled={isLoading || config.assets.length < 2}
+            className="px-5 py-2 bg-brand-coral text-white text-sm font-semibold rounded-lg hover:bg-brand-coral/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isLoading ? "Ejecutando..." : "Ejecutar"}
+          </button>
+        </div>
       </div>
+
+      {/* Mis estrategias guardadas — sólo aparece si hay alguna en localStorage */}
+      {savedStrategies.length > 0 && (
+        <div className="px-6 py-3 bg-slate-50 border-b border-slate-200">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[11px] font-semibold text-brand-tertiary uppercase tracking-wider">
+              Mis estrategias guardadas
+            </span>
+            <Tooltip content="Configuraciones guardadas en este navegador. Haz clic para cargarlas, o pulsa la × para borrarlas.">
+              <InfoIcon />
+            </Tooltip>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {savedStrategies.map((s) => (
+              <div
+                key={s.id}
+                className="inline-flex items-center bg-white border border-slate-200 rounded-full text-xs font-medium text-brand-navy hover:border-brand-coral transition-colors overflow-hidden"
+              >
+                <button
+                  type="button"
+                  onClick={() => handleLoad(s)}
+                  className="pl-2.5 pr-1 py-1 hover:bg-rose-50 transition-colors"
+                  title={`Cargar "${s.name}" (creada ${new Date(s.createdAt).toLocaleDateString("es-ES")})`}
+                >
+                  <span className="truncate max-w-[200px] inline-block align-middle">
+                    {s.name}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => handleDelete(e, s.id, s.name)}
+                  className="pl-1 pr-2 py-1 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                  aria-label={`Eliminar ${s.name}`}
+                  title="Eliminar"
+                >
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="p-6 space-y-6">
         {/* Universo de activos */}
