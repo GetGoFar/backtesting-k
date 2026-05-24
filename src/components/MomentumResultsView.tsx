@@ -52,6 +52,82 @@ export function MomentumResultsView({ results }: Props) {
     return { minValue: Math.min(...values), maxValue: Math.max(...values) };
   }, [chartData]);
 
+  // Ranking actual = el del último rebalanceo. Las holdings activos son los del
+  // último punto de equity (incluye CASH si MA forzó salida).
+  const currentRanking = useMemo(() => {
+    if (results.rebalances.length === 0) return null;
+    const last = results.rebalances[results.rebalances.length - 1]!;
+    const lastEquity = results.equityCurve[results.equityCurve.length - 1];
+    return {
+      date: last.date,
+      asOf: lastEquity?.date ?? last.date,
+      holdings: lastEquity?.holdings ?? last.newHoldings,
+      ranking: last.ranking,
+      forcedCash: last.forcedCash,
+    };
+  }, [results.rebalances, results.equityCurve]);
+
+  // Enriquece cada rebalanceo con la rentabilidad obtenida hasta el siguiente
+  // rebalanceo (o hasta el final del backtest si es el último) y la duración
+  // del periodo. Se calcula buscando el valor de equity en la fecha del
+  // rebalanceo y en la fecha del siguiente.
+  const enrichedRebalances = useMemo(() => {
+    const equityByDate = new Map<string, number>();
+    for (const p of results.equityCurve) equityByDate.set(p.date, p.value);
+
+    // Función auxiliar: encuentra el primer punto de equity en o después de una
+    // fecha dada (tolerante a desfases de 1-2 días por festivos).
+    const equitySortedDates = results.equityCurve.map((p) => p.date);
+    function valueAtOrAfter(date: string): number | undefined {
+      const exact = equityByDate.get(date);
+      if (exact !== undefined) return exact;
+      for (const d of equitySortedDates) {
+        if (d >= date) return equityByDate.get(d);
+      }
+      return undefined;
+    }
+
+    const lastEquityDate = equitySortedDates[equitySortedDates.length - 1] ?? "";
+    const rebs = results.rebalances;
+
+    return rebs.map((r, i) => {
+      const startDate = r.date;
+      const endDate = i < rebs.length - 1 ? rebs[i + 1]!.date : lastEquityDate;
+      const startVal = valueAtOrAfter(startDate);
+      const endVal = valueAtOrAfter(endDate);
+      const returnPct =
+        startVal !== undefined && endVal !== undefined && startVal > 0
+          ? (endVal / startVal - 1) * 100
+          : null;
+      const durationDays =
+        startDate && endDate
+          ? Math.max(
+              0,
+              Math.round(
+                (new Date(endDate).getTime() - new Date(startDate).getTime()) /
+                  (1000 * 60 * 60 * 24)
+              )
+            )
+          : null;
+      return { ...r, returnPct, durationDays, isOpen: i === rebs.length - 1 };
+    });
+  }, [results.rebalances, results.equityCurve]);
+
+  // Vista de la tabla: más reciente arriba.
+  const rebalancesDescending = useMemo(
+    () => [...enrichedRebalances].reverse(),
+    [enrichedRebalances]
+  );
+
+  // Formatea una duración en días como "Xd" o "Xm Yd" (>=30 días → meses).
+  function formatDuration(days: number | null): string {
+    if (days === null) return "—";
+    if (days < 30) return `${days}d`;
+    const months = Math.floor(days / 30);
+    const rem = days % 30;
+    return rem > 0 ? `${months}m ${rem}d` : `${months}m`;
+  }
+
   return (
     <div className="space-y-8">
       {/* Avisos */}
@@ -64,6 +140,138 @@ export function MomentumResultsView({ results }: Props) {
             ))}
           </ul>
         </div>
+      )}
+
+      {/* Ranking actual — posiciones que la estrategia mantiene HOY y ranking
+          completo del último rebalanceo. Útil para saber qué tendrías que
+          tener en cartera AHORA mismo según el modelo. */}
+      {currentRanking && (
+        <section className="bg-white rounded-2xl border border-brand-coral/20 shadow-sm p-6">
+          <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
+            <h3 className="text-lg font-semibold text-brand-navy font-serif">
+              Ranking actual
+            </h3>
+            <span className="text-xs text-brand-tertiary">
+              Último rebalanceo: <strong>{currentRanking.date}</strong>
+            </span>
+          </div>
+
+          {/* Posiciones activas */}
+          <div className="mb-4">
+            <p className="text-[11px] font-semibold text-brand-tertiary uppercase tracking-wider mb-2">
+              Posiciones activas
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {currentRanking.forcedCash ? (
+                <span className="px-3 py-1.5 bg-slate-100 text-brand-navy rounded-full text-sm font-semibold">
+                  CASH (filtro MA)
+                </span>
+              ) : (
+                currentRanking.holdings.map((ticker) => (
+                  <span
+                    key={ticker}
+                    className="px-3 py-1.5 bg-brand-coral/10 text-brand-coral border border-brand-coral/30 rounded-full text-sm font-semibold"
+                  >
+                    {ticker}
+                  </span>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Ranking completo del universo */}
+          <div>
+            <p className="text-[11px] font-semibold text-brand-tertiary uppercase tracking-wider mb-2">
+              Ranking completo del universo
+              {results.config.rankingMethod === "sharpe" && (
+                <span className="ml-2 normal-case text-brand-tertiary/80 font-normal">
+                  · ordenado por retorno / volatilidad
+                </span>
+              )}
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200">
+                    <th className="text-left text-[10px] font-semibold text-brand-tertiary uppercase py-1.5 px-2">
+                      #
+                    </th>
+                    <th className="text-left text-[10px] font-semibold text-brand-tertiary uppercase py-1.5 px-2">
+                      Ticker
+                    </th>
+                    <th className="text-right text-[10px] font-semibold text-brand-tertiary uppercase py-1.5 px-2">
+                      Momentum
+                    </th>
+                    {results.config.rankingMethod === "sharpe" && (
+                      <>
+                        <th className="text-right text-[10px] font-semibold text-brand-tertiary uppercase py-1.5 px-2">
+                          Volatilidad
+                        </th>
+                        <th className="text-right text-[10px] font-semibold text-brand-tertiary uppercase py-1.5 px-2">
+                          Ratio
+                        </th>
+                      </>
+                    )}
+                    <th className="text-center text-[10px] font-semibold text-brand-tertiary uppercase py-1.5 px-2">
+                      Filtro MA
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentRanking.ranking.map((c, idx) => {
+                    const isHeld = currentRanking.holdings.includes(c.ticker);
+                    return (
+                      <tr
+                        key={c.ticker}
+                        className={`border-b border-slate-100 ${
+                          isHeld ? "bg-brand-coral/5" : ""
+                        }`}
+                      >
+                        <td className="py-1.5 px-2 text-xs font-mono text-brand-tertiary">
+                          {idx + 1}
+                        </td>
+                        <td className="py-1.5 px-2 text-xs font-mono font-semibold text-brand-navy">
+                          {c.ticker}
+                          {isHeld && (
+                            <span className="ml-1.5 text-[10px] text-brand-coral">●</span>
+                          )}
+                        </td>
+                        <td
+                          className={`py-1.5 px-2 text-xs text-right font-mono ${
+                            c.momentumPercent >= 0 ? "text-emerald-600" : "text-red-600"
+                          }`}
+                        >
+                          {formatPct(c.momentumPercent / 100, 2)}
+                        </td>
+                        {results.config.rankingMethod === "sharpe" && (
+                          <>
+                            <td className="py-1.5 px-2 text-xs text-right font-mono text-brand-secondary">
+                              {c.volatilityPercent !== undefined
+                                ? formatPct(c.volatilityPercent / 100, 1)
+                                : "—"}
+                            </td>
+                            <td className="py-1.5 px-2 text-xs text-right font-mono font-semibold text-brand-navy">
+                              {formatNumber(c.score, 2)}
+                            </td>
+                          </>
+                        )}
+                        <td className="py-1.5 px-2 text-xs text-center">
+                          {c.aboveMA ? (
+                            <span className="text-emerald-600">✓</span>
+                          ) : (
+                            <span className="text-red-500" title="Por debajo de la media móvil">
+                              ✗
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
       )}
 
       {/* Métricas resumen */}
@@ -327,7 +535,8 @@ export function MomentumResultsView({ results }: Props) {
           Historial de rotaciones
         </h3>
         <p className="text-xs text-brand-tertiary mb-4">
-          Cada vez que cambiaron los activos seleccionados (no se muestran los meses sin cambios).
+          Ordenado de más reciente a más antiguo. Rentabilidad y duración son las
+          obtenidas entre cada rotación y la siguiente (la última operación abierta marca el periodo hasta hoy).
           {results.config.rankingMethod === "sharpe" && (
             <>
               {" "}Ranking por <strong>retorno / volatilidad</strong> ({results.config.volatilityPeriodMonths ?? 3}m).
@@ -339,13 +548,19 @@ export function MomentumResultsView({ results }: Props) {
             <thead className="sticky top-0 bg-white border-b border-slate-200">
               <tr>
                 <th className="text-left text-xs font-semibold text-brand-tertiary uppercase py-2 px-3">
-                  Mes
+                  Fecha
                 </th>
                 <th className="text-left text-xs font-semibold text-brand-tertiary uppercase py-2 px-3">
                   Sale
                 </th>
                 <th className="text-left text-xs font-semibold text-brand-tertiary uppercase py-2 px-3">
                   Entra
+                </th>
+                <th className="text-right text-xs font-semibold text-brand-tertiary uppercase py-2 px-3">
+                  Rentabilidad
+                </th>
+                <th className="text-right text-xs font-semibold text-brand-tertiary uppercase py-2 px-3">
+                  Duración
                 </th>
                 <th className="text-left text-xs font-semibold text-brand-tertiary uppercase py-2 px-3 hidden lg:table-cell">
                   {results.config.rankingMethod === "sharpe"
@@ -355,10 +570,15 @@ export function MomentumResultsView({ results }: Props) {
               </tr>
             </thead>
             <tbody>
-              {results.rebalances.map((r, i) => (
-                <tr key={i} className="border-b border-slate-100 hover:bg-slate-50/50">
+              {rebalancesDescending.map((r, i) => (
+                <tr key={`${r.date}-${i}`} className="border-b border-slate-100 hover:bg-slate-50/50">
                   <td className="py-2 px-3 font-mono text-xs text-brand-secondary">
                     {r.date}
+                    {r.isOpen && (
+                      <span className="ml-2 text-[10px] uppercase font-semibold text-brand-coral">
+                        abierta
+                      </span>
+                    )}
                   </td>
                   <td className="py-2 px-3 text-xs">
                     {r.previousHoldings.length > 0 ? (
@@ -377,6 +597,20 @@ export function MomentumResultsView({ results }: Props) {
                     ) : (
                       <span className="text-brand-coral">{r.newHoldings.join(", ")}</span>
                     )}
+                  </td>
+                  <td
+                    className={`py-2 px-3 text-xs text-right font-mono ${
+                      r.returnPct === null
+                        ? "text-brand-tertiary"
+                        : r.returnPct >= 0
+                        ? "text-emerald-600 font-semibold"
+                        : "text-red-600 font-semibold"
+                    }`}
+                  >
+                    {r.returnPct === null ? "—" : formatPct(r.returnPct / 100, 2)}
+                  </td>
+                  <td className="py-2 px-3 text-xs text-right font-mono text-brand-secondary">
+                    {formatDuration(r.durationDays)}
                   </td>
                   <td className="py-2 px-3 text-[11px] hidden lg:table-cell">
                     <div className="flex flex-wrap gap-1">
