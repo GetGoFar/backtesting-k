@@ -43,6 +43,11 @@ import type {
   MomentumAnnualReturn,
   MomentumAsset,
 } from "./momentum-types";
+import type { CorrelationMatrix, CorrelationEntry } from "./types";
+
+// ID sintético que usamos para representar a la propia estrategia momentum
+// como una "fila/columna" más dentro de la matriz de correlaciones.
+export const MOMENTUM_STRATEGY_ID = "__momentum_strategy__";
 
 // -----------------------------------------------------------------------------
 // Utilidades de fechas mensuales ("YYYY-MM")
@@ -385,6 +390,172 @@ function computeTurnover(
 // -----------------------------------------------------------------------------
 // Motor principal
 // -----------------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------
+// Matriz de correlaciones — incluye la propia estrategia como un activo más
+// -----------------------------------------------------------------------------
+
+/**
+ * Coeficiente de correlación de Pearson sobre dos series alineadas.
+ */
+function pearsonCorrelation(a: number[], b: number[]): number {
+  const n = Math.min(a.length, b.length);
+  if (n < 3) return 0;
+  let sumA = 0,
+    sumB = 0;
+  for (let i = 0; i < n; i++) {
+    sumA += a[i]!;
+    sumB += b[i]!;
+  }
+  const meanA = sumA / n;
+  const meanB = sumB / n;
+  let num = 0,
+    denA = 0,
+    denB = 0;
+  for (let i = 0; i < n; i++) {
+    const da = a[i]! - meanA;
+    const db = b[i]! - meanB;
+    num += da * db;
+    denA += da * da;
+    denB += db * db;
+  }
+  const den = Math.sqrt(denA * denB);
+  return den === 0 ? 0 : num / den;
+}
+
+/**
+ * Calcula retornos mensuales de una serie de precios mensuales (clave "YYYY-MM"
+ * o "YYYY-MM-DD"). Limita a los meses dentro de [startMonth, endMonth].
+ * Devuelve un Map cuya clave es "YYYY-MM" (el mes del retorno) y el valor el
+ * retorno mensual simple del mes anterior al actual.
+ */
+function monthlyReturnsInRange(
+  priceByMonth: Map<string, number>,
+  startMonth: string,
+  endMonth: string
+): Map<string, number> {
+  const sorted = Array.from(priceByMonth.keys()).sort();
+  const returns = new Map<string, number>();
+  for (let i = 1; i < sorted.length; i++) {
+    const prevKey = sorted[i - 1]!;
+    const currKey = sorted[i]!;
+    const currMonth = currKey.substring(0, 7);
+    if (currMonth < startMonth || currMonth > endMonth) continue;
+    const prev = priceByMonth.get(prevKey)!;
+    const curr = priceByMonth.get(currKey)!;
+    if (prev > 0) {
+      returns.set(currMonth, curr / prev - 1);
+    }
+  }
+  return returns;
+}
+
+/**
+ * Construye la matriz de correlaciones entre cada activo del universo y la
+ * propia estrategia. La estrategia aparece como una FILA/COLUMNA adicional con
+ * id [[MOMENTUM_STRATEGY_ID]] para que el usuario vea cuánto se aleja la
+ * rotación del comportamiento individual de cada componente.
+ */
+function buildMomentumCorrelationMatrix(args: {
+  assets: MomentumAsset[];
+  /** monthlyClose por ticker (precios mensuales del activo). */
+  monthlyByTicker: Map<string, Map<string, number>>;
+  /** Curva de equity de la estrategia (puntos mensuales). */
+  equityCurve: MomentumEquityPoint[];
+  effectiveStartMonth: string;
+  effectiveEndMonth: string;
+}): CorrelationMatrix | undefined {
+  const {
+    assets,
+    monthlyByTicker,
+    equityCurve,
+    effectiveStartMonth,
+    effectiveEndMonth,
+  } = args;
+
+  // Necesitamos al menos un activo + la estrategia (2 series) para que tenga
+  // sentido una matriz de correlaciones.
+  if (equityCurve.length < 3) return undefined;
+
+  // 1) Retornos mensuales de cada activo del universo (sólo los que tienen
+  // datos válidos en el rango).
+  const assetReturns = new Map<string, Map<string, number>>();
+  const assetNames = new Map<string, string>();
+  for (const asset of assets) {
+    const monthly = monthlyByTicker.get(asset.ticker);
+    if (!monthly || monthly.size < 3) continue;
+    const r = monthlyReturnsInRange(
+      monthly,
+      effectiveStartMonth,
+      effectiveEndMonth
+    );
+    if (r.size < 2) continue;
+    assetReturns.set(asset.ticker, r);
+    assetNames.set(asset.ticker, asset.displayName ?? asset.ticker);
+  }
+
+  // 2) Retornos mensuales de la estrategia a partir de su curva de equity.
+  // La curva ya está en granularidad mensual: 1 punto por mes.
+  const stratPriceByMonth = new Map<string, number>();
+  for (const p of equityCurve) {
+    stratPriceByMonth.set(p.date.substring(0, 7), p.value);
+  }
+  const stratReturns = monthlyReturnsInRange(
+    stratPriceByMonth,
+    effectiveStartMonth,
+    effectiveEndMonth
+  );
+  if (stratReturns.size < 2) return undefined;
+
+  // 3) Construir lista ordenada: primero la estrategia, después los activos.
+  const ids: string[] = [MOMENTUM_STRATEGY_ID, ...assetReturns.keys()];
+  const names: string[] = [
+    "Estrategia Momentum",
+    ...ids.slice(1).map((id) => assetNames.get(id) ?? id),
+  ];
+  const allReturns = new Map<string, Map<string, number>>();
+  allReturns.set(MOMENTUM_STRATEGY_ID, stratReturns);
+  for (const [t, r] of assetReturns) allReturns.set(t, r);
+
+  if (ids.length < 2) return undefined;
+
+  // 4) Calcular correlaciones pareadas alineando por mes común.
+  const n = ids.length;
+  const matrix: number[][] = Array(n)
+    .fill(null)
+    .map(() => Array(n).fill(0));
+  const entries: CorrelationEntry[] = [];
+
+  for (let i = 0; i < n; i++) {
+    matrix[i]![i] = 1;
+    const ri = allReturns.get(ids[i]!)!;
+    for (let j = i + 1; j < n; j++) {
+      const rj = allReturns.get(ids[j]!)!;
+      // Intersección de meses con datos en ambas series
+      const common: string[] = [];
+      for (const m of ri.keys()) if (rj.has(m)) common.push(m);
+      common.sort();
+      const va: number[] = [];
+      const vb: number[] = [];
+      for (const m of common) {
+        va.push(ri.get(m)!);
+        vb.push(rj.get(m)!);
+      }
+      const corr = pearsonCorrelation(va, vb);
+      matrix[i]![j] = corr;
+      matrix[j]![i] = corr;
+      entries.push({
+        fundId1: ids[i]!,
+        fundId2: ids[j]!,
+        name1: names[i]!,
+        name2: names[j]!,
+        correlation: corr,
+      });
+    }
+  }
+
+  return { fundIds: ids, fundNames: names, matrix, entries };
+}
 
 export async function runMomentum(config: MomentumConfig): Promise<MomentumResponse> {
   const warnings: string[] = [];
@@ -732,6 +903,20 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
     }
   }
 
+  // Matriz de correlaciones: estrategia vs cada activo del universo. Se
+  // calcula sobre los retornos mensuales restringidos al rango efectivo.
+  const monthlyByTicker = new Map<string, Map<string, number>>();
+  for (const [ticker, series] of seriesPerAsset) {
+    monthlyByTicker.set(ticker, series.monthlyClose);
+  }
+  const correlationMatrix = buildMomentumCorrelationMatrix({
+    assets: config.assets,
+    monthlyByTicker,
+    equityCurve,
+    effectiveStartMonth,
+    effectiveEndMonth,
+  });
+
   return {
     config,
     equityCurve,
@@ -741,6 +926,7 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
     benchmarkCurve,
     benchmarkMetrics,
     warnings,
+    correlationMatrix,
   };
 }
 
