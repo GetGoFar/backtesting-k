@@ -619,6 +619,16 @@ function RankingActualSection({
       ? `Datos hasta ${provisional.asOfDate} · señal ${provisional.signalMonth}`
       : `Último rebalanceo: ${currentRanking.date}`;
 
+  // Mapa ticker → posición 1-based en el último rebalanceo. Lo usamos en la
+  // vista provisional para mostrar el cambio de posición (▲/▼) frente al
+  // último rebalanceo.
+  const previousPositions = useMemo(() => {
+    const m = new Map<string, number>();
+    currentRanking.ranking.forEach((c, i) => m.set(c.ticker, i + 1));
+    return m;
+  }, [currentRanking.ranking]);
+  const showPositionDelta = activeView === "provisional" && !!provisional;
+
   return (
     <section className="bg-white rounded-2xl border border-brand-coral/20 shadow-sm p-6">
       <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
@@ -702,6 +712,14 @@ function RankingActualSection({
                 <th className="text-left text-[10px] font-semibold text-brand-tertiary uppercase py-1.5 px-2">
                   #
                 </th>
+                {showPositionDelta && (
+                  <th
+                    className="text-center text-[10px] font-semibold text-brand-tertiary uppercase py-1.5 px-2"
+                    title="Cambio de posición frente al último rebalanceo"
+                  >
+                    Δ Pos.
+                  </th>
+                )}
                 <th className="text-left text-[10px] font-semibold text-brand-tertiary uppercase py-1.5 px-2">
                   Ticker
                 </th>
@@ -726,6 +744,8 @@ function RankingActualSection({
             <tbody>
               {displayRanking.map((c, idx) => {
                 const isHeld = displayHoldings.includes(c.ticker);
+                const currentPos = idx + 1;
+                const previousPos = previousPositions.get(c.ticker);
                 return (
                   <tr
                     key={c.ticker}
@@ -734,8 +754,16 @@ function RankingActualSection({
                     }`}
                   >
                     <td className="py-1.5 px-2 text-xs font-mono text-brand-tertiary">
-                      {idx + 1}
+                      {currentPos}
                     </td>
+                    {showPositionDelta && (
+                      <td className="py-1.5 px-2 text-xs text-center font-mono">
+                        <PositionDelta
+                          currentPos={currentPos}
+                          previousPos={previousPos}
+                        />
+                      </td>
+                    )}
                     <td className="py-1.5 px-2 text-xs font-mono font-semibold text-brand-navy">
                       {c.ticker}
                       {isHeld && (
@@ -778,5 +806,61 @@ function RankingActualSection({
         </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * Indicador visual del cambio de posición de un ticker entre el último
+ * rebalanceo y el ranking actual. Muestra ▲/▼/= con el número de posiciones
+ * desplazadas y código de color (verde sube, rojo baja, gris igual).
+ */
+function PositionDelta({
+  currentPos,
+  previousPos,
+}: {
+  currentPos: number;
+  previousPos: number | undefined;
+}) {
+  if (previousPos === undefined) {
+    return (
+      <span
+        className="inline-block px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-semibold"
+        title="No estaba en el ranking del último rebalanceo (datos insuficientes para el lookback)"
+      >
+        NUEVO
+      </span>
+    );
+  }
+  const delta = previousPos - currentPos;
+  if (delta === 0) {
+    return (
+      <span
+        className="text-slate-400"
+        title="Misma posición que el último rebalanceo"
+      >
+        =
+      </span>
+    );
+  }
+  if (delta > 0) {
+    // Sube en el ranking (mejora) — flecha hacia arriba, verde
+    return (
+      <span
+        className="text-emerald-600 font-semibold"
+        title={`Sube ${delta} ${delta === 1 ? "posición" : "posiciones"} (antes #${previousPos})`}
+      >
+        ▲ {delta}
+      </span>
+    );
+  }
+  // Baja en el ranking (empeora) — flecha hacia abajo, rojo
+  const drop = Math.abs(delta);
+  return (
+    <span
+      className="text-red-600 font-semibold"
+      title={`Baja ${drop} ${drop === 1 ? "posición" : "posiciones"} (antes #${previousPos})`}
+    >
+      ▼ {drop}
+    </span>
   );
 }
