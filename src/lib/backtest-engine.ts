@@ -2501,32 +2501,62 @@ async function calculateAssetCorrelationMatrix(
 }
 
 /**
- * Expande un snapshot mensual de una estrategia momentum a una serie diaria
- * forward-filled. Para cada día entre el primer y último NAV del snapshot,
- * mantiene el NAV vigente hasta que aparece el siguiente del calendario.
+ * Expande un snapshot mensual de una estrategia momentum a una serie diaria.
  *
- * El backtest engine espera precios diarios — pero como las estrategias
- * momentum trabajan a granularidad mensual, los retornos diarios serán cero
- * dentro del mismo mes y "saltarán" al cambiar de mes. Los retornos agregados
- * a mensual reflejan correctamente la rentabilidad de la estrategia.
+ * El snapshot contiene UNA entrada por mes con clave "YYYY-MM-DD" (último día
+ * hábil del mes). Esa fecha exacta puede NO existir en `commonDates` del
+ * backtest cuando hay otros fondos en la cartera con calendarios distintos.
+ *
+ * Para que el motor encuentre siempre el NAV correcto cuando agrega a mensual:
+ *   • Para cada entrada del snapshot ("YYYY-MM-DD" → NAV), replicamos ese
+ *     NAV en TODOS los días del MES correspondiente (del día 1 al último).
+ *   • El cambio entre el NAV del mes M-1 y el del mes M ocurre el día 1 de M.
+ *   • Si hay meses sin entrada en el snapshot, mantenemos el NAV anterior
+ *     (forward-fill mensual).
+ *
+ * Bajo esta expansión, el retorno mensual calculado por el motor como
+ *   precio(último día hábil de M) / precio(último día hábil de M-1) - 1
+ * coincide con el retorno mensual real de la estrategia, independientemente
+ * de cuál sea ese "último día hábil" en la unión de calendarios de la cartera.
+ *
+ * Coste: los retornos DIARIOS son artificiales (cero todos los días salvo el
+ * salto del día 1 de cada mes). Como las estrategias momentum solo se permiten
+ * en backtests con granularidad mensual, esto no afecta a la visualización.
  */
 function expandMomentumSnapshot(
   snapshot: NonNullable<Fund["momentumSnapshot"]>
 ): Map<string, number> {
   const result = new Map<string, number>();
-  const navMap = new Map(Object.entries(snapshot.monthlyNAVs));
-  const sortedDates = Array.from(navMap.keys()).sort();
-  if (sortedDates.length === 0) return result;
+
+  // Indexar NAVs por mes "YYYY-MM" (no por día exacto)
+  const navByMonth = new Map<string, number>();
+  for (const [date, nav] of Object.entries(snapshot.monthlyNAVs)) {
+    navByMonth.set(date.substring(0, 7), nav);
+  }
+  const sortedMonths = Array.from(navByMonth.keys()).sort();
+  if (sortedMonths.length === 0) return result;
+
+  const firstMonth = sortedMonths[0]!;
+  const lastMonth = sortedMonths[sortedMonths.length - 1]!;
+  const [fy, fm] = firstMonth.split("-").map((n) => parseInt(n, 10));
+  const [ly, lm] = lastMonth.split("-").map((n) => parseInt(n, 10));
+  if (!fy || !fm || !ly || !lm) return result;
+
+  // Cursor desde el día 1 del primer mes hasta el último día del último mes.
+  // Date.UTC(year, month, 0) devuelve el día 0 del mes "month" (1-indexed para
+  // este propósito), que equivale al último día del mes anterior. Pasando
+  // `lm` directamente obtenemos el último día del mes lm.
+  const start = new Date(Date.UTC(fy, fm - 1, 1));
+  const end = new Date(Date.UTC(ly, lm, 0));
 
   let currentNAV: number | undefined;
-  const start = new Date(sortedDates[0]! + "T00:00:00Z");
-  const end = new Date(sortedDates[sortedDates.length - 1]! + "T00:00:00Z");
-
   const cursor = new Date(start);
   while (cursor <= end) {
-    const key = cursor.toISOString().substring(0, 10);
-    if (navMap.has(key)) currentNAV = navMap.get(key);
-    if (currentNAV !== undefined) result.set(key, currentNAV);
+    const monthKey = cursor.toISOString().substring(0, 7);
+    if (navByMonth.has(monthKey)) currentNAV = navByMonth.get(monthKey);
+    if (currentNAV !== undefined) {
+      result.set(cursor.toISOString().substring(0, 10), currentNAV);
+    }
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
 
