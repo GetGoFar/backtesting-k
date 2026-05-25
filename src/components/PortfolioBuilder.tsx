@@ -371,11 +371,15 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
     }
   };
 
+  // Estado para feedback visual breve tras añadir una estrategia
+  const [recentlyAddedFundId, setRecentlyAddedFundId] = useState<string | null>(null);
+
   /**
    * Añade una estrategia momentum publicada como un activo más a la cartera.
    * Si la cartera está vacía, la estrategia ocupa el 100%. Si ya hay activos
    * y el modo satélite está activo, se inserta con el peso configurado y
    * reescala el resto. Si no, se añade con un peso por defecto del 10%.
+   * Tras añadir, hace scroll al holding y aplica un highlight breve.
    */
   const handleAddStrategy = (strategy: SavedMomentumStrategy) => {
     const fund = strategyToFund(strategy);
@@ -389,6 +393,8 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
       setAllocations([{ fund, weight: 100 }]);
       setSelectedPresetId(null);
       if (!nameManuallyEdited) setName(strategy.name);
+      setRecentlyAddedFundId(fund.id);
+      setTimeout(() => setRecentlyAddedFundId(null), 2500);
       return;
     }
     // Insertar con un peso por defecto y reescalar el resto a (100 - w)
@@ -403,6 +409,13 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
     }));
     setAllocations([...rescaled, { fund, weight: w }]);
     setSelectedPresetId(null);
+    // Feedback visual + scroll al nuevo holding
+    setRecentlyAddedFundId(fund.id);
+    setTimeout(() => {
+      const el = document.querySelector(`[data-holding-id="${fund.id}"]`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 100);
+    setTimeout(() => setRecentlyAddedFundId(null), 2500);
   };
 
   /**
@@ -1152,20 +1165,25 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                       type="button"
                       onClick={() => !inCart && handleAddStrategy(s)}
                       disabled={inCart || isRefreshing}
-                      className="pl-2.5 pr-1 py-1.5 hover:bg-violet-50 transition-colors disabled:cursor-default flex items-center gap-1.5 text-brand-navy"
+                      className={`pl-2.5 pr-1 py-1.5 transition-colors disabled:cursor-default flex items-center gap-1.5 ${
+                        inCart
+                          ? "text-violet-700/60"
+                          : "text-brand-navy hover:bg-violet-50"
+                      }`}
                       title={
                         inCart
-                          ? `Ya está en la cartera`
-                          : `Añadir "${s.name}" como activo a la cartera. Snapshot del ${new Date(s.snapshot!.generatedAt).toLocaleDateString("es-ES")}`
+                          ? "Ya está en la cartera"
+                          : `Añadir "${s.name}" como activo a la cartera (peso ${satelliteMode ? satelliteWeight : 10}%, editable después). Snapshot del ${new Date(s.snapshot!.generatedAt).toLocaleDateString("es-ES")}`
                       }
                     >
-                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-violet-500 flex-shrink-0" />
+                      {inCart ? (
+                        <span className="text-[11px] text-violet-600 font-semibold">✓ Añadida</span>
+                      ) : (
+                        <span className="text-violet-600 font-bold leading-none text-sm">+</span>
+                      )}
                       <span className="truncate max-w-[180px] inline-block align-middle">
                         {s.name}
                       </span>
-                      {inCart && (
-                        <span className="text-[10px] text-violet-600 ml-1">✓</span>
-                      )}
                     </button>
                     <button
                       type="button"
@@ -1196,7 +1214,9 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
               })}
             </div>
             <p className="text-[10px] text-violet-700/70 mt-2 leading-tight">
-              💡 Las estrategias momentum trabajan a granularidad mensual. Al añadir una, la cartera se forzará a esa granularidad.
+              💡 Pulsa <strong>+</strong> para añadir como activo. El peso por defecto es{" "}
+              {satelliteMode ? `${satelliteWeight}%` : "10%"} (modificable después en la lista de fondos).
+              La granularidad se forzará a mensual.
             </p>
           </div>
         )}
@@ -1227,7 +1247,12 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
             allocations.map((allocation) => (
               <div
                 key={allocation.fund.id}
-                className="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-100 shadow-sm"
+                data-holding-id={allocation.fund.id}
+                className={`flex items-center gap-3 p-3 bg-white rounded-lg border shadow-sm transition-all ${
+                  recentlyAddedFundId === allocation.fund.id
+                    ? "border-violet-400 ring-2 ring-violet-200 bg-violet-50/30"
+                    : "border-slate-100"
+                }`}
               >
                 {/* Badge de tipo */}
                 <span
