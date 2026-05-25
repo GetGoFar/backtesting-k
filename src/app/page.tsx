@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { PortfolioBuilder } from "@/components/PortfolioBuilder";
 import { FundSearch } from "@/components/FundSearch";
@@ -25,6 +25,7 @@ import { getAllBenchmarks } from "@/lib/benchmarks";
 import { getFundById } from "@/lib/fund-database";
 import { getAllPresets } from "@/lib/portfolio-presets";
 import { fetchWithSource } from "@/lib/data-source";
+import { MOMENTUM_FUND_PREFIX } from "@/lib/saved-momentum-strategies";
 
 // Función para obtener el mes actual en formato YYYY-MM
 function getCurrentMonth(): string {
@@ -256,6 +257,23 @@ export default function Home() {
   const hasHoldingsB = portfolioB.holdings.length > 0;
   // Permitir ejecutar con al menos una cartera válida
   const canRunBacktest = portfolioA.isValid || portfolioB.isValid;
+
+  // Detectar si alguna cartera contiene una estrategia momentum publicada.
+  // Las estrategias momentum solo tienen datos a granularidad mensual, así que
+  // forzamos el display a "monthly" cuando alguna está en juego y mostramos
+  // un aviso en el selector.
+  const hasMomentumStrategy = useMemo(() => {
+    return (
+      portfolioA.holdings.some((h) => h.fundId.startsWith(MOMENTUM_FUND_PREFIX)) ||
+      portfolioB.holdings.some((h) => h.fundId.startsWith(MOMENTUM_FUND_PREFIX))
+    );
+  }, [portfolioA.holdings, portfolioB.holdings]);
+
+  useEffect(() => {
+    if (hasMomentumStrategy && displayGranularity !== "monthly") {
+      setDisplayGranularity("monthly");
+    }
+  }, [hasMomentumStrategy, displayGranularity]);
 
   // Mensaje de validación
   const getValidationMessage = (): string => {
@@ -629,22 +647,40 @@ export default function Home() {
                   // y drawdowns, solo las métricas estadísticas usan mensual/trimestral.
                   { value: "monthly", label: "Mensual" },
                   { value: "quarterly", label: "Trimestral" },
-                ].map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() =>
-                      setDisplayGranularity(option.value as DisplayGranularity)
-                    }
-                    className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-all ${
-                      displayGranularity === option.value
-                        ? "bg-brand-coral text-white shadow-md"
-                        : "bg-slate-100 text-brand-secondary hover:bg-slate-200"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
+                ].map((option) => {
+                  // Si hay una estrategia momentum en alguna cartera, solo
+                  // permitimos mensual (las estrategias trabajan a esa granularidad).
+                  const isLockedByMomentum =
+                    hasMomentumStrategy && option.value !== "monthly";
+                  return (
+                    <button
+                      key={option.value}
+                      onClick={() =>
+                        !isLockedByMomentum &&
+                        setDisplayGranularity(option.value as DisplayGranularity)
+                      }
+                      disabled={isLockedByMomentum}
+                      title={
+                        isLockedByMomentum
+                          ? "Bloqueado: hay una estrategia momentum en la cartera y solo soporta granularidad mensual."
+                          : undefined
+                      }
+                      className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                        displayGranularity === option.value
+                          ? "bg-brand-coral text-white shadow-md"
+                          : "bg-slate-100 text-brand-secondary hover:bg-slate-200"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
               </div>
+              {hasMomentumStrategy && (
+                <p className="mt-2 text-xs text-violet-700/80 leading-tight">
+                  ℹ️ Tu cartera incluye una estrategia momentum — granularidad forzada a mensual.
+                </p>
+              )}
             </div>
 
             {/* Opción de fecha común */}

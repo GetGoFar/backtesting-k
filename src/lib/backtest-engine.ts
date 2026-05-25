@@ -343,6 +343,12 @@ async function runPortfolioBacktest(
   const fetchResults = await Promise.allSettled(
     holdingsWithFunds.map(async ({ holding, fund }) => {
       if (!fund) throw new Error(`Fondo no encontrado: ${holding.fundId}`);
+      // Caso especial: fondo virtual de estrategia momentum. Sus "precios"
+      // vienen del snapshot mensual normalizado en lugar de EODHD/Yahoo.
+      if (fund.momentumSnapshot) {
+        const prices = expandMomentumSnapshot(fund.momentumSnapshot);
+        return { holding, fund, prices };
+      }
       const { prices } = await getDailyPrices(holding.fundId, fund.yahooTicker, fund.isin);
       return { holding, fund, prices };
     })
@@ -2428,7 +2434,18 @@ async function calculateAssetCorrelationMatrix(
     if (!fund) continue;
 
     try {
-      const { prices } = await getMonthlyPrices(holding.fundId, fund.yahooTicker, fund.isin);
+      // Activos virtuales de momentum: leer NAVs del snapshot. La clave que
+      // espera `calculateReturnsFromPrices` es "YYYY-MM" (mensual), así que
+      // convertimos cada entrada del snapshot a su clave mensual.
+      let prices: Map<string, number>;
+      if (fund.momentumSnapshot) {
+        prices = new Map<string, number>();
+        for (const [date, nav] of Object.entries(fund.momentumSnapshot.monthlyNAVs)) {
+          prices.set(date.substring(0, 7), nav);
+        }
+      } else {
+        prices = (await getMonthlyPrices(holding.fundId, fund.yahooTicker, fund.isin)).prices;
+      }
       if (prices.size < 3) continue;
 
       const returns = calculateReturnsFromPrices(prices);
@@ -2481,6 +2498,39 @@ async function calculateAssetCorrelationMatrix(
     matrix,
     entries,
   };
+}
+
+/**
+ * Expande un snapshot mensual de una estrategia momentum a una serie diaria
+ * forward-filled. Para cada día entre el primer y último NAV del snapshot,
+ * mantiene el NAV vigente hasta que aparece el siguiente del calendario.
+ *
+ * El backtest engine espera precios diarios — pero como las estrategias
+ * momentum trabajan a granularidad mensual, los retornos diarios serán cero
+ * dentro del mismo mes y "saltarán" al cambiar de mes. Los retornos agregados
+ * a mensual reflejan correctamente la rentabilidad de la estrategia.
+ */
+function expandMomentumSnapshot(
+  snapshot: NonNullable<Fund["momentumSnapshot"]>
+): Map<string, number> {
+  const result = new Map<string, number>();
+  const navMap = new Map(Object.entries(snapshot.monthlyNAVs));
+  const sortedDates = Array.from(navMap.keys()).sort();
+  if (sortedDates.length === 0) return result;
+
+  let currentNAV: number | undefined;
+  const start = new Date(sortedDates[0]! + "T00:00:00Z");
+  const end = new Date(sortedDates[sortedDates.length - 1]! + "T00:00:00Z");
+
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    const key = cursor.toISOString().substring(0, 10);
+    if (navMap.has(key)) currentNAV = navMap.get(key);
+    if (currentNAV !== undefined) result.set(key, currentNAV);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return result;
 }
 
 function calculateReturnsFromPrices(

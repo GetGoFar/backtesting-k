@@ -57,6 +57,44 @@ import {
   deleteSavedPortfolio,
   type SavedPortfolio,
 } from "@/lib/saved-portfolios";
+import {
+  getPublishedMomentumStrategies,
+  buildSnapshotFromResponse,
+  updateMomentumSnapshot,
+  strategyToFundId,
+  SAVED_MOMENTUM_CHANGE_EVENT,
+  MOMENTUM_FUND_PREFIX,
+  type SavedMomentumStrategy,
+} from "@/lib/saved-momentum-strategies";
+import { fetchWithSource } from "@/lib/data-source";
+import type { Fund } from "@/lib/types";
+import type { MomentumResponse } from "@/lib/momentum-types";
+
+/**
+ * Convierte una estrategia momentum publicada en un objeto Fund virtual que
+ * el resto del PortfolioBuilder y el backtest engine pueden tratar como un
+ * fondo cualquiera. El snapshot se inyecta en el campo momentumSnapshot —
+ * el cliente lo enviará al server cuando se ejecute el backtest.
+ */
+function strategyToFund(strategy: SavedMomentumStrategy): Fund | null {
+  if (!strategy.snapshot) return null;
+  return {
+    id: strategyToFundId(strategy.id),
+    name: strategy.name,
+    shortName: strategy.name.length > 30 ? strategy.name.slice(0, 28) + "…" : strategy.name,
+    isin: "",
+    ter: 0,
+    category: "Momentum",
+    type: "active",
+    currency: "EUR",
+    momentumSnapshot: {
+      monthlyNAVs: strategy.snapshot.monthlyNAVs,
+      startMonth: strategy.snapshot.startMonth,
+      endMonth: strategy.snapshot.endMonth,
+      generatedAt: strategy.snapshot.generatedAt,
+    },
+  };
+}
 
 export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   const [allocations, setAllocations] = useState<FundAllocation[]>([]);
@@ -72,6 +110,17 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
     const onChange = () => setSavedPortfolios(getSavedPortfolios());
     window.addEventListener("epk-saved-portfolios-changed", onChange);
     return () => window.removeEventListener("epk-saved-portfolios-changed", onChange);
+  }, []);
+
+  // Estrategias momentum publicadas (con snapshot). Estas pueden añadirse
+  // como un activo más a la cartera.
+  const [publishedStrategies, setPublishedStrategies] = useState<SavedMomentumStrategy[]>([]);
+  const [refreshingStrategyId, setRefreshingStrategyId] = useState<string | null>(null);
+  useEffect(() => {
+    setPublishedStrategies(getPublishedMomentumStrategies());
+    const onChange = () => setPublishedStrategies(getPublishedMomentumStrategies());
+    window.addEventListener(SAVED_MOMENTUM_CHANGE_EVENT, onChange);
+    return () => window.removeEventListener(SAVED_MOMENTUM_CHANGE_EVENT, onChange);
   }, []);
   const defaultName = side === "a" ? "Cartera A" : "Cartera B";
   const [name, setName] = useState(defaultName);
@@ -110,8 +159,16 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
       holdings: allocations.map((a) => ({
         fundId: a.fund.id,
         weight: a.weight,
-        // Incluir datos del fondo para fondos dinámicos (Yahoo Finance)
-        fund: a.fund.id.startsWith("yahoo-") ? a.fund : undefined,
+        // Incluir datos del fondo para fondos dinámicos:
+        //   - Yahoo / EODHD (id "yahoo-...")
+        //   - Estrategias momentum publicadas (id "momentum-strategy-...")
+        // Estos no están en la BD local, así que el cliente envía el objeto
+        // Fund completo (incluyendo el momentumSnapshot si aplica).
+        fund:
+          a.fund.id.startsWith("yahoo-") ||
+          a.fund.id.startsWith(MOMENTUM_FUND_PREFIX)
+            ? a.fund
+            : undefined,
       })),
       isValid,
       managementFee,
@@ -312,6 +369,89 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
     e.stopPropagation();
     if (confirm(`¿Eliminar la cartera guardada "${savedName}"? No se puede deshacer.`)) {
       deleteSavedPortfolio(id);
+    }
+  };
+
+  /**
+   * Añade una estrategia momentum publicada como un activo más a la cartera.
+   * Si la cartera está vacía, la estrategia ocupa el 100%. Si ya hay activos
+   * y el modo satélite está activo, se inserta con el peso configurado y
+   * reescala el resto. Si no, se añade con un peso por defecto del 10%.
+   */
+  const handleAddStrategy = (strategy: SavedMomentumStrategy) => {
+    const fund = strategyToFund(strategy);
+    if (!fund) return;
+    // Evitar duplicados
+    if (allocations.some((a) => a.fund.id === fund.id)) {
+      alert(`La estrategia "${strategy.name}" ya está en la cartera.`);
+      return;
+    }
+    if (allocations.length === 0) {
+      setAllocations([{ fund, weight: 100 }]);
+      setSelectedPresetId(null);
+      if (!nameManuallyEdited) setName(strategy.name);
+      return;
+    }
+    // Insertar con un peso por defecto y reescalar el resto a (100 - w)
+    const insertWeight = satelliteMode ? satelliteWeight : 10;
+    const w = Math.max(1, Math.min(99, insertWeight));
+    const currentTotal = allocations.reduce((s, a) => s + a.weight, 0);
+    if (currentTotal <= 0) return;
+    const scale = (100 - w) / currentTotal;
+    const rescaled = allocations.map((a) => ({
+      ...a,
+      weight: Math.round(a.weight * scale * 100) / 100,
+    }));
+    setAllocations([...rescaled, { fund, weight: w }]);
+    setSelectedPresetId(null);
+  };
+
+  /**
+   * Regenera el snapshot de una estrategia llamando a /api/momentum con su
+   * config actual. Persiste el nuevo snapshot en localStorage. Si la
+   * estrategia ya estaba en la cartera, su Fund se reemplaza con el snapshot
+   * actualizado para que el siguiente backtest use los datos nuevos.
+   */
+  const handleRefreshStrategy = async (
+    e: React.MouseEvent,
+    strategy: SavedMomentumStrategy
+  ) => {
+    e.stopPropagation();
+    setRefreshingStrategyId(strategy.id);
+    try {
+      const res = await fetchWithSource("/api/momentum", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...strategy.config,
+          endDate: new Date().toISOString().substring(0, 10),
+        }),
+      });
+      const data = (await res.json()) as MomentumResponse;
+      if (!res.ok) throw new Error((data as unknown as { message?: string }).message || "Error al regenerar");
+      const snapshot = buildSnapshotFromResponse(data);
+      if (!snapshot) throw new Error("Snapshot vacío");
+      updateMomentumSnapshot(strategy.id, snapshot);
+      // Si la estrategia está en la cartera, regenerar su Fund con el nuevo snapshot
+      const fundId = strategyToFundId(strategy.id);
+      setAllocations((prev) =>
+        prev.map((a) =>
+          a.fund.id === fundId
+            ? {
+                ...a,
+                fund: strategyToFund({ ...strategy, snapshot })!,
+              }
+            : a
+        )
+      );
+    } catch (err) {
+      alert(
+        `No se pudo actualizar la estrategia "${strategy.name}": ${
+          err instanceof Error ? err.message : "error desconocido"
+        }`
+      );
+    } finally {
+      setRefreshingStrategyId(null);
     }
   };
 
@@ -967,6 +1107,98 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Mis estrategias momentum publicadas — solo si hay alguna */}
+        {publishedStrategies.length > 0 && (
+          <div className="rounded-lg border border-violet-200 bg-violet-50/40 p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <svg
+                className="w-4 h-4 text-violet-600 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+                />
+              </svg>
+              <span className="text-xs font-semibold text-violet-800 uppercase tracking-wider">
+                Mis estrategias momentum
+              </span>
+              <span className="text-[10px] text-violet-600/70">
+                · activos virtuales (mensuales)
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {publishedStrategies.map((s) => {
+                const inCart = allocations.some(
+                  (a) => a.fund.id === strategyToFundId(s.id)
+                );
+                const isRefreshing = refreshingStrategyId === s.id;
+                return (
+                  <div
+                    key={s.id}
+                    className={`inline-flex items-center bg-white border rounded-full text-xs font-medium overflow-hidden transition-colors ${
+                      inCart
+                        ? "border-violet-400 ring-1 ring-violet-200"
+                        : "border-slate-200 hover:border-violet-400"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => !inCart && handleAddStrategy(s)}
+                      disabled={inCart || isRefreshing}
+                      className="pl-2.5 pr-1 py-1.5 hover:bg-violet-50 transition-colors disabled:cursor-default flex items-center gap-1.5 text-brand-navy"
+                      title={
+                        inCart
+                          ? `Ya está en la cartera`
+                          : `Añadir "${s.name}" como activo a la cartera. Snapshot del ${new Date(s.snapshot!.generatedAt).toLocaleDateString("es-ES")}`
+                      }
+                    >
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-violet-500 flex-shrink-0" />
+                      <span className="truncate max-w-[180px] inline-block align-middle">
+                        {s.name}
+                      </span>
+                      {inCart && (
+                        <span className="text-[10px] text-violet-600 ml-1">✓</span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => handleRefreshStrategy(e, s)}
+                      disabled={isRefreshing}
+                      className="pl-1 pr-2 py-1.5 text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-colors disabled:opacity-50"
+                      title="Actualizar snapshot a hoy"
+                      aria-label={`Actualizar snapshot de ${s.name}`}
+                    >
+                      {isRefreshing ? (
+                        <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                          <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" fill="none" />
+                        </svg>
+                      ) : (
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-violet-700/70 mt-2 leading-tight">
+              💡 Las estrategias momentum trabajan a granularidad mensual. Al añadir una, la cartera se forzará a esa granularidad.
+            </p>
           </div>
         )}
 

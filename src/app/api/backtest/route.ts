@@ -368,9 +368,16 @@ function validateHolding(
     return `El fondo '${holding.fundId}' de la cartera ${portfolioLabel} no existe. Usa /api/funds para ver los fondos disponibles.`;
   }
 
-  // Verificar que los fondos dinámicos de Yahoo tienen yahooTicker
-  if (!getFundById(holding.fundId) && holding.fund && !holding.fund.yahooTicker) {
-    return `El fondo dinámico '${holding.fundId}' de la cartera ${portfolioLabel} no tiene ticker de Yahoo Finance.`;
+  // Verificar que los fondos dinámicos tienen una fuente de precios:
+  //   - yahooTicker (fondos de Yahoo Finance / EODHD)
+  //   - O momentumSnapshot (estrategias momentum publicadas como activo)
+  if (
+    !getFundById(holding.fundId) &&
+    holding.fund &&
+    !holding.fund.yahooTicker &&
+    !holding.fund.momentumSnapshot
+  ) {
+    return `El fondo dinámico '${holding.fundId}' de la cartera ${portfolioLabel} no tiene ticker de Yahoo Finance ni snapshot de momentum.`;
   }
 
   // Validar peso

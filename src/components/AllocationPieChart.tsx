@@ -51,6 +51,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   "RF Flexible": "#a8a29e",
   // Otros
   "Alternativo": "#a855f7",
+  "Momentum": "#7c3aed",
 };
 
 const FALLBACK_PALETTE = [
