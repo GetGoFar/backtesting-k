@@ -273,7 +273,15 @@ export default function Home() {
     if (hasMomentumStrategy && displayGranularity !== "monthly") {
       setDisplayGranularity("monthly");
     }
-  }, [hasMomentumStrategy, displayGranularity]);
+    // Las estrategias momentum tienen un rango limitado (snapshot mensual con
+    // primer dato N meses después del primer dato común del universo por el
+    // warmup del lookback). Si la otra cartera arrancase antes, las dos curvas
+    // tendrían distintos puntos de partida en EUR. Forzamos rango común para
+    // que ambas arranquen donde la momentum permite y compartan initialAmount.
+    if (hasMomentumStrategy && !useCommonDateRange) {
+      setUseCommonDateRange(true);
+    }
+  }, [hasMomentumStrategy, displayGranularity, useCommonDateRange]);
 
   // Mensaje de validación
   const getValidationMessage = (): string => {
@@ -685,17 +693,26 @@ export default function Home() {
 
             {/* Opción de fecha común */}
             <div className="mt-4 sm:mt-6">
-              <label className="flex items-center gap-3 cursor-pointer">
+              <label className={`flex items-center gap-3 ${hasMomentumStrategy ? "cursor-not-allowed" : "cursor-pointer"}`}>
                 <input
                   type="checkbox"
                   checked={useCommonDateRange}
-                  onChange={(e) => setUseCommonDateRange(e.target.checked)}
-                  className="w-4 h-4 text-brand-coral bg-slate-100 border-slate-300 rounded focus:ring-brand-coral focus:ring-2"
+                  onChange={(e) =>
+                    !hasMomentumStrategy && setUseCommonDateRange(e.target.checked)
+                  }
+                  disabled={hasMomentumStrategy}
+                  className="w-4 h-4 text-brand-coral bg-slate-100 border-slate-300 rounded focus:ring-brand-coral focus:ring-2 disabled:opacity-40"
                 />
                 <span className="text-sm text-brand-secondary">
                   Usar rango de fechas común (donde ambas carteras tienen datos)
                 </span>
               </label>
+              {hasMomentumStrategy && (
+                <p className="mt-2 text-xs text-violet-700/80 ml-7 leading-tight">
+                  ℹ️ Bloqueado a activado: hay una estrategia momentum en la cartera
+                  y debe compartir punto de partida con los demás activos.
+                </p>
+              )}
               {results?.effectiveDateRange && useCommonDateRange && (
                 <p className="mt-2 text-xs text-brand-tertiary ml-7">
                   Rango efectivo: {formatDateForDisplay(results.effectiveDateRange.startDate)} - {formatDateForDisplay(results.effectiveDateRange.endDate)}

@@ -2139,7 +2139,18 @@ async function findCommonDateRangeForPortfolios(
     if (!fund) continue;
 
     try {
-      const { prices } = await getDailyPrices(holding.fundId, fund.yahooTicker, fund.isin);
+      // Activos virtuales de estrategia momentum: sus "precios" vienen del
+      // snapshot mensual incrustado en el fondo, no de EODHD/Yahoo. Sin esta
+      // rama, getDailyPrices fallaría y el holding quedaría fuera del cálculo
+      // de rango común — provocando que el motor arrancase ANTES de cuando el
+      // snapshot tiene datos y produciendo curvas con valores iniciales
+      // distintos entre carteras.
+      let prices: Map<string, number>;
+      if (fund.momentumSnapshot) {
+        prices = expandMomentumSnapshot(fund.momentumSnapshot);
+      } else {
+        prices = (await getDailyPrices(holding.fundId, fund.yahooTicker, fund.isin)).prices;
+      }
       if (prices.size > 0) {
         allDateSets.push(new Set(prices.keys()));
         console.log(`[BacktestEngine] ${fund.shortName}: ${prices.size} días disponibles`);
