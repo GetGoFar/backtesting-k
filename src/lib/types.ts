@@ -31,7 +31,8 @@ export type FundCategory =
   | "RF USD Corp"
   | "RF Flexible"
   | "Oro"
-  | "Alternativo";
+  | "Alternativo"
+  | "Momentum";
 
 /** Frecuencia de rebalanceo de la cartera */
 export type RebalanceFrequency = "monthly" | "quarterly" | "annual" | "none";
@@ -71,6 +72,23 @@ export interface Fund {
   terSource?: "curated" | "morningstar" | "user" | "estimated";
   /** Si el TER esta verificado como correcto */
   terConfirmed?: boolean;
+  /**
+   * Cuando este fondo es un "activo virtual" derivado de una estrategia
+   * momentum guardada, contiene el snapshot mensual de su curva de equity
+   * normalizado a base 1.0. Si está presente, el backtest engine NO llama
+   * a EODHD/Yahoo para este fondo — lee los precios directamente del snapshot.
+   * El campo `id` del fondo debe empezar por "momentum-strategy-".
+   */
+  momentumSnapshot?: {
+    /** Serie de NAVs mensuales: clave "YYYY-MM-DD", valor base 1.0 al inicio. */
+    monthlyNAVs: Record<string, number>;
+    /** Primer mes con dato ("YYYY-MM"). */
+    startMonth: string;
+    /** Último mes con dato ("YYYY-MM"). */
+    endMonth: string;
+    /** Timestamp de generación del snapshot. */
+    generatedAt: number;
+  };
 }
 
 // -----------------------------------------------------------------------------

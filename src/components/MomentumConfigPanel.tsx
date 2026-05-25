@@ -6,11 +6,12 @@
 
 import { useState, useEffect } from "react";
 import { Tooltip } from "./Tooltip";
-import type { MomentumConfig, MomentumAsset } from "@/lib/momentum-types";
+import type { MomentumConfig, MomentumAsset, MomentumResponse } from "@/lib/momentum-types";
 import {
   getSavedMomentumStrategies,
   saveMomentumStrategy,
   deleteMomentumStrategy,
+  buildSnapshotFromResponse,
   SAVED_MOMENTUM_CHANGE_EVENT,
   type SavedMomentumStrategy,
 } from "@/lib/saved-momentum-strategies";
@@ -20,9 +21,16 @@ interface Props {
   onChange: (next: MomentumConfig) => void;
   onRun: () => void;
   isLoading: boolean;
+  /**
+   * Últimos resultados de ejecución de la estrategia. Si están presentes al
+   * pulsar "Guardar", se genera automáticamente un snapshot que permite usar
+   * la estrategia como activo en el backtest. Si son null, solo se guarda la
+   * configuración (no publicable hasta ejecutar).
+   */
+  lastResults?: MomentumResponse | null;
 }
 
-export function MomentumConfigPanel({ config, onChange, onRun, isLoading }: Props) {
+export function MomentumConfigPanel({ config, onChange, onRun, isLoading, lastResults }: Props) {
   const [newTicker, setNewTicker] = useState("");
   const [savedStrategies, setSavedStrategies] = useState<SavedMomentumStrategy[]>([]);
 
@@ -41,7 +49,12 @@ export function MomentumConfigPanel({ config, onChange, onRun, isLoading }: Prop
       defaultName
     );
     if (name === null) return; // canceló
-    saveMomentumStrategy({ name, config });
+    // Si tenemos resultados de ejecución recientes, generamos snapshot para
+    // que la estrategia se pueda usar inmediatamente como activo del backtest.
+    const snapshot = lastResults
+      ? buildSnapshotFromResponse(lastResults) ?? undefined
+      : undefined;
+    saveMomentumStrategy({ name, config, snapshot });
   }
 
   function handleLoad(strategy: SavedMomentumStrategy) {
@@ -187,10 +200,14 @@ export function MomentumConfigPanel({ config, onChange, onRun, isLoading }: Prop
           <button
             onClick={handleSave}
             disabled={config.assets.length < 2}
-            title="Guarda la configuración actual en este navegador"
+            title={
+              lastResults
+                ? "Guarda la config y publica como activo disponible en la pestaña Backtest"
+                : "Guarda la configuración en este navegador (ejecuta primero para publicarla como activo del backtest)"
+            }
             className="px-4 py-2 bg-white/10 text-white text-sm font-medium rounded-lg border border-white/20 hover:bg-white/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            Guardar
+            {lastResults ? "Guardar y publicar" : "Guardar"}
           </button>
           <button
             onClick={onRun}
@@ -222,12 +239,22 @@ export function MomentumConfigPanel({ config, onChange, onRun, isLoading }: Prop
                 <button
                   type="button"
                   onClick={() => handleLoad(s)}
-                  className="pl-2.5 pr-1 py-1 hover:bg-rose-50 transition-colors"
-                  title={`Cargar "${s.name}" (creada ${new Date(s.createdAt).toLocaleDateString("es-ES")})`}
+                  className="pl-2.5 pr-1 py-1 hover:bg-rose-50 transition-colors flex items-center gap-1.5"
+                  title={
+                    s.snapshot
+                      ? `Cargar "${s.name}" (creada ${new Date(s.createdAt).toLocaleDateString("es-ES")}) — publicada como activo del backtest, snapshot del ${new Date(s.snapshot.generatedAt).toLocaleDateString("es-ES")}`
+                      : `Cargar "${s.name}" (creada ${new Date(s.createdAt).toLocaleDateString("es-ES")}) — ejecuta y vuelve a guardar para publicarla como activo del backtest`
+                  }
                 >
                   <span className="truncate max-w-[200px] inline-block align-middle">
                     {s.name}
                   </span>
+                  {s.snapshot && (
+                    <span
+                      className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0"
+                      title="Publicada como activo del backtest"
+                    />
+                  )}
                 </button>
                 <button
                   type="button"

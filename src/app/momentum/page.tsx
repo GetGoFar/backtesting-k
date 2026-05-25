@@ -178,6 +178,7 @@ export default function MomentumPage() {
             onChange={setConfig}
             onRun={handleRun}
             isLoading={isLoading}
+            lastResults={results}
           />
 
           {/* Resultados */}
