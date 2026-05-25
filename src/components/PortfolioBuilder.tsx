@@ -67,7 +67,6 @@ import {
   type SavedMomentumStrategy,
 } from "@/lib/saved-momentum-strategies";
 import { fetchWithSource } from "@/lib/data-source";
-import type { Fund } from "@/lib/types";
 import type { MomentumResponse } from "@/lib/momentum-types";
 
 /**
