@@ -320,34 +320,46 @@ export function MomentumResultsView({ results }: Props) {
         </div>
       </section>
 
-      {/* Rentabilidades anuales — heatmap con gradiente rojo→verde */}
-      {results.annualReturns.length > 0 && (() => {
-        const stratValues = new Map<number, number>(
-          results.annualReturns.map((yr) => [yr.year, yr.returnPercent])
-        );
+      {/* Rentabilidades anuales — heatmap con gradiente rojo→verde
+          Recalculamos a partir de la equity curve aplicando el mismo shift
+          que el heatmap mensual: en nextClose el punto con fecha "2025-01-01"
+          refleja el retorno de "2024-12", por tanto debe agruparse en el año
+          2024, no en 2025. Sin este shift los retornos anuales también
+          aparecen desfasados un año por arrastre. */}
+      {results.equityCurve.length > 0 && (() => {
+        const initialAmount = results.config.initialAmount;
+        const isNextClose = results.config.tradeExecution === "nextClose";
+
+        function annualReturnsFromCurve(curve: typeof results.equityCurve): Map<number, number> {
+          const yearEnds = new Map<number, number>();
+          for (const point of curve) {
+            // Para nextClose, el punto del 2025-01-XX refleja el retorno de
+            // diciembre 2024; lo agrupamos en el año 2024.
+            const [y, m] = point.date.split("-").map((n) => parseInt(n, 10));
+            const yearForPoint = isNextClose && m === 1 ? (y ?? 0) - 1 : (y ?? 0);
+            // sobrescribe → queda el último valor del año
+            yearEnds.set(yearForPoint, point.value);
+          }
+          const sortedYears = Array.from(yearEnds.keys()).sort((a, b) => a - b);
+          const out = new Map<number, number>();
+          let prev: number | null = null;
+          for (const year of sortedYears) {
+            const end = yearEnds.get(year)!;
+            const start = prev ?? initialAmount;
+            out.set(year, start > 0 ? (end / start - 1) * 100 : 0);
+            prev = end;
+          }
+          return out;
+        }
+
+        const stratValues = annualReturnsFromCurve(results.equityCurve);
         const columns: HeatmapColumn[] = [
           { label: "Estrategia", values: stratValues, accentClass: "text-rose-600" },
         ];
-        // Si hay benchmark, añadirlo como segunda columna para comparar año a año
         if (results.benchmarkCurve && results.benchmarkCurve.length > 1) {
-          const benchByYear = new Map<number, number>();
-          // Agregar valores por año (último del año)
-          for (const p of results.benchmarkCurve) {
-            const year = parseInt(p.date.substring(0, 4), 10);
-            benchByYear.set(year, p.value);
-          }
-          const sortedYears = Array.from(benchByYear.keys()).sort((a, b) => a - b);
-          const benchReturns = new Map<number, number>();
-          let prev: number | null = null;
-          for (const year of sortedYears) {
-            const end = benchByYear.get(year)!;
-            const start = prev ?? results.config.initialAmount;
-            benchReturns.set(year, start > 0 ? (end / start - 1) * 100 : 0);
-            prev = end;
-          }
           columns.push({
             label: `Benchmark (${results.config.benchmarkTicker})`,
-            values: benchReturns,
+            values: annualReturnsFromCurve(results.benchmarkCurve),
             accentClass: "text-blue-600",
           });
         }
@@ -364,13 +376,26 @@ export function MomentumResultsView({ results }: Props) {
       {(() => {
         const monthSeries: MonthlySeries[] = [];
         const initialAmount = results.config.initialAmount;
+        // En modo "nextClose", el motor publica cada punto de equity con la
+        // fecha del primer día del mes SIGUIENTE al iterado (cuando se ejecuta
+        // el trade), pero el valor refleja el retorno del mes ITERADO. Sin
+        // corregir, el heatmap atribuye los retornos al mes equivocado.
+        // Compensamos restando 1 al monthKey para nextClose.
+        const monthOffset = results.config.tradeExecution === "nextClose" ? -1 : 0;
+        const shiftMonth = (key: string, off: number): string => {
+          if (off === 0) return key;
+          const [y, m] = key.split("-").map((n) => parseInt(n, 10));
+          if (!y || !m) return key;
+          const d = new Date(Date.UTC(y, m - 1 + off, 1));
+          return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+        };
         if (results.equityCurve.length > 0) {
           monthSeries.push({
             label: "Estrategia",
             accentClass: "text-rose-600",
             initialValue: initialAmount,
             monthlyValues: results.equityCurve.map((p) => ({
-              monthKey: p.date.substring(0, 7),
+              monthKey: shiftMonth(p.date.substring(0, 7), monthOffset),
               value: p.value,
             })),
           });
@@ -381,7 +406,7 @@ export function MomentumResultsView({ results }: Props) {
             accentClass: "text-blue-600",
             initialValue: initialAmount,
             monthlyValues: results.benchmarkCurve.map((p) => ({
-              monthKey: p.date.substring(0, 7),
+              monthKey: shiftMonth(p.date.substring(0, 7), monthOffset),
               value: p.value,
             })),
           });

@@ -92,6 +92,13 @@ export type NewSavedMomentumStrategy = Omit<SavedMomentumStrategy, "id" | "creat
 /**
  * Construye un snapshot a partir del resultado de una ejecución de la estrategia.
  * Normaliza la equity curve a base 1.0 al primer punto.
+ *
+ * En modo `tradeExecution = "nextClose"`, el motor publica cada punto de
+ * equity con la fecha del PRIMER día del mes siguiente al iterado (cuando se
+ * ejecuta el trade), pero el valor refleja el retorno del mes ITERADO. Como
+ * el backtest engine indexa los NAVs por mes (substring 0,7), si dejamos las
+ * fechas originales el NAV del retorno de "2025-04" se atribuye a "2025-05".
+ * Compensamos restando 1 mes al monthKey para nextClose.
  */
 export function buildSnapshotFromResponse(
   results: MomentumResponse
@@ -100,14 +107,28 @@ export function buildSnapshotFromResponse(
   const firstValue = results.equityCurve[0]!.value;
   if (firstValue <= 0) return null;
 
-  const monthlyNAVs: Record<string, number> = {};
-  for (const point of results.equityCurve) {
-    monthlyNAVs[point.date] = point.value / firstValue;
+  const isNextClose = results.config.tradeExecution === "nextClose";
+
+  // Devuelve la fecha shift-eada al mes anterior si es nextClose, manteniendo
+  // el día. Se conserva la clave "YYYY-MM-DD" porque el resto del sistema
+  // espera ese formato; lo único que cambia es el componente "MM".
+  function shiftDate(date: string): string {
+    if (!isNextClose) return date;
+    const [y, m, d] = date.split("-").map((n) => parseInt(n, 10));
+    if (!y || !m) return date;
+    const dt = new Date(Date.UTC(y, m - 1 - 1, d || 1));
+    return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
   }
 
-  const startMonth = results.equityCurve[0]!.date.substring(0, 7);
-  const endMonth =
-    results.equityCurve[results.equityCurve.length - 1]!.date.substring(0, 7);
+  const monthlyNAVs: Record<string, number> = {};
+  for (const point of results.equityCurve) {
+    monthlyNAVs[shiftDate(point.date)] = point.value / firstValue;
+  }
+
+  const startMonth = shiftDate(results.equityCurve[0]!.date).substring(0, 7);
+  const endMonth = shiftDate(
+    results.equityCurve[results.equityCurve.length - 1]!.date
+  ).substring(0, 7);
 
   return {
     generatedAt: Date.now(),
