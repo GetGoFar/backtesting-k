@@ -1793,6 +1793,49 @@ const BBVA_INVERSION_RV_FUNDS: Fund[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// Cartera Alumno Santander — fondos de gestión discrecional Santander Private
+// Banking de un alumno. Todos resuelven sus NAVs vía EODHD usando el sufijo
+// ".EUFUND" sobre el ISIN (yahooTicker = "{ISIN}.EUFUND"). TER estimado por
+// clase institucional. Datos disponibles verificados (mayo 2026): casi todos
+// con histórico >2016; BGF World Healthscience (LU2178160680) sin datos en
+// EODHD y GSQuartix (LU1251863277) con histórico muy corto.
+// -----------------------------------------------------------------------------
+
+const SANTANDER_ALUMNO_FUNDS: Fund[] = [
+  // === Renta Variable ===
+  { id: "sant-indice-espana", name: "Santander Índice España CL Cartera", shortName: "Santander Índice España", isin: "ES0119203026", yahooTicker: "ES0119203026.EUFUND", ter: 0.30, category: "RV España", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-fidelity-euro50", name: "Fidelity Euro 50 Index Y EUR", shortName: "Fidelity Euro 50 Index", isin: "LU0370789215", yahooTicker: "LU0370789215.EUFUND", ter: 0.35, category: "RV Europa", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-fidelity-global-tech", name: "Fidelity Global Technology Y EUR Hdg", shortName: "Fidelity Global Tech", isin: "LU1482751903", yahooTicker: "LU1482751903.EUFUND", ter: 1.00, category: "RV Sectorial", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-gs-emerging", name: "GS Emerging Markets Equity I EUR", shortName: "GS Emerging Markets", isin: "LU1731866494", yahooTicker: "LU1731866494.EUFUND", ter: 1.10, category: "RV Emergentes", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-gs-us-core", name: "GS US Core Equity I EUR Hdg", shortName: "GS US Core Equity", isin: "LU1759635375", yahooTicker: "LU1759635375.EUFUND", ter: 0.75, category: "RV EEUU", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-gs-europe-core", name: "GS Europe CORE Equity I Acc", shortName: "GS Europe CORE", isin: "LU0234682044", yahooTicker: "LU0234682044.EUFUND", ter: 0.75, category: "RV Europa", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-axa-us-enhanced", name: "AXA IM US Enhanced Index Equity A EUR Hdg", shortName: "AXA US Enhanced Index", isin: "IE00BD008T51", yahooTicker: "IE00BD008T51.EUFUND", ter: 0.50, category: "RV EEUU", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-jpm-europe-strategic", name: "JPM Europe Strategic Growth I EUR", shortName: "JPM Europe Strategic", isin: "LU0248049172", yahooTicker: "LU0248049172.EUFUND", ter: 0.80, category: "RV Europa", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-jpm-emerging", name: "JPM Emerging Markets Equity I EUR Hdg", shortName: "JPM Emerging Markets", isin: "LU0799121404", yahooTicker: "LU0799121404.EUFUND", ter: 1.00, category: "RV Emergentes", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-trowe-us-small", name: "T Rowe Price US Smaller Companies IN EUR Hdg", shortName: "T Rowe US Small Cap", isin: "LU2454264297", yahooTicker: "LU2454264297.EUFUND", ter: 0.90, category: "RV Small Cap", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-bgf-healthscience", name: "BGF World Healthscience I2 EUR Hdg", shortName: "BGF World Healthscience", isin: "LU2178160680", yahooTicker: "LU2178160680.EUFUND", ter: 1.00, category: "RV Sectorial", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-edmond-rothschild", name: "Edmond de Rothschild Fund N2 EUR Hdg", shortName: "Edmond de Rothschild", isin: "LU2053387994", yahooTicker: "LU2053387994.EUFUND", ter: 1.00, category: "RV Global", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-nomura-japan", name: "Nomura Japan Strategic Value I EUR Hdg", shortName: "Nomura Japan Value", isin: "IE00B76RRL37", yahooTicker: "IE00B76RRL37.EUFUND", ter: 0.90, category: "RV Japón", type: "active", currency: "EUR", terSource: "estimated" },
+  // === Renta Fija Medio/Largo ===
+  { id: "sant-axa-inflation-short", name: "AXA WF Global Inflation Short Duration Bonds I EUR Hdg", shortName: "AXA Inflation Short Dur", isin: "LU1353952267", yahooTicker: "LU1353952267.EUFUND", ter: 0.50, category: "RF Inflation EUR", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-vontobel-euro-corp", name: "Vontobel Euro Corporate Bond G EUR", shortName: "Vontobel Euro Corp", isin: "LU1525532344", yahooTicker: "LU1525532344.EUFUND", ter: 0.55, category: "RF EUR Corp", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-ishares-eur-ig", name: "iShares Euro Investment Grade Corp Bond D EUR", shortName: "iShares EUR IG Corp", isin: "IE00BDRK7J14", yahooTicker: "IE00BDRK7J14.EUFUND", ter: 0.25, category: "RF EUR Corp", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-tikehau-short-dur", name: "Tikehau Short Duration SF EUR", shortName: "Tikehau Short Duration", isin: "LU2098119287", yahooTicker: "LU2098119287.EUFUND", ter: 0.40, category: "RF EUR Corto", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-jpm-euro-gov", name: "JPM Euro Government Short Duration Bond I2 EUR", shortName: "JPM Euro Gov Short", isin: "LU1938385884", yahooTicker: "LU1938385884.EUFUND", ter: 0.30, category: "RF EUR Gov", type: "active", currency: "EUR", terSource: "estimated" },
+  // === Renta Fija High Yield / Emergentes ===
+  { id: "sant-neuberger-em-sd", name: "Neuberger Berman Short Duration EM Debt I EUR Hdg", shortName: "Neuberger SD EM Debt", isin: "IE00BDZRX185", yahooTicker: "IE00BDZRX185.EUFUND", ter: 0.70, category: "RF Flexible", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-axa-us-hy", name: "AXA WF US High Yield Bonds I EUR Hdg", shortName: "AXA US High Yield", isin: "LU0276014130", yahooTicker: "LU0276014130.EUFUND", ter: 0.70, category: "RF USD Corp", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-mfs-em-debt", name: "MFS Meridian Emerging Markets Debt I1 EUR Hdg", shortName: "MFS EM Debt", isin: "LU0583240782", yahooTicker: "LU0583240782.EUFUND", ter: 0.75, category: "RF Flexible", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-pimco-income", name: "PIMCO Income I EUR Hdg", shortName: "PIMCO Income", isin: "IE00B80G9288", yahooTicker: "IE00B80G9288.EUFUND", ter: 0.55, category: "RF Flexible", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-candriam-euro-hy", name: "Candriam Bonds Euro High Yield V EUR", shortName: "Candriam Euro HY", isin: "LU0891843558", yahooTicker: "LU0891843558.EUFUND", ter: 0.60, category: "RF EUR Corp", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-algebris-financial", name: "Algebris Financial Credit I EUR Acc", shortName: "Algebris Financial Credit", isin: "IE00B81TMV64", yahooTicker: "IE00B81TMV64.EUFUND", ter: 1.00, category: "RF EUR Corp", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-mg-global-floating", name: "M&G (Lux) Global Floating Rate HY JIH EUR Hdg", shortName: "M&G Global Floating HY", isin: "LU2122596591", yahooTicker: "LU2122596591.EUFUND", ter: 0.65, category: "RF Flexible", type: "active", currency: "EUR", terSource: "estimated" },
+  // === Commodities / Alternativos ===
+  { id: "sant-gsquartix", name: "GSQuartix Modified Strategy Bloomberg Z EUR Hdg", shortName: "GSQuartix Commodities", isin: "LU1251863277", yahooTicker: "LU1251863277.EUFUND", ter: 0.50, category: "Alternativo", type: "active", currency: "EUR", terSource: "estimated" },
+  { id: "sant-ofi-financial", name: "OFI Financial Investment Precious Metals XL EUR", shortName: "OFI Precious Metals", isin: "FR0013190287", yahooTicker: "FR0013190287.EUFUND", ter: 0.85, category: "Alternativo", type: "active", currency: "EUR", terSource: "estimated" },
+];
+
+// -----------------------------------------------------------------------------
 // Todos los fondos combinados
 // -----------------------------------------------------------------------------
 
@@ -1803,6 +1846,7 @@ const ALL_FUNDS: Fund[] = [
   ...ALTERNATIVOS_CANIGUERAL_FUNDS,
   ...BBVA_CAPITAL_FUNDS,
   ...BBVA_INVERSION_RV_FUNDS,
+  ...SANTANDER_ALUMNO_FUNDS,
 ];
 
 // Mapa para búsqueda rápida por ID

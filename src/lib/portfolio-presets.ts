@@ -1368,10 +1368,59 @@ const BBVA_CAPITAL_PRESETS: PortfolioPreset[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// Cartera Alumno Santander — gestión discrecional Santander Private Banking.
+// Pesos calculados sobre el "Valor actual" de cada fondo en el extracto
+// (excluyendo liquidez residual), normalizados a 100%. 27 fondos.
+// -----------------------------------------------------------------------------
+
+const SANTANDER_ALUMNO_PRESETS: PortfolioPreset[] = [
+  {
+    id: "cartera-alumno-santander",
+    name: "Cartera Alumno Santander",
+    description: "Gestión discrecional Santander Private Banking — 27 fondos (RV global + RF + alternativos)",
+    type: "active",
+    holdings: [
+      // Renta Variable (~40%)
+      { fundId: "sant-indice-espana", weight: 5.08 },
+      { fundId: "sant-fidelity-euro50", weight: 4.07 },
+      { fundId: "sant-fidelity-global-tech", weight: 3.35 },
+      { fundId: "sant-gs-emerging", weight: 3.32 },
+      { fundId: "sant-gs-us-core", weight: 4.16 },
+      { fundId: "sant-gs-europe-core", weight: 3.03 },
+      { fundId: "sant-axa-us-enhanced", weight: 3.23 },
+      { fundId: "sant-jpm-europe-strategic", weight: 3.06 },
+      { fundId: "sant-jpm-emerging", weight: 4.39 },
+      { fundId: "sant-trowe-us-small", weight: 1.99 },
+      { fundId: "sant-bgf-healthscience", weight: 2.83 },
+      { fundId: "sant-edmond-rothschild", weight: 2.11 },
+      { fundId: "sant-nomura-japan", weight: 1.03 },
+      // Renta Fija Medio/Largo (~22%)
+      { fundId: "sant-axa-inflation-short", weight: 3.83 },
+      { fundId: "sant-vontobel-euro-corp", weight: 4.82 },
+      { fundId: "sant-ishares-eur-ig", weight: 3.42 },
+      { fundId: "sant-tikehau-short-dur", weight: 9.55 },
+      { fundId: "sant-jpm-euro-gov", weight: 4.80 },
+      // Renta Fija High Yield / Emergentes (~25%)
+      { fundId: "sant-neuberger-em-sd", weight: 1.93 },
+      { fundId: "sant-axa-us-hy", weight: 1.94 },
+      { fundId: "sant-mfs-em-debt", weight: 2.94 },
+      { fundId: "sant-pimco-income", weight: 5.88 },
+      { fundId: "sant-candriam-euro-hy", weight: 4.87 },
+      { fundId: "sant-algebris-financial", weight: 5.00 },
+      { fundId: "sant-mg-global-floating", weight: 2.96 },
+      // Commodities / Alternativos (~6%)
+      { fundId: "sant-gsquartix", weight: 2.00 },
+      { fundId: "sant-ofi-financial", weight: 4.41 },
+    ],
+  },
+];
+
+// -----------------------------------------------------------------------------
 // Todos los presets combinados
 // -----------------------------------------------------------------------------
 
 const ALL_PRESETS: PortfolioPreset[] = [
+  ...SANTANDER_ALUMNO_PRESETS,
   ...K_INBESTME_PRESETS,
   ...K_SECTORIAL_USA_PRESETS,
   ...K_GEOGRAFICA_USA_PRESETS,
