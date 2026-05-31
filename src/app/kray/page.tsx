@@ -63,9 +63,22 @@ export default function KrayPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: currentPortfolio.name,
+          // IMPORTANTE: incluir el snapshot `fund` para holdings dinámicos
+          // (prefijo eodhd-) — sin él el motor no sabe el ISIN/ticker y no
+          // puede llamar al fallback de FT.com para UCITS europeos.
           holdings: currentPortfolio.holdings.map((h) => ({
             fundId: h.fundId,
             weight: h.weight,
+            ...(h.fund
+              ? {
+                  fund: {
+                    name: h.fund.name,
+                    shortName: h.fund.shortName,
+                    isin: h.fund.isin,
+                    ticker: h.fund.ticker,
+                  },
+                }
+              : {}),
           })),
         }),
       });
