@@ -25,6 +25,7 @@ import { getAllBenchmarks } from "@/lib/benchmarks";
 import { getFundById } from "@/lib/fund-database";
 import { getAllPresets } from "@/lib/portfolio-presets";
 import { fetchWithSource } from "@/lib/data-source";
+import { setLastBacktestPortfolios } from "@/lib/last-backtest-portfolios";
 
 // Función para obtener el mes actual en formato YYYY-MM
 function getCurrentMonth(): string {
@@ -381,6 +382,22 @@ export default function Home() {
 
       setResults(data);
 
+      // Guardar las carteras ejecutadas en localStorage para que /kray pueda
+      // auto-cargarlas sin que el usuario tenga que re-seleccionarlas.
+      try {
+        setLastBacktestPortfolios({
+          portfolioA: portfolioA.isValid
+            ? { name: portfolioA.name, holdings: portfolioA.holdings }
+            : undefined,
+          portfolioB: portfolioB.isValid
+            ? { name: portfolioB.name, holdings: portfolioB.holdings }
+            : undefined,
+          savedAt: Date.now(),
+        });
+      } catch {
+        // localStorage no disponible / lleno — no-op
+      }
+
       setTimeout(() => {
         setShowResults(true);
       }, 50);
@@ -415,7 +432,7 @@ export default function Home() {
               </div>
             </a>
 
-            {/* Pestañas Backtest / Momentum */}
+            {/* Pestañas Backtest / Momentum / K-Ray */}
             <nav className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
               <span className="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md bg-white text-brand-navy shadow-sm">
                 Backtest
@@ -425,6 +442,12 @@ export default function Home() {
                 className="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md transition-colors text-brand-secondary hover:bg-white hover:text-brand-navy"
               >
                 Momentum
+              </a>
+              <a
+                href="/kray"
+                className="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md transition-colors text-brand-secondary hover:bg-white hover:text-brand-navy"
+              >
+                K-Ray
               </a>
             </nav>
 
