@@ -24,10 +24,8 @@ import { runWithContext } from "@/lib/request-context";
  * - 500: Error interno
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const headerSource = request.headers.get("x-data-source");
-  const dataSource: "eodhd" | "yahoo" = headerSource === "yahoo" ? "yahoo" : "eodhd";
-
-  return runWithContext({ dataSource }, async () => {
+  // Yahoo data source eliminado — siempre EODHD.
+  return runWithContext({ dataSource: "eodhd" }, async () => {
   try {
     const { searchParams } = new URL(request.url);
     const fundId = searchParams.get("fundId");

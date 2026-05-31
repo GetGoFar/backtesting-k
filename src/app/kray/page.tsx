@@ -13,7 +13,6 @@ import Link from "next/link";
 import { AccessGate } from "@/components/AccessGate";
 import { KrayResultsView } from "@/components/KrayResultsView";
 import { KraySidebarNav } from "@/components/KraySidebarNav";
-import { DataSourceToggle } from "@/components/DataSourceToggle";
 import { fetchWithSource } from "@/lib/data-source";
 import {
   getLastBacktestPortfolios,
@@ -146,8 +145,6 @@ export default function KrayPage() {
                   K-Ray
                 </span>
               </nav>
-
-              <DataSourceToggle />
 
               <a
                 href="https://elproyectok.com"

@@ -10,13 +10,8 @@ import type { KrayInput } from "@/lib/kray-types";
 const TIMEOUT_MS = 45_000;
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  // El análisis K-Ray vive en EODHD /fundamentals — usamos siempre esa fuente,
-  // ignorando el toggle de la UI (Yahoo no expone composición).
-  const headerSource = request.headers.get("x-data-source");
-  const dataSource: "eodhd" | "yahoo" =
-    headerSource === "yahoo" ? "yahoo" : "eodhd";
-
-  return runWithContext({ dataSource }, async () => {
+  // Yahoo data source eliminado — siempre EODHD.
+  return runWithContext({ dataSource: "eodhd" }, async () => {
     try {
       let input: KrayInput;
       try {

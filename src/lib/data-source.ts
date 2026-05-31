@@ -1,50 +1,23 @@
 "use client";
 
 // =============================================================================
-// CLIENT-SIDE DATA SOURCE — helpers para leer/escribir la fuente elegida
+// FETCH WRAPPER — Compatibilidad con código existente
 // =============================================================================
-// El valor se guarda en localStorage para persistir entre sesiones. Las
-// llamadas a fetch() leen este valor y lo envían como header X-Data-Source.
-// El backend (request-context) lo recoge y lo propaga a getDailyPrices.
+//
+// Antes existía un toggle EODHD vs Yahoo en la UI que enviaba el header
+// X-Data-Source con la fuente elegida. El toggle se eliminó porque la
+// dualidad confundía y daba errores cuando Yahoo no tenía un ticker.
+//
+// Ahora la única fuente de datos para precios es EODHD. Este módulo se
+// mantiene como wrapper de `fetch` para no romper los call sites del
+// resto del código, pero ya no envía el header — el backend siempre
+// usa EODHD.
 // =============================================================================
 
-export type DataSource = "eodhd" | "yahoo";
-
-const STORAGE_KEY = "epk-data-source";
-
-/** Lee la fuente actual desde localStorage. Default: "eodhd". */
-export function getDataSource(): DataSource {
-  if (typeof window === "undefined") return "eodhd";
-  try {
-    const v = localStorage.getItem(STORAGE_KEY);
-    return v === "yahoo" ? "yahoo" : "eodhd";
-  } catch {
-    return "eodhd";
-  }
-}
-
-/** Escribe la fuente seleccionada y dispara un evento para que otros listeners se actualicen. */
-export function setDataSource(source: DataSource): void {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(STORAGE_KEY, source);
-    // Notificar a otros componentes que estén observando este valor
-    window.dispatchEvent(new CustomEvent("epk-data-source-changed", { detail: source }));
-  } catch {
-    // localStorage no disponible — no-op
-  }
-}
-
-/**
- * Wrapper de `fetch` que añade automáticamente el header `X-Data-Source`
- * con la fuente actualmente seleccionada. Mismo API que fetch nativo.
- */
+/** Wrapper compatible con el fetch nativo. Antes añadía X-Data-Source. */
 export function fetchWithSource(
   input: RequestInfo | URL,
   init: RequestInit = {}
 ): Promise<Response> {
-  const source = getDataSource();
-  const headers = new Headers(init.headers);
-  headers.set("X-Data-Source", source);
-  return fetch(input, { ...init, headers });
+  return fetch(input, init);
 }

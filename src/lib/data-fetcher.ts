@@ -16,7 +16,6 @@ import { join } from "path";
 import { getFundById } from "./fund-database";
 import { getCachedPrices, setCachedPrices } from "./kv-cache";
 import { validatePriceData, cleanPriceData } from "./data-validator";
-import { getRequestContext } from "./request-context";
 import type { DailyPrice, MonthlyPrice } from "./types";
 
 // Ruta al CSV de fondos españoles
@@ -29,23 +28,6 @@ const EODHD_BASE_URL = "https://eodhd.com/api";
 // -----------------------------------------------------------------------------
 // Interfaces internas
 // -----------------------------------------------------------------------------
-
-interface YahooChartResponse {
-  chart: {
-    result: Array<{
-      timestamp: number[];
-      indicators: {
-        adjclose: Array<{
-          adjclose: (number | null)[];
-        }>;
-      };
-    }> | null;
-    error: {
-      code: string;
-      description: string;
-    } | null;
-  };
-}
 
 /** Respuesta de EODHD EOD endpoint */
 interface EODHDPricePoint {
@@ -76,27 +58,25 @@ export interface MonthlyPricesResult {
 // Función principal — datos DIARIOS
 // -----------------------------------------------------------------------------
 
-/** Fuente de precios. Se puede pasar explícitamente o leerse del contexto. */
-export type DataSource = "eodhd" | "yahoo";
+/** Fuente de precios. Yahoo se eliminó; mantenemos el tipo por compat. */
+export type DataSource = "eodhd";
 
 /**
  * Obtiene los precios diarios de un fondo por su ID.
  *
- * @param dataSource Cuál es la fuente PRINCIPAL a probar primero. Si falla,
- *                   se cae a las otras (en el orden EODHD → Yahoo → CSV o
- *                   Yahoo → EODHD → CSV). El cache se segmenta por fuente.
+ * Fuente: EODHD como API principal + CSV local para fondos bancarios
+ * españoles que no existen en ninguna API online.
+ *
+ * El parámetro `dataSource` se mantiene en la firma por compatibilidad con
+ * código existente pero ya no se usa (se ignora si se pasa).
  */
 export async function getDailyPrices(
   fundId: string,
   yahooTicker?: string,
   isin?: string,
-  dataSource?: DataSource
+  _dataSource?: DataSource
 ): Promise<DailyPricesResult> {
-  // Si no se pasa explícitamente, leer del contexto del request actual.
-  // Si tampoco hay contexto (script offline, test, etc.), default a "eodhd".
-  const effectiveSource: DataSource =
-    dataSource ?? getRequestContext()?.dataSource ?? "eodhd";
-  console.log(`[DataFetcher] Obteniendo precios diarios para: ${fundId} (fuente: ${effectiveSource})`);
+  console.log(`[DataFetcher] Obteniendo precios diarios para: ${fundId}`);
 
   const fund = getFundById(fundId);
   const ticker = fund?.yahooTicker || yahooTicker;
@@ -106,9 +86,10 @@ export async function getDailyPrices(
     throw new Error(`Fondo no encontrado: ${fundId}`);
   }
 
-  // El cache se segmenta por fuente — las series EODHD y Yahoo difieren en
-  // ajustes de dividendos y precios exactos, así que NO se pueden mezclar.
-  const cacheKey = `${fundId}::${effectiveSource}`;
+  // Cache key (segmentado por fuente — sólo EODHD ahora, pero mantenemos
+  // el prefijo "::eodhd" para que no colisione con entradas viejas en cache
+  // que se generaron con Yahoo cuando el toggle existía).
+  const cacheKey = `${fundId}::eodhd`;
 
   // 1. Intentar cache (memoria -> Redis)
   const cached = await getCachedPrices(cacheKey);
@@ -117,7 +98,7 @@ export async function getDailyPrices(
     return dailyPricesToMap(cached);
   }
 
-  // 2. Obtener datos del origen
+  // 2. Obtener datos del origen (EODHD)
   let prices: DailyPrice[] = [];
   // Para fondos en la BD local: usar el flag distributing explícito (curado).
   // Para fondos dinámicos (búsqueda): default a adjusted_close (=distributing=true) porque
@@ -125,41 +106,25 @@ export async function getDailyPrices(
   // acumulación limpios adjusted_close == close (no perjudica).
   const isDistributing = fund ? (fund.distributing ?? false) : true;
 
-  // El usuario elige la fuente — SIN fallback silencioso entre fuentes online.
-  // Si la fuente elegida falla, lanzamos error (excepto el CSV local para
-  // fondos bancarios españoles que NO existen en ninguna API online).
-  if (effectiveSource === "eodhd") {
-    if (EODHD_API_TOKEN && EODHD_API_TOKEN !== "demo" && ticker) {
-      const eodhTicker = yahooTickerToEODHD(ticker);
-      console.log(`[DataFetcher] EODHD diario: ${eodhTicker} (distributing: ${isDistributing})`);
-      prices = await fetchDailyFromEODHD(eodhTicker, isDistributing);
+  if (EODHD_API_TOKEN && EODHD_API_TOKEN !== "demo" && ticker) {
+    const eodhTicker = yahooTickerToEODHD(ticker);
+    console.log(`[DataFetcher] EODHD diario: ${eodhTicker} (distributing: ${isDistributing})`);
+    prices = await fetchDailyFromEODHD(eodhTicker, isDistributing);
 
-      if (prices.length === 0 && effectiveIsin) {
-        console.log(`[DataFetcher] EODHD ticker falló, intentando ISIN: ${effectiveIsin}.EUFUND`);
-        prices = await fetchDailyFromEODHD(`${effectiveIsin}.EUFUND`, isDistributing);
-      }
-    }
-
-    if (prices.length === 0 && EODHD_API_TOKEN && EODHD_API_TOKEN !== "demo" && !ticker && effectiveIsin) {
-      console.log(`[DataFetcher] EODHD ISIN directo: ${effectiveIsin}.EUFUND`);
+    if (prices.length === 0 && effectiveIsin) {
+      console.log(`[DataFetcher] EODHD ticker falló, intentando ISIN: ${effectiveIsin}.EUFUND`);
       prices = await fetchDailyFromEODHD(`${effectiveIsin}.EUFUND`, isDistributing);
-    }
-  } else {
-    // Yahoo Finance: si falla NO se cae a EODHD silenciosamente (eso ocultaba
-    // bloqueos de Yahoo desde IPs de Vercel y producía resultados idénticos
-    // a EODHD aunque hubieras elegido Yahoo).
-    if (ticker) {
-      console.log(`[DataFetcher] Yahoo diario: ${ticker}`);
-      prices = await fetchDailyFromYahooFinance(ticker);
-      if (prices.length === 0) {
-        console.warn(`[DataFetcher] Yahoo NO devolvió datos para ${ticker} (posible bloqueo de IP o ticker no disponible)`);
-      }
     }
   }
 
+  if (prices.length === 0 && EODHD_API_TOKEN && EODHD_API_TOKEN !== "demo" && !ticker && effectiveIsin) {
+    console.log(`[DataFetcher] EODHD ISIN directo: ${effectiveIsin}.EUFUND`);
+    prices = await fetchDailyFromEODHD(`${effectiveIsin}.EUFUND`, isDistributing);
+  }
+
   // CSV de fondos bancarios españoles — última red de seguridad SOLO para
-  // fondos que no existen en ninguna API online (Yahoo no los tiene, EODHD
-  // requiere EUFUND de pago). Ambos modos lo usan.
+  // fondos que no existen en ninguna API online (EODHD no tiene los .EUFUND
+  // de banca, requieren add-on premium).
   if (prices.length === 0 && fund) {
     console.log(`[DataFetcher] Leyendo CSV para fondo bancario: ${fund.isin}`);
     const monthlyPrices = await readFromCSV(fund.isin);
@@ -171,13 +136,6 @@ export async function getDailyPrices(
 
   if (prices.length === 0) {
     const name = fund?.name || fundId;
-    if (effectiveSource === "yahoo") {
-      throw new Error(
-        `Yahoo Finance no devolvió datos para ${name} (${fundId}). ` +
-        `Posibles causas: Yahoo está bloqueando IPs del servidor, el ticker no existe en Yahoo, ` +
-        `o se ha excedido el límite de peticiones. Prueba a cambiar la fuente a EODHD en el selector del header.`
-      );
-    }
     throw new Error(`No hay datos disponibles para: ${fundId} (${name})`);
   }
 
@@ -439,98 +397,6 @@ async function fetchDailyFromEODHD(ticker: string, distributing: boolean = false
     return adjustedPrices;
   } catch (error) {
     console.error(`[DataFetcher] Error en fetch a EODHD:`, error);
-    return [];
-  }
-}
-
-// -----------------------------------------------------------------------------
-// Yahoo Finance — datos diarios (fuente alternativa, gratuita)
-// -----------------------------------------------------------------------------
-
-/**
- * Descarga precios diarios desde Yahoo Finance (endpoint chart v8).
- *
- * IMPORTANTE: Yahoo bloquea agresivamente IPs de datacenter (Vercel, AWS, GCP)
- * con respuestas 401/403/429. Para mitigarlo enviamos un User-Agent moderno
- * de Chrome y headers de aceptación realistas. Aún así puede fallar en algunos
- * deploys serverless — si pasa, el motor lanza error en lugar de caer
- * silenciosamente a otra fuente.
- */
-async function fetchDailyFromYahooFinance(ticker: string): Promise<DailyPrice[]> {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=max&interval=1d&events=history`;
-
-  let prices = await attemptYahooDailyFetch(url, ticker, 1);
-
-  if (prices.length === 0) {
-    const altUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=max&interval=1d&events=history`;
-    prices = await attemptYahooDailyFetch(altUrl, ticker, 2);
-  }
-
-  return prices;
-}
-
-async function attemptYahooDailyFetch(
-  url: string,
-  ticker: string,
-  attempt: number
-): Promise<DailyPrice[]> {
-  try {
-    console.log(`[DataFetcher] Yahoo Intento ${attempt} (daily) - GET ${url}`);
-
-    const response = await fetch(url, {
-      headers: {
-        // User-Agent COMPLETO de Chrome — el truncado triggereaba bot
-        // detection. Con éste pasamos mejor el filtro de Yahoo.
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-        Accept: "application/json, text/plain, */*",
-        "Accept-Language": "en-US,en;q=0.9",
-        Referer: "https://finance.yahoo.com/",
-        Origin: "https://finance.yahoo.com",
-      },
-      signal: AbortSignal.timeout(30000),
-    });
-
-    if (!response.ok) {
-      console.error(`[DataFetcher] Yahoo Finance respondió ${response.status} para ${ticker}`);
-      return [];
-    }
-
-    const data: YahooChartResponse = await response.json();
-
-    if (data.chart.error) {
-      console.error(`[DataFetcher] Yahoo Finance error: ${data.chart.error.description}`);
-      return [];
-    }
-
-    const result = data.chart.result?.[0];
-    if (!result || !result.timestamp || !result.indicators?.adjclose?.[0]?.adjclose) {
-      console.error(`[DataFetcher] Respuesta incompleta de Yahoo Finance para ${ticker}`);
-      return [];
-    }
-
-    const timestamps = result.timestamp;
-    const closes = result.indicators.adjclose[0].adjclose;
-
-    const prices: DailyPrice[] = [];
-
-    for (let i = 0; i < timestamps.length; i++) {
-      const timestamp = timestamps[i];
-      const closePrice = closes[i];
-
-      if (timestamp !== undefined && closePrice !== null && closePrice !== undefined && closePrice > 0) {
-        const date = new Date(timestamp * 1000);
-        const dateStr = `${date.getUTCFullYear()}-${(date.getUTCMonth() + 1).toString().padStart(2, "0")}-${date.getUTCDate().toString().padStart(2, "0")}`;
-        prices.push({ date: dateStr, closePrice });
-      }
-    }
-
-    prices.sort((a, b) => a.date.localeCompare(b.date));
-
-    console.log(`[DataFetcher] Yahoo Finance devolvió ${prices.length} días para ${ticker}`);
-    return prices;
-  } catch (error) {
-    console.error(`[DataFetcher] Error en fetch a Yahoo Finance (intento ${attempt}):`, error);
     return [];
   }
 }

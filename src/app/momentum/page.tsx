@@ -26,7 +26,6 @@ import { MomentumConfigPanel } from "@/components/MomentumConfigPanel";
 import { MomentumResultsView } from "@/components/MomentumResultsView";
 import { MomentumComparisonView } from "@/components/MomentumComparisonView";
 import { MomentumSidebarNav } from "@/components/MomentumSidebarNav";
-import { DataSourceToggle } from "@/components/DataSourceToggle";
 import { fetchWithSource } from "@/lib/data-source";
 import type { MomentumConfig, MomentumResponse, MomentumAsset } from "@/lib/momentum-types";
 
@@ -196,8 +195,6 @@ export default function MomentumPage() {
                   K-Ray
                 </Link>
               </nav>
-
-              <DataSourceToggle />
 
               <a
                 href="https://elproyectok.com"

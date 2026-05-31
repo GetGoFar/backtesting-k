@@ -10,7 +10,6 @@ import { TaxImpactCard } from "@/components/TaxImpactCard";
 import { ReportGeneratorModal } from "@/components/ReportGeneratorModal";
 import { AccessGate } from "@/components/AccessGate";
 import { SidebarNav } from "@/components/SidebarNav";
-import { DataSourceToggle } from "@/components/DataSourceToggle";
 import { AnnualReturnsHeatmap } from "@/components/AnnualReturnsHeatmap";
 import { MonthlyReturnsHeatmap, type HeatmapSeries as MonthlySeries } from "@/components/MonthlyReturnsHeatmap";
 import type {
@@ -450,9 +449,6 @@ export default function Home() {
                 K-Ray
               </a>
             </nav>
-
-            {/* Selector de fuente de datos */}
-            <DataSourceToggle />
 
             <a
               href="https://elproyectok.com"

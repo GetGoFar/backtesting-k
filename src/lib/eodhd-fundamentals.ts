@@ -13,7 +13,6 @@
 // de un fondo no cambia con frecuencia.
 // =============================================================================
 
-import { getRequestContext } from "./request-context";
 import { getFundById } from "./fund-database";
 
 const EODHD_API_TOKEN = process.env.EODHD_API_TOKEN || "";
@@ -290,23 +289,6 @@ export async function getFundComposition(args: {
     return cached.data;
   }
 
-  // Si el contexto pide forzar Yahoo, EODHD fundamentals no tiene equivalente
-  // — devolvemos no disponible. (Yahoo no expone esto vía API pública).
-  const ctx = getRequestContext();
-  if (ctx?.dataSource === "yahoo") {
-    const empty: FundComposition = {
-      isin: args.isin ?? "",
-      name: args.fundId,
-      sectorWeights: {},
-      worldRegions: {},
-      countryWeights: {},
-      assetAllocation: {},
-      holdings: [],
-      available: false,
-      reason: "Composición no disponible en fuente Yahoo — usa EODHD",
-    };
-    return empty;
-  }
 
   const candidates = buildEodhdCandidates(args);
   let raw: EodhdFundamentalsResponse | null = null;

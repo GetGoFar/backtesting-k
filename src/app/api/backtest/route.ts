@@ -35,14 +35,10 @@ const WEIGHT_TOLERANCE = 10;
  * - 500: Error interno
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  // Fuente de precios elegida por el usuario (default: EODHD)
-  const headerSource = request.headers.get("x-data-source");
-  const dataSource: "eodhd" | "yahoo" = headerSource === "yahoo" ? "yahoo" : "eodhd";
-
-  // Envolvemos TODO el handler en el contexto para que getDailyPrices, las
-  // funciones del backtest-engine y cualquier llamada en cadena hereden la
-  // fuente sin tener que tocar sus firmas.
-  return runWithContext({ dataSource }, async () => {
+  // Fuente de precios: SIEMPRE EODHD. El toggle Yahoo se eliminó porque
+  // confundía. Envolvemos el handler en el contexto igualmente para que
+  // getDailyPrices y resto del pipeline funcionen sin cambios.
+  return runWithContext({ dataSource: "eodhd" }, async () => {
   try {
     // Parsear el body
     let config: BacktestConfig;

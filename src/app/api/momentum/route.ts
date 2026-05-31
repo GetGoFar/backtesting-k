@@ -28,10 +28,8 @@ const TIMEOUT_MS = 90_000; // 90s — cargar precios de muchos tickers puede ser
  * Respuesta: MomentumResponse o { error, message }
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const headerSource = request.headers.get("x-data-source");
-  const dataSource: "eodhd" | "yahoo" = headerSource === "yahoo" ? "yahoo" : "eodhd";
-
-  return runWithContext({ dataSource }, async () => {
+  // Yahoo data source eliminado — siempre EODHD.
+  return runWithContext({ dataSource: "eodhd" }, async () => {
     try {
       let config: MomentumConfig;
       try {
