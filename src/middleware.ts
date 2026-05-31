@@ -9,6 +9,7 @@
 // Rutas permitidas:
 //   - /                    → home con herramienta de Backtest (AccessGate gestiona el código)
 //   - /momentum            → herramienta de Momentum / Relative Strength
+//   - /kray                → K-Ray: radiografía de cartera (composición agregada)
 //   - /informe/[isin]      → informe personalizado del lead capturado
 //   - /api/*               → endpoints REST que consume el widget de WordPress
 //   - /_next/*, /icon.svg  → assets de Next.js + favicon
@@ -26,6 +27,7 @@ const RUTAS_PUBLICAS_PREFIJO = ["/api/", "/informe/", "/_next/", "/wordpress/"];
 const RUTAS_PUBLICAS_EXACTAS = new Set([
   "/",
   "/momentum",
+  "/kray",
   "/favicon.ico",
   "/icon.svg",
   "/apple-icon.svg",
