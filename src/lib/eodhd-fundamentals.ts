@@ -184,11 +184,20 @@ function parseHoldings(obj: EodhdHoldingsObject | undefined): FundHolding[] {
 }
 
 /**
- * Construye el ticker EODHD a partir del fondo. Para ETFs UCITS suele ser
- * <yahooTicker> directamente. Para fondos mutuos europeos EODHD usa el
- * sufijo ".EUFUND" sobre el ISIN.
+ * Construye el ticker EODHD a partir del fondo. Lo complicado: nuestra base
+ * de datos usa formato YAHOO FINANCE para `yahooTicker` (porque originalmente
+ * sólo se usaba para Yahoo). Pero EODHD usa sufijos de exchange DISTINTOS para
+ * el mismo mercado:
  *
- * Devolvemos una lista de candidatos para probar en orden.
+ *   Yahoo .DE   (Xetra)   →  EODHD .XETRA  (también .F para Frankfurt)
+ *   Yahoo .L    (London)  →  EODHD .LSE
+ *   Yahoo .AS, .PA, .MI, .SW, .F → mismos en EODHD (no necesitan mapeo)
+ *
+ * Si pasamos `XDWS.DE` a EODHD nos devuelve 404 — necesita `XDWS.XETRA`.
+ *
+ * La estrategia: probamos varios candidatos en orden. El primero que devuelva
+ * datos válidos (no 404, no objeto vacío) gana. Para tickers ambiguos
+ * (e.g. XDWS) probamos: XDWS.XETRA → XDWS.F → ISIN.EUFUND.
  */
 function buildEodhdCandidates(args: {
   fundId?: string;
@@ -196,9 +205,40 @@ function buildEodhdCandidates(args: {
   isin?: string;
 }): string[] {
   const out: string[] = [];
-  if (args.yahooTicker) out.push(args.yahooTicker);
+
+  if (args.yahooTicker) {
+    out.push(args.yahooTicker);
+
+    // Mapeos Yahoo → EODHD para sufijos que difieren entre las dos APIs.
+    // Si el yahooTicker termina en alguno de estos, añadimos su variante
+    // EODHD como candidato adicional ANTES del fallback de .EUFUND.
+    const yt = args.yahooTicker;
+    const dotIdx = yt.lastIndexOf(".");
+    if (dotIdx > 0) {
+      const base = yt.substring(0, dotIdx);
+      const suffix = yt.substring(dotIdx + 1).toUpperCase();
+      // Mapa de suffix Yahoo → suffix(es) EODHD a probar como alternativa
+      const map: Record<string, string[]> = {
+        DE: ["XETRA", "F"],           // Yahoo .DE = Xetra; EODHD usa .XETRA o .F (Frankfurt)
+        L: ["LSE"],                   // Yahoo .L = London; EODHD usa .LSE
+        MI: ["MI"],                   // Borsa Italiana — igual
+        AS: ["AS"],                   // Amsterdam — igual
+        PA: ["PA"],                   // Paris — igual
+        SW: ["SW"],                   // Swiss — igual
+        F: ["F"],                     // Frankfurt — igual
+      };
+      const alts = map[suffix];
+      if (alts) {
+        for (const alt of alts) {
+          if (alt !== suffix) out.push(`${base}.${alt}`);
+        }
+      }
+    }
+  }
+
   if (args.isin) out.push(`${args.isin}.EUFUND`);
   if (args.fundId && args.fundId !== args.yahooTicker) out.push(args.fundId);
+
   return Array.from(new Set(out)); // dedupe
 }
 
