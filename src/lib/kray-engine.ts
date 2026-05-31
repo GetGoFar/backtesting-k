@@ -17,6 +17,12 @@ import {
   getFundComposition,
 } from "./eodhd-fundamentals";
 import { getFundById } from "./fund-database";
+import {
+  translateSector,
+  translateRegion,
+  translateCountry,
+  translateAssetClass,
+} from "./kray-translations";
 import type {
   KrayInput,
   KrayResult,
@@ -178,17 +184,19 @@ export async function runKray(input: KrayInput): Promise<KrayResult> {
       topHoldings: composition.holdings.slice(0, 10).map((h) => ({
         name: h.name,
         code: h.code,
-        sector: h.sector,
+        sector: h.sector ? translateSector(h.sector) : h.sector,
         weight: h.assetsPercent,
       })),
     });
 
     const fundWeight = holding.weight; // 0-100 de la cartera
 
-    // --- Sectors ---
+    // --- Sectors ---  (traducidos al castellano para que la UI los muestre así
+    // y para deduplicar variantes "Consumer Cyclical" vs "Consumer Cyclicals")
     for (const [sector, pct] of Object.entries(composition.sectorWeights)) {
+      const label = translateSector(sector);
       const contribution = (fundWeight * pct) / 100;
-      addToCategory(sectorTotals, sectorContribs, sector, contribution, {
+      addToCategory(sectorTotals, sectorContribs, label, contribution, {
         fundId: holding.fundId,
         fundName,
         fundWeight,
@@ -199,8 +207,9 @@ export async function runKray(input: KrayInput): Promise<KrayResult> {
 
     // --- Regions ---
     for (const [region, pct] of Object.entries(composition.worldRegions)) {
+      const label = translateRegion(region);
       const contribution = (fundWeight * pct) / 100;
-      addToCategory(regionTotals, regionContribs, region, contribution, {
+      addToCategory(regionTotals, regionContribs, label, contribution, {
         fundId: holding.fundId,
         fundName,
         fundWeight,
@@ -211,8 +220,9 @@ export async function runKray(input: KrayInput): Promise<KrayResult> {
 
     // --- Countries ---
     for (const [country, pct] of Object.entries(composition.countryWeights)) {
+      const label = translateCountry(country);
       const contribution = (fundWeight * pct) / 100;
-      addToCategory(countryTotals, countryContribs, country, contribution, {
+      addToCategory(countryTotals, countryContribs, label, contribution, {
         fundId: holding.fundId,
         fundName,
         fundWeight,
@@ -223,8 +233,9 @@ export async function runKray(input: KrayInput): Promise<KrayResult> {
 
     // --- Asset allocation ---
     for (const [klass, pct] of Object.entries(composition.assetAllocation)) {
+      const label = translateAssetClass(klass);
       const contribution = (fundWeight * pct) / 100;
-      addToCategory(assetTotals, assetContribs, klass, contribution, {
+      addToCategory(assetTotals, assetContribs, label, contribution, {
         fundId: holding.fundId,
         fundName,
         fundWeight,
@@ -238,6 +249,8 @@ export async function runKray(input: KrayInput): Promise<KrayResult> {
       const key = canonicalKey(h.name, h.code);
       const contribution = (fundWeight * h.assetsPercent) / 100;
       const existing = holdingsAgg.get(key);
+      const translatedSector = h.sector ? translateSector(h.sector) : undefined;
+      const translatedRegion = h.region ? translateRegion(h.region) : undefined;
       const entry = {
         fundId: holding.fundId,
         fundName,
@@ -250,14 +263,14 @@ export async function runKray(input: KrayInput): Promise<KrayResult> {
         existing.inFunds.push(entry);
         // Preferimos el nombre más legible (largo > corto)
         if (h.name.length > existing.name.length) existing.name = h.name;
-        existing.sector = existing.sector ?? h.sector;
-        existing.region = existing.region ?? h.region;
+        existing.sector = existing.sector ?? translatedSector;
+        existing.region = existing.region ?? translatedRegion;
       } else {
         holdingsAgg.set(key, {
           name: h.name,
           code: h.code,
-          sector: h.sector,
-          region: h.region,
+          sector: translatedSector,
+          region: translatedRegion,
           totalWeight: contribution,
           inFunds: [entry],
         });
