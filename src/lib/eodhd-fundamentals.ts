@@ -262,6 +262,91 @@ async function fetchFromEodhd(ticker: string): Promise<EodhdFundamentalsResponse
   }
 }
 
+/**
+ * Comprueba si una respuesta de EODHD trae datos REALES de composición —
+ * no sólo la cáscara con General/Technicals. Algunos listings devuelven
+ * 200 OK con ETF_Data presente pero todos los breakdowns vacíos; eso
+ * lo consideramos "sin datos" para que el caller intente otro listing.
+ */
+function hasRealComposition(raw: EodhdFundamentalsResponse | null): boolean {
+  if (!raw) return false;
+  const etf = raw.ETF_Data;
+  const mf = raw.MutualFund_Data;
+  const checkBlock = (block: typeof etf | typeof mf): boolean => {
+    if (!block) return false;
+    const sw = (block as { Sector_Weights?: unknown }).Sector_Weights;
+    const wr = (block as { World_Regions?: unknown }).World_Regions;
+    const cw = (block as { Country_Weights?: unknown }).Country_Weights;
+    const aa = (block as { Asset_Allocation?: unknown }).Asset_Allocation;
+    const th10 = (block as { Top_10_Holdings?: unknown }).Top_10_Holdings;
+    const th = (block as { Top_Holdings?: unknown }).Top_Holdings;
+    const h = (block as { Holdings?: unknown }).Holdings;
+    const eh = (block as { Equity_Holdings?: unknown }).Equity_Holdings;
+    const nonEmpty = (o: unknown) =>
+      o && typeof o === "object" && Object.keys(o as object).length > 0;
+    return Boolean(
+      nonEmpty(sw) ||
+        nonEmpty(wr) ||
+        nonEmpty(cw) ||
+        nonEmpty(aa) ||
+        nonEmpty(th10) ||
+        nonEmpty(th) ||
+        nonEmpty(h) ||
+        nonEmpty(eh)
+    );
+  };
+  return checkBlock(etf) || checkBlock(mf);
+}
+
+/**
+ * Cuando el lookup directo de un ticker devuelve un objeto sin datos reales
+ * (caso común: ETFs Xtrackers donde X57E.XETRA está vacío pero DBXR.XETRA
+ * sí tiene los datos para el mismo ISIN), buscamos por ISIN y probamos
+ * todos los listings que devuelva el endpoint /search, hasta encontrar
+ * uno que sí tenga composición.
+ */
+async function findAlternativeListing(
+  isin: string
+): Promise<{ raw: EodhdFundamentalsResponse; ticker: string } | null> {
+  if (!EODHD_API_TOKEN || EODHD_API_TOKEN === "demo") return null;
+  try {
+    const searchUrl = `${EODHD_BASE_URL}/search/${encodeURIComponent(isin)}?api_token=${EODHD_API_TOKEN}&limit=20`;
+    const res = await fetch(searchUrl, {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const listings = (await res.json()) as Array<{
+      Code?: string;
+      Exchange?: string;
+      Type?: string;
+    }>;
+    if (!Array.isArray(listings)) return null;
+    // Sólo ETFs/FUNDs/EUFUND
+    const candidates = listings
+      .filter((l) => l.Code && l.Exchange)
+      .filter(
+        (l) =>
+          l.Type === "ETF" ||
+          l.Type === "FUND" ||
+          l.Type === "Fund" ||
+          l.Exchange === "EUFUND"
+      )
+      .map((l) => `${l.Code}.${l.Exchange}`);
+    for (const ticker of candidates) {
+      const raw = await fetchFromEodhd(ticker);
+      if (hasRealComposition(raw)) {
+        console.log(
+          `[EODHD-fundamentals] Encontrado listing alternativo con datos para ISIN ${isin}: ${ticker}`
+        );
+        return { raw: raw!, ticker };
+      }
+    }
+  } catch (err) {
+    console.warn(`[EODHD-fundamentals] Error en findAlternativeListing(${isin}):`, err);
+  }
+  return null;
+}
+
 // -----------------------------------------------------------------------------
 // API pública
 // -----------------------------------------------------------------------------
@@ -292,15 +377,46 @@ export async function getFundComposition(args: {
   const candidates = buildEodhdCandidates(args);
   let raw: EodhdFundamentalsResponse | null = null;
   let usedTicker: string | undefined;
+
+  // PASO 1: probar tickers candidatos. Aceptamos el primero que devuelva
+  // datos REALES (no sólo la cáscara General/Technicals). Si todos devuelven
+  // vacío pero alguno responde 200, lo guardamos como "última opción".
+  let fallbackRaw: EodhdFundamentalsResponse | null = null;
+  let fallbackTicker: string | undefined;
   for (const candidate of candidates) {
-    raw = await fetchFromEodhd(candidate);
-    if (
-      raw &&
-      (raw.ETF_Data || raw.MutualFund_Data || raw.General)
-    ) {
+    const r = await fetchFromEodhd(candidate);
+    if (!r) continue;
+    if (hasRealComposition(r)) {
+      raw = r;
       usedTicker = candidate;
       break;
     }
+    // Guardamos el primero que devuelva CÁSCARA pero sin datos por si la
+    // búsqueda por ISIN tampoco encuentra nada.
+    if (!fallbackRaw && (r.ETF_Data || r.MutualFund_Data || r.General)) {
+      fallbackRaw = r;
+      fallbackTicker = candidate;
+    }
+  }
+
+  // PASO 2: si los candidatos directos no devolvieron composición REAL,
+  // buscamos por ISIN para encontrar listings alternativos. Caso típico:
+  // ETFs con múltiples tickers en el mismo exchange (X57E.XETRA está vacío
+  // pero DBXR.XETRA del mismo ISIN tiene los datos).
+  if (!raw && args.isin) {
+    const alt = await findAlternativeListing(args.isin);
+    if (alt) {
+      raw = alt.raw;
+      usedTicker = alt.ticker;
+    }
+  }
+
+  // PASO 3: si ni candidatos ni búsqueda por ISIN dieron datos pero al menos
+  // tenemos la cáscara (con General.Name etc.), usamos esa para devolver
+  // metadata del fondo aunque sin breakdown.
+  if (!raw && fallbackRaw) {
+    raw = fallbackRaw;
+    usedTicker = fallbackTicker;
   }
 
   if (!raw) {
