@@ -111,7 +111,12 @@ interface EodhdFundamentalsResponse {
     Code?: string;
     Name?: string;
     ISIN?: string;
-    Type?: string; // "ETF", "FUND", ...
+    Type?: string; // "ETF", "FUND", "Common Stock", "Currency", "Crypto", ...
+    Sector?: string;
+    Industry?: string;
+    CountryName?: string;
+    CountryISO?: string;
+    CurrencyCode?: string;
   };
   ETF_Data?: {
     ISIN?: string;
@@ -434,6 +439,103 @@ async function findAlternativeListing(
   return null;
 }
 
+/**
+ * Sintetiza una composición para una ACCIÓN INDIVIDUAL. EODHD no devuelve
+ * ETF_Data ni MutualFund_Data para Common Stock, pero la acción ES un asset
+ * class por sí misma — su sector / industry / country sí vienen en General.
+ *
+ * Devolvemos un FundComposition con UN único holding (la propia acción al
+ * 100% de su peso) más los desgloses sectorial / regional / país coherentes.
+ */
+function synthesizeStockComposition(
+  raw: EodhdFundamentalsResponse,
+  args: { fundId: string; ticker?: string; isin?: string }
+): FundComposition {
+  const g = raw.General ?? {};
+  const sector = g.Sector || undefined;
+  const country = g.CountryName || undefined;
+  return {
+    isin: g.ISIN ?? args.isin ?? "",
+    name: g.Name ?? args.fundId,
+    type: g.Type,
+    assetClass: "Equity",
+    sectorWeights: sector ? { [sector]: 100 } : {},
+    worldRegions: {},
+    countryWeights: country ? { [country]: 100 } : {},
+    assetAllocation: { Equity: 100 },
+    holdings: [
+      {
+        name: g.Name ?? args.fundId,
+        code: g.Code,
+        sector,
+        region: country,
+        assetsPercent: 100,
+      },
+    ],
+    available: true,
+  };
+}
+
+/**
+ * Sintetiza una composición para activos NO de fondos: oro / commodities /
+ * cripto / forex. EODHD devuelve sólo el name y type, sin breakdown — pero
+ * podemos clasificar por el ticker / nombre para que el agregado de K-Ray
+ * sume correctamente este peso a su categoría correspondiente (en vez de
+ * dejarlo fuera del análisis).
+ */
+function synthesizeCommodityComposition(
+  raw: EodhdFundamentalsResponse,
+  args: { fundId: string; ticker?: string; isin?: string }
+): FundComposition {
+  const g = raw.General ?? {};
+  const name = g.Name ?? args.fundId;
+  const upperCode = (g.Code ?? args.ticker ?? args.fundId).toUpperCase();
+  const upperName = name.toUpperCase();
+
+  let assetClass = "Other";
+  let sector: string | undefined;
+  if (
+    upperCode.includes("XAU") ||
+    upperName.includes("GOLD") ||
+    upperName.includes("ORO")
+  ) {
+    assetClass = "Commodity";
+    sector = "Precious Metals - Gold";
+  } else if (upperCode.includes("XAG") || upperName.includes("SILVER")) {
+    assetClass = "Commodity";
+    sector = "Precious Metals - Silver";
+  } else if (g.Type?.toLowerCase().includes("crypto") || upperName.includes("BITCOIN")) {
+    assetClass = "Cryptocurrency";
+    sector = name;
+  } else if (g.Type?.toLowerCase().includes("currency") || g.Type?.toLowerCase().includes("forex")) {
+    assetClass = "Cash & Currency";
+    sector = "Currency";
+  } else if (g.Type?.toLowerCase().includes("future")) {
+    assetClass = "Commodity";
+    sector = "Futures";
+  }
+
+  return {
+    isin: g.ISIN ?? args.isin ?? "",
+    name,
+    type: g.Type,
+    assetClass,
+    sectorWeights: sector ? { [sector]: 100 } : {},
+    worldRegions: {},
+    countryWeights: {},
+    assetAllocation: { [assetClass]: 100 },
+    holdings: [
+      {
+        name,
+        code: g.Code,
+        sector,
+        assetsPercent: 100,
+      },
+    ],
+    available: true,
+  };
+}
+
 // -----------------------------------------------------------------------------
 // API pública
 // -----------------------------------------------------------------------------
@@ -522,32 +624,36 @@ export async function getFundComposition(args: {
     return empty;
   }
 
-  // CASO ESPECIAL: activos que NO son fondos ni ETFs no tienen composición
-  // por definición (ej. XAUUSD.FOREX, futuros, divisas). EODHD los devuelve
-  // con Type = "Currency", "Forex", "Future", etc. y sin breakdown alguno.
-  // Devolvemos un objeto "no aplica" más claro que un genérico "sin datos".
+  // CASO ESPECIAL 1: ACCIÓN INDIVIDUAL (Common Stock). EODHD no devuelve
+  // ETF_Data ni MutualFund_Data, pero la acción ES un asset class por sí
+  // misma — sintetizamos una composición de 1 holding = la propia acción,
+  // con Sector / Industry / Country que sí vienen en `General`.
+  if (raw.General?.Type?.toLowerCase().includes("common stock")) {
+    const synth = synthesizeStockComposition(raw, args);
+    memCache.set(memKey(cacheIdent), { data: synth, ts: Date.now() });
+    return synth;
+  }
+
+  // CASO ESPECIAL 2: COMMODITY / CURRENCY / CRYPTO / FUTURE. Activos que
+  // NO son fondos pero TAMPOCO acciones individuales con sector. EODHD
+  // los devuelve sin breakdown, pero sí podemos sintetizar una composición
+  // mínima asignándolos a un asset class y sector apropiados:
+  //   XAUUSD.FOREX → Commodity / Precious Metals / Gold
+  //   XAGUSD.FOREX → Commodity / Precious Metals / Silver
+  //   BTC-USD.CC   → Cryptocurrency / Bitcoin
+  //   otros forex  → Cash & Currency
   const generalType = raw.General?.Type?.toString().toLowerCase();
   if (
     generalType &&
     (generalType.includes("currency") ||
       generalType.includes("forex") ||
       generalType.includes("future") ||
-      generalType.includes("crypto"))
+      generalType.includes("crypto") ||
+      generalType.includes("commodity"))
   ) {
-    const naApplicable: FundComposition = {
-      isin: raw.General?.ISIN ?? args.isin ?? "",
-      name: raw.General?.Name ?? args.fundId,
-      type: raw.General?.Type,
-      sectorWeights: {},
-      worldRegions: {},
-      countryWeights: {},
-      assetAllocation: {},
-      holdings: [],
-      available: false,
-      reason: `${raw.General?.Name ?? args.fundId} es ${raw.General?.Type} — no tiene composición (no aplica)`,
-    };
-    memCache.set(memKey(cacheIdent), { data: naApplicable, ts: Date.now() });
-    return naApplicable;
+    const synth = synthesizeCommodityComposition(raw, args);
+    memCache.set(memKey(cacheIdent), { data: synth, ts: Date.now() });
+    return synth;
   }
 
   // Algunos fondos vienen como ETF, otros como MutualFund. Las estructuras
