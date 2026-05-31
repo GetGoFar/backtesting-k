@@ -264,8 +264,24 @@ function parseHoldings(obj: EodhdHoldingsObject | undefined): FundHolding[] {
       }
     }
     if (isNaN(pct) || pct <= 0) continue;
+    // FILTRO ANTI-RUIDO: EODHD a veces devuelve entradas corruptas en
+    // Top_10_Holdings con key="." y Name=null (visto en ETFs como Invesco
+    // MSCI USA IE00B60SX170 / Ossiam Shiller LU1079841273). El fallback
+    // `raw.Name ?? key` daba como resultado un holding llamado "." al 100%
+    // que envenenaba el top10 agregado.
+    //
+    // Reglas para filtrar: descartar cualquier holding cuyo nombre sea null,
+    // string vacío o un carácter "no-alfanumérico" (".", "-", "--").
+    const rawName =
+      typeof raw.Name === "string" && raw.Name.trim().length > 0
+        ? raw.Name.trim()
+        : null;
+    const fallbackName =
+      typeof key === "string" && /[a-zA-Z0-9]/.test(key) ? key : null;
+    const name = rawName ?? fallbackName;
+    if (!name) continue;
     arr.push({
-      name: raw.Name ?? key,
+      name,
       code: raw.Code,
       sector: raw.Sector ?? raw.Industry,
       region: raw.Country ?? raw.Region,
@@ -392,15 +408,74 @@ function hasRealComposition(raw: EodhdFundamentalsResponse | null): boolean {
 }
 
 /**
- * Cuando el lookup directo de un ticker devuelve un objeto sin datos reales
- * (caso común: ETFs Xtrackers donde X57E.XETRA está vacío pero DBXR.XETRA
- * sí tiene los datos para el mismo ISIN), buscamos por ISIN y probamos
- * todos los listings que devuelva el endpoint /search, hasta encontrar
- * uno que sí tenga composición.
+ * Puntúa la "riqueza" de datos en una respuesta de EODHD. Algunas listings
+ * del mismo ISIN devuelven sólo sectores poblados pero los top_holdings
+ * son una entrada corrupta `{".": {Name: null, Assets_%: 100}}` — si
+ * elegimos ese listing nos quedamos sin top10. Otros listings del mismo
+ * fondo sí tienen los holdings reales.
+ *
+ * El score cuenta el número de holdings VÁLIDOS (que pasen el filtro de
+ * parseHoldings) + un bonus pequeño por sectores y otros breakdowns.
+ * El caller probará varios listings y se quedará con el de score más alto.
  */
-async function findAlternativeListing(
-  isin: string
-): Promise<{ raw: EodhdFundamentalsResponse; ticker: string } | null> {
+function scoreComposition(raw: EodhdFundamentalsResponse | null): number {
+  if (!raw) return 0;
+  const etf = raw.ETF_Data;
+  const mf = raw.MutualFund_Data;
+  // Cuenta de holdings con NOMBRE válido (no null, no ".", no "-")
+  const countValidHoldings = (obj: unknown): number => {
+    if (!obj || typeof obj !== "object") return 0;
+    let count = 0;
+    for (const [key, raw] of Object.entries(obj as Record<string, unknown>)) {
+      if (!raw || typeof raw !== "object") continue;
+      const rawName = (raw as { Name?: unknown }).Name;
+      const validRawName =
+        typeof rawName === "string" && rawName.trim().length > 0;
+      const validFallback =
+        typeof key === "string" && /[a-zA-Z0-9]/.test(key);
+      if (validRawName || validFallback) count++;
+    }
+    return count;
+  };
+  const countWeights = (obj: unknown): number => {
+    if (!obj || typeof obj !== "object") return 0;
+    return Object.keys(obj as object).length;
+  };
+
+  const block = etf || mf;
+  if (!block) return 0;
+  const th =
+    (block as { Top_10_Holdings?: unknown }).Top_10_Holdings ||
+    (block as { Top_Holdings?: unknown }).Top_Holdings ||
+    (block as { Holdings?: unknown }).Holdings ||
+    (block as { Equity_Holdings?: unknown }).Equity_Holdings;
+  const holdingsCount = countValidHoldings(th);
+  const sectors = countWeights((block as { Sector_Weights?: unknown }).Sector_Weights);
+  const regions = countWeights((block as { World_Regions?: unknown }).World_Regions);
+  const countries = countWeights(
+    (block as { Country_Weights?: unknown }).Country_Weights
+  );
+  // Holdings vale más que sector/region porque es lo que más se ve en K-Ray.
+  // Cada holding suma 10 puntos. Cada otro breakdown suma 1.
+  return holdingsCount * 10 + sectors + regions + countries;
+}
+
+/**
+ * Cuando el lookup directo de un ticker no da suficientes datos, buscamos
+ * por ISIN y probamos todos los listings devueltos, quedándonos con el de
+ * MEJOR score (más holdings + breakdowns válidos). Caso típico: ETFs
+ * Xtrackers donde X57E.XETRA está vacío pero DBXR.XETRA del mismo ISIN
+ * tiene los datos. O Ossiam donde CAPU.PA sólo tiene la entrada corrupta
+ * "." pero USCP.XETRA tiene los holdings reales.
+ *
+ * @param minScore Score mínimo que ya tenemos; sólo aceptamos un alt que
+ *                 lo mejore. Permite detener la búsqueda antes si
+ *                 encontramos algo claramente mejor.
+ */
+async function findAlternativeListingBestScore(
+  isin: string,
+  minScore: number
+): Promise<{ raw: EodhdFundamentalsResponse; ticker: string; score: number } | null> {
   if (!EODHD_API_TOKEN || EODHD_API_TOKEN === "demo") return null;
   try {
     const searchUrl = `${EODHD_BASE_URL}/search/${encodeURIComponent(isin)}?api_token=${EODHD_API_TOKEN}&limit=20`;
@@ -425,19 +500,30 @@ async function findAlternativeListing(
           l.Exchange === "EUFUND"
       )
       .map((l) => `${l.Code}.${l.Exchange}`);
+
+    let best: { raw: EodhdFundamentalsResponse; ticker: string; score: number } | null = null;
     for (const ticker of candidates) {
       const raw = await fetchFromEodhd(ticker);
-      if (hasRealComposition(raw)) {
-        console.log(
-          `[EODHD-fundamentals] Encontrado listing alternativo con datos para ISIN ${isin}: ${ticker}`
-        );
-        return { raw: raw!, ticker };
+      if (!raw) continue;
+      const score = scoreComposition(raw);
+      if (score > (best?.score ?? minScore)) {
+        best = { raw, ticker, score };
+        if (score >= 50) break; // suficiente
       }
     }
+    if (best) {
+      console.log(
+        `[EODHD-fundamentals] Listing alternativo con mejor score para ${isin}: ${best.ticker} (score=${best.score})`
+      );
+    }
+    return best;
   } catch (err) {
-    console.warn(`[EODHD-fundamentals] Error en findAlternativeListing(${isin}):`, err);
+    console.warn(
+      `[EODHD-fundamentals] Error en findAlternativeListingBestScore(${isin}):`,
+      err
+    );
+    return null;
   }
-  return null;
 }
 
 /**
@@ -567,35 +653,47 @@ export async function getFundComposition(args: {
   const candidates = buildEodhdCandidates(args);
   let raw: EodhdFundamentalsResponse | null = null;
   let usedTicker: string | undefined;
+  let bestScore = 0;
 
-  // PASO 1: probar tickers candidatos. Aceptamos el primero que devuelva
-  // datos REALES (no sólo la cáscara General/Technicals). Si todos devuelven
-  // vacío pero alguno responde 200, lo guardamos como "última opción".
+  // PASO 1: probar tickers candidatos. Puntuamos cada uno por "riqueza"
+  // (cuántos holdings válidos + cuántos sectores/regiones tiene) y nos
+  // quedamos con el MEJOR — no con el primero que tenga datos. Caso típico:
+  // un mismo ETF está listado como CAPU.PA (1 holding ".") y USCP.XETRA
+  // (3 holdings reales + 1 "."). Antes nos quedábamos con CAPU.PA porque
+  // venía primero; ahora preferimos USCP.XETRA por tener más holdings.
   let fallbackRaw: EodhdFundamentalsResponse | null = null;
   let fallbackTicker: string | undefined;
   for (const candidate of candidates) {
     const r = await fetchFromEodhd(candidate);
     if (!r) continue;
-    if (hasRealComposition(r)) {
+    const score = scoreComposition(r);
+    if (score > bestScore) {
+      bestScore = score;
       raw = r;
       usedTicker = candidate;
-      break;
-    }
-    // Guardamos el primero que devuelva CÁSCARA pero sin datos por si la
-    // búsqueda por ISIN tampoco encuentra nada.
-    if (!fallbackRaw && (r.ETF_Data || r.MutualFund_Data || r.General)) {
+      // Si ya tenemos al menos 50 puntos (= 5 holdings) podemos parar.
+      // Es suficiente para una radiografía decente y evitamos llamadas extra.
+      if (score >= 50) break;
+    } else if (
+      !raw &&
+      !fallbackRaw &&
+      (r.ETF_Data || r.MutualFund_Data || r.General)
+    ) {
+      // Cáscara sin datos — guardamos por si todo lo demás falla
       fallbackRaw = r;
       fallbackTicker = candidate;
     }
   }
 
-  // PASO 2: si los candidatos directos no devolvieron composición REAL,
-  // buscamos por ISIN para encontrar listings alternativos. Caso típico:
-  // ETFs con múltiples tickers en el mismo exchange (X57E.XETRA está vacío
-  // pero DBXR.XETRA del mismo ISIN tiene los datos).
-  if (!raw && args.isin) {
-    const alt = await findAlternativeListing(args.isin);
-    if (alt) {
+  // PASO 2: si los candidatos directos dieron un score bajo (<50 puntos = <5
+  // holdings), buscamos por ISIN para encontrar listings alternativos y
+  // probamos cada uno comparando scores. Caso típico: ETFs Xtrackers donde
+  // X57E.XETRA está vacío pero DBXR.XETRA del mismo ISIN tiene los datos
+  // completos. También cubre el caso de los Invesco / Ossiam.
+  if (args.isin && bestScore < 50) {
+    const alt = await findAlternativeListingBestScore(args.isin, bestScore);
+    if (alt && alt.score > bestScore) {
+      bestScore = alt.score;
       raw = alt.raw;
       usedTicker = alt.ticker;
     }
