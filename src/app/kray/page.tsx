@@ -157,6 +157,12 @@ export default function KrayPage() {
                 <span className="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md bg-white text-brand-navy shadow-sm">
                   K-Ray
                 </span>
+                <Link
+                  href="/equivalente"
+                  className="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md transition-colors text-brand-secondary hover:bg-white hover:text-brand-navy"
+                >
+                  Equivalente
+                </Link>
               </nav>
 
               <a

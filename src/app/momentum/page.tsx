@@ -194,6 +194,12 @@ export default function MomentumPage() {
                 >
                   K-Ray
                 </Link>
+                <Link
+                  href="/equivalente"
+                  className="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md transition-colors text-brand-secondary hover:bg-white hover:text-brand-navy"
+                >
+                  Equivalente
+                </Link>
               </nav>
 
               <a
