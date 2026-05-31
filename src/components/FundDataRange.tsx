@@ -28,7 +28,7 @@ export function FundDataRange({ fund }: { fund: Fund }) {
       try {
         const params = new URLSearchParams();
         params.set("fundId", fund.id);
-        if (fund.yahooTicker) params.set("yahooTicker", fund.yahooTicker);
+        if (fund.ticker) params.set("ticker", fund.ticker);
         if (fund.isin) params.set("isin", fund.isin);
 
         const res = await fetchWithSource(`/api/data-range?${params.toString()}`);
@@ -49,7 +49,7 @@ export function FundDataRange({ fund }: { fund: Fund }) {
 
     fetchRange();
     return () => { cancelled = true; };
-  }, [fund.id, fund.yahooTicker, fund.isin]);
+  }, [fund.id, fund.ticker, fund.isin]);
 
   if (loading) {
     return (

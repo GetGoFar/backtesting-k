@@ -305,7 +305,7 @@ export function MomentumConfigPanel({
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-sm font-semibold text-brand-navy uppercase tracking-wider flex items-center gap-1.5">
               Universo de activos
-              <Tooltip content="Lista de tickers candidatos. Cada periodo se rankean por momentum y se eligen los top-K. Usa tickers de Yahoo (SPY, NVDA, XLE...) o ISIN si está en la base.">
+              <Tooltip content="Lista de tickers candidatos. Cada periodo se rankean por momentum y se eligen los top-K. Usa tickers en formato símbolo.exchange (SPY, NVDA, IWDA.AS, XDWS.DE...) o un ISIN si el fondo está en la base de datos.">
                 <InfoIcon />
               </Tooltip>
             </h4>

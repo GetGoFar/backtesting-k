@@ -139,10 +139,13 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
       holdings: allocations.map((a) => ({
         fundId: a.fund.id,
         weight: a.weight,
-        // Incluir datos del fondo para fondos dinámicos (Yahoo Finance) o
-        // para estrategias de momentum (también dinámicas).
+        // Incluir datos del fondo para activos dinámicos (añadidos vía buscador
+        // externo, prefijo `eodhd-` actual o `yahoo-` legacy) o para estrategias
+        // de momentum (también dinámicas con prefijo `momentum-`).
         fund:
-          a.fund.id.startsWith("yahoo-") || a.fund.id.startsWith("momentum-")
+          a.fund.id.startsWith("eodhd-") ||
+          a.fund.id.startsWith("yahoo-") ||
+          a.fund.id.startsWith("momentum-")
             ? a.fund
             : undefined,
         // Reenviar momentumConfig para que el motor del backtest ejecute la
@@ -482,7 +485,7 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
       // Mapa fundId → allocation final (combinando duplicados si los hay).
       // IMPORTANTE: preservamos `momentumConfig` al merger — si no, al
       // añadir un preset de momentum como satélite la config se pierde
-      // y el backend rechaza el holding por falta de ticker Yahoo.
+      // y el backend rechaza el holding por falta de ticker.
       const merged = new Map<string, FundAllocation>();
 
       for (const a of allocations) {
@@ -1347,7 +1350,7 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                     {/* Mostrar ISIN si es un ISIN real (2 letras + 10 chars), si no el ticker */}
                     {/^[A-Z]{2}[A-Z0-9]{10}$/.test(allocation.fund.isin)
                       ? allocation.fund.isin
-                      : allocation.fund.yahooTicker || allocation.fund.isin}
+                      : allocation.fund.ticker || allocation.fund.isin}
                   </p>
                   <FundDataRange fund={allocation.fund} />
                   {/* TER editable */}

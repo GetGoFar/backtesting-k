@@ -455,7 +455,7 @@ async function runPortfolioBacktest(
   const fetchResults = await Promise.allSettled(
     holdingsWithFunds.map(async ({ holding, fund }) => {
       if (!fund) throw new Error(`Fondo no encontrado: ${holding.fundId}`);
-      const { prices } = await getDailyPrices(holding.fundId, fund.yahooTicker, fund.isin);
+      const { prices } = await getDailyPrices(holding.fundId, fund.ticker, fund.isin);
       return { holding, fund, prices };
     })
   );
@@ -2260,7 +2260,7 @@ async function findCommonDateRangeForPortfolios(
             const innerFund = a.fundId ? getFundById(a.fundId) : undefined;
             const { prices } = await getDailyPrices(
               innerFund?.id ?? a.ticker,
-              innerFund?.yahooTicker ?? a.ticker,
+              innerFund?.ticker ?? a.ticker,
               innerFund?.isin
             );
             return prices;
@@ -2303,7 +2303,7 @@ async function findCommonDateRangeForPortfolios(
     if (!fund) continue;
 
     try {
-      const { prices } = await getDailyPrices(holding.fundId, fund.yahooTicker, fund.isin);
+      const { prices } = await getDailyPrices(holding.fundId, fund.ticker, fund.isin);
       if (prices.size > 0) {
         allDateSets.push(new Set(prices.keys()));
         console.log(`[BacktestEngine] ${fund.shortName}: ${prices.size} días disponibles`);
@@ -2455,7 +2455,7 @@ async function calculateIndividualAssetMetrics(
 
     try {
       // Usar datos diarios (ya están cacheados desde el backtest)
-      const { prices } = await getDailyPrices(holding.fundId, fund.yahooTicker, fund.isin);
+      const { prices } = await getDailyPrices(holding.fundId, fund.ticker, fund.isin);
       if (prices.size < 20) continue;
 
       const sortedDates = Array.from(prices.keys())
@@ -2558,7 +2558,7 @@ async function calculateIndividualAssetMetrics(
         fundId: holding.fundId,
         name: fund.name.length > fund.shortName.length ? fund.name : fund.shortName,
         isin: fund.isin,
-        yahooTicker: fund.yahooTicker,
+        ticker: fund.ticker,
         ter: fund.ter,
         cagr,
         volatility,
@@ -2603,7 +2603,7 @@ async function calculateAssetCorrelationMatrix(
     if (!fund) continue;
 
     try {
-      const { prices } = await getMonthlyPrices(holding.fundId, fund.yahooTicker, fund.isin);
+      const { prices } = await getMonthlyPrices(holding.fundId, fund.ticker, fund.isin);
       if (prices.size < 3) continue;
 
       const returns = calculateReturnsFromPrices(prices);

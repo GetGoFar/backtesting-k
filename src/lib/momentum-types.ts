@@ -13,7 +13,9 @@
 export interface MomentumAsset {
   /** Identificador del fondo en fund-database (si existe). Permite TER y categoría. */
   fundId?: string;
-  /** Ticker Yahoo (p.ej. "SPY", "NVDA"). Si fundId existe, se ignora. */
+  /** Ticker base en formato símbolo[.exchange] (p.ej. "SPY", "NVDA",
+   *  "IWDA.AS"). Si `fundId` existe en la base de datos, este campo
+   *  se ignora porque el ticker se toma del Fund correspondiente. */
   ticker: string;
   /** Nombre legible para mostrar en gráficos. */
   displayName?: string;

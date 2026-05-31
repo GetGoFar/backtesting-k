@@ -2,7 +2,7 @@
 // API ROUTE: /api/data-range - Rango de fechas disponible para un fondo
 // =============================================================================
 // Devuelve la primera y última fecha de datos disponibles.
-// Acepta fondos locales (por fundId) y fondos externos (por yahooTicker + isin).
+// Acepta fondos locales (por fundId) y fondos externos (por ticker + isin).
 
 import { NextRequest, NextResponse } from "next/server";
 import { getDailyPrices } from "@/lib/data-fetcher";
@@ -14,17 +14,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     try {
       const { searchParams } = new URL(request.url);
       const fundId = searchParams.get("fundId") || "dynamic-fund";
-      const yahooTicker = searchParams.get("yahooTicker") || undefined;
+      const ticker = searchParams.get("ticker") || undefined;
       const isin = searchParams.get("isin") || undefined;
 
-      if (!yahooTicker && fundId === "dynamic-fund") {
+      if (!ticker && fundId === "dynamic-fund") {
         return NextResponse.json(
-          { error: "Se requiere yahooTicker o un fundId válido" },
+          { error: "Se requiere ticker o un fundId válido" },
           { status: 400 }
         );
       }
 
-      const { prices } = await getDailyPrices(fundId, yahooTicker, isin);
+      const { prices } = await getDailyPrices(fundId, ticker, isin);
 
       if (prices.size === 0) {
         return NextResponse.json({ firstDate: null, lastDate: null, months: 0 });

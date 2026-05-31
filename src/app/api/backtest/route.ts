@@ -358,23 +358,24 @@ function validateHolding(
     return `El fondo #${index} de la cartera ${portfolioLabel} no tiene ID (fundId).`;
   }
 
-  // Verificar que el fondo existe (en la BD local o como fondo dinámico de Yahoo Finance)
+  // Verificar que el fondo existe (en la BD local o como fondo dinámico
+  // añadido vía buscador externo).
   const fund = getFundById(holding.fundId) || holding.fund;
   if (!fund) {
     return `El fondo '${holding.fundId}' de la cartera ${portfolioLabel} no existe. Usa /api/funds para ver los fondos disponibles.`;
   }
 
-  // Verificar que los fondos dinámicos de Yahoo tienen yahooTicker.
+  // Verificar que los fondos dinámicos (añadidos vía buscador) tienen ticker.
   // EXCEPCIÓN: si el holding tiene `momentumConfig`, no es un fondo real sino
-  // una estrategia de momentum que el motor ejecuta dinámicamente; no
-  // necesita ticker de Yahoo (los assets internos ya lo tienen).
+  // una estrategia de momentum que el motor ejecuta dinámicamente; no necesita
+  // ticker (los assets internos del momentum sí lo tienen).
   if (
     !getFundById(holding.fundId) &&
     holding.fund &&
-    !holding.fund.yahooTicker &&
+    !holding.fund.ticker &&
     !holding.momentumConfig
   ) {
-    return `El fondo dinámico '${holding.fundId}' de la cartera ${portfolioLabel} no tiene ticker de Yahoo Finance.`;
+    return `El fondo dinámico '${holding.fundId}' de la cartera ${portfolioLabel} no tiene ticker asociado.`;
   }
 
   // Validar peso

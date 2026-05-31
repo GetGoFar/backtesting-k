@@ -142,7 +142,7 @@ function calculateSaqueo(ter: number, volatility: number): SaqueoResult {
  * Construye la URL de búsqueda en Morningstar para un activo
  */
 function getMorningstarSearchUrl(asset: AssetMetrics): string {
-  const query = asset.isin || asset.yahooTicker || asset.name;
+  const query = asset.isin || asset.ticker || asset.name;
   return `https://www.morningstar.com/search?query=${encodeURIComponent(query)}`;
 }
 
@@ -286,11 +286,11 @@ export function AssetMetricsTable({ results, isLoading }: AssetMetricsTableProps
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                       </a>
-                      {(asset.isin || asset.yahooTicker) && (
+                      {(asset.isin || asset.ticker) && (
                         <span className="text-xs text-slate-400">
                           {asset.isin && /^[A-Z]{2}[A-Z0-9]{10}$/.test(asset.isin)
-                            ? `${asset.isin}${asset.yahooTicker ? ` · ${asset.yahooTicker}` : ''}`
-                            : asset.yahooTicker || asset.isin}
+                            ? `${asset.isin}${asset.ticker ? ` · ${asset.ticker}` : ''}`
+                            : asset.ticker || asset.isin}
                         </span>
                       )}
                     </div>

@@ -5,9 +5,8 @@
 // Este módulo obtiene precios históricos diarios de fondos de inversión.
 // Fuentes de datos (en orden de prioridad):
 //   1. Cache (memoria → Redis)
-//   2. EODHD API (principal) — https://eodhd.com/
-//   3. Yahoo Finance API (fallback)
-//   4. CSV local (fondos bancarios españoles)
+//   2. EODHD API — https://eodhd.com/
+//   3. CSV local (fondos bancarios españoles que no están en ninguna API)
 //
 // =============================================================================
 
@@ -58,7 +57,8 @@ export interface MonthlyPricesResult {
 // Función principal — datos DIARIOS
 // -----------------------------------------------------------------------------
 
-/** Fuente de precios. Yahoo se eliminó; mantenemos el tipo por compat. */
+/** Fuente de precios. Sólo EODHD — el alias del tipo se mantiene por compat
+ *  con código existente que aún lo importa. */
 export type DataSource = "eodhd";
 
 /**
@@ -72,17 +72,17 @@ export type DataSource = "eodhd";
  */
 export async function getDailyPrices(
   fundId: string,
-  yahooTicker?: string,
+  inputTicker?: string,
   isin?: string,
   _dataSource?: DataSource
 ): Promise<DailyPricesResult> {
   console.log(`[DataFetcher] Obteniendo precios diarios para: ${fundId}`);
 
   const fund = getFundById(fundId);
-  const ticker = fund?.yahooTicker || yahooTicker;
+  const ticker = fund?.ticker || inputTicker;
   const effectiveIsin = fund?.isin || isin;
 
-  if (!fund && !yahooTicker) {
+  if (!fund && !ticker) {
     throw new Error(`Fondo no encontrado: ${fundId}`);
   }
 
@@ -107,7 +107,7 @@ export async function getDailyPrices(
   const isDistributing = fund ? (fund.distributing ?? false) : true;
 
   if (EODHD_API_TOKEN && EODHD_API_TOKEN !== "demo" && ticker) {
-    const eodhTicker = yahooTickerToEODHD(ticker);
+    const eodhTicker = tickerToEODHD(ticker);
     console.log(`[DataFetcher] EODHD diario: ${eodhTicker} (distributing: ${isDistributing})`);
     prices = await fetchDailyFromEODHD(eodhTicker, isDistributing);
 
@@ -166,11 +166,11 @@ export async function getDailyPrices(
  */
 export async function getMonthlyPrices(
   fundId: string,
-  yahooTicker?: string,
+  ticker?: string,
   isin?: string,
   dataSource?: DataSource
 ): Promise<MonthlyPricesResult> {
-  const daily = await getDailyPrices(fundId, yahooTicker, isin, dataSource);
+  const daily = await getDailyPrices(fundId, ticker, isin, dataSource);
   return aggregateDailyToMonthly(daily);
 }
 
@@ -200,9 +200,11 @@ function aggregateDailyToMonthly(daily: DailyPricesResult): MonthlyPricesResult 
 // -----------------------------------------------------------------------------
 
 /**
- * Convierte un ticker de Yahoo Finance al formato EODHD
+ * Convierte un ticker en formato "símbolo.exchange" al formato EODHD.
+ * El campo `ticker` de los fondos usa los sufijos clásicos (.DE, .L, etc.);
+ * EODHD usa sufijos distintos para algunos mercados (.XETRA, .LSE).
  */
-function yahooTickerToEODHD(yahooTicker: string): string {
+function tickerToEODHD(ticker: string): string {
   const exchangeMap: Record<string, string> = {
     ".DE": ".XETRA",    // Frankfurt/Xetra
     ".F": ".F",          // Frankfurt
@@ -215,19 +217,19 @@ function yahooTickerToEODHD(yahooTicker: string): string {
     ".ST": ".ST",        // Stockholm (same)
   };
 
-  for (const [yahooSuffix, eodhSuffix] of Object.entries(exchangeMap)) {
-    if (yahooTicker.endsWith(yahooSuffix)) {
-      return yahooTicker.replace(yahooSuffix, eodhSuffix);
+  for (const [inputSuffix, eodhSuffix] of Object.entries(exchangeMap)) {
+    if (ticker.endsWith(inputSuffix)) {
+      return ticker.replace(inputSuffix, eodhSuffix);
     }
   }
 
   // Tickers sin sufijo (típicamente acciones estadounidenses como AAPL, MSFT):
   // EODHD requiere el sufijo .US para identificarlos.
-  if (!yahooTicker.includes(".")) {
-    return `${yahooTicker}.US`;
+  if (!ticker.includes(".")) {
+    return `${ticker}.US`;
   }
 
-  return yahooTicker;
+  return ticker;
 }
 
 /**

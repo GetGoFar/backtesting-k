@@ -57,6 +57,23 @@ export interface SavedPortfolio {
 /** Datos que se reciben al crear / guardar una cartera. */
 export type NewSavedPortfolio = Omit<SavedPortfolio, "id" | "createdAt">;
 
+/**
+ * Migra al vuelo cualquier campo legacy en los Fund snapshots de holdings
+ * guardados con esquemas antiguos. Concretamente: `yahooTicker` → `ticker`
+ * (el campo se renombró al eliminar Yahoo como fuente de datos). Modifica el
+ * objeto in-place y lo devuelve.
+ */
+function migrateLegacyFundFields(portfolio: SavedPortfolio): SavedPortfolio {
+  for (const h of portfolio.holdings) {
+    const fund = h.fund as (typeof h.fund & { yahooTicker?: string }) | undefined;
+    if (fund && fund.yahooTicker && !fund.ticker) {
+      fund.ticker = fund.yahooTicker;
+      delete fund.yahooTicker;
+    }
+  }
+  return portfolio;
+}
+
 /** Lee la lista actual desde localStorage. */
 export function getSavedPortfolios(): SavedPortfolio[] {
   if (typeof window === "undefined") return [];
@@ -65,7 +82,9 @@ export function getSavedPortfolios(): SavedPortfolio[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed as SavedPortfolio[];
+    // Migrar cualquier yahooTicker → ticker en los Fund snapshots guardados
+    // antes del rename (mantiene retrocompat sin pedir re-importar carteras).
+    return (parsed as SavedPortfolio[]).map(migrateLegacyFundFields);
   } catch {
     return [];
   }

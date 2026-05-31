@@ -183,14 +183,14 @@ function parseHoldings(obj: EodhdHoldingsObject | undefined): FundHolding[] {
 }
 
 /**
- * Construye el ticker EODHD a partir del fondo. Lo complicado: nuestra base
- * de datos usa formato YAHOO FINANCE para `yahooTicker` (porque originalmente
- * sólo se usaba para Yahoo). Pero EODHD usa sufijos de exchange DISTINTOS para
- * el mismo mercado:
+ * Construye el ticker EODHD a partir del fondo. Nuestra base de datos guarda
+ * el `ticker` con los sufijos clásicos de bolsa (.DE para Xetra, .L para
+ * London, etc.). EODHD usa códigos de exchange DISTINTOS para algunos
+ * mercados:
  *
- *   Yahoo .DE   (Xetra)   →  EODHD .XETRA  (también .F para Frankfurt)
- *   Yahoo .L    (London)  →  EODHD .LSE
- *   Yahoo .AS, .PA, .MI, .SW, .F → mismos en EODHD (no necesitan mapeo)
+ *   .DE   (Xetra)   →  EODHD .XETRA  (también .F para Frankfurt)
+ *   .L    (London)  →  EODHD .LSE
+ *   .AS, .PA, .MI, .SW, .F → idénticos en EODHD (no necesitan mapeo)
  *
  * Si pasamos `XDWS.DE` a EODHD nos devuelve 404 — necesita `XDWS.XETRA`.
  *
@@ -200,26 +200,26 @@ function parseHoldings(obj: EodhdHoldingsObject | undefined): FundHolding[] {
  */
 function buildEodhdCandidates(args: {
   fundId?: string;
-  yahooTicker?: string;
+  ticker?: string;
   isin?: string;
 }): string[] {
   const out: string[] = [];
 
-  if (args.yahooTicker) {
-    out.push(args.yahooTicker);
+  if (args.ticker) {
+    out.push(args.ticker);
 
-    // Mapeos Yahoo → EODHD para sufijos que difieren entre las dos APIs.
-    // Si el yahooTicker termina en alguno de estos, añadimos su variante
-    // EODHD como candidato adicional ANTES del fallback de .EUFUND.
-    const yt = args.yahooTicker;
+    // Mapeo de sufijos clásicos → EODHD para mercados que usan códigos
+    // distintos. Si el ticker termina en alguno de estos, añadimos su
+    // variante EODHD como candidato adicional ANTES del fallback de .EUFUND.
+    const yt = args.ticker;
     const dotIdx = yt.lastIndexOf(".");
     if (dotIdx > 0) {
       const base = yt.substring(0, dotIdx);
       const suffix = yt.substring(dotIdx + 1).toUpperCase();
-      // Mapa de suffix Yahoo → suffix(es) EODHD a probar como alternativa
+      // Mapa de sufijo clásico → suffix(es) EODHD a probar como alternativa
       const map: Record<string, string[]> = {
-        DE: ["XETRA", "F"],           // Yahoo .DE = Xetra; EODHD usa .XETRA o .F (Frankfurt)
-        L: ["LSE"],                   // Yahoo .L = London; EODHD usa .LSE
+        DE: ["XETRA", "F"],           // .DE = Xetra; EODHD usa .XETRA o .F (Frankfurt)
+        L: ["LSE"],                   // .L = London; EODHD usa .LSE
         MI: ["MI"],                   // Borsa Italiana — igual
         AS: ["AS"],                   // Amsterdam — igual
         PA: ["PA"],                   // Paris — igual
@@ -236,7 +236,7 @@ function buildEodhdCandidates(args: {
   }
 
   if (args.isin) out.push(`${args.isin}.EUFUND`);
-  if (args.fundId && args.fundId !== args.yahooTicker) out.push(args.fundId);
+  if (args.fundId && args.fundId !== args.ticker) out.push(args.fundId);
 
   return Array.from(new Set(out)); // dedupe
 }
@@ -270,8 +270,7 @@ async function fetchFromEodhd(ticker: string): Promise<EodhdFundamentalsResponse
  * Obtiene la composición de un fondo / ETF.
  *
  * Estrategia:
- *  1) Busca en cache de memoria
- *  2) Si no está, prueba con los tickers candidatos (yahoo, ISIN.EUFUND, fundId)
+ *  1) Busca en cache de memoria *  2) Si no está, prueba con los tickers candidatos (ticker, ISIN.EUFUND, fundId)
  *  3) Parsea según ETF_Data o MutualFund_Data y devuelve FundComposition
  *
  * Si EODHD no tiene datos para ese fondo, devuelve { available: false, reason }.
@@ -279,10 +278,10 @@ async function fetchFromEodhd(ticker: string): Promise<EodhdFundamentalsResponse
  */
 export async function getFundComposition(args: {
   fundId: string;
-  yahooTicker?: string;
+  ticker?: string;
   isin?: string;
 }): Promise<FundComposition> {
-  const cacheIdent = args.fundId || args.isin || args.yahooTicker || "";
+  const cacheIdent = args.fundId || args.isin || args.ticker || "";
   // Memoria
   const cached = memCache.get(memKey(cacheIdent));
   if (cached && Date.now() - cached.ts < MEM_TTL_MS) {
@@ -390,7 +389,7 @@ export async function getFundCompositionById(
   const fund = getFundById(fundId);
   return getFundComposition({
     fundId,
-    yahooTicker: fund?.yahooTicker,
+    ticker: fund?.ticker,
     isin: fund?.isin,
   });
 }

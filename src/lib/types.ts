@@ -53,7 +53,16 @@ export interface Fund {
   shortName: string;
   /** Código ISIN del fondo */
   isin: string;
-  /** Ticker de Yahoo Finance (solo para fondos con datos disponibles) */
+  /**
+   * Ticker base del fondo en formato "símbolo.exchange" (ej. "IWDA.AS",
+   * "XDWS.DE"). Usado por el data-fetcher para construir el ticker EODHD —
+   * los sufijos .DE/.L se mapean automáticamente a .XETRA/.LSE.
+   * (Antes este campo se llamaba `yahooTicker`; renombrado al eliminar Yahoo
+   * como fuente. Carteras guardadas viejas se migran al leer del localStorage.)
+   */
+  ticker?: string;
+  /** @deprecated Alias legacy de `ticker` — sólo presente en datos guardados
+   *  de versiones anteriores. NO usar en código nuevo. */
   yahooTicker?: string;
   /** Total Expense Ratio - comisión anual en porcentaje (ej: 0.20 para 0.20%) */
   ter: number;
@@ -83,7 +92,7 @@ export interface PortfolioHolding {
   fundId: string;
   /** Peso en la cartera (porcentaje, ej: 30 para 30%) */
   weight: number;
-  /** Datos completos del fondo (opcional, para fondos dinámicos de Yahoo Finance) */
+  /** Datos completos del fondo (opcional, para fondos dinámicos añadidos vía buscador externo) */
   fund?: Fund;
   /** Si está definido, este holding NO es un fondo normal sino una ESTRATEGIA
    *  DE MOMENTUM dinámica: el motor del backtest ejecuta la estrategia primero
@@ -174,10 +183,9 @@ export interface BacktestConfig {
    *  dirigen primero a los activos por debajo del peso objetivo, evitando
    *  realizar plusvalías. Solo aplica si hay monthlyContribution > 0. */
   contributionRebalance?: boolean;
-  /** Fuente de precios. "eodhd" (default) = EODHD primero, Yahoo como fallback.
-   *  "yahoo" = Yahoo primero, EODHD como fallback. El cache se segmenta por
-   *  fuente para que ambas series queden separadas y no se mezclen. */
-  dataSource?: "eodhd" | "yahoo";
+  /** Fuente de precios. Sólo EODHD — el campo se mantiene en el tipo por
+   *  compatibilidad con código existente. */
+  dataSource?: "eodhd";
 }
 
 // -----------------------------------------------------------------------------
@@ -579,8 +587,8 @@ export interface AssetMetrics {
   name: string;
   /** ISIN del fondo (si disponible) */
   isin?: string;
-  /** Ticker de Yahoo Finance */
-  yahooTicker?: string;
+  /** Ticker base del fondo. */
+  ticker?: string;
   /** TER del fondo (porcentaje, ej: 0.20 para 0.20%) */
   ter: number;
   /** Rentabilidad anualizada (CAGR) */

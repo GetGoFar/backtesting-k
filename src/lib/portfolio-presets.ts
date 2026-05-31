@@ -808,7 +808,7 @@ const INDEXA_PRESETS: PortfolioPreset[] = [
 // Carteras Indexa USA ETFs (USD) — Réplica desde Portfoliovisualizer
 // Mismas asignaciones porcentuales que Indexa 1-10, pero ejecutadas con
 // fondos USA (mutual funds Vanguard) en lugar de UCITS europeos.
-// Sirve para comparar a largo plazo (≥1990s) con datos de Yahoo Finance.
+// Sirve para comparar a largo plazo (≥1990s) con datos de EODHD.
 // SPY (S&P 500 ETF) — VEURX (Europa) — VEIEX (Emergentes) — EWJ (Japón) —
 // NAESX (Small Caps USA) — VBMFX (Total Bond Market USA).
 // -----------------------------------------------------------------------------

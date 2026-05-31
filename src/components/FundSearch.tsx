@@ -3,8 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import type { Fund } from "@/lib/types";
 
-// Resultado de Yahoo Finance + datos Morningstar
-interface YahooResult {
+// Resultado de la búsqueda externa (EODHD) + TER de Morningstar best-effort
+interface ExternalSearchResult {
   symbol: string;
   name: string;
   shortName: string;
@@ -28,7 +28,7 @@ interface FundSearchProps {
 export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
   const [query, setQuery] = useState("");
   const [localResults, setLocalResults] = useState<Fund[]>([]);
-  const [yahooResults, setYahooResults] = useState<YahooResult[]>([]);
+  const [externalResults, setExternalResults] = useState<ExternalSearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -52,7 +52,7 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
 
     if (value.length < 2) {
       setLocalResults([]);
-      setYahooResults([]);
+      setExternalResults([]);
       setIsOpen(false);
       return;
     }
@@ -61,14 +61,14 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
     setIsOpen(true);
 
     try {
-      // Buscar en paralelo: base de datos local + Yahoo Finance
-      const [localResponse, yahooResponse] = await Promise.all([
+      // Buscar en paralelo: base de datos local + EODHD (búsqueda externa)
+      const [localResponse, externalResponse] = await Promise.all([
         fetch(`/api/funds?search=${encodeURIComponent(value)}`),
-        fetch(`/api/yahoo-search?q=${encodeURIComponent(value)}`),
+        fetch(`/api/search?q=${encodeURIComponent(value)}`),
       ]);
 
       const localData = await localResponse.json();
-      const yahooData = await yahooResponse.json();
+      const externalData = await externalResponse.json();
 
       // Filtrar fondos ya añadidos de resultados locales
       const filteredLocal = (localData.funds || []).filter(
@@ -76,18 +76,18 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
       );
       setLocalResults(filteredLocal);
 
-      // Filtrar resultados de Yahoo que ya están en local (por símbolo similar)
+      // Filtrar resultados externos que ya están en local (por símbolo similar)
       const localSymbols = new Set(
-        filteredLocal.map((f: Fund) => f.yahooTicker?.toUpperCase())
+        filteredLocal.map((f: Fund) => f.ticker?.toUpperCase())
       );
-      const filteredYahoo = (yahooData.results || []).filter(
-        (r: YahooResult) => !localSymbols.has(r.symbol.toUpperCase())
+      const filteredExternal = (externalData.results || []).filter(
+        (r: ExternalSearchResult) => !localSymbols.has(r.symbol.toUpperCase())
       );
-      setYahooResults(filteredYahoo);
+      setExternalResults(filteredExternal);
     } catch (error) {
       console.error("Error buscando fondos:", error);
       setLocalResults([]);
-      setYahooResults([]);
+      setExternalResults([]);
     } finally {
       setIsLoading(false);
     }
@@ -97,11 +97,11 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
     onSelect(fund);
     setQuery("");
     setLocalResults([]);
-    setYahooResults([]);
+    setExternalResults([]);
     setIsOpen(false);
   };
 
-  const handleSelectYahoo = (result: YahooResult) => {
+  const handleSelectExternal = (result: ExternalSearchResult) => {
     const isStock = !!result.isStock || result.type === "STOCK";
     const hasTer = !isStock && result.ter != null && result.ter > 0;
     // Usar ISIN real de Morningstar si está disponible, si no el símbolo
@@ -121,11 +121,11 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
       if (!ok) return;
     }
     const fund: Fund = {
-      id: `yahoo-${result.symbol.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
+      id: `eodhd-${result.symbol.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
       name: result.name,
       shortName: result.shortName,
       isin: realIsin || result.symbol,
-      yahooTicker: result.symbol,
+      ticker: result.symbol,
       ter: hasTer ? result.ter! : 0,
       category: "RV Global", // Categoría por defecto
       type: "index", // Acciones y ETFs se modelan como "index" (sin gestión activa)
@@ -136,11 +136,11 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
     onSelect(fund);
     setQuery("");
     setLocalResults([]);
-    setYahooResults([]);
+    setExternalResults([]);
     setIsOpen(false);
   };
 
-  const hasResults = localResults.length > 0 || yahooResults.length > 0;
+  const hasResults = localResults.length > 0 || externalResults.length > 0;
 
   return (
     <div ref={wrapperRef} className="relative">
@@ -227,7 +227,7 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
           )}
 
           {/* Resultados externos (búsqueda online) */}
-          {yahooResults.length > 0 && (
+          {externalResults.length > 0 && (
             <>
               <div className="px-3 py-2 bg-indigo-50 border-b border-indigo-200">
                 <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wide">
@@ -235,14 +235,14 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
                 </span>
               </div>
               <ul>
-                {yahooResults.map((result) => {
+                {externalResults.map((result) => {
                   const isStock = result.isStock || result.type === "STOCK";
                   const currency = (result.currency || "EUR").toUpperCase();
                   const isForeignCurrency = currency !== "EUR";
                   return (
                   <li
                     key={result.symbol}
-                    onClick={() => handleSelectYahoo(result)}
+                    onClick={() => handleSelectExternal(result)}
                     className="px-4 py-3 hover:bg-indigo-50 cursor-pointer border-b border-slate-100 last:border-b-0 transition-colors"
                   >
                     <div className="flex items-start gap-3">

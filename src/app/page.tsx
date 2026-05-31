@@ -312,9 +312,15 @@ export default function Home() {
             {
               fundId: customBenchmarkFund.id,
               weight: 100,
-              fund: customBenchmarkFund.id.startsWith("yahoo-")
-                ? customBenchmarkFund
-                : undefined,
+              // Adjuntar el Fund completo si es un activo dinámico (añadido
+              // vía buscador externo). Soportamos el prefijo nuevo `eodhd-`
+              // y el legacy `yahoo-` por compatibilidad con carteras
+              // guardadas en localStorage de versiones anteriores.
+              fund:
+                customBenchmarkFund.id.startsWith("eodhd-") ||
+                customBenchmarkFund.id.startsWith("yahoo-")
+                  ? customBenchmarkFund
+                  : undefined,
             },
           ],
         };
@@ -733,8 +739,8 @@ export default function Home() {
                       </p>
                       <p className="text-[11px] text-emerald-700/80 truncate">
                         {customBenchmarkFund.isin}
-                        {customBenchmarkFund.yahooTicker && customBenchmarkFund.yahooTicker !== customBenchmarkFund.isin
-                          && ` · ${customBenchmarkFund.yahooTicker}`}
+                        {customBenchmarkFund.ticker && customBenchmarkFund.ticker !== customBenchmarkFund.isin
+                          && ` · ${customBenchmarkFund.ticker}`}
                         {customBenchmarkFund.currency !== "EUR" && (
                           <span className="ml-1 px-1 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
                             ⚠ {customBenchmarkFund.currency}

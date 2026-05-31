@@ -10,7 +10,7 @@
 //
 // Uso:
 //   En la API route:
-//     return requestContext.run({ dataSource: "yahoo" }, async () => handler())
+//     return runWithContext({ dataSource: "eodhd" }, async () => handler())
 //   En cualquier función:
 //     const ctx = getRequestContext()
 //     const src = ctx?.dataSource ?? "eodhd"
@@ -19,8 +19,8 @@
 import { AsyncLocalStorage } from "async_hooks";
 
 export interface RequestContext {
-  /** Fuente de precios elegida por el usuario para este request. */
-  dataSource?: "eodhd" | "yahoo";
+  /** Fuente de precios. Sólo EODHD; el campo se mantiene por compat. */
+  dataSource?: "eodhd";
 }
 
 const storage = new AsyncLocalStorage<RequestContext>();

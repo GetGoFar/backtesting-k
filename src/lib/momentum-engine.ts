@@ -87,7 +87,7 @@ async function fetchDailyForAsset(asset: MomentumAsset): Promise<Map<string, num
   if (asset.fundId) {
     const fund = getFundById(asset.fundId);
     if (fund) {
-      const daily = await getDailyPrices(fund.id, fund.yahooTicker, fund.isin);
+      const daily = await getDailyPrices(fund.id, fund.ticker, fund.isin);
       return daily.prices;
     }
   }

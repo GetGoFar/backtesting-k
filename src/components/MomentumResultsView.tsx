@@ -511,8 +511,7 @@ export function MomentumResultsView({ results, idSuffix = "" }: Props) {
                 Replica la página <em>Model Signals</em> de Portfoliovisualizer:
                 no excluye el mes en curso y usa el último precio diario disponible.
                 Pequeñas diferencias frente a PV pueden deberse a la fuente de
-                datos (PV usa Yahoo; aquí EODHD por defecto — cámbialo con el
-                engranaje del header si quieres alinear exactamente).
+                datos (PV usa otra fuente; aquí EODHD).
               </p>
             </div>
             <div className="text-right">
