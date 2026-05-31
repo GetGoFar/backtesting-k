@@ -14,6 +14,7 @@
 // =============================================================================
 
 import { getFundById } from "./fund-database";
+import { getFundCompositionFromFT } from "./ft-fundamentals";
 
 const EODHD_API_TOKEN = process.env.EODHD_API_TOKEN || "";
 const EODHD_BASE_URL = "https://eodhd.com/api";
@@ -600,8 +601,24 @@ export async function getFundComposition(args: {
     }
   }
 
-  // PASO 3: si ni candidatos ni búsqueda por ISIN dieron datos pero al menos
-  // tenemos la cáscara (con General.Name etc.), usamos esa para devolver
+  // PASO 3 (NUEVO): si EODHD no tiene datos pero el ISIN es UCITS europeo
+  // (LU, IE, ES, FR, DE, …), probamos FT.com como fuente alternativa. FT
+  // publica las tablas de composición de la mayoría de UCITS europeos en
+  // markets.ft.com/data/funds/tearsheet/holdings. Esto cubre el gap conocido
+  // de EODHD (que no tiene fundamentals para EU mutual funds).
+  if (!raw && args.isin && /^[A-Z]{2}/.test(args.isin)) {
+    const ftComp = await getFundCompositionFromFT(args.isin, args.fundId);
+    if (ftComp) {
+      memCache.set(memKey(cacheIdent), { data: ftComp, ts: Date.now() });
+      console.log(
+        `[EODHD-fundamentals] Fallback FT.com OK para ${args.fundId} (${args.isin})`
+      );
+      return ftComp;
+    }
+  }
+
+  // PASO 4: si ni candidatos ni búsqueda por ISIN ni FT dieron datos pero al
+  // menos tenemos la cáscara (con General.Name etc.), usamos esa para devolver
   // metadata del fondo aunque sin breakdown.
   if (!raw && fallbackRaw) {
     raw = fallbackRaw;
