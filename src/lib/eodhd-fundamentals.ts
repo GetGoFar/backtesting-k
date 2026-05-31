@@ -292,9 +292,9 @@ function parseHoldings(obj: EodhdHoldingsObject | undefined): FundHolding[] {
 }
 
 /**
- * Construye el ticker EODHD a partir del fondo. Nuestra base de datos guarda
- * el `ticker` con los sufijos clásicos de bolsa (.DE para Xetra, .L para
- * London, etc.). EODHD usa códigos de exchange DISTINTOS para algunos
+ * Construye las variantes EODHD a partir de un ticker. Nuestra base de datos
+ * guarda el `ticker` con los sufijos clásicos de bolsa (.DE para Xetra, .L
+ * para London, etc.). EODHD usa códigos de exchange DISTINTOS para algunos
  * mercados:
  *
  *   .DE   (Xetra)   →  EODHD .XETRA  (también .F para Frankfurt)
@@ -302,52 +302,107 @@ function parseHoldings(obj: EodhdHoldingsObject | undefined): FundHolding[] {
  *   .AS, .PA, .MI, .SW, .F → idénticos en EODHD (no necesitan mapeo)
  *
  * Si pasamos `XDWS.DE` a EODHD nos devuelve 404 — necesita `XDWS.XETRA`.
- *
- * La estrategia: probamos varios candidatos en orden. El primero que devuelva
- * datos válidos (no 404, no objeto vacío) gana. Para tickers ambiguos
- * (e.g. XDWS) probamos: XDWS.XETRA → XDWS.F → ISIN.EUFUND.
  */
-function buildEodhdCandidates(args: {
+function tickerVariants(ticker: string): string[] {
+  const out: string[] = [ticker];
+  const dotIdx = ticker.lastIndexOf(".");
+  if (dotIdx > 0) {
+    const base = ticker.substring(0, dotIdx);
+    const suffix = ticker.substring(dotIdx + 1).toUpperCase();
+    // Mapa de sufijo clásico → variantes EODHD
+    const map: Record<string, string[]> = {
+      DE: ["XETRA", "F"], // .DE = Xetra; EODHD usa .XETRA o .F (Frankfurt)
+      L: ["LSE"],         // .L = London; EODHD usa .LSE
+      MI: ["MI"],
+      AS: ["AS"],
+      PA: ["PA"],
+      SW: ["SW"],
+      F: ["F"],
+    };
+    const alts = map[suffix];
+    if (alts) for (const alt of alts) if (alt !== suffix) out.push(`${base}.${alt}`);
+  }
+  return out;
+}
+
+/**
+ * Pregunta a EODHD `/search/{isin}` qué listings existen para ese ISIN y
+ * devuelve los tickers en formato EODHD (`CODE.EXCHANGE`). Sólo retiene
+ * resultados de tipo ETF / FUND / EUFUND (no mete acciones, índices, etc.).
+ *
+ * El ISIN es la fuente más fiable para identificar un fondo: el mismo
+ * IE00B4L5Y983 puede estar listado como IWDA.AS, SWDA.LSE, EUNL.XETRA…
+ * Todos son el MISMO fondo iShares MSCI World, pero la calidad de los
+ * breakdowns en EODHD puede variar entre listings.
+ */
+async function searchEodhdListingsByIsin(isin: string): Promise<string[]> {
+  if (!EODHD_API_TOKEN || EODHD_API_TOKEN === "demo") return [];
+  try {
+    const url = `${EODHD_BASE_URL}/search/${encodeURIComponent(isin)}?api_token=${EODHD_API_TOKEN}&limit=20`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return [];
+    const listings = (await res.json()) as Array<{
+      Code?: string;
+      Exchange?: string;
+      Type?: string;
+    }>;
+    if (!Array.isArray(listings)) return [];
+    return listings
+      .filter((l) => l.Code && l.Exchange)
+      .filter(
+        (l) =>
+          l.Type === "ETF" ||
+          l.Type === "FUND" ||
+          l.Type === "Fund" ||
+          l.Exchange === "EUFUND"
+      )
+      .map((l) => `${l.Code}.${l.Exchange}`);
+  } catch (err) {
+    console.warn(`[EODHD-fundamentals] /search/${isin} error:`, err);
+    return [];
+  }
+}
+
+/**
+ * Lista de candidatos EODHD a probar para un fondo, en orden de prioridad.
+ *
+ * IMPORTANTE: el ISIN tiene prioridad sobre el ticker porque es el
+ * identificador estandarizado del fondo (mismo ISIN = mismo fondo en
+ * cualquier bolsa). El ticker sólo identifica UNA listing concreta, y la
+ * calidad de los breakdowns en EODHD puede variar entre listings.
+ *
+ * Orden:
+ *   1. ISIN.EUFUND          (endpoint específico para fondos de inversión EU)
+ *   2. Listings devueltos por /search/{ISIN}  (todas las bolsas)
+ *   3. ticker provisto + sus variantes (.DE → .XETRA / .F, .L → .LSE)
+ *   4. fundId como último recurso
+ */
+async function buildEodhdCandidates(args: {
   fundId?: string;
   ticker?: string;
   isin?: string;
-}): string[] {
+}): Promise<string[]> {
   const out: string[] = [];
 
-  if (args.ticker) {
-    out.push(args.ticker);
-
-    // Mapeo de sufijos clásicos → EODHD para mercados que usan códigos
-    // distintos. Si el ticker termina en alguno de estos, añadimos su
-    // variante EODHD como candidato adicional ANTES del fallback de .EUFUND.
-    const yt = args.ticker;
-    const dotIdx = yt.lastIndexOf(".");
-    if (dotIdx > 0) {
-      const base = yt.substring(0, dotIdx);
-      const suffix = yt.substring(dotIdx + 1).toUpperCase();
-      // Mapa de sufijo clásico → suffix(es) EODHD a probar como alternativa
-      const map: Record<string, string[]> = {
-        DE: ["XETRA", "F"],           // .DE = Xetra; EODHD usa .XETRA o .F (Frankfurt)
-        L: ["LSE"],                   // .L = London; EODHD usa .LSE
-        MI: ["MI"],                   // Borsa Italiana — igual
-        AS: ["AS"],                   // Amsterdam — igual
-        PA: ["PA"],                   // Paris — igual
-        SW: ["SW"],                   // Swiss — igual
-        F: ["F"],                     // Frankfurt — igual
-      };
-      const alts = map[suffix];
-      if (alts) {
-        for (const alt of alts) {
-          if (alt !== suffix) out.push(`${base}.${alt}`);
-        }
-      }
-    }
+  // PRIORIDAD 1+2: ISIN (lo más fiable). Probamos primero el endpoint
+  // específico .EUFUND, y después enumeramos todos los listings que EODHD
+  // tenga registrados para ese ISIN.
+  if (args.isin) {
+    out.push(`${args.isin}.EUFUND`);
+    const isinListings = await searchEodhdListingsByIsin(args.isin);
+    out.push(...isinListings);
   }
 
-  if (args.isin) out.push(`${args.isin}.EUFUND`);
+  // PRIORIDAD 3: ticker provisto. Útil cuando el ISIN no es europeo o cuando
+  // los listings de /search no incluyen un mapeo de sufijos clásico (.DE).
+  if (args.ticker) {
+    out.push(...tickerVariants(args.ticker));
+  }
+
+  // PRIORIDAD 4: fundId como tabla de búsqueda final.
   if (args.fundId && args.fundId !== args.ticker) out.push(args.fundId);
 
-  return Array.from(new Set(out)); // dedupe
+  return Array.from(new Set(out)); // dedupe preservando orden
 }
 
 async function fetchFromEodhd(ticker: string): Promise<EodhdFundamentalsResponse | null> {
@@ -461,72 +516,6 @@ function scoreComposition(raw: EodhdFundamentalsResponse | null): number {
 }
 
 /**
- * Cuando el lookup directo de un ticker no da suficientes datos, buscamos
- * por ISIN y probamos todos los listings devueltos, quedándonos con el de
- * MEJOR score (más holdings + breakdowns válidos). Caso típico: ETFs
- * Xtrackers donde X57E.XETRA está vacío pero DBXR.XETRA del mismo ISIN
- * tiene los datos. O Ossiam donde CAPU.PA sólo tiene la entrada corrupta
- * "." pero USCP.XETRA tiene los holdings reales.
- *
- * @param minScore Score mínimo que ya tenemos; sólo aceptamos un alt que
- *                 lo mejore. Permite detener la búsqueda antes si
- *                 encontramos algo claramente mejor.
- */
-async function findAlternativeListingBestScore(
-  isin: string,
-  minScore: number
-): Promise<{ raw: EodhdFundamentalsResponse; ticker: string; score: number } | null> {
-  if (!EODHD_API_TOKEN || EODHD_API_TOKEN === "demo") return null;
-  try {
-    const searchUrl = `${EODHD_BASE_URL}/search/${encodeURIComponent(isin)}?api_token=${EODHD_API_TOKEN}&limit=20`;
-    const res = await fetch(searchUrl, {
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) return null;
-    const listings = (await res.json()) as Array<{
-      Code?: string;
-      Exchange?: string;
-      Type?: string;
-    }>;
-    if (!Array.isArray(listings)) return null;
-    // Sólo ETFs/FUNDs/EUFUND
-    const candidates = listings
-      .filter((l) => l.Code && l.Exchange)
-      .filter(
-        (l) =>
-          l.Type === "ETF" ||
-          l.Type === "FUND" ||
-          l.Type === "Fund" ||
-          l.Exchange === "EUFUND"
-      )
-      .map((l) => `${l.Code}.${l.Exchange}`);
-
-    let best: { raw: EodhdFundamentalsResponse; ticker: string; score: number } | null = null;
-    for (const ticker of candidates) {
-      const raw = await fetchFromEodhd(ticker);
-      if (!raw) continue;
-      const score = scoreComposition(raw);
-      if (score > (best?.score ?? minScore)) {
-        best = { raw, ticker, score };
-        if (score >= 50) break; // suficiente
-      }
-    }
-    if (best) {
-      console.log(
-        `[EODHD-fundamentals] Listing alternativo con mejor score para ${isin}: ${best.ticker} (score=${best.score})`
-      );
-    }
-    return best;
-  } catch (err) {
-    console.warn(
-      `[EODHD-fundamentals] Error en findAlternativeListingBestScore(${isin}):`,
-      err
-    );
-    return null;
-  }
-}
-
-/**
  * Sintetiza una composición para una ACCIÓN INDIVIDUAL. EODHD no devuelve
  * ETF_Data ni MutualFund_Data para Common Stock, pero la acción ES un asset
  * class por sí misma — su sector / industry / country sí vienen en General.
@@ -630,12 +619,17 @@ function synthesizeCommodityComposition(
 /**
  * Obtiene la composición de un fondo / ETF.
  *
- * Estrategia:
- *  1) Busca en cache de memoria *  2) Si no está, prueba con los tickers candidatos (ticker, ISIN.EUFUND, fundId)
- *  3) Parsea según ETF_Data o MutualFund_Data y devuelve FundComposition
+ * Estrategia (PRIORIDAD POR ISIN — el identificador más fiable):
+ *  1) Busca en cache de memoria
+ *  2) Construye candidatos ordenados por fiabilidad:
+ *       ISIN.EUFUND  →  listings de /search/{ISIN}  →  ticker  →  fundId
+ *  3) Prueba cada candidato y se queda con el de MEJOR score (más holdings
+ *     válidos + breakdowns). Early-exit cuando score ≥ 50 (≥ 5 holdings).
+ *  4) Fallback FT.com para UCITS europeos si EODHD no cubre el fondo.
+ *  5) Parsea según ETF_Data o MutualFund_Data y devuelve FundComposition.
  *
- * Si EODHD no tiene datos para ese fondo, devuelve { available: false, reason }.
- * El motor de K-Ray maneja gracefully los fondos sin datos.
+ * Si nada funciona, devuelve { available: false, reason }. El motor de
+ * K-Ray maneja gracefully los fondos sin datos.
  */
 export async function getFundComposition(args: {
   fundId: string;
@@ -650,17 +644,20 @@ export async function getFundComposition(args: {
   }
 
 
-  const candidates = buildEodhdCandidates(args);
+  // Candidatos en orden de prioridad: ISIN.EUFUND → listings de /search/{ISIN}
+  // → ticker provisto → fundId. El ISIN siempre va primero porque es el
+  // identificador más fiable: mismo ISIN = mismo fondo en cualquier bolsa.
+  const candidates = await buildEodhdCandidates(args);
   let raw: EodhdFundamentalsResponse | null = null;
   let usedTicker: string | undefined;
   let bestScore = 0;
 
-  // PASO 1: probar tickers candidatos. Puntuamos cada uno por "riqueza"
-  // (cuántos holdings válidos + cuántos sectores/regiones tiene) y nos
-  // quedamos con el MEJOR — no con el primero que tenga datos. Caso típico:
-  // un mismo ETF está listado como CAPU.PA (1 holding ".") y USCP.XETRA
-  // (3 holdings reales + 1 "."). Antes nos quedábamos con CAPU.PA porque
-  // venía primero; ahora preferimos USCP.XETRA por tener más holdings.
+  // Probamos todos los candidatos y nos quedamos con el de MEJOR score
+  // (más holdings válidos + más breakdowns). Caso típico: un mismo ETF está
+  // listado como CAPU.PA (1 holding ".") y USCP.XETRA (3 holdings reales).
+  // Con el orden ISIN-first y la puntuación, USCP.XETRA gana.
+  // Early-exit cuando un candidato ya tiene score ≥ 50 (≥ 5 holdings) para
+  // evitar llamadas innecesarias a EODHD.
   let fallbackRaw: EodhdFundamentalsResponse | null = null;
   let fallbackTicker: string | undefined;
   for (const candidate of candidates) {
@@ -671,8 +668,6 @@ export async function getFundComposition(args: {
       bestScore = score;
       raw = r;
       usedTicker = candidate;
-      // Si ya tenemos al menos 50 puntos (= 5 holdings) podemos parar.
-      // Es suficiente para una radiografía decente y evitamos llamadas extra.
       if (score >= 50) break;
     } else if (
       !raw &&
@@ -685,21 +680,7 @@ export async function getFundComposition(args: {
     }
   }
 
-  // PASO 2: si los candidatos directos dieron un score bajo (<50 puntos = <5
-  // holdings), buscamos por ISIN para encontrar listings alternativos y
-  // probamos cada uno comparando scores. Caso típico: ETFs Xtrackers donde
-  // X57E.XETRA está vacío pero DBXR.XETRA del mismo ISIN tiene los datos
-  // completos. También cubre el caso de los Invesco / Ossiam.
-  if (args.isin && bestScore < 50) {
-    const alt = await findAlternativeListingBestScore(args.isin, bestScore);
-    if (alt && alt.score > bestScore) {
-      bestScore = alt.score;
-      raw = alt.raw;
-      usedTicker = alt.ticker;
-    }
-  }
-
-  // PASO 3 (NUEVO): si EODHD no tiene datos pero el ISIN es UCITS europeo
+  // Fallback FT.com: si EODHD no tiene datos pero el ISIN es UCITS europeo
   // (LU, IE, ES, FR, DE, …), probamos FT.com como fuente alternativa. FT
   // publica las tablas de composición de la mayoría de UCITS europeos en
   // markets.ft.com/data/funds/tearsheet/holdings. Esto cubre el gap conocido
@@ -715,9 +696,9 @@ export async function getFundComposition(args: {
     }
   }
 
-  // PASO 4: si ni candidatos ni búsqueda por ISIN ni FT dieron datos pero al
-  // menos tenemos la cáscara (con General.Name etc.), usamos esa para devolver
-  // metadata del fondo aunque sin breakdown.
+  // Si ni candidatos EODHD ni FT.com dieron datos pero al menos tenemos
+  // la cáscara con General.Name etc., usamos esa para devolver metadata
+  // del fondo aunque sin breakdown — mejor que vacío total.
   if (!raw && fallbackRaw) {
     raw = fallbackRaw;
     usedTicker = fallbackTicker;
