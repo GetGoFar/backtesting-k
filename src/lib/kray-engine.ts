@@ -12,7 +12,10 @@
 // queda registrado en el resultado para que la UI lo avise.
 // =============================================================================
 
-import { getFundCompositionById } from "./eodhd-fundamentals";
+import {
+  getFundCompositionById,
+  getFundComposition,
+} from "./eodhd-fundamentals";
 import { getFundById } from "./fund-database";
 import type {
   KrayInput,
@@ -113,10 +116,24 @@ export async function runKray(input: KrayInput): Promise<KrayResult> {
     contribs.set(label, arr);
   }
 
-  // Procesar cada fondo en paralelo
+  // Procesar cada fondo en paralelo. Para holdings dinámicos (fundId con
+  // prefijo `eodhd-` o `yahoo-`) usamos el snapshot del Fund que viene en
+  // el holding para resolver ticker/ISIN; sin él getFundCompositionById no
+  // podría encontrar el activo (no está en fund-database).
   const compositions = await Promise.all(
     holdings.map(async (h) => {
-      const composition = await getFundCompositionById(h.fundId);
+      let composition;
+      if (h.fund && (h.fund.ticker || h.fund.isin)) {
+        // Holding dinámico — usar el snapshot
+        composition = await getFundComposition({
+          fundId: h.fundId,
+          ticker: h.fund.ticker,
+          isin: h.fund.isin,
+        });
+      } else {
+        // Holding de la base de datos
+        composition = await getFundCompositionById(h.fundId);
+      }
       return { holding: h, composition };
     })
   );

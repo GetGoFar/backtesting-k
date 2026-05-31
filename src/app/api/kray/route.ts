@@ -33,9 +33,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         );
       }
 
-      // Normalización: descartar pesos no numéricos / ≤ 0
+      // Normalización: descartar pesos no numéricos / ≤ 0. Conservamos el
+      // snapshot `fund` para holdings dinámicos (sin él, K-Ray no puede
+      // resolver el ticker/ISIN de fondos añadidos vía buscador externo).
       input.holdings = input.holdings
-        .map((h) => ({ fundId: h.fundId, weight: Number(h.weight) }))
+        .map((h) => ({
+          fundId: h.fundId,
+          weight: Number(h.weight),
+          ...(h.fund ? { fund: h.fund } : {}),
+        }))
         .filter((h) => h.fundId && h.weight > 0);
 
       if (input.holdings.length === 0) {

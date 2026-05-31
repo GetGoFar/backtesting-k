@@ -137,25 +137,101 @@ interface EodhdFundamentalsResponse {
   };
 }
 
-/** Parsea un objeto de "weights" donde el valor puede ser número plano o
- *  un sub-objeto con "Equity_%" — formato típico de EODHD según el endpoint. */
-function parseWeights(obj: EodhdWeightObject | undefined): Record<string, number> {
+/**
+ * Parsea un objeto de "weights" de EODHD. EODHD usa DOS formatos distintos:
+ *
+ * 1) FORMATO ETF (plano): cada key es una categoría con un sub-objeto que
+ *    tiene "Equity_%" o "Relative_to_Category":
+ *      { "Technology": { "Equity_%": 25.4 }, ... }
+ *
+ * 2) FORMATO MUTUAL FUND (anidado por super-categoría): cada key superior
+ *    agrupa varias entradas indexadas con "0","1","2",… donde cada entrada
+ *    tiene "Name" + un campo de cantidad ("Amount_%", "Stocks_%", "Net_%"):
+ *      { "Cyclical": { "0": { "Name": "Basic Materials", "Amount_%": 5.5 }, ... } }
+ *
+ * Nuestro parser detecta automáticamente cuál es y devuelve siempre un mapa
+ * plano { categoría → peso } para que el resto del código no se entere.
+ */
+function parseWeights(
+  obj: EodhdWeightObject | undefined
+): Record<string, number> {
   if (!obj || typeof obj !== "object") return {};
   const result: Record<string, number> = {};
   for (const [key, value] of Object.entries(obj)) {
     if (typeof value === "number") {
       result[key] = value;
-    } else if (typeof value === "string") {
+      continue;
+    }
+    if (typeof value === "string") {
       const num = parseFloat(value);
       if (!isNaN(num)) result[key] = num;
-    } else if (value && typeof value === "object") {
-      const v = value["Equity_%"] ?? value["Relative_to_Category"];
-      if (typeof v === "number") result[key] = v;
-      else if (typeof v === "string") {
-        const num = parseFloat(v);
-        if (!isNaN(num)) result[key] = num;
-      }
+      continue;
     }
+    if (!value || typeof value !== "object") continue;
+
+    // ¿Formato plano ETF? Tiene "Equity_%" o "Relative_to_Category" directo.
+    const v = (value as Record<string, unknown>)["Equity_%"] ??
+      (value as Record<string, unknown>)["Relative_to_Category"];
+    if (typeof v === "number") {
+      result[key] = v;
+      continue;
+    }
+    if (typeof v === "string") {
+      const num = parseFloat(v);
+      if (!isNaN(num)) result[key] = num;
+      continue;
+    }
+
+    // ¿Formato anidado mutual fund? Tiene keys numéricas dentro, cada una con
+    // "Name" + uno de los campos de cantidad.
+    const inner = value as Record<string, unknown>;
+    const numericChildren = Object.keys(inner).filter((k) => /^\d+$/.test(k));
+    if (numericChildren.length === 0) continue;
+    for (const childKey of numericChildren) {
+      const child = inner[childKey] as Record<string, unknown> | undefined;
+      if (!child || typeof child !== "object") continue;
+      const name = child["Name"];
+      if (typeof name !== "string" || !name) continue;
+      const amountRaw =
+        child["Amount_%"] ??
+        child["Stocks_%"] ??
+        child["Net_%"] ??
+        child["Fund_%"] ??
+        child["Long_%"];
+      if (amountRaw === undefined || amountRaw === null) continue;
+      const num =
+        typeof amountRaw === "number" ? amountRaw : parseFloat(String(amountRaw));
+      if (isNaN(num)) continue;
+      result[name] = num;
+    }
+  }
+  return result;
+}
+
+/**
+ * Parsea Asset_Allocation cuando viene en FORMATO MUTUAL FUND (objeto con
+ * keys numéricas "0","1","2"… cada uno con "Type" + "Net_%"). El campo
+ * etiqueta es `Type`, no `Name`, así que es un parser específico.
+ */
+function parseAssetAllocationMutualFund(
+  obj: EodhdWeightObject | undefined
+): Record<string, number> {
+  if (!obj || typeof obj !== "object") return {};
+  const result: Record<string, number> = {};
+  const numericChildren = Object.keys(obj).filter((k) => /^\d+$/.test(k));
+  for (const childKey of numericChildren) {
+    const child = (obj as Record<string, unknown>)[childKey] as
+      | Record<string, unknown>
+      | undefined;
+    if (!child || typeof child !== "object") continue;
+    const type = child["Type"];
+    if (typeof type !== "string" || !type) continue;
+    const amountRaw = child["Net_%"] ?? child["Long_%"];
+    if (amountRaw === undefined || amountRaw === null) continue;
+    const num =
+      typeof amountRaw === "number" ? amountRaw : parseFloat(String(amountRaw));
+    if (isNaN(num)) continue;
+    if (num !== 0) result[type] = num;
   }
   return result;
 }
@@ -164,12 +240,23 @@ function parseHoldings(obj: EodhdHoldingsObject | undefined): FundHolding[] {
   if (!obj || typeof obj !== "object") return [];
   const arr: FundHolding[] = [];
   for (const [key, raw] of Object.entries(obj)) {
-    const pct =
-      typeof raw["Assets_%"] === "number"
-        ? raw["Assets_%"]
-        : typeof raw["Assets_%"] === "string"
-        ? parseFloat(raw["Assets_%"])
-        : NaN;
+    if (!raw || typeof raw !== "object") continue;
+    // Intentamos varios campos de peso:
+    //   ETF: "Assets_%" (numérico)
+    //   Mutual fund: "Weight" (string tipo "14.52%")
+    let pct: number = NaN;
+    const assetsField = (raw as Record<string, unknown>)["Assets_%"];
+    if (typeof assetsField === "number") pct = assetsField;
+    else if (typeof assetsField === "string") pct = parseFloat(assetsField);
+
+    if (isNaN(pct)) {
+      const weight = (raw as Record<string, unknown>)["Weight"];
+      if (typeof weight === "number") pct = weight;
+      else if (typeof weight === "string") {
+        // Quitar "%" y espacios antes de parsear ("14.52%" → 14.52)
+        pct = parseFloat(weight.replace(/%/g, "").trim());
+      }
+    }
     if (isNaN(pct) || pct <= 0) continue;
     arr.push({
       name: raw.Name ?? key,
@@ -435,17 +522,50 @@ export async function getFundComposition(args: {
     return empty;
   }
 
-  // Algunos fondos vienen como ETF, otros como MutualFund. Probamos primero
-  // ETF (datos más completos) y fallback a MutualFund.
+  // CASO ESPECIAL: activos que NO son fondos ni ETFs no tienen composición
+  // por definición (ej. XAUUSD.FOREX, futuros, divisas). EODHD los devuelve
+  // con Type = "Currency", "Forex", "Future", etc. y sin breakdown alguno.
+  // Devolvemos un objeto "no aplica" más claro que un genérico "sin datos".
+  const generalType = raw.General?.Type?.toString().toLowerCase();
+  if (
+    generalType &&
+    (generalType.includes("currency") ||
+      generalType.includes("forex") ||
+      generalType.includes("future") ||
+      generalType.includes("crypto"))
+  ) {
+    const naApplicable: FundComposition = {
+      isin: raw.General?.ISIN ?? args.isin ?? "",
+      name: raw.General?.Name ?? args.fundId,
+      type: raw.General?.Type,
+      sectorWeights: {},
+      worldRegions: {},
+      countryWeights: {},
+      assetAllocation: {},
+      holdings: [],
+      available: false,
+      reason: `${raw.General?.Name ?? args.fundId} es ${raw.General?.Type} — no tiene composición (no aplica)`,
+    };
+    memCache.set(memKey(cacheIdent), { data: naApplicable, ts: Date.now() });
+    return naApplicable;
+  }
+
+  // Algunos fondos vienen como ETF, otros como MutualFund. Las estructuras
+  // internas DIFIEREN. parseWeights y parseHoldings detectan ambos formatos
+  // automáticamente, excepto Asset_Allocation que en mutual funds usa "Type"
+  // como etiqueta y tiene su propio parser.
   const etf = raw.ETF_Data;
   const mf = raw.MutualFund_Data;
 
   const sectorWeights = parseWeights(etf?.Sector_Weights ?? mf?.Sector_Weights);
   const worldRegions = parseWeights(etf?.World_Regions ?? mf?.World_Regions);
   const countryWeights = parseWeights(etf?.Country_Weights ?? mf?.Country_Weights);
-  const assetAllocation = parseWeights(
-    etf?.Asset_Allocation ?? mf?.Asset_Allocation
-  );
+  // Asset_Allocation: ETF usa formato plano (Equity_%, etc.); MutualFund usa
+  // formato numérico con Type + Net_%. Probamos ambos.
+  let assetAllocation = parseWeights(etf?.Asset_Allocation);
+  if (Object.keys(assetAllocation).length === 0 && mf?.Asset_Allocation) {
+    assetAllocation = parseAssetAllocationMutualFund(mf.Asset_Allocation);
+  }
 
   // Top holdings: ETF.Top_10_Holdings es el más típico. Si no existe pero hay
   // ETF.Holdings (más completo), lo usamos y nos quedamos con los 10 primeros.

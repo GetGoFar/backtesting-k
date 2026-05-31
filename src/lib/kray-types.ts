@@ -6,6 +6,18 @@ export interface KrayInputHolding {
   fundId: string;
   /** Peso en % en la cartera (0-100). */
   weight: number;
+  /**
+   * Snapshot opcional del Fund completo. Necesario para holdings DINÁMICOS
+   * (añadidos vía buscador externo, prefijo `eodhd-`) cuyo fundId no existe
+   * en fund-database — sin este snapshot el motor no sabe qué ticker/ISIN
+   * pasarle a EODHD para buscar la composición.
+   */
+  fund?: {
+    name?: string;
+    shortName?: string;
+    isin?: string;
+    ticker?: string;
+  };
 }
 
 export interface KrayInput {
