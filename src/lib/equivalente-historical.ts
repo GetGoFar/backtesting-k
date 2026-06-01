@@ -61,8 +61,28 @@ export interface HistoricalComparison {
   correlation: number;
   /** Tracking difference anualizado: indexedCagr − activeCagr (puntos %). */
   trackingDifference: number;
+  /** Volatilidad anualizada del fondo activo (%) = stddev(monthly) × √12. */
+  activeVolatility: number;
+  /** Volatilidad anualizada del ETF indexado (%). */
+  indexedVolatility: number;
+  /** Ratio rentabilidad/volatilidad del activo = CAGR / Volatilidad. Sin
+   *  descontar tasa libre de riesgo (no es Sharpe puro). Cuanto mayor, mejor:
+   *  más rentabilidad obtenida por cada punto de riesgo asumido. */
+  activeReturnVolRatio: number;
+  /** Ratio rentabilidad/volatilidad del indexado. */
+  indexedReturnVolRatio: number;
   /** Serie temporal con ambos NAVs reescalados al capital inicial. */
   timeSeries: HistoricalPoint[];
+}
+
+/** Desviación típica muestral de una serie. */
+function stddev(values: number[]): number {
+  const n = values.length;
+  if (n < 2) return 0;
+  const mean = values.reduce((s, v) => s + v, 0) / n;
+  const variance =
+    values.reduce((s, v) => s + (v - mean) ** 2, 0) / (n - 1);
+  return Math.sqrt(variance);
 }
 
 /** Calcula la correlación de Pearson entre dos series de retornos. */
@@ -188,6 +208,19 @@ export async function buildHistoricalComparison(
   }
   const correlation = pearsonCorrelation(activeReturns, indexedReturns);
 
+  // Volatilidad anualizada = desv. típica de retornos mensuales × √12,
+  // expresada en %. Es la métrica de riesgo estándar del sector.
+  const activeVolatility = stddev(activeReturns) * Math.sqrt(12) * 100;
+  const indexedVolatility = stddev(indexedReturns) * Math.sqrt(12) * 100;
+
+  // Ratio rentabilidad/volatilidad: cuánto rinde el fondo por cada punto
+  // de riesgo asumido. Cuanto mayor, mejor. Es similar al Sharpe pero sin
+  // descontar la tasa libre de riesgo (no afecta a la comparación relativa).
+  const activeReturnVolRatio =
+    activeVolatility > 0 ? activeCagr / activeVolatility : 0;
+  const indexedReturnVolRatio =
+    indexedVolatility > 0 ? indexedCagr / indexedVolatility : 0;
+
   return {
     startMonth: firstM,
     endMonth: lastM,
@@ -201,6 +234,10 @@ export async function buildHistoricalComparison(
     realSavings: finalIndexed - finalActive,
     correlation,
     trackingDifference: indexedCagr - activeCagr,
+    activeVolatility,
+    indexedVolatility,
+    activeReturnVolRatio,
+    indexedReturnVolRatio,
     timeSeries,
   };
 }

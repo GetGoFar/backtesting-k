@@ -818,6 +818,8 @@ export default function EquivalentePage() {
                       fund={equivalence.activeFund}
                       cagr={historicalData.activeCagr}
                       totalReturn={historicalData.activeTotalReturn}
+                      volatility={historicalData.activeVolatility}
+                      returnVolRatio={historicalData.activeReturnVolRatio}
                       finalValue={historicalData.finalActive}
                       initialCapital={initialCapital}
                     />
@@ -826,6 +828,8 @@ export default function EquivalentePage() {
                       fund={equivalence.recommended}
                       cagr={historicalData.indexedCagr}
                       totalReturn={historicalData.indexedTotalReturn}
+                      volatility={historicalData.indexedVolatility}
+                      returnVolRatio={historicalData.indexedReturnVolRatio}
                       finalValue={historicalData.finalIndexed}
                       initialCapital={initialCapital}
                     />
@@ -1588,6 +1592,8 @@ function HistoricalCard({
   fund,
   cagr,
   totalReturn,
+  volatility,
+  returnVolRatio,
   finalValue,
   initialCapital,
 }: {
@@ -1595,6 +1601,8 @@ function HistoricalCard({
   fund: Fund;
   cagr: number;
   totalReturn: number;
+  volatility: number;
+  returnVolRatio: number;
   finalValue: number;
   initialCapital: number;
 }) {
@@ -1648,6 +1656,17 @@ function HistoricalCard({
             value={fmtPctSign(totalReturn)}
             accent={accent}
           />
+          <Stat
+            label="Volatilidad anualizada"
+            value={fmtPct(volatility)}
+            tooltip="Desviación típica de los retornos mensuales × √12. Mide la oscilación del valor del fondo — cuanto más alta, más vaivenes."
+          />
+          <Stat
+            label="Ratio rentab. / volatilidad"
+            value={returnVolRatio.toFixed(2)}
+            accent={accent}
+            tooltip="CAGR ÷ Volatilidad. Eficiencia de la rentabilidad obtenida: cuántos puntos de rentabilidad da por cada punto de riesgo asumido. Cuanto mayor, mejor (referencia: >0.5 es bueno, >1.0 excelente)."
+          />
           <Stat label="Patrimonio final" value={fmtEUR(finalValue)} />
           <Stat
             label="Ganancia neta"
@@ -1665,18 +1684,21 @@ function Stat({
   value,
   accent,
   muted,
+  tooltip,
 }: {
   label: string;
   value: string;
   accent?: "red" | "blue";
   muted?: boolean;
+  tooltip?: string;
 }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <span
         className={`text-xs ${
           muted ? "text-brand-tertiary" : "text-brand-secondary"
-        }`}
+        } ${tooltip ? "underline decoration-dotted decoration-brand-tertiary/50 cursor-help" : ""}`}
+        title={tooltip}
       >
         {label}
       </span>
