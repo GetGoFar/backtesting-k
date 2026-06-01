@@ -36,6 +36,7 @@ import {
   findEquivalentForDynamic,
   projectSavings,
   getActiveFundsByBank,
+  getBenchmarksByCategory,
   EXAMPLE_FUND_IDS,
   type EquivalenceResult,
   type SavingsResult,
@@ -122,6 +123,12 @@ export default function EquivalentePage() {
   const [eodhdResults, setEodhdResults] = useState<EodhdSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
 
+  // Benchmark override — null = usar el auto-recomendado por categoría
+  const [benchmarkOverrideId, setBenchmarkOverrideId] = useState<string | null>(
+    null
+  );
+  const benchmarksByCategory = useMemo(() => getBenchmarksByCategory(), []);
+
   // --- Datos para los pickers ---
   const fundsByBank = useMemo(() => getActiveFundsByBank(), []);
   const banks = useMemo(
@@ -187,7 +194,7 @@ export default function EquivalentePage() {
   // Caso A: fondo seleccionado de la BD local (selectedFundId)
   // Caso B: fondo dinámico encontrado vía EODHD search (dynamicFund)
   const selectedFund = selectedFundId ? getFundById(selectedFundId) : null;
-  const equivalence: EquivalenceResult | null = useMemo(() => {
+  const autoEquivalence: EquivalenceResult | null = useMemo(() => {
     if (selectedFund) return findEquivalent(selectedFund);
     if (dynamicFund && dynamicFund.isin) {
       return findEquivalentForDynamic({
@@ -199,6 +206,33 @@ export default function EquivalentePage() {
     }
     return null;
   }, [selectedFund, dynamicFund]);
+
+  // Si el usuario ha elegido un benchmark distinto al auto-recomendado, lo
+  // sustituimos manteniendo la nota explicativa por si el match es aproximado.
+  const equivalence: EquivalenceResult | null = useMemo(() => {
+    if (!autoEquivalence) return null;
+    if (!benchmarkOverrideId) return autoEquivalence;
+    const override = getFundById(benchmarkOverrideId);
+    if (!override) return autoEquivalence;
+    const terSaving =
+      autoEquivalence.activeFund.ter > 0
+        ? ((autoEquivalence.activeFund.ter - override.ter) /
+            autoEquivalence.activeFund.ter) *
+          100
+        : 0;
+    return {
+      activeFund: autoEquivalence.activeFund,
+      recommended: override,
+      note: autoEquivalence.note,
+      terSavingPercentage: terSaving,
+    };
+  }, [autoEquivalence, benchmarkOverrideId]);
+
+  // Reset del override cuando cambia el fondo activo (la auto-recomendación
+  // depende de la categoría del activo, así que un override viejo perdería sentido).
+  useEffect(() => {
+    setBenchmarkOverrideId(null);
+  }, [selectedFundId, dynamicFund]);
 
   // --- Carga de datos históricos ---
   const fetchHistorical = useCallback(
@@ -705,7 +739,7 @@ export default function EquivalentePage() {
                         hoy ({fmtMonth(historicalData.endMonth)}) tendrías
                         esto de más.
                       </p>
-                      <div className="grid grid-cols-2 gap-6 mt-6 max-w-xl mx-auto pt-4 border-t border-emerald-200/60">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-6 max-w-3xl mx-auto pt-4 border-t border-emerald-200/60">
                         <div>
                           <p className="text-xs uppercase tracking-wider text-brand-tertiary">
                             Rentabilidad anual real
@@ -731,21 +765,31 @@ export default function EquivalentePage() {
                             {fmtMonth(historicalData.endMonth)}
                           </p>
                         </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-wider text-brand-tertiary">
+                            Correlación con benchmark
+                          </p>
+                          <CorrelationDisplay value={historicalData.correlation} />
+                          <p className="text-xs text-brand-tertiary mt-0.5">
+                            Tracking diff:{" "}
+                            {fmtPctSign(historicalData.trackingDifference)} anual
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </section>
 
-                  {/* Configuración mínima — sólo capital */}
+                  {/* Configuración: capital + benchmark */}
                   <section className="mb-8 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                     <div className="bg-brand-navy px-6 py-4">
                       <h3 className="text-white font-semibold font-serif text-lg">
-                        2. Capital inicial
+                        2. Configuración
                       </h3>
                       <p className="text-xs text-white/70 mt-0.5">
-                        Cambia el importe para ver el ahorro real con tu cantidad
+                        Capital invertido y benchmark contra el que comparar
                       </p>
                     </div>
-                    <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
+                    <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <ConfigField
                         label="Capital invertido"
                         suffix="€"
@@ -753,6 +797,16 @@ export default function EquivalentePage() {
                         onChange={setInitialCapital}
                         min={0}
                         step={1000}
+                      />
+                      <BenchmarkSelector
+                        currentId={equivalence.recommended.id}
+                        autoId={autoEquivalence?.recommended.id ?? ""}
+                        benchmarksByCategory={benchmarksByCategory}
+                        onChange={(id) =>
+                          setBenchmarkOverrideId(
+                            id === autoEquivalence?.recommended.id ? null : id
+                          )
+                        }
                       />
                     </div>
                   </section>
@@ -896,6 +950,40 @@ export default function EquivalentePage() {
                       </section>
                     );
                   })()}
+
+                  {/* Correlación baja warning — el benchmark no es comparable */}
+                  {historicalData.correlation < 0.5 && (
+                    <section className="mb-8 bg-amber-50 border border-amber-200 rounded-2xl p-5">
+                      <div className="flex items-start gap-3">
+                        <svg
+                          className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 9.25a.875.875 0 100-1.75.875.875 0 000 1.75z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        <div>
+                          <p className="text-sm font-semibold text-amber-900 mb-1">
+                            Correlación baja ({historicalData.correlation.toFixed(2)}) —
+                            ¿es éste el benchmark adecuado?
+                          </p>
+                          <p className="text-sm text-amber-900 leading-relaxed">
+                            Los dos fondos se mueven de forma poco
+                            relacionada, lo que sugiere que invierten en
+                            universos distintos. Prueba a cambiar el benchmark
+                            en la configuración por uno cuya cartera teórica
+                            sea más parecida a la de tu fondo activo (por
+                            ejemplo: si el activo es de RV España, no lo
+                            compares con un MSCI World).
+                          </p>
+                        </div>
+                      </div>
+                    </section>
+                  )}
 
                   {/* Periodo corto warning */}
                   {historicalData.years < 5 && (
@@ -1217,6 +1305,81 @@ export default function EquivalentePage() {
 // -----------------------------------------------------------------------------
 // Sub-componentes
 // -----------------------------------------------------------------------------
+
+function BenchmarkSelector({
+  currentId,
+  autoId,
+  benchmarksByCategory,
+  onChange,
+}: {
+  currentId: string;
+  autoId: string;
+  benchmarksByCategory: Map<string, Fund[]>;
+  onChange: (id: string) => void;
+}) {
+  // Ordenar categorías alfabéticamente
+  const cats = Array.from(benchmarksByCategory.keys()).sort();
+  return (
+    <label className="block">
+      <span className="text-xs font-semibold text-brand-tertiary uppercase tracking-wider block mb-1.5">
+        Benchmark de comparación
+      </span>
+      <select
+        value={currentId}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/30"
+      >
+        {cats.map((cat) => (
+          <optgroup key={cat} label={cat}>
+            {(benchmarksByCategory.get(cat) ?? []).map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.shortName} · TER {f.ter.toFixed(2)}%{" "}
+                {f.id === autoId ? "· recomendado" : ""}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+      {currentId !== autoId && (
+        <button
+          type="button"
+          onClick={() => onChange(autoId)}
+          className="text-xs text-brand-navy hover:text-brand-coral mt-1.5 underline"
+        >
+          ↺ Volver al recomendado
+        </button>
+      )}
+    </label>
+  );
+}
+
+function CorrelationDisplay({ value }: { value: number }) {
+  // Bandas de interpretación: muy alta / alta / moderada / baja
+  let label: string;
+  let color: string;
+  if (value >= 0.9) {
+    label = "muy alta";
+    color = "text-emerald-700";
+  } else if (value >= 0.7) {
+    label = "alta";
+    color = "text-emerald-600";
+  } else if (value >= 0.5) {
+    label = "moderada";
+    color = "text-amber-600";
+  } else if (value >= 0) {
+    label = "baja";
+    color = "text-red-600";
+  } else {
+    label = "negativa";
+    color = "text-red-700";
+  }
+  return (
+    <div>
+      <p className={`text-lg font-bold ${color}`}>{value.toFixed(2)}</p>
+      <p className={`text-xs font-medium ${color}`}>{label}</p>
+    </div>
+  );
+}
 
 function EodhdCard({
   result,

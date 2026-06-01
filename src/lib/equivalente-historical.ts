@@ -52,8 +52,41 @@ export interface HistoricalComparison {
   finalIndexed: number;
   /** Diferencia de patrimonio final = indexado − activo (EUR). */
   realSavings: number;
+  /** Correlación de Pearson entre los retornos mensuales de ambos fondos
+   *  (rango −1 … +1). Valida si el benchmark elegido es comparable:
+   *    > 0.90 → muy alta (mismo universo de inversión)
+   *    0.70-0.90 → alta (similar pero con sesgos)
+   *    0.50-0.70 → moderada (relacionados, distinta concentración)
+   *    < 0.50 → baja (probablemente no es un buen benchmark) */
+  correlation: number;
+  /** Tracking difference anualizado: indexedCagr − activeCagr (puntos %). */
+  trackingDifference: number;
   /** Serie temporal con ambos NAVs reescalados al capital inicial. */
   timeSeries: HistoricalPoint[];
+}
+
+/** Calcula la correlación de Pearson entre dos series de retornos. */
+function pearsonCorrelation(xs: number[], ys: number[]): number {
+  const n = Math.min(xs.length, ys.length);
+  if (n < 2) return 0;
+  let sumX = 0, sumY = 0;
+  for (let i = 0; i < n; i++) {
+    sumX += xs[i]!;
+    sumY += ys[i]!;
+  }
+  const meanX = sumX / n;
+  const meanY = sumY / n;
+  let num = 0, denX = 0, denY = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = xs[i]! - meanX;
+    const dy = ys[i]! - meanY;
+    num += dx * dy;
+    denX += dx * dx;
+    denY += dy * dy;
+  }
+  const den = Math.sqrt(denX * denY);
+  if (den === 0) return 0;
+  return num / den;
 }
 
 /**
@@ -137,6 +170,24 @@ export async function buildHistoricalComparison(
   const finalActive = (activeEnd / activeStart) * initialCapital;
   const finalIndexed = (indexedEnd / indexedStart) * initialCapital;
 
+  // Retornos mensuales para calcular correlación.
+  // ret_i = (price_i / price_{i-1}) − 1, sólo entre meses consecutivos.
+  const activeReturns: number[] = [];
+  const indexedReturns: number[] = [];
+  for (let i = 1; i < commonMonths.length; i++) {
+    const prev = commonMonths[i - 1]!;
+    const curr = commonMonths[i]!;
+    const aPrev = activeRes.prices.get(prev)!;
+    const aCurr = activeRes.prices.get(curr)!;
+    const iPrev = indexedRes.prices.get(prev)!;
+    const iCurr = indexedRes.prices.get(curr)!;
+    if (aPrev > 0 && iPrev > 0) {
+      activeReturns.push(aCurr / aPrev - 1);
+      indexedReturns.push(iCurr / iPrev - 1);
+    }
+  }
+  const correlation = pearsonCorrelation(activeReturns, indexedReturns);
+
   return {
     startMonth: firstM,
     endMonth: lastM,
@@ -148,6 +199,8 @@ export async function buildHistoricalComparison(
     finalActive,
     finalIndexed,
     realSavings: finalIndexed - finalActive,
+    correlation,
+    trackingDifference: indexedCagr - activeCagr,
     timeSeries,
   };
 }

@@ -213,6 +213,30 @@ export function getActiveFunds(): Fund[] {
   return getAllFunds().filter((f) => f.type === "active");
 }
 
+/** Todos los ETFs / fondos indexados disponibles como benchmark. Agrupados
+ *  por categoría para mostrarlos como `<optgroup>` en el dropdown. */
+export function getAvailableBenchmarks(): Fund[] {
+  return getAllFunds()
+    .filter((f) => f.type === "index")
+    .sort((a, b) => {
+      // Primero por categoría, luego por TER ascendente (el más barato primero)
+      const catCmp = a.category.localeCompare(b.category);
+      if (catCmp !== 0) return catCmp;
+      return a.ter - b.ter;
+    });
+}
+
+/** Agrupa los benchmarks indexados por categoría — útil para `<optgroup>`. */
+export function getBenchmarksByCategory(): Map<FundCategory, Fund[]> {
+  const m = new Map<FundCategory, Fund[]>();
+  for (const f of getAvailableBenchmarks()) {
+    const arr = m.get(f.category) ?? [];
+    arr.push(f);
+    m.set(f.category, arr);
+  }
+  return m;
+}
+
 /** Agrupa los fondos activos por banco. */
 export function getActiveFundsByBank(): Map<string, Fund[]> {
   const m = new Map<string, Fund[]>();
