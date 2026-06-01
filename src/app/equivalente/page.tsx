@@ -33,6 +33,7 @@ import {
 import { AccessGate } from "@/components/AccessGate";
 import {
   findEquivalent,
+  findEquivalentForDynamic,
   projectSavings,
   getActiveFundsByBank,
   searchActiveFunds,
@@ -43,6 +44,20 @@ import {
 import { getFundById } from "@/lib/fund-database";
 import type { Fund } from "@/lib/types";
 import type { HistoricalComparison } from "@/lib/equivalente-historical";
+
+// Resultado de búsqueda EODHD vía /api/search
+interface EodhdSearchResult {
+  symbol: string;
+  name: string;
+  shortName: string;
+  exchange: string;
+  type: string;
+  typeDisplay: string;
+  ter: number | null;
+  isin: string | null;
+  currency?: string;
+  isStock?: boolean;
+}
 
 // -----------------------------------------------------------------------------
 // Formateadores
@@ -83,6 +98,8 @@ type Mode = "historical" | "simulation";
 export default function EquivalentePage() {
   const [tab, setTab] = useState<Tab>("ejemplos");
   const [selectedFundId, setSelectedFundId] = useState<string | null>(null);
+  // Fondo dinámico encontrado vía EODHD (no en BD local)
+  const [dynamicFund, setDynamicFund] = useState<EodhdSearchResult | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBank, setSelectedBank] = useState<string>("");
   const [mode, setMode] = useState<Mode>("historical");
@@ -99,6 +116,10 @@ export default function EquivalentePage() {
   const [historicalLoading, setHistoricalLoading] = useState(false);
   const [historicalError, setHistoricalError] = useState<string | null>(null);
 
+  // Resultados de búsqueda EODHD (pestaña Búsqueda)
+  const [eodhdResults, setEodhdResults] = useState<EodhdSearchResult[]>([]);
+  const [eodhdSearching, setEodhdSearching] = useState(false);
+
   // --- Datos para los pickers ---
   const fundsByBank = useMemo(() => getActiveFundsByBank(), []);
   const banks = useMemo(
@@ -112,10 +133,45 @@ export default function EquivalentePage() {
     }
   }, [tab, selectedBank, banks]);
 
-  const searchResults = useMemo(
-    () => (searchQuery.length >= 2 ? searchActiveFunds(searchQuery, 20) : []),
+  // Búsqueda LOCAL (BD curada) — instantánea
+  const localSearchResults = useMemo(
+    () => (searchQuery.length >= 2 ? searchActiveFunds(searchQuery, 8) : []),
     [searchQuery]
   );
+
+  // Búsqueda EODHD — debounce 350ms para no saturar
+  useEffect(() => {
+    if (tab !== "search" || searchQuery.trim().length < 2) {
+      setEodhdResults([]);
+      return;
+    }
+    let aborted = false;
+    setEodhdSearching(true);
+    const handle = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/search?q=${encodeURIComponent(searchQuery.trim())}`
+        );
+        const data = await res.json();
+        if (aborted) return;
+        // Filtrar acciones (sólo queremos fondos/ETFs) y los que ya están en
+        // resultados locales (mismo ISIN) para no duplicar.
+        const localIsins = new Set(localSearchResults.map((f) => f.isin));
+        const filtered = (data.results ?? [])
+          .filter((r: EodhdSearchResult) => !r.isStock)
+          .filter((r: EodhdSearchResult) => !r.isin || !localIsins.has(r.isin));
+        setEodhdResults(filtered);
+      } catch {
+        if (!aborted) setEodhdResults([]);
+      } finally {
+        if (!aborted) setEodhdSearching(false);
+      }
+    }, 350);
+    return () => {
+      aborted = true;
+      clearTimeout(handle);
+    };
+  }, [tab, searchQuery, localSearchResults]);
 
   const exampleFunds = useMemo(
     () => EXAMPLE_FUND_IDS.map((id) => getFundById(id)).filter(Boolean) as Fund[],
@@ -123,27 +179,50 @@ export default function EquivalentePage() {
   );
 
   // --- Resultado base (matching de equivalente) ---
+  // Caso A: fondo seleccionado de la BD local (selectedFundId)
+  // Caso B: fondo dinámico encontrado vía EODHD search (dynamicFund)
   const selectedFund = selectedFundId ? getFundById(selectedFundId) : null;
-  const equivalence: EquivalenceResult | null = useMemo(
-    () => (selectedFund ? findEquivalent(selectedFund) : null),
-    [selectedFund]
-  );
+  const equivalence: EquivalenceResult | null = useMemo(() => {
+    if (selectedFund) return findEquivalent(selectedFund);
+    if (dynamicFund && dynamicFund.isin) {
+      return findEquivalentForDynamic({
+        name: dynamicFund.name,
+        isin: dynamicFund.isin,
+        ticker: dynamicFund.symbol,
+        ter: dynamicFund.ter ?? 1.5, // si no se conoce, asumimos 1.5% (típico activo)
+      });
+    }
+    return null;
+  }, [selectedFund, dynamicFund]);
 
   // --- Carga de datos históricos ---
   const fetchHistorical = useCallback(
-    async (activeId: string, indexedId: string, capital: number) => {
+    async (
+      activeRef: { id: string; ticker?: string; isin?: string; isInDb: boolean },
+      indexedId: string,
+      capital: number
+    ) => {
       setHistoricalLoading(true);
       setHistoricalError(null);
       setHistoricalData(null);
       try {
+        const body: Record<string, unknown> = {
+          indexedFundId: indexedId,
+          initialCapital: capital,
+        };
+        if (activeRef.isInDb) {
+          body.activeFundId = activeRef.id;
+        } else {
+          body.activeFund = {
+            id: activeRef.id,
+            ticker: activeRef.ticker,
+            isin: activeRef.isin,
+          };
+        }
         const res = await fetch("/api/equivalente", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            activeFundId: activeId,
-            indexedFundId: indexedId,
-            initialCapital: capital,
-          }),
+          body: JSON.stringify(body),
         });
         const data = await res.json();
         if (!res.ok) {
@@ -172,8 +251,14 @@ export default function EquivalentePage() {
       setHistoricalError(null);
       return;
     }
+    const isInDb = !equivalence.activeFund.id.startsWith("dyn-");
     fetchHistorical(
-      equivalence.activeFund.id,
+      {
+        id: equivalence.activeFund.id,
+        ticker: equivalence.activeFund.ticker,
+        isin: equivalence.activeFund.isin,
+        isInDb,
+      },
       equivalence.recommended.id,
       initialCapital
     );
@@ -359,7 +444,10 @@ export default function EquivalentePage() {
                       key={f.id}
                       fund={f}
                       selected={selectedFundId === f.id}
-                      onClick={() => setSelectedFundId(f.id)}
+                      onClick={() => {
+                        setSelectedFundId(f.id);
+                        setDynamicFund(null);
+                      }}
                     />
                   ))}
                 </div>
@@ -392,7 +480,10 @@ export default function EquivalentePage() {
                         key={f.id}
                         fund={f}
                         selected={selectedFundId === f.id}
-                        onClick={() => setSelectedFundId(f.id)}
+                        onClick={() => {
+                          setSelectedFundId(f.id);
+                          setDynamicFund(null);
+                        }}
                       />
                     ))}
                   </div>
@@ -405,29 +496,79 @@ export default function EquivalentePage() {
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Busca por nombre del fondo, banco o ISIN (ej: 'CaixaBank', 'BBVA Sostenible', 'ES0114768030')"
+                    placeholder="Busca por nombre del fondo, banco o ISIN (ej: 'CaixaBank Global', 'Bestinver Bolsa', 'LU1234567890')"
                     className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm bg-white text-brand-navy placeholder-brand-tertiary focus:outline-none focus:ring-2 focus:ring-brand-navy/30 mb-4"
                   />
                   {searchQuery.length < 2 ? (
                     <p className="text-sm text-brand-tertiary text-center py-6">
-                      Escribe al menos 2 caracteres para buscar
-                    </p>
-                  ) : searchResults.length === 0 ? (
-                    <p className="text-sm text-brand-tertiary text-center py-6">
-                      Sin resultados para &ldquo;{searchQuery}&rdquo;.
-                      <br />
-                      ¿Tu fondo no está en nuestra base? Avísanos y lo añadimos.
+                      Escribe al menos 2 caracteres para buscar. Combinamos
+                      nuestra base curada con EODHD para encontrar cualquier
+                      fondo UCITS europeo o ETF.
                     </p>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {searchResults.map((f) => (
-                        <FundCard
-                          key={f.id}
-                          fund={f}
-                          selected={selectedFundId === f.id}
-                          onClick={() => setSelectedFundId(f.id)}
-                        />
-                      ))}
+                    <div className="space-y-5">
+                      {/* Resultados de la BD local */}
+                      {localSearchResults.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-brand-tertiary uppercase tracking-wider mb-2">
+                            En nuestra base ({localSearchResults.length})
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {localSearchResults.map((f) => (
+                              <FundCard
+                                key={f.id}
+                                fund={f}
+                                selected={selectedFundId === f.id}
+                                onClick={() => {
+                                  setSelectedFundId(f.id);
+                                  setDynamicFund(null);
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Resultados EODHD */}
+                      {eodhdSearching && (
+                        <p className="text-sm text-brand-tertiary text-center py-3">
+                          Buscando en EODHD…
+                        </p>
+                      )}
+                      {!eodhdSearching && eodhdResults.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-brand-tertiary uppercase tracking-wider mb-2">
+                            En EODHD ({eodhdResults.length})
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {eodhdResults.map((r) => (
+                              <EodhdCard
+                                key={`${r.symbol}-${r.isin ?? r.symbol}`}
+                                result={r}
+                                selected={
+                                  dynamicFund?.symbol === r.symbol &&
+                                  dynamicFund?.isin === r.isin
+                                }
+                                onClick={() => {
+                                  setDynamicFund(r);
+                                  setSelectedFundId(null);
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Sin resultados */}
+                      {!eodhdSearching &&
+                        localSearchResults.length === 0 &&
+                        eodhdResults.length === 0 && (
+                          <p className="text-sm text-brand-tertiary text-center py-6">
+                            Sin resultados para &ldquo;{searchQuery}&rdquo;.
+                            <br />
+                            Prueba con el ISIN exacto o un fragmento del nombre.
+                          </p>
+                        )}
                     </div>
                   )}
                 </>
@@ -701,6 +842,53 @@ export default function EquivalentePage() {
                       </div>
                     </div>
                   </section>
+
+                  {/* Aviso de datos antiguos: si los NAVs comunes terminan
+                      hace más de 4 meses, probablemente es porque el fondo
+                      activo no está en EODHD y dependemos del CSV curado, que
+                      no se actualiza al día. */}
+                  {(() => {
+                    const [ey, em] = historicalData.endMonth
+                      .split("-")
+                      .map(Number) as [number, number];
+                    const endDate = new Date(ey, em - 1, 1);
+                    const now = new Date();
+                    const monthsBehind =
+                      (now.getFullYear() - endDate.getFullYear()) * 12 +
+                      (now.getMonth() - endDate.getMonth());
+                    if (monthsBehind < 4) return null;
+                    return (
+                      <section className="mb-8 bg-amber-50 border border-amber-200 rounded-2xl p-5">
+                        <div className="flex items-start gap-3">
+                          <svg
+                            className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 9.25a.875.875 0 100-1.75.875.875 0 000 1.75z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          <div>
+                            <p className="text-sm font-semibold text-amber-900 mb-1">
+                              Datos del fondo activo no llegan a hoy
+                            </p>
+                            <p className="text-sm text-amber-900 leading-relaxed">
+                              El último NAV disponible de{" "}
+                              <strong>{equivalence.activeFund.shortName}</strong>{" "}
+                              es de <strong>{fmtMonth(historicalData.endMonth)}</strong>{" "}
+                              (hace {monthsBehind} meses). Es porque este fondo
+                              no está en EODHD y dependemos de NAVs curados
+                              manualmente; el indexado sí tiene datos hasta
+                              hoy, pero alineamos al periodo común.
+                            </p>
+                          </div>
+                        </div>
+                      </section>
+                    );
+                  })()}
 
                   {/* Periodo corto warning */}
                   {historicalData.years < 5 && (
@@ -1022,6 +1210,53 @@ export default function EquivalentePage() {
 // -----------------------------------------------------------------------------
 // Sub-componentes
 // -----------------------------------------------------------------------------
+
+function EodhdCard({
+  result,
+  selected,
+  onClick,
+}: {
+  result: EodhdSearchResult;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={!result.isin}
+      className={`text-left p-4 rounded-lg border-2 transition-all ${
+        selected
+          ? "border-brand-coral bg-brand-coral/5 shadow-md"
+          : "border-slate-200 bg-white hover:border-brand-navy/30 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+      }`}
+      title={!result.isin ? "Este resultado no tiene ISIN — no se puede analizar" : undefined}
+    >
+      <p
+        className={`text-sm font-semibold mb-1 leading-snug ${
+          selected ? "text-brand-coral" : "text-brand-navy"
+        }`}
+      >
+        {result.shortName}
+      </p>
+      <p className="text-xs text-brand-tertiary leading-tight line-clamp-2 mb-2">
+        {result.name}
+      </p>
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="px-2 py-0.5 bg-slate-100 text-brand-secondary rounded-full font-medium">
+          {result.typeDisplay}
+        </span>
+        {typeof result.ter === "number" ? (
+          <span className="font-bold text-red-600">{result.ter.toFixed(2)}%</span>
+        ) : (
+          <span className="text-[10px] text-brand-tertiary">TER ?</span>
+        )}
+      </div>
+      <p className="text-[10px] text-brand-tertiary mt-1.5 font-mono">
+        {result.isin ?? "Sin ISIN"} · {result.exchange}
+      </p>
+    </button>
+  );
+}
 
 function FundCard({
   fund,

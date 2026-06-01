@@ -2,14 +2,21 @@
 // API ROUTE: /api/equivalente — Comparativa histórica real activo vs indexado
 // =============================================================================
 //
-// Toma el ID de un fondo activo + el ID de su ETF indexado equivalente y
-// devuelve los datos de rentabilidad histórica REAL: CAGR, valor final, serie
-// temporal normalizada al capital inicial. Usa los NAVs mensuales del
-// data-fetcher (EODHD + CSV) sin asumir nada sobre el retorno bruto.
+// Toma referencia al fondo activo + el ETF indexado equivalente y devuelve los
+// datos de rentabilidad histórica REAL: CAGR, valor final, serie temporal.
+//
+// Acepta dos formas de identificar el fondo activo:
+//   1. `activeFundId` — fondo ya presente en nuestra BD local
+//   2. `activeFund: { isin, ticker, id }` — fondo dinámico (encontrado vía
+//      búsqueda EODHD, no en BD)
+// Igual para el indexado: `indexedFundId` o `indexedFund: {...}`.
 // =============================================================================
 
 import { NextRequest, NextResponse } from "next/server";
-import { buildHistoricalComparison } from "@/lib/equivalente-historical";
+import {
+  buildHistoricalComparison,
+  type FundRef,
+} from "@/lib/equivalente-historical";
 import { runWithContext } from "@/lib/request-context";
 
 const TIMEOUT_MS = 45_000;
@@ -17,7 +24,24 @@ const TIMEOUT_MS = 45_000;
 interface RequestBody {
   activeFundId?: string;
   indexedFundId?: string;
+  activeFund?: { id?: string; ticker?: string; isin?: string };
+  indexedFund?: { id?: string; ticker?: string; isin?: string };
   initialCapital?: number;
+}
+
+function resolveRef(
+  id?: string,
+  snapshot?: { id?: string; ticker?: string; isin?: string }
+): FundRef | null {
+  if (id) return { id };
+  if (snapshot && (snapshot.id || snapshot.isin || snapshot.ticker)) {
+    return {
+      id: snapshot.id ?? `dyn-${snapshot.isin ?? snapshot.ticker ?? "x"}`,
+      ticker: snapshot.ticker,
+      isin: snapshot.isin,
+    };
+  }
+  return null;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -33,23 +57,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         );
       }
 
-      const { activeFundId, indexedFundId } = body;
       const initialCapital = Number(body.initialCapital) > 0
         ? Number(body.initialCapital)
         : 100_000;
 
-      if (!activeFundId || !indexedFundId) {
+      const active = resolveRef(body.activeFundId, body.activeFund);
+      const indexed = resolveRef(body.indexedFundId, body.indexedFund);
+
+      if (!active || !indexed) {
         return NextResponse.json(
           {
             error: "Validación fallida",
-            message: "Se requieren activeFundId e indexedFundId.",
+            message:
+              "Se requiere activeFundId (o activeFund con ticker/ISIN) e indexedFundId (o indexedFund).",
           },
           { status: 400 }
         );
       }
 
       const result = await Promise.race([
-        buildHistoricalComparison(activeFundId, indexedFundId, initialCapital),
+        buildHistoricalComparison(active, indexed, initialCapital),
         new Promise<null>((_, reject) =>
           setTimeout(() => reject(new Error("TIMEOUT")), TIMEOUT_MS)
         ),

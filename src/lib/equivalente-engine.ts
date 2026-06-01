@@ -227,6 +227,191 @@ export function getActiveFundsByBank(): Map<string, Fund[]> {
   return m;
 }
 
+// -----------------------------------------------------------------------------
+// Clasificación de fondos por nombre (heurístico) o categoría EODHD
+// -----------------------------------------------------------------------------
+//
+// Para fondos NO presentes en nuestra base local (fondos encontrados vía la
+// búsqueda EODHD), no tenemos un campo `category` curado. Hay que inferirlo
+// de su nombre o de la categoría que EODHD devuelve en /fundamentals.
+//
+// La heurística por nombre es bastante fiable para fondos españoles porque
+// suelen ser muy descriptivos ("Bolsa Internacional", "Bolsa Española", "RF
+// Privada", "Bolsa Tecnológica", …).
+
+/**
+ * Infiere la `FundCategory` desde el nombre del fondo. Devuelve "RV Global"
+ * como default si no se reconoce ningún patrón (los fondos de banca española
+ * sin patrón claro suelen ser carteras mixtas globales).
+ */
+export function inferCategoryFromName(rawName: string): FundCategory {
+  const n = rawName.toLowerCase();
+
+  // Patrones de RV
+  if (
+    /\b(monetar|money\s*market|liqu)/.test(n)
+  )
+    return "RF EUR Gov Corto";
+
+  if (/\b(oro|gold|xau)\b/.test(n)) return "Oro";
+
+  if (
+    /\b(inmobil|real\s*estate|reits?|epra|nareit)\b/.test(n) &&
+    !/bond|fija/.test(n)
+  )
+    return "RV REITs";
+
+  // Renta Fija primero (suele tener palabras más distintivas)
+  if (/\b(renta\s*fija|rf\b|bond|fixed\s*income)/.test(n)) {
+    if (/\b(usd|us\s*treas|us\s*govern|treasury|estadounid)/.test(n)) {
+      return /\b(corp|investment\s*grade|high\s*yield|ig|hy)/.test(n)
+        ? "RF USD Corp"
+        : "RF USD Gov";
+    }
+    if (/\b(corp|privada|investment\s*grade|high\s*yield|ig|hy|crédito|credito)/.test(n))
+      return "RF EUR Corp";
+    if (/\b(inflaci|inflation|linked|indexada\s*inflaci)/.test(n))
+      return "RF Inflation EUR";
+    if (/\b(corto|short|0-3|0\s*-\s*3|1-3|1\s*-\s*3)/.test(n))
+      return "RF EUR Gov Corto";
+    if (/\b(largo|long|10-15|15-30)/.test(n)) return "RF EUR Gov Largo";
+    if (/\b(medio|intermedio|5-7|7-10)/.test(n)) return "RF EUR Gov Medio";
+    if (/\b(gobierno|government|gov|treasury|euro\s*govt|sober)/.test(n))
+      return "RF EUR Gov";
+    if (/\b(flexible|patrim|perfil|mixto|asset\s*alloc|multi)/.test(n))
+      return "RF Flexible";
+    return "RF EUR";
+  }
+
+  // RV España primero (más específico que Europa)
+  if (
+    /\b(españa|spain|iberian|ibex|acciones\s*españolas|bolsa\s*española)/.test(
+      n
+    )
+  )
+    return "RV España";
+
+  if (
+    /\b(emerging|emergent|markets\s*emerg|emerg\s*market|frontier)/.test(n)
+  )
+    return "RV Emergentes";
+
+  if (/\b(jap[oó]n|japan|nikkei|topix)/.test(n)) return "RV Japón";
+
+  if (
+    /\b(ee\.?\s*uu|estadounid|american|nasdaq|s\s*&\s*p\s*500|sp\s*500|norteamer|north\s*america|us\s*equity|u\.s\.|us\s*growth)\b/.test(
+      n
+    )
+  )
+    return "RV EEUU";
+
+  if (
+    /\b(europ|eurozone|stoxx|euro\s*stoxx|euroland|eurozona)/.test(n) &&
+    !/europ\s*emerg/.test(n)
+  )
+    return "RV Europa";
+
+  if (/\b(small\s*cap|peque|smid)/.test(n)) return "RV Small Cap";
+
+  // Sectoriales (tech, salud, energía, utilities, finanzas, consumo, etc.)
+  if (
+    /\b(tecnol|tech|software|inform[aá]tica|nasdaq\s*100|salud|health|farma|biotec|energ|petr[oó]leo|oil|materias\s*primas|materials|industrials|consum|utilities|utilities|financ|banc|bancos|telecom|media|comunicaci|defensiv|c[ií]clico|water|infrastruct|infraestruct|sosten|esg|sri|impact|tem[aá]tico|robotic|ai\b)/.test(
+      n
+    )
+  )
+    return "RV Sectorial";
+
+  // Mixtos / Perfilados
+  if (
+    /\b(perfil|patrim|mixto|asset\s*alloc|multi\s*asset|target\s*date|lifestrategy|flexible)/.test(
+      n
+    )
+  )
+    return "RF Flexible";
+
+  if (
+    /\b(altern|hedge|absolute\s*return|market\s*neutral|long\s*short|comm[oó]dit)/.test(
+      n
+    )
+  )
+    return "Alternativo";
+
+  // Fallback "global" — el caso por defecto para un fondo de RV genérico
+  return "RV Global";
+}
+
+/**
+ * Mapeo de la cadena `CategoryName` que devuelve EODHD `/fundamentals` →
+ * `FundCategory`. EODHD usa la taxonomía Morningstar.
+ */
+export function mapEodhdCategory(eodhdCategory: string): FundCategory {
+  const n = eodhdCategory.toLowerCase();
+  if (n.includes("spain")) return "RV España";
+  if (n.includes("emerging")) return "RV Emergentes";
+  if (n.includes("japan")) return "RV Japón";
+  if (n.includes("small")) return "RV Small Cap";
+  if (n.includes("real estate") || n.includes("reit")) return "RV REITs";
+  if (n.includes("technology") || n.includes("health") || n.includes("energy")
+      || n.includes("financial") || n.includes("consumer") || n.includes("industrial")
+      || n.includes("utilities") || n.includes("materials") || n.includes("communications"))
+    return "RV Sectorial";
+  if (n.includes("gold") || n.includes("precious")) return "Oro";
+  if (n.includes("inflation")) return "RF Inflation EUR";
+  if (n.includes("bond") || n.includes("fixed income")) {
+    if (n.includes("usd") || n.includes("us "))
+      return n.includes("corporate") ? "RF USD Corp" : "RF USD Gov";
+    if (n.includes("corporate") || n.includes("high yield")) return "RF EUR Corp";
+    if (n.includes("short") || n.includes("ultra short")) return "RF EUR Gov Corto";
+    if (n.includes("long")) return "RF EUR Gov Largo";
+    return "RF EUR Gov";
+  }
+  if (n.includes("flexible") || n.includes("allocation") || n.includes("balanced"))
+    return "RF Flexible";
+  if (n.includes("alternative") || n.includes("hedge")) return "Alternativo";
+  if (n.includes("usa") || n.includes("us large") || n.includes("us equity"))
+    return "RV EEUU";
+  if (n.includes("europe")) return "RV Europa";
+  return "RV Global";
+}
+
+/**
+ * Encuentra el equivalente indexado para un fondo dinámico (no en BD).
+ * Sólo necesitamos su TER y categoría inferida.
+ */
+export function findEquivalentForDynamic(args: {
+  name: string;
+  isin: string;
+  ticker?: string;
+  ter: number;
+  category?: FundCategory;
+}): EquivalenceResult | null {
+  const category = args.category ?? inferCategoryFromName(args.name);
+  const recommendedId = RECOMMENDED_BY_CATEGORY[category];
+  if (!recommendedId) return null;
+  const recommended = getFundById(recommendedId);
+  if (!recommended) return null;
+  const activeFund: Fund = {
+    id: `dyn-${args.isin}`,
+    name: args.name,
+    shortName: args.name.length > 50 ? args.name.substring(0, 47) + "..." : args.name,
+    isin: args.isin,
+    ticker: args.ticker,
+    ter: args.ter,
+    category,
+    type: "active",
+    currency: "EUR",
+  };
+  const terSaving = args.ter > 0
+    ? ((args.ter - recommended.ter) / args.ter) * 100
+    : 0;
+  return {
+    activeFund,
+    recommended,
+    note: FUZZY_NOTES[category],
+    terSavingPercentage: terSaving,
+  };
+}
+
 /**
  * Busca fondos activos por texto libre (nombre o ISIN). Case-insensitive.
  */

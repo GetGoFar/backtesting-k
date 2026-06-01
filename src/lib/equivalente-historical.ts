@@ -14,6 +14,17 @@
 
 import { getMonthlyPrices } from "./data-fetcher";
 
+/**
+ * Especifica un fondo para la comparativa. Acepta:
+ *   - fondos de la BD local (sólo `id` necesario; data-fetcher resuelve)
+ *   - fondos dinámicos encontrados vía EODHD search (necesita ticker/ISIN)
+ */
+export interface FundRef {
+  id: string;
+  ticker?: string;
+  isin?: string;
+}
+
 export interface HistoricalPoint {
   date: string;            // YYYY-MM
   activeValue: number;     // EUR (normalizado al capital inicial al inicio)
@@ -48,20 +59,24 @@ export interface HistoricalComparison {
 /**
  * Calcula la comparativa histórica real entre dos fondos a partir de sus NAVs.
  *
- * @param activeFundId    ID del fondo de gestión activa
- * @param indexedFundId   ID del ETF indexado equivalente
+ * Acepta tanto fondos de la BD local (sólo necesita ID) como fondos dinámicos
+ * encontrados vía EODHD search (necesita ticker/ISIN explícitos para que el
+ * data-fetcher sepa cómo localizarlos).
+ *
+ * @param active          Fondo activo a comparar (ID + ticker/ISIN si es dinámico)
+ * @param indexed         ETF indexado equivalente
  * @param initialCapital  Capital inicial a normalizar (default 100 EUR para
  *                        respuesta porcentual; pasa 100000 para EUR reales)
  */
 export async function buildHistoricalComparison(
-  activeFundId: string,
-  indexedFundId: string,
+  active: FundRef,
+  indexed: FundRef,
   initialCapital: number = 100
 ): Promise<HistoricalComparison | null> {
   // Cargar NAVs mensuales de ambos fondos en paralelo
   const [activeRes, indexedRes] = await Promise.all([
-    getMonthlyPrices(activeFundId).catch(() => null),
-    getMonthlyPrices(indexedFundId).catch(() => null),
+    getMonthlyPrices(active.id, active.ticker, active.isin).catch(() => null),
+    getMonthlyPrices(indexed.id, indexed.ticker, indexed.isin).catch(() => null),
   ]);
 
   if (!activeRes || !indexedRes) return null;
