@@ -6,15 +6,19 @@
 //
 // Feature estrella educativa: el usuario elige su fondo bancario y ve en un
 // instante (a) el ETF indexado de bajo coste que lo sustituye y (b) cuánto
-// ahorraría en comisiones a 10/20 años de inversión.
+// dinero ha perdido en comisiones con él.
 //
-// Tres formas de seleccionar el fondo activo:
-//   - "Ejemplos populares" (los más comunes en banca española)
-//   - "Por banco" (despliegue por entidad bancaria)
-//   - "Búsqueda libre" (por nombre o ISIN)
+// DOS MODOS:
+//   1. "Histórico real" (por defecto): usa NAVs históricos de ambos fondos y
+//      muestra el ahorro REAL que se habría conseguido en el periodo común.
+//      Las cifras son hechos, no proyecciones — esto es lo que ocurrió.
+//
+//   2. "Simulación TER": asume misma rentabilidad bruta en ambos y proyecta a
+//      futuro descontando sólo el TER. Útil para escenarios largos (40 años)
+//      donde no hay histórico, o para ver "lo mínimo que ahorrarías".
 // =============================================================================
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   ResponsiveContainer,
@@ -38,6 +42,7 @@ import {
 } from "@/lib/equivalente-engine";
 import { getFundById } from "@/lib/fund-database";
 import type { Fund } from "@/lib/types";
+import type { HistoricalComparison } from "@/lib/equivalente-historical";
 
 // -----------------------------------------------------------------------------
 // Formateadores
@@ -59,18 +64,28 @@ const fmtEURSign = (n: number) =>
   }).format(n);
 
 const fmtPct = (n: number) => `${n.toFixed(2)}%`;
+const fmtPctSign = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
+
+const fmtMonth = (m: string) => {
+  // YYYY-MM → "mar 2014"
+  const [year, month] = m.split("-").map(Number) as [number, number];
+  const d = new Date(year, month - 1, 1);
+  return d.toLocaleDateString("es-ES", { month: "short", year: "numeric" });
+};
 
 // -----------------------------------------------------------------------------
 // Página
 // -----------------------------------------------------------------------------
 
 type Tab = "ejemplos" | "banco" | "search";
+type Mode = "historical" | "simulation";
 
 export default function EquivalentePage() {
   const [tab, setTab] = useState<Tab>("ejemplos");
   const [selectedFundId, setSelectedFundId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBank, setSelectedBank] = useState<string>("");
+  const [mode, setMode] = useState<Mode>("historical");
 
   // Configuración de la simulación
   const [initialCapital, setInitialCapital] = useState(100_000);
@@ -78,13 +93,18 @@ export default function EquivalentePage() {
   const [grossReturn, setGrossReturn] = useState(7);
   const [monthlyContribution, setMonthlyContribution] = useState(0);
 
+  // Datos históricos (modo histórico real)
+  const [historicalData, setHistoricalData] =
+    useState<HistoricalComparison | null>(null);
+  const [historicalLoading, setHistoricalLoading] = useState(false);
+  const [historicalError, setHistoricalError] = useState<string | null>(null);
+
   // --- Datos para los pickers ---
   const fundsByBank = useMemo(() => getActiveFundsByBank(), []);
   const banks = useMemo(
     () => Array.from(fundsByBank.keys()).sort(),
     [fundsByBank]
   );
-  // Por defecto, seleccionar el primer banco si entras en la pestaña sin selección
   useEffect(() => {
     if (tab === "banco" && !selectedBank && banks.length > 0) {
       const first = banks[0];
@@ -102,14 +122,66 @@ export default function EquivalentePage() {
     []
   );
 
-  // --- Resultado ---
+  // --- Resultado base (matching de equivalente) ---
   const selectedFund = selectedFundId ? getFundById(selectedFundId) : null;
   const equivalence: EquivalenceResult | null = useMemo(
     () => (selectedFund ? findEquivalent(selectedFund) : null),
     [selectedFund]
   );
+
+  // --- Carga de datos históricos ---
+  const fetchHistorical = useCallback(
+    async (activeId: string, indexedId: string, capital: number) => {
+      setHistoricalLoading(true);
+      setHistoricalError(null);
+      setHistoricalData(null);
+      try {
+        const res = await fetch("/api/equivalente", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            activeFundId: activeId,
+            indexedFundId: indexedId,
+            initialCapital: capital,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setHistoricalError(
+            data.message ?? "No se pudo cargar el histórico de este fondo."
+          );
+        } else {
+          setHistoricalData(data as HistoricalComparison);
+        }
+      } catch (err) {
+        setHistoricalError(
+          err instanceof Error ? err.message : "Error de red"
+        );
+      } finally {
+        setHistoricalLoading(false);
+      }
+    },
+    []
+  );
+
+  // Disparar carga histórica al cambiar fondo o capital (modo histórico)
+  useEffect(() => {
+    if (mode !== "historical") return;
+    if (!equivalence) {
+      setHistoricalData(null);
+      setHistoricalError(null);
+      return;
+    }
+    fetchHistorical(
+      equivalence.activeFund.id,
+      equivalence.recommended.id,
+      initialCapital
+    );
+  }, [mode, equivalence, initialCapital, fetchHistorical]);
+
+  // --- Simulación TER (modo simulación) ---
   const savings: SavingsResult | null = useMemo(() => {
-    if (!equivalence) return null;
+    if (!equivalence || mode !== "simulation") return null;
     return projectSavings({
       initialCapital,
       monthlyContribution,
@@ -118,26 +190,36 @@ export default function EquivalentePage() {
       activeTer: equivalence.activeFund.ter,
       indexedTer: equivalence.recommended.ter,
     });
-  }, [equivalence, initialCapital, monthlyContribution, years, grossReturn]);
+  }, [
+    equivalence,
+    mode,
+    initialCapital,
+    monthlyContribution,
+    years,
+    grossReturn,
+  ]);
 
-  // --- Chart data: incluye año 0 (capital inicial) para arrancar la curva
-  const chartData = useMemo(() => {
+  // --- Chart data ---
+  const simulationChartData = useMemo(() => {
     if (!savings) return [];
-    const first = [
-      {
-        year: 0,
-        activo: initialCapital,
-        indexado: initialCapital,
-      },
-    ];
-    return first.concat(
-      savings.yearly.map((y) => ({
+    return [
+      { year: 0, activo: initialCapital, indexado: initialCapital },
+      ...savings.yearly.map((y) => ({
         year: y.year,
         activo: Math.round(y.activeValue),
         indexado: Math.round(y.indexedValue),
-      }))
-    );
+      })),
+    ];
   }, [savings, initialCapital]);
+
+  const historicalChartData = useMemo(() => {
+    if (!historicalData) return [];
+    return historicalData.timeSeries.map((p) => ({
+      date: p.date,
+      activo: Math.round(p.activeValue),
+      indexado: Math.round(p.indexedValue),
+    }));
+  }, [historicalData]);
 
   return (
     <AccessGate>
@@ -223,11 +305,15 @@ export default function EquivalentePage() {
             </h2>
             <p className="text-base sm:text-lg text-brand-secondary leading-relaxed">
               Elige tu fondo activo y te decimos el ETF indexado de bajo coste
-              que mejor lo sustituye. Verás en segundos{" "}
+              que mejor lo sustituye. Comparamos con{" "}
               <strong className="text-brand-navy">
-                cuánto te están costando las comisiones
+                rentabilidad histórica real
               </strong>{" "}
-              y cuánto patrimonio extra podrías tener al jubilarte.
+              de los dos fondos — no con simulaciones — para que veas{" "}
+              <strong className="text-brand-navy">
+                cuánto ha costado realmente
+              </strong>{" "}
+              estar en gestión activa.
             </p>
           </div>
 
@@ -266,7 +352,6 @@ export default function EquivalentePage() {
                 ))}
               </div>
 
-              {/* Tab: Ejemplos */}
               {tab === "ejemplos" && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {exampleFunds.map((f) => (
@@ -280,7 +365,6 @@ export default function EquivalentePage() {
                 </div>
               )}
 
-              {/* Tab: Por banco */}
               {tab === "banco" && (
                 <>
                   <div className="mb-4 flex items-center gap-2 flex-wrap">
@@ -315,7 +399,6 @@ export default function EquivalentePage() {
                 </>
               )}
 
-              {/* Tab: Búsqueda */}
               {tab === "search" && (
                 <>
                   <input
@@ -352,14 +435,371 @@ export default function EquivalentePage() {
             </div>
           </section>
 
-          {/* -------------------- Resultados -------------------- */}
-          {equivalence && savings && (
+          {/* -------------------- Selector de modo (sólo cuando hay fondo) -------------------- */}
+          {equivalence && (
+            <section className="mb-6 flex items-center gap-3 flex-wrap">
+              <span className="text-xs font-semibold text-brand-tertiary uppercase tracking-wider">
+                Vista:
+              </span>
+              <div className="inline-flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1 shadow-sm">
+                <button
+                  onClick={() => setMode("historical")}
+                  className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                    mode === "historical"
+                      ? "bg-brand-navy text-white shadow-sm"
+                      : "text-brand-secondary hover:text-brand-navy"
+                  }`}
+                >
+                  📊 Histórico real
+                </button>
+                <button
+                  onClick={() => setMode("simulation")}
+                  className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                    mode === "simulation"
+                      ? "bg-brand-navy text-white shadow-sm"
+                      : "text-brand-secondary hover:text-brand-navy"
+                  }`}
+                >
+                  🔮 Simulación TER
+                </button>
+              </div>
+              <p className="text-xs text-brand-tertiary">
+                {mode === "historical"
+                  ? "Rentabilidad REAL de ambos fondos en el periodo disponible"
+                  : "Proyección asumiendo misma rentabilidad bruta + descuento TER"}
+              </p>
+            </section>
+          )}
+
+          {/* ============================================================== */}
+          {/* MODO HISTÓRICO REAL                                            */}
+          {/* ============================================================== */}
+          {equivalence && mode === "historical" && (
+            <>
+              {historicalLoading && (
+                <section className="mb-8 bg-white rounded-2xl border border-slate-100 shadow-sm p-10 text-center">
+                  <div className="inline-flex items-center gap-3 text-brand-secondary">
+                    <svg
+                      className="animate-spin h-5 w-5 text-brand-navy"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
+                    </svg>
+                    Cargando NAVs históricos…
+                  </div>
+                </section>
+              )}
+
+              {historicalError && (
+                <section className="mb-8 bg-red-50 border border-red-200 rounded-2xl p-5">
+                  <div className="flex items-start gap-3">
+                    <svg
+                      className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    <div>
+                      <p className="text-sm font-semibold text-red-900 mb-1">
+                        No se pudo cargar el histórico
+                      </p>
+                      <p className="text-sm text-red-900 leading-relaxed">
+                        {historicalError}
+                      </p>
+                      <button
+                        onClick={() => setMode("simulation")}
+                        className="mt-3 text-sm font-semibold text-red-700 underline hover:text-red-900"
+                      >
+                        Ver la simulación TER en su lugar →
+                      </button>
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              {historicalData && (
+                <>
+                  {/* Banner del ahorro real */}
+                  <section className="mb-8 rounded-2xl bg-gradient-to-br from-emerald-50 via-white to-blue-50 border-2 border-emerald-200 shadow-sm overflow-hidden">
+                    <div className="px-6 sm:px-10 py-8 text-center">
+                      <p className="text-sm font-semibold uppercase tracking-wider text-emerald-700 mb-2">
+                        Patrimonio extra que habrías tenido
+                      </p>
+                      <p className="text-5xl sm:text-6xl font-bold text-emerald-700 mb-3 font-serif">
+                        {fmtEURSign(historicalData.realSavings)}
+                      </p>
+                      <p className="text-base sm:text-lg text-brand-secondary max-w-2xl mx-auto leading-relaxed">
+                        Si hubieras invertido{" "}
+                        <strong>{fmtEUR(initialCapital)}</strong> en{" "}
+                        <strong>{fmtMonth(historicalData.startMonth)}</strong>{" "}
+                        en el ETF indexado{" "}
+                        <strong>{equivalence.recommended.shortName}</strong> en
+                        vez de en{" "}
+                        <strong>{equivalence.activeFund.shortName}</strong>,
+                        hoy ({fmtMonth(historicalData.endMonth)}) tendrías
+                        esto de más.
+                      </p>
+                      <div className="grid grid-cols-2 gap-6 mt-6 max-w-xl mx-auto pt-4 border-t border-emerald-200/60">
+                        <div>
+                          <p className="text-xs uppercase tracking-wider text-brand-tertiary">
+                            Rentabilidad anual real
+                          </p>
+                          <p className="text-lg font-bold text-red-700">
+                            Activo:{" "}
+                            {fmtPctSign(historicalData.activeCagr)}
+                          </p>
+                          <p className="text-lg font-bold text-blue-700">
+                            Indexado:{" "}
+                            {fmtPctSign(historicalData.indexedCagr)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-wider text-brand-tertiary">
+                            Periodo cubierto
+                          </p>
+                          <p className="text-lg font-bold text-brand-navy">
+                            {historicalData.years.toFixed(1)} años
+                          </p>
+                          <p className="text-xs text-brand-tertiary">
+                            {fmtMonth(historicalData.startMonth)} →{" "}
+                            {fmtMonth(historicalData.endMonth)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* Configuración mínima — sólo capital */}
+                  <section className="mb-8 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div className="bg-brand-navy px-6 py-4">
+                      <h3 className="text-white font-semibold font-serif text-lg">
+                        2. Capital inicial
+                      </h3>
+                      <p className="text-xs text-white/70 mt-0.5">
+                        Cambia el importe para ver el ahorro real con tu cantidad
+                      </p>
+                    </div>
+                    <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
+                      <ConfigField
+                        label="Capital invertido"
+                        suffix="€"
+                        value={initialCapital}
+                        onChange={setInitialCapital}
+                        min={0}
+                        step={1000}
+                      />
+                    </div>
+                  </section>
+
+                  {/* Comparativa side-by-side */}
+                  <section className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <HistoricalCard
+                      variant="active"
+                      fund={equivalence.activeFund}
+                      cagr={historicalData.activeCagr}
+                      totalReturn={historicalData.activeTotalReturn}
+                      finalValue={historicalData.finalActive}
+                      initialCapital={initialCapital}
+                    />
+                    <HistoricalCard
+                      variant="indexed"
+                      fund={equivalence.recommended}
+                      cagr={historicalData.indexedCagr}
+                      totalReturn={historicalData.indexedTotalReturn}
+                      finalValue={historicalData.finalIndexed}
+                      initialCapital={initialCapital}
+                    />
+                  </section>
+
+                  {/* Gráfico de evolución real */}
+                  <section className="mb-8 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div className="bg-brand-navy px-6 py-4">
+                      <h3 className="text-white font-semibold font-serif text-lg">
+                        3. Evolución histórica real
+                      </h3>
+                      <p className="text-xs text-white/70 mt-0.5">
+                        Curvas reales de NAV de ambos fondos, normalizadas al
+                        mismo punto de partida
+                      </p>
+                    </div>
+                    <div className="p-6">
+                      <div className="h-80 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart
+                            data={historicalChartData}
+                            margin={{
+                              top: 10,
+                              right: 20,
+                              bottom: 10,
+                              left: 10,
+                            }}
+                          >
+                            <CartesianGrid
+                              stroke="#e2e8f0"
+                              strokeDasharray="3 3"
+                            />
+                            <XAxis
+                              dataKey="date"
+                              tick={{ fill: "#475569", fontSize: 11 }}
+                              tickFormatter={(d) => {
+                                // Mostrar sólo el año cada cierto intervalo
+                                const [y] = (d as string).split("-");
+                                return y ?? d;
+                              }}
+                              minTickGap={40}
+                            />
+                            <YAxis
+                              tick={{ fill: "#475569", fontSize: 12 }}
+                              tickFormatter={(v) =>
+                                new Intl.NumberFormat("es-ES", {
+                                  notation: "compact",
+                                  maximumFractionDigits: 1,
+                                }).format(v) + "€"
+                              }
+                            />
+                            <Tooltip
+                              formatter={(value: number) => fmtEUR(value)}
+                              labelFormatter={(d) => fmtMonth(d as string)}
+                            />
+                            <Legend />
+                            <Line
+                              type="monotone"
+                              dataKey="indexado"
+                              stroke="#1d4ed8"
+                              strokeWidth={3}
+                              dot={false}
+                              name={`Indexado · ${equivalence.recommended.shortName}`}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="activo"
+                              stroke="#e11d48"
+                              strokeWidth={3}
+                              dot={false}
+                              name={`Activo · ${equivalence.activeFund.shortName}`}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* Periodo corto warning */}
+                  {historicalData.years < 5 && (
+                    <section className="mb-8 bg-amber-50 border border-amber-200 rounded-2xl p-5">
+                      <div className="flex items-start gap-3">
+                        <svg
+                          className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 9.25a.875.875 0 100-1.75.875.875 0 000 1.75z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        <div>
+                          <p className="text-sm font-semibold text-amber-900 mb-1">
+                            Periodo corto
+                          </p>
+                          <p className="text-sm text-amber-900 leading-relaxed">
+                            Sólo hay {historicalData.years.toFixed(1)} años de
+                            datos comunes entre ambos fondos. La diferencia
+                            puede no ser representativa a largo plazo —
+                            considera también la vista de Simulación TER.
+                          </p>
+                        </div>
+                      </div>
+                    </section>
+                  )}
+
+                  {/* Nota si hay match aproximado */}
+                  {equivalence.note && (
+                    <section className="mb-8 bg-amber-50 border border-amber-200 rounded-2xl p-5">
+                      <div className="flex items-start gap-3">
+                        <svg
+                          className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 9.25a.875.875 0 100-1.75.875.875 0 000 1.75z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        <div>
+                          <p className="text-sm font-semibold text-amber-900 mb-1">
+                            Match aproximado
+                          </p>
+                          <p className="text-sm text-amber-900 leading-relaxed">
+                            {equivalence.note}
+                          </p>
+                        </div>
+                      </div>
+                    </section>
+                  )}
+
+                  {/* Supuestos histórico */}
+                  <section className="mb-12 text-xs text-brand-tertiary bg-slate-50 border border-slate-200 rounded-xl p-5">
+                    <p className="font-semibold text-brand-secondary mb-2">
+                      ¿Cómo se calcula?
+                    </p>
+                    <ul className="space-y-1 list-disc pl-5">
+                      <li>
+                        NAVs mensuales reales de ambos fondos en el periodo
+                        común disponible (
+                        {fmtMonth(historicalData.startMonth)} →{" "}
+                        {fmtMonth(historicalData.endMonth)}).
+                      </li>
+                      <li>
+                        La rentabilidad ya tiene descontadas las comisiones del
+                        fondo (TER) — son los datos que viste como cliente.
+                      </li>
+                      <li>
+                        Cifras nominales. No incluye fiscalidad de plusvalías ni
+                        comisiones de compra/venta del bróker.
+                      </li>
+                      <li>
+                        Rentabilidad pasada no garantiza resultados futuros,
+                        pero esta diferencia es lo que de hecho ocurrió.
+                      </li>
+                    </ul>
+                  </section>
+                </>
+              )}
+            </>
+          )}
+
+          {/* ============================================================== */}
+          {/* MODO SIMULACIÓN TER                                            */}
+          {/* ============================================================== */}
+          {equivalence && mode === "simulation" && savings && (
             <>
               {/* Banner del ahorro */}
               <section className="mb-8 rounded-2xl bg-gradient-to-br from-emerald-50 via-white to-blue-50 border-2 border-emerald-200 shadow-sm overflow-hidden">
                 <div className="px-6 sm:px-10 py-8 text-center">
                   <p className="text-sm font-semibold uppercase tracking-wider text-emerald-700 mb-2">
-                    Patrimonio extra al final del plazo
+                    Patrimonio extra proyectado al final del plazo
                   </p>
                   <p className="text-5xl sm:text-6xl font-bold text-emerald-700 mb-3 font-serif">
                     {fmtEURSign(savings.savings)}
@@ -376,8 +816,8 @@ export default function EquivalentePage() {
                     Ahorro en comisiones acumuladas:{" "}
                     <strong className="text-brand-navy">
                       {fmtEUR(savings.feesAvoided)}
-                    </strong>
-                    {" "}· Reducción de la comisión:{" "}
+                    </strong>{" "}
+                    · Reducción de la comisión:{" "}
                     <strong className="text-brand-navy">
                       −{equivalence.terSavingPercentage.toFixed(0)}%
                     </strong>
@@ -451,7 +891,7 @@ export default function EquivalentePage() {
                 />
               </section>
 
-              {/* Gráfico de evolución */}
+              {/* Gráfico simulación */}
               <section className="mb-8 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                 <div className="bg-brand-navy px-6 py-4">
                   <h3 className="text-white font-semibold font-serif text-lg">
@@ -466,7 +906,7 @@ export default function EquivalentePage() {
                   <div className="h-80 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart
-                        data={chartData}
+                        data={simulationChartData}
                         margin={{ top: 10, right: 20, bottom: 10, left: 10 }}
                       >
                         <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
@@ -543,7 +983,7 @@ export default function EquivalentePage() {
                 </section>
               )}
 
-              {/* Supuestos */}
+              {/* Supuestos simulación */}
               <section className="mb-12 text-xs text-brand-tertiary bg-slate-50 border border-slate-200 rounded-xl p-5">
                 <p className="font-semibold text-brand-secondary mb-2">
                   ¿Cómo se calcula?
@@ -557,7 +997,8 @@ export default function EquivalentePage() {
                   <li>
                     Comisión descontada mensualmente como{" "}
                     <code className="bg-white px-1 rounded">TER ÷ 12</code>{" "}
-                    sobre el valor del fondo (igual que el motor de backtesting).
+                    sobre el valor del fondo (igual que el motor de
+                    backtesting).
                   </li>
                   <li>
                     Cifras nominales, sin descuento de inflación ni impuestos.
@@ -565,7 +1006,8 @@ export default function EquivalentePage() {
                   <li>
                     En la realidad, los fondos activos suelen rendir{" "}
                     <em>también</em> peor en bruto que el índice — el ahorro
-                    real suele ser mayor que el simulado.
+                    real suele ser mayor que el simulado. Cambia a la vista
+                    Histórico real para ver los datos sin asunción.
                   </li>
                 </ul>
               </section>
@@ -689,7 +1131,9 @@ function ComparisonCard({
   const labelTxt = isActive ? "TU FONDO ACTIVO" : "EQUIVALENTE INDEXADO";
 
   return (
-    <div className={`rounded-2xl border-2 ${accentBorder} bg-white overflow-hidden shadow-sm`}>
+    <div
+      className={`rounded-2xl border-2 ${accentBorder} bg-white overflow-hidden shadow-sm`}
+    >
       <div className={`${accentHeader} px-5 py-3`}>
         <p className="text-xs font-bold uppercase tracking-widest text-white/80">
           {labelTxt}
@@ -722,14 +1166,88 @@ function ComparisonCard({
             value={fmtEUR(totalFees)}
             accent={accent}
           />
-          <Stat
-            label="Patrimonio final"
-            value={fmtEUR(finalValue)}
-          />
+          <Stat label="Patrimonio final" value={fmtEUR(finalValue)} />
           <Stat
             label="Total aportado"
             value={fmtEUR(totalContributed)}
             muted
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HistoricalCard({
+  variant,
+  fund,
+  cagr,
+  totalReturn,
+  finalValue,
+  initialCapital,
+}: {
+  variant: "active" | "indexed";
+  fund: Fund;
+  cagr: number;
+  totalReturn: number;
+  finalValue: number;
+  initialCapital: number;
+}) {
+  const isActive = variant === "active";
+  const accent = isActive ? "red" : "blue";
+  const accentBorder = isActive ? "border-red-300" : "border-blue-300";
+  const accentBg = isActive ? "bg-red-50" : "bg-blue-50";
+  const accentText = isActive ? "text-red-700" : "text-blue-700";
+  const accentHeader = isActive ? "bg-red-600" : "bg-blue-600";
+  const labelTxt = isActive ? "TU FONDO ACTIVO" : "EQUIVALENTE INDEXADO";
+  const profit = finalValue - initialCapital;
+
+  return (
+    <div
+      className={`rounded-2xl border-2 ${accentBorder} bg-white overflow-hidden shadow-sm`}
+    >
+      <div className={`${accentHeader} px-5 py-3`}>
+        <p className="text-xs font-bold uppercase tracking-widest text-white/80">
+          {labelTxt}
+        </p>
+        <p className="text-white font-semibold text-base leading-snug mt-0.5">
+          {fund.shortName}
+        </p>
+      </div>
+      <div className="p-5 space-y-4">
+        <div>
+          <p className="text-xs text-brand-tertiary leading-tight mb-1">
+            {fund.name}
+          </p>
+          <div className="flex items-center gap-3 text-xs flex-wrap">
+            <span className="font-mono text-brand-secondary">
+              ISIN: {fund.isin}
+            </span>
+            {fund.bank && (
+              <span className="text-brand-secondary">· {fund.bank}</span>
+            )}
+            <span className={`font-bold ${accentText}`}>
+              · TER {fmtPct(fund.ter)}
+            </span>
+          </div>
+        </div>
+
+        <div className={`${accentBg} rounded-lg p-4 space-y-3`}>
+          <Stat
+            label="Rentabilidad anual (CAGR)"
+            value={fmtPctSign(cagr)}
+            accent={accent}
+          />
+          <Stat
+            label="Rentabilidad total"
+            value={fmtPctSign(totalReturn)}
+            accent={accent}
+          />
+          <Stat label="Patrimonio final" value={fmtEUR(finalValue)} />
+          <Stat
+            label="Ganancia neta"
+            value={fmtEURSign(profit)}
+            muted={profit < 0}
           />
         </div>
       </div>
@@ -750,7 +1268,11 @@ function Stat({
 }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className={`text-xs ${muted ? "text-brand-tertiary" : "text-brand-secondary"}`}>
+      <span
+        className={`text-xs ${
+          muted ? "text-brand-tertiary" : "text-brand-secondary"
+        }`}
+      >
         {label}
       </span>
       <span
