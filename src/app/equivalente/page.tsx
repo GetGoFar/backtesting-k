@@ -36,7 +36,6 @@ import {
   findEquivalentForDynamic,
   projectSavings,
   getActiveFundsByBank,
-  searchActiveFunds,
   EXAMPLE_FUND_IDS,
   type EquivalenceResult,
   type SavingsResult,
@@ -96,7 +95,9 @@ type Tab = "ejemplos" | "banco" | "search";
 type Mode = "historical" | "simulation";
 
 export default function EquivalentePage() {
-  const [tab, setTab] = useState<Tab>("ejemplos");
+  // Tab por defecto = "Búsqueda" porque es la más potente (BD local + EODHD).
+  // Populares y Por banco son atajos para quien no quiere escribir.
+  const [tab, setTab] = useState<Tab>("search");
   const [selectedFundId, setSelectedFundId] = useState<string | null>(null);
   // Fondo dinámico encontrado vía EODHD (no en BD local)
   const [dynamicFund, setDynamicFund] = useState<EodhdSearchResult | null>(null);
@@ -116,9 +117,10 @@ export default function EquivalentePage() {
   const [historicalLoading, setHistoricalLoading] = useState(false);
   const [historicalError, setHistoricalError] = useState<string | null>(null);
 
-  // Resultados de búsqueda EODHD (pestaña Búsqueda)
+  // Resultados de búsqueda híbrida (BD local /api/funds + EODHD /api/search)
+  const [localSearchResults, setLocalSearchResults] = useState<Fund[]>([]);
   const [eodhdResults, setEodhdResults] = useState<EodhdSearchResult[]>([]);
-  const [eodhdSearching, setEodhdSearching] = useState(false);
+  const [searching, setSearching] = useState(false);
 
   // --- Datos para los pickers ---
   const fundsByBank = useMemo(() => getActiveFundsByBank(), []);
@@ -133,45 +135,48 @@ export default function EquivalentePage() {
     }
   }, [tab, selectedBank, banks]);
 
-  // Búsqueda LOCAL (BD curada) — instantánea
-  const localSearchResults = useMemo(
-    () => (searchQuery.length >= 2 ? searchActiveFunds(searchQuery, 8) : []),
-    [searchQuery]
-  );
-
-  // Búsqueda EODHD — debounce 350ms para no saturar
+  // Búsqueda híbrida con debounce 250ms — paralela contra:
+  //   - /api/funds?search=... (BD local, mismo endpoint que el backtest)
+  //   - /api/search?q=...     (EODHD, mismo endpoint que el backtest)
+  // Así garantizamos paridad exacta de resultados con la pestaña Backtest.
   useEffect(() => {
     if (tab !== "search" || searchQuery.trim().length < 2) {
+      setLocalSearchResults([]);
       setEodhdResults([]);
+      setSearching(false);
       return;
     }
     let aborted = false;
-    setEodhdSearching(true);
+    setSearching(true);
+    const q = encodeURIComponent(searchQuery.trim());
     const handle = setTimeout(async () => {
       try {
-        const res = await fetch(
-          `/api/search?q=${encodeURIComponent(searchQuery.trim())}`
-        );
-        const data = await res.json();
+        const [localRes, eodhdRes] = await Promise.all([
+          fetch(`/api/funds?search=${q}&type=active`).then((r) => r.json()).catch(() => ({ funds: [] })),
+          fetch(`/api/search?q=${q}`).then((r) => r.json()).catch(() => ({ results: [] })),
+        ]);
         if (aborted) return;
-        // Filtrar acciones (sólo queremos fondos/ETFs) y los que ya están en
-        // resultados locales (mismo ISIN) para no duplicar.
-        const localIsins = new Set(localSearchResults.map((f) => f.isin));
-        const filtered = (data.results ?? [])
-          .filter((r: EodhdSearchResult) => !r.isStock)
-          .filter((r: EodhdSearchResult) => !r.isin || !localIsins.has(r.isin));
-        setEodhdResults(filtered);
+        const locals = ((localRes.funds ?? []) as Fund[]).slice(0, 20);
+        setLocalSearchResults(locals);
+        const localIsins = new Set(locals.map((f) => f.isin));
+        const eodhd = ((eodhdRes.results ?? []) as EodhdSearchResult[])
+          .filter((r) => !r.isStock)
+          .filter((r) => !r.isin || !localIsins.has(r.isin));
+        setEodhdResults(eodhd);
       } catch {
-        if (!aborted) setEodhdResults([]);
+        if (!aborted) {
+          setLocalSearchResults([]);
+          setEodhdResults([]);
+        }
       } finally {
-        if (!aborted) setEodhdSearching(false);
+        if (!aborted) setSearching(false);
       }
-    }, 350);
+    }, 250);
     return () => {
       aborted = true;
       clearTimeout(handle);
     };
-  }, [tab, searchQuery, localSearchResults]);
+  }, [tab, searchQuery]);
 
   const exampleFunds = useMemo(
     () => EXAMPLE_FUND_IDS.map((id) => getFundById(id)).filter(Boolean) as Fund[],
@@ -503,10 +508,17 @@ export default function EquivalentePage() {
                     <p className="text-sm text-brand-tertiary text-center py-6">
                       Escribe al menos 2 caracteres para buscar. Combinamos
                       nuestra base curada con EODHD para encontrar cualquier
-                      fondo UCITS europeo o ETF.
+                      fondo UCITS europeo o ETF — funciona igual que el
+                      buscador del backtest.
                     </p>
                   ) : (
                     <div className="space-y-5">
+                      {searching && (
+                        <p className="text-sm text-brand-tertiary text-center py-3">
+                          Buscando…
+                        </p>
+                      )}
+
                       {/* Resultados de la BD local */}
                       {localSearchResults.length > 0 && (
                         <div>
@@ -530,12 +542,7 @@ export default function EquivalentePage() {
                       )}
 
                       {/* Resultados EODHD */}
-                      {eodhdSearching && (
-                        <p className="text-sm text-brand-tertiary text-center py-3">
-                          Buscando en EODHD…
-                        </p>
-                      )}
-                      {!eodhdSearching && eodhdResults.length > 0 && (
+                      {eodhdResults.length > 0 && (
                         <div>
                           <p className="text-xs font-semibold text-brand-tertiary uppercase tracking-wider mb-2">
                             En EODHD ({eodhdResults.length})
@@ -560,7 +567,7 @@ export default function EquivalentePage() {
                       )}
 
                       {/* Sin resultados */}
-                      {!eodhdSearching &&
+                      {!searching &&
                         localSearchResults.length === 0 &&
                         eodhdResults.length === 0 && (
                           <p className="text-sm text-brand-tertiary text-center py-6">
