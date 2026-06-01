@@ -1413,6 +1413,63 @@ const BBVA_ACUMULACION_PRESETS: PortfolioPreset[] = [
 // Todos los presets combinados
 // -----------------------------------------------------------------------------
 
+// -----------------------------------------------------------------------------
+// Carteras personales Pablo — extraídas del Excel "ProyectoK_cartera SOSL,FSO,AMR"
+// Pesos calculados sobre el valor de mercado actual (CAPITAL), considerando
+// sólo los activos líquidos investibles (ETFs, fondos UCITS, ETCs/ETPs).
+// Se excluyen: efectivo, inmuebles, deuda privada, planes de pensión sin ISIN,
+// criptos custodiadas directamente.
+// -----------------------------------------------------------------------------
+
+const PABLO_PRESETS: PortfolioPreset[] = [
+  {
+    id: "pablo-cartera-personal",
+    name: "Cartera Personal Pablo",
+    description:
+      "Cartera personal real (FSO + AMR + compartido) — RV Global indexada Fidelity, RF flexible B&H + DNCA, Oro físico, Bitcoin ETP. Capital líquido total ~320k€.",
+    type: "index",
+    holdings: [
+      // RV Global indexada — 53%
+      { fundId: "pablo-fidelity-msci-world", weight: 53.02 },
+      // RF Flexible — 26.2%
+      { fundId: "pablo-bh-bonds-lux", weight: 16.64 },
+      { fundId: "pablo-dnca-alpha-bonds", weight: 9.54 },
+      // Oro — 16.3%
+      { fundId: "ishares-gold", weight: 16.27 },
+      // RF Corto plazo — 3.4%
+      { fundId: "pablo-bankinter-capital-1", weight: 3.44 },
+      // Cripto — 1.1%
+      { fundId: "pablo-fidelity-bitcoin-etp", weight: 1.09 },
+    ],
+  },
+  {
+    id: "pablo-cartera-sl",
+    name: "Cartera SO SL",
+    description:
+      "Cartera de la sociedad (SO SL) — diversificada RV indexada (World, EM, Europa, S&P EW, Value Factor, World EW), Oro físico y RF corto plazo (Ultrashort + Carmignac). Capital líquido total ~625k€.",
+    type: "index",
+    holdings: [
+      // RV Global core — 25.5%
+      { fundId: "ishares-msci-world", weight: 25.54 },
+      // Oro físico — 19.4%
+      { fundId: "ishares-gold", weight: 19.39 },
+      // RF Corto plazo — 17.7%
+      { fundId: "pablo-ishares-ultrashort-eur", weight: 16.03 },
+      { fundId: "pablo-carmignac-securite", weight: 1.71 },
+      // RV Factor / Smart Beta — 9.7%
+      { fundId: "pablo-ishares-world-value-factor", weight: 9.72 },
+      // RV Emergentes — 9.4%
+      { fundId: "pablo-amundi-msci-em-acc", weight: 9.36 },
+      // RV Europa — 8.3%
+      { fundId: "pablo-amundi-stoxx-europe-600", weight: 8.25 },
+      // RV EEUU Equal Weight — 5%
+      { fundId: "pablo-xtrackers-sp500-eq-weight", weight: 5.03 },
+      // RV World Equal Weight — 5%
+      { fundId: "pablo-vaneck-world-eq-weight", weight: 4.97 },
+    ],
+  },
+];
+
 const ALL_PRESETS: PortfolioPreset[] = [
   ...K_INBESTME_PRESETS,
   ...K_SECTORIAL_USA_PRESETS,
@@ -1428,6 +1485,7 @@ const ALL_PRESETS: PortfolioPreset[] = [
   ...BBVA_CAPITAL_PRESETS,
   ...BBVA_INVERSION_RV_PRESETS,
   ...BBVA_ACUMULACION_PRESETS,
+  ...PABLO_PRESETS,
   ...MOMENTUM_CARTERA_PRESETS,
 ];
 

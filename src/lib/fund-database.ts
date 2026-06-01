@@ -2029,6 +2029,158 @@ const BBVA_ACUMULACION_FUNDS: Fund[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// Fondos de las carteras personales y sociedad de Pablo (Excel cartera SOSL/FSO/AMR)
+// Los TER son estimados de fichas Morningstar/gestoras; marcar terConfirmed
+// cuando se verifiquen.
+// -----------------------------------------------------------------------------
+
+const PABLO_FUNDS: Fund[] = [
+  // --- ETFs indexados ---
+  {
+    id: "pablo-ishares-world-value-factor",
+    name: "iShares Edge MSCI World Value Factor UCITS ETF USD Acc",
+    shortName: "iShares World Value Factor",
+    isin: "IE00BP3QZB59",
+    ticker: "IS3S.DE", // Xetra — mejor cobertura histórica que LSE
+    ter: 0.3,
+    category: "RV Global",
+    type: "index",
+    currency: "USD",
+    terSource: "curated",
+  },
+  {
+    id: "pablo-amundi-stoxx-europe-600",
+    name: "Amundi Stoxx Europe 600 UCITS ETF C EUR",
+    shortName: "Amundi Stoxx Europe 600",
+    isin: "LU0908500753",
+    ticker: "MEUD.PA",
+    ter: 0.07,
+    category: "RV Europa",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "pablo-amundi-msci-em-acc",
+    name: "Amundi Index Solutions - Amundi Index MSCI Emerging Markets",
+    shortName: "Amundi Index MSCI EM",
+    isin: "LU1437017350",
+    ticker: "AEME.PA",
+    ter: 0.20,
+    category: "RV Emergentes",
+    type: "index",
+    currency: "USD",
+    terSource: "curated",
+  },
+  {
+    id: "pablo-ishares-ultrashort-eur",
+    name: "iShares € Ultrashort Bond UCITS ETF EUR Acc",
+    shortName: "iShares EUR Ultrashort",
+    isin: "IE000RHYOR04",
+    ticker: "ERNX.DE",
+    ter: 0.09,
+    category: "RF EUR Gov Corto",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "pablo-xtrackers-sp500-eq-weight",
+    name: "Xtrackers S&P 500 Equal Weight UCITS ETF 1C",
+    shortName: "Xtrackers S&P 500 EW",
+    isin: "IE00BLNMYC90",
+    ticker: "XDEW.DE",
+    ter: 0.20,
+    category: "RV EEUU",
+    type: "index",
+    currency: "USD",
+    terSource: "curated",
+  },
+  {
+    id: "pablo-vaneck-world-eq-weight",
+    name: "VanEck Sustainable World Equal Weight UCITS ETF",
+    shortName: "VanEck World EW",
+    isin: "NL0010408704",
+    ticker: "TSWE.AS",
+    ter: 0.20,
+    category: "RV Global",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "pablo-fidelity-bitcoin-etp",
+    name: "Fidelity Physical Bitcoin ETP",
+    shortName: "Fidelity Bitcoin ETP",
+    isin: "XS2434891219",
+    ticker: "FBTC.DE",
+    ter: 0.75,
+    category: "Alternativo",
+    type: "index",
+    currency: "USD",
+    terSource: "estimated",
+  },
+  // --- Fondos UCITS (.EUFUND) ---
+  {
+    id: "pablo-fidelity-msci-world",
+    name: "Fidelity MSCI World Index P EUR Acc",
+    shortName: "Fidelity MSCI World",
+    isin: "IE00BYX5NX33",
+    // EUFUND directo (sin ticker físico de bolsa)
+    ter: 0.12,
+    category: "RV Global",
+    type: "index",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "pablo-carmignac-securite",
+    name: "Carmignac Sécurité A EUR Acc",
+    shortName: "Carmignac Sécurité",
+    isin: "FR0010149120",
+    ter: 1.13,
+    category: "RF EUR Corp",
+    type: "active",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "pablo-bankinter-capital-1",
+    name: "Bankinter Capital 1 FI",
+    shortName: "Bankinter Capital 1",
+    isin: "ES0113921037",
+    ter: 0.76,
+    category: "RF EUR Gov Corto",
+    type: "active",
+    bank: "Bankinter",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "pablo-bh-bonds-lux",
+    name: "Buy & Hold Luxembourg B&H Bonds Class 1",
+    shortName: "B&H Bonds LUX",
+    isin: "LU1988110927",
+    ter: 1.05,
+    category: "RF Flexible",
+    type: "active",
+    currency: "USD",
+    terSource: "estimated",
+  },
+  {
+    id: "pablo-dnca-alpha-bonds",
+    name: "DNCA Invest Alpha Bonds B EUR",
+    shortName: "DNCA Alpha Bonds",
+    isin: "LU1694789535",
+    ter: 1.40,
+    category: "RF Flexible",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+];
+
+// -----------------------------------------------------------------------------
 // Todos los fondos combinados
 // -----------------------------------------------------------------------------
 
@@ -2040,6 +2192,7 @@ const ALL_FUNDS: Fund[] = [
   ...BBVA_CAPITAL_FUNDS,
   ...BBVA_INVERSION_RV_FUNDS,
   ...BBVA_ACUMULACION_FUNDS,
+  ...PABLO_FUNDS,
 ];
 
 // Mapa para búsqueda rápida por ID
