@@ -2085,6 +2085,19 @@ const PABLO_FUNDS: Fund[] = [
     terSource: "curated",
   },
   {
+    id: "pablo-abante-rf-corto",
+    name: "Abante Renta Fija Corto Plazo FI",
+    shortName: "Abante RF Corto Plazo",
+    isin: "ES0190051039",
+    // EUFUND directo. Histórico desde 2002 (24 años) — sustituye al
+    // iShares Ultrashort (sólo desde 2022) para análisis a largo plazo.
+    ter: 0.85,
+    category: "RF EUR Gov Corto",
+    type: "active",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
     id: "pablo-xtrackers-sp500-eq-weight",
     name: "Xtrackers S&P 500 Equal Weight UCITS ETF 1C",
     shortName: "Xtrackers S&P 500 EW",

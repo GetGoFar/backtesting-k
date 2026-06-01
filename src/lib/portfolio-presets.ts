@@ -1446,26 +1446,28 @@ const PABLO_PRESETS: PortfolioPreset[] = [
     id: "pablo-cartera-sl",
     name: "Cartera SO SL",
     description:
-      "Cartera de la sociedad (SO SL) — diversificada RV indexada (World, EM, Europa, S&P EW, Value Factor, World EW), Oro físico y RF corto plazo (Ultrashort + Carmignac). Capital líquido total ~625k€.",
+      "Cartera de la sociedad (SO SL) — RV indexada diversificada (World, EM, Europa, S&P EW, Value Factor, World EW) + Oro físico + RF corto consolidada en Abante (24 años histórico desde 2002). Capital líquido total ~659k€.",
     type: "index",
     holdings: [
-      // RV Global core — 25.5%
-      { fundId: "ishares-msci-world", weight: 25.54 },
-      // Oro físico — 19.4%
-      { fundId: "ishares-gold", weight: 19.39 },
-      // RF Corto plazo — 17.7%
-      { fundId: "pablo-ishares-ultrashort-eur", weight: 16.03 },
-      { fundId: "pablo-carmignac-securite", weight: 1.71 },
-      // RV Factor / Smart Beta — 9.7%
-      { fundId: "pablo-ishares-world-value-factor", weight: 9.72 },
-      // RV Emergentes — 9.4%
-      { fundId: "pablo-amundi-msci-em-acc", weight: 9.36 },
-      // RV Europa — 8.3%
-      { fundId: "pablo-amundi-stoxx-europe-600", weight: 8.25 },
-      // RV EEUU Equal Weight — 5%
-      { fundId: "pablo-xtrackers-sp500-eq-weight", weight: 5.03 },
-      // RV World Equal Weight — 5%
-      { fundId: "pablo-vaneck-world-eq-weight", weight: 4.97 },
+      // RV Global core — 24.2%
+      { fundId: "ishares-msci-world", weight: 24.21 },
+      // RF Corto plazo CONSOLIDADA — 22.0%
+      //   iShares Ultrashort 100k + Abante 20k + Fondo Monetario 14k = 134k
+      //   en un solo activo (Abante ES0190051039, mismo perfil de riesgo).
+      { fundId: "pablo-abante-rf-corto", weight: 20.38 },
+      { fundId: "pablo-carmignac-securite", weight: 1.62 },
+      // Oro físico — 18.4%
+      { fundId: "ishares-gold", weight: 18.38 },
+      // RV Factor / Smart Beta — 9.2%
+      { fundId: "pablo-ishares-world-value-factor", weight: 9.22 },
+      // RV Emergentes — 8.9%
+      { fundId: "pablo-amundi-msci-em-acc", weight: 8.88 },
+      // RV Europa — 7.8%
+      { fundId: "pablo-amundi-stoxx-europe-600", weight: 7.82 },
+      // RV EEUU Equal Weight — 4.8%
+      { fundId: "pablo-xtrackers-sp500-eq-weight", weight: 4.77 },
+      // RV World Equal Weight — 4.7%
+      { fundId: "pablo-vaneck-world-eq-weight", weight: 4.71 },
     ],
   },
 ];
