@@ -324,6 +324,30 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   };
 
   const handleSavedPortfolioSelect = (saved: SavedPortfolio) => {
+    // Si el modo satélite está activo, envolvemos la cartera guardada en un
+    // PortfolioPreset sintético y delegamos en handlePresetSelect → así
+    // hereda toda la lógica (reescalado, merge de holdings comunes,
+    // preservación de momentumConfig, auto-naming "current + saved N%").
+    if (satelliteMode && allocations.length > 0) {
+      const fakePreset: PortfolioPreset = {
+        id: `saved-${saved.id}`,
+        name: saved.name,
+        description: `${saved.holdings.length} activos guardados`,
+        type: "index",
+        holdings: saved.holdings.map((h) => ({
+          fundId: h.fundId,
+          weight: h.weight,
+          // Preservar el snapshot del Fund si está (para fondos dinámicos
+          // EODHD que no están en fund-database).
+          ...(h.fund ? { fund: h.fund } : {}),
+        })),
+      };
+      handlePresetSelect(fakePreset);
+      return;
+    }
+
+    // Modo normal — reemplazar la cartera completa y restaurar todos los
+    // ajustes propios guardados con ella.
     const allocs: FundAllocation[] = [];
     for (const h of saved.holdings) {
       // Preferimos el snapshot del Fund guardado (cubre fondos dinámicos no
