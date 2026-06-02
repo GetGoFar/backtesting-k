@@ -951,55 +951,6 @@ const INDEXA_USA_PRESETS: PortfolioPreset[] = [
 ];
 
 // -----------------------------------------------------------------------------
-// Carteras Tradicionales (para comparación)
-// -----------------------------------------------------------------------------
-
-const K_PRESETS: PortfolioPreset[] = [
-  {
-    id: "k-conservadora",
-    name: "Tradicional Conservadora",
-    description: "30% RV Global Indexada + 70% RF EUR Indexada",
-    type: "index",
-    holdings: [
-      { fundId: "vanguard-global", weight: 30 },
-      { fundId: "vanguard-eur-bond", weight: 70 },
-    ],
-  },
-  {
-    id: "k-moderada",
-    name: "Tradicional Moderada",
-    description: "60% RV Global Indexada + 40% RF EUR Indexada",
-    type: "index",
-    holdings: [
-      { fundId: "vanguard-global", weight: 60 },
-      { fundId: "vanguard-eur-bond", weight: 40 },
-    ],
-  },
-  {
-    id: "k-agresiva",
-    name: "Tradicional Agresiva",
-    description: "80% RV Global + 10% RV EEUU + 10% RF EUR",
-    type: "index",
-    holdings: [
-      { fundId: "vanguard-global", weight: 80 },
-      { fundId: "vanguard-sp500", weight: 10 },
-      { fundId: "ishares-euro-bond", weight: 10 },
-    ],
-  },
-  {
-    id: "k-100rv",
-    name: "Tradicional 100% RV",
-    description: "70% RV Global + 20% RV EEUU + 10% RV Emergentes",
-    type: "index",
-    holdings: [
-      { fundId: "vanguard-global", weight: 70 },
-      { fundId: "vanguard-sp500", weight: 20 },
-      { fundId: "amundi-emerging", weight: 10 },
-    ],
-  },
-];
-
-// -----------------------------------------------------------------------------
 // Carteras Bancarias (Gestión Activa)
 // -----------------------------------------------------------------------------
 
@@ -1413,65 +1364,6 @@ const BBVA_ACUMULACION_PRESETS: PortfolioPreset[] = [
 // Todos los presets combinados
 // -----------------------------------------------------------------------------
 
-// -----------------------------------------------------------------------------
-// Carteras personales Pablo — extraídas del Excel "ProyectoK_cartera SOSL,FSO,AMR"
-// Pesos calculados sobre el valor de mercado actual (CAPITAL), considerando
-// sólo los activos líquidos investibles (ETFs, fondos UCITS, ETCs/ETPs).
-// Se excluyen: efectivo, inmuebles, deuda privada, planes de pensión sin ISIN,
-// criptos custodiadas directamente.
-// -----------------------------------------------------------------------------
-
-const PABLO_PRESETS: PortfolioPreset[] = [
-  {
-    id: "pablo-cartera-personal",
-    name: "Cartera Personal Pablo",
-    description:
-      "Cartera personal real (FSO + AMR + compartido) — RV Global indexada Fidelity, RF flexible B&H + DNCA, Oro físico, Bitcoin ETP. Capital líquido total ~320k€.",
-    type: "index",
-    holdings: [
-      // RV Global indexada — 53%
-      { fundId: "pablo-fidelity-msci-world", weight: 53.02 },
-      // RF Flexible — 26.2%
-      { fundId: "pablo-bh-bonds-lux", weight: 16.64 },
-      { fundId: "pablo-dnca-alpha-bonds", weight: 9.54 },
-      // Oro — 16.3%
-      { fundId: "ishares-gold", weight: 16.27 },
-      // RF Corto plazo — 3.4%
-      { fundId: "pablo-bankinter-capital-1", weight: 3.44 },
-      // Cripto — 1.1%
-      { fundId: "pablo-fidelity-bitcoin-etp", weight: 1.09 },
-    ],
-  },
-  {
-    id: "pablo-cartera-sl",
-    name: "Cartera SO SL",
-    description:
-      "Cartera de la sociedad (SO SL) — RV indexada diversificada (World, EM, Europa, S&P EW, Value Factor, World EW) + Oro físico + RF corto consolidada en Abante (24 años histórico desde 2002). Capital líquido total ~659k€.",
-    type: "index",
-    holdings: [
-      // RV Global core — 24.2%
-      { fundId: "ishares-msci-world", weight: 24.21 },
-      // RF Corto plazo CONSOLIDADA — 22.0%
-      //   iShares Ultrashort 100k + Abante 20k + Fondo Monetario 14k = 134k
-      //   en un solo activo (Abante ES0190051039, mismo perfil de riesgo).
-      { fundId: "pablo-abante-rf-corto", weight: 20.38 },
-      { fundId: "pablo-carmignac-securite", weight: 1.62 },
-      // Oro físico — 18.4%
-      { fundId: "ishares-gold", weight: 18.38 },
-      // RV Factor / Smart Beta — 9.2%
-      { fundId: "pablo-ishares-world-value-factor", weight: 9.22 },
-      // RV Emergentes — 8.9%
-      { fundId: "pablo-amundi-msci-em-acc", weight: 8.88 },
-      // RV Europa — 7.8%
-      { fundId: "pablo-amundi-stoxx-europe-600", weight: 7.82 },
-      // RV EEUU Equal Weight — 4.8%
-      { fundId: "pablo-xtrackers-sp500-eq-weight", weight: 4.77 },
-      // RV World Equal Weight — 4.7%
-      { fundId: "pablo-vaneck-world-eq-weight", weight: 4.71 },
-    ],
-  },
-];
-
 const ALL_PRESETS: PortfolioPreset[] = [
   ...K_INBESTME_PRESETS,
   ...K_SECTORIAL_USA_PRESETS,
@@ -1479,7 +1371,6 @@ const ALL_PRESETS: PortfolioPreset[] = [
   ...K_GEOGRAFICA_UCIT_PRESETS,
   ...INDEXA_PRESETS,
   ...INDEXA_USA_PRESETS,
-  ...K_PRESETS,
   ...PARTICIPANTES_PRIMERAS_PRESETS,
   ...BANK_PRESETS,
   ...BANCA_PRIVADA_PRESETS,
@@ -1487,7 +1378,6 @@ const ALL_PRESETS: PortfolioPreset[] = [
   ...BBVA_CAPITAL_PRESETS,
   ...BBVA_INVERSION_RV_PRESETS,
   ...BBVA_ACUMULACION_PRESETS,
-  ...PABLO_PRESETS,
   ...MOMENTUM_CARTERA_PRESETS,
 ];
 
@@ -1519,13 +1409,6 @@ export function getPresetById(id: string): PortfolioPreset | undefined {
  */
 export function getPresetsByType(type: FundType): PortfolioPreset[] {
   return ALL_PRESETS.filter((preset) => preset.type === type);
-}
-
-/**
- * Obtiene presets de carteras K (indexadas)
- */
-export function getKPresets(): PortfolioPreset[] {
-  return K_PRESETS;
 }
 
 /**
