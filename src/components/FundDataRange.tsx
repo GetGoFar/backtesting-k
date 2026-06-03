@@ -10,11 +10,19 @@ interface DataRangeInfo {
   months: number;
 }
 
+interface FundDataRangeProps {
+  fund: Fund;
+  /** Callback opcional que se dispara cuando el rango se carga.
+   *  El padre (PortfolioBuilder) lo usa para acumular firstDate por fundId
+   *  y poder ordenar la lista por antigüedad. */
+  onRangeLoaded?: (fundId: string, firstDate: string) => void;
+}
+
 /**
  * Muestra el rango de datos disponible para un fondo.
  * Hace una llamada a /api/data-range al montarse.
  */
-export function FundDataRange({ fund }: { fund: Fund }) {
+export function FundDataRange({ fund, onRangeLoaded }: FundDataRangeProps) {
   const [range, setRange] = useState<DataRangeInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -37,6 +45,7 @@ export function FundDataRange({ fund }: { fund: Fund }) {
         const data = await res.json();
         if (!cancelled && data.firstDate && data.lastDate) {
           setRange(data);
+          onRangeLoaded?.(fund.id, data.firstDate);
         } else if (!cancelled) {
           setError(true);
         }
@@ -49,7 +58,7 @@ export function FundDataRange({ fund }: { fund: Fund }) {
 
     fetchRange();
     return () => { cancelled = true; };
-  }, [fund.id, fund.ticker, fund.isin]);
+  }, [fund.id, fund.ticker, fund.isin, onRangeLoaded]);
 
   if (loading) {
     return (

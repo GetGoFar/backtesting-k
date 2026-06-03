@@ -125,6 +125,23 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   const [satelliteMode, setSatelliteMode] = useState(false);
   const [satelliteWeight, setSatelliteWeight] = useState(10);
 
+  // Ordenación del listado de holdings (sólo display — no modifica el state).
+  //   "insertion" = orden en que se añadieron (default)
+  //   "weight-desc" = peso descendente
+  //   "antiquity-desc" = fecha de inicio de datos más antigua primero
+  type SortMode = "insertion" | "weight-desc" | "antiquity-desc";
+  const [sortMode, setSortMode] = useState<SortMode>("insertion");
+  // Mapa fundId → firstDate (YYYY-MM-DD), poblado por FundDataRange via callback.
+  const [fundFirstDates, setFundFirstDates] = useState<Record<string, string>>(
+    {}
+  );
+  const handleRangeLoaded = useCallback((fundId: string, firstDate: string) => {
+    setFundFirstDates((prev) => {
+      if (prev[fundId] === firstDate) return prev;
+      return { ...prev, [fundId]: firstDate };
+    });
+  }, []);
+
   const presets = getAllPresets();
   const colors = SIDE_COLORS[side];
 
@@ -1327,6 +1344,53 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
         {/* Buscador de fondos */}
         <FundSearch onSelect={handleAddFund} excludeIds={excludedFundIds} />
 
+        {/* Selector de ordenación — sólo cuando hay 2+ holdings */}
+        {allocations.length >= 2 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold text-brand-tertiary uppercase tracking-wider">
+              Ordenar por:
+            </span>
+            <div className="inline-flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
+              <button
+                type="button"
+                onClick={() => setSortMode("insertion")}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                  sortMode === "insertion"
+                    ? "bg-white text-brand-navy shadow-sm"
+                    : "text-brand-secondary hover:text-brand-navy"
+                }`}
+                title="Orden de inserción original"
+              >
+                Original
+              </button>
+              <button
+                type="button"
+                onClick={() => setSortMode("weight-desc")}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                  sortMode === "weight-desc"
+                    ? "bg-white text-brand-navy shadow-sm"
+                    : "text-brand-secondary hover:text-brand-navy"
+                }`}
+                title="Mayor a menor peso en la cartera"
+              >
+                Peso ↓
+              </button>
+              <button
+                type="button"
+                onClick={() => setSortMode("antiquity-desc")}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                  sortMode === "antiquity-desc"
+                    ? "bg-white text-brand-navy shadow-sm"
+                    : "text-brand-secondary hover:text-brand-navy"
+                }`}
+                title="Fondos con más antigüedad de datos primero"
+              >
+                Antigüedad ↓
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Lista de fondos */}
         <div className="space-y-2">
           {allocations.length === 0 ? (
@@ -1347,7 +1411,21 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
               <p className="text-sm">Selecciona un preset o busca fondos</p>
             </div>
           ) : (
-            allocations.map((allocation) => (
+            (sortMode === "insertion"
+              ? allocations
+              : sortMode === "weight-desc"
+              ? [...allocations].sort((a, b) => b.weight - a.weight)
+              : // antiquity-desc: fondos con primera fecha más temprana primero;
+                // los que aún no han cargado el rango quedan al final.
+                [...allocations].sort((a, b) => {
+                  const da = fundFirstDates[a.fund.id];
+                  const db = fundFirstDates[b.fund.id];
+                  if (!da && !db) return 0;
+                  if (!da) return 1;
+                  if (!db) return -1;
+                  return da.localeCompare(db);
+                })
+            ).map((allocation) => (
               <div
                 key={allocation.fund.id}
                 className="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-100 shadow-sm"
@@ -1376,7 +1454,10 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
                       ? allocation.fund.isin
                       : allocation.fund.ticker || allocation.fund.isin}
                   </p>
-                  <FundDataRange fund={allocation.fund} />
+                  <FundDataRange
+                    fund={allocation.fund}
+                    onRangeLoaded={handleRangeLoaded}
+                  />
                   {/* TER editable */}
                   <div className="flex items-center gap-1 mt-0.5">
                     <span className="text-xs text-slate-500">TER:</span>
