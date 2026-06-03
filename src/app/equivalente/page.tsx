@@ -44,6 +44,10 @@ import {
 import { getFundById } from "@/lib/fund-database";
 import type { Fund } from "@/lib/types";
 import type { HistoricalComparison } from "@/lib/equivalente-historical";
+import {
+  getLastBacktestPortfolios,
+  type SavedBacktestPortfolio,
+} from "@/lib/last-backtest-portfolios";
 
 // Resultado de búsqueda EODHD vía /api/search
 interface EodhdSearchResult {
@@ -92,13 +96,19 @@ const fmtMonth = (m: string) => {
 // Página
 // -----------------------------------------------------------------------------
 
-type Tab = "ejemplos" | "banco" | "search";
+type Tab = "cartera" | "search" | "banco" | "ejemplos";
 type Mode = "historical" | "simulation";
 
 export default function EquivalentePage() {
-  // Tab por defecto = "Búsqueda" porque es la más potente (BD local + EODHD).
-  // Populares y Por banco son atajos para quien no quiere escribir.
+  // Tab por defecto: si hay cartera del último backtest, "Mi cartera";
+  // si no, "Búsqueda" (la más potente, BD local + EODHD).
   const [tab, setTab] = useState<Tab>("search");
+
+  // Cartera A/B del último backtest (cargadas de localStorage al montar).
+  const [backtestA, setBacktestA] = useState<SavedBacktestPortfolio | null>(null);
+  const [backtestB, setBacktestB] = useState<SavedBacktestPortfolio | null>(null);
+  const [backtestSide, setBacktestSide] = useState<"a" | "b">("a");
+  const [backtestSavedAt, setBacktestSavedAt] = useState<number | null>(null);
   const [selectedFundId, setSelectedFundId] = useState<string | null>(null);
   // Fondo dinámico encontrado vía EODHD (no en BD local)
   const [dynamicFund, setDynamicFund] = useState<EodhdSearchResult | null>(null);
@@ -128,6 +138,71 @@ export default function EquivalentePage() {
     null
   );
   const benchmarksByCategory = useMemo(() => getBenchmarksByCategory(), []);
+
+  // Cargar carteras del último backtest al montar y suscribirse a cambios.
+  // Si hay alguna cartera disponible y el usuario aún no ha tocado nada,
+  // saltamos automáticamente a la pestaña "Mi cartera".
+  useEffect(() => {
+    const load = () => {
+      const data = getLastBacktestPortfolios();
+      if (data) {
+        setBacktestA(data.portfolioA ?? null);
+        setBacktestB(data.portfolioB ?? null);
+        setBacktestSavedAt(data.savedAt);
+        // Si sólo hay B, seleccionarla por defecto
+        if (!data.portfolioA && data.portfolioB) setBacktestSide("b");
+      }
+    };
+    load();
+    window.addEventListener("epk-last-backtest-portfolios-changed", load);
+    return () => window.removeEventListener("epk-last-backtest-portfolios-changed", load);
+  }, []);
+
+  // Si al cargar la página tenemos cartera del backtest, mostramos esa tab
+  // por defecto. Lo hacemos en otro useEffect para que sólo dispare en el
+  // primer load (no al cambiar de tab manualmente luego).
+  const [hasInitTabRun, setHasInitTabRun] = useState(false);
+  useEffect(() => {
+    if (hasInitTabRun) return;
+    if (backtestA || backtestB) {
+      setTab("cartera");
+      setHasInitTabRun(true);
+    }
+  }, [backtestA, backtestB, hasInitTabRun]);
+
+  // Cartera del backtest seleccionada (A o B). Activos sólo de tipo "active"
+  // — los indexados que ya son la solución no se ofrecen para sustituir.
+  const currentBacktestPortfolio =
+    backtestSide === "a" ? backtestA : backtestB;
+
+  // Auto-seleccionar el primer fondo activo cuando se entra en la tab cartera
+  // si no hay nada seleccionado todavía (UX: ver resultado al instante).
+  // Definido después de backtestActiveFunds, por eso refs vía useEffect.
+  const backtestActiveFunds = useMemo(() => {
+    if (!currentBacktestPortfolio) return [];
+    const out: Array<{ fund: Fund; weight: number }> = [];
+    for (const h of currentBacktestPortfolio.holdings) {
+      // Snapshot dinámico del PortfolioBuilder o lookup en BD
+      const fromSnapshot = h.fund as Fund | undefined;
+      const fromDb = getFundById(h.fundId);
+      const fund = fromSnapshot ?? fromDb;
+      if (!fund) continue;
+      // Mostrar sólo los activos (no tiene sentido buscar equivalente
+      // indexado para un fondo que ya es indexado).
+      if (fund.type !== "active") continue;
+      out.push({ fund, weight: h.weight });
+    }
+    return out.sort((a, b) => b.weight - a.weight);
+  }, [currentBacktestPortfolio]);
+
+  // Auto-seleccionar el fondo activo de mayor peso al entrar en la pestaña
+  // cartera, si no hay nada seleccionado aún.
+  useEffect(() => {
+    if (tab !== "cartera") return;
+    if (selectedFundId || dynamicFund) return;
+    if (backtestActiveFunds.length === 0) return;
+    setSelectedFundId(backtestActiveFunds[0]!.fund.id);
+  }, [tab, selectedFundId, dynamicFund, backtestActiveFunds]);
 
   // --- Datos para los pickers ---
   const fundsByBank = useMemo(() => getActiveFundsByBank(), []);
@@ -455,13 +530,14 @@ export default function EquivalentePage() {
             <div className="p-6">
               {/* Tabs */}
               <div className="inline-flex items-center gap-1 bg-slate-100 rounded-lg p-1 mb-5">
-                {(
-                  [
-                    ["ejemplos", "⭐ Populares"],
-                    ["banco", "🏦 Por banco"],
-                    ["search", "🔍 Búsqueda"],
-                  ] as Array<[Tab, string]>
-                ).map(([t, label]) => (
+                {([
+                  ...((backtestA || backtestB)
+                    ? ([["cartera", "📁 Mi cartera"]] as Array<[Tab, string]>)
+                    : []),
+                  ["search", "🔍 Búsqueda"],
+                  ["banco", "🏦 Por banco"],
+                  ["ejemplos", "⭐ Populares"],
+                ] as Array<[Tab, string]>).map(([t, label]) => (
                   <button
                     key={t}
                     onClick={() => setTab(t)}
@@ -475,6 +551,127 @@ export default function EquivalentePage() {
                   </button>
                 ))}
               </div>
+
+              {/* Tab: Mi cartera (último backtest) */}
+              {tab === "cartera" && (
+                <>
+                  {/* Header: fecha + toggle A/B si hay ambas */}
+                  <div className="mb-4 flex items-center gap-3 flex-wrap">
+                    <span className="text-xs font-semibold text-brand-tertiary uppercase tracking-wider">
+                      Cartera del último backtest:
+                    </span>
+                    {backtestA && backtestB && (
+                      <div className="inline-flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+                        <button
+                          onClick={() => {
+                            setBacktestSide("a");
+                            setSelectedFundId(null);
+                            setDynamicFund(null);
+                          }}
+                          className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                            backtestSide === "a"
+                              ? "bg-white text-brand-navy shadow-sm"
+                              : "text-brand-secondary hover:text-brand-navy"
+                          }`}
+                        >
+                          A: {backtestA.name}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setBacktestSide("b");
+                            setSelectedFundId(null);
+                            setDynamicFund(null);
+                          }}
+                          className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                            backtestSide === "b"
+                              ? "bg-white text-brand-navy shadow-sm"
+                              : "text-brand-secondary hover:text-brand-navy"
+                          }`}
+                        >
+                          B: {backtestB.name}
+                        </button>
+                      </div>
+                    )}
+                    {backtestSavedAt && (
+                      <span className="text-xs text-brand-tertiary">
+                        ·{" "}
+                        {new Date(backtestSavedAt).toLocaleString("es-ES", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    )}
+                  </div>
+
+                  {backtestActiveFunds.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-sm text-brand-secondary mb-2">
+                        Esta cartera no tiene fondos activos para analizar
+                      </p>
+                      <p className="text-xs text-brand-tertiary max-w-md mx-auto">
+                        Sólo los fondos de gestión activa tienen un equivalente
+                        indexado. Si tu cartera es 100% indexada, usa otra
+                        pestaña para buscar un fondo específico.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-xs text-brand-tertiary mb-3">
+                        {backtestActiveFunds.length} fondo
+                        {backtestActiveFunds.length === 1 ? "" : "s"} activo
+                        {backtestActiveFunds.length === 1 ? "" : "s"}{" "}
+                        encontrado{backtestActiveFunds.length === 1 ? "" : "s"}.
+                        Selecciona el que quieras analizar.
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {backtestActiveFunds.map(({ fund, weight }) => (
+                          <button
+                            key={fund.id + "-" + fund.isin}
+                            onClick={() => {
+                              setSelectedFundId(fund.id);
+                              setDynamicFund(null);
+                            }}
+                            className={`text-left p-4 rounded-lg border-2 transition-all ${
+                              selectedFundId === fund.id
+                                ? "border-brand-coral bg-brand-coral/5 shadow-md"
+                                : "border-slate-200 bg-white hover:border-brand-navy/30 hover:shadow-sm"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <p
+                                className={`text-sm font-semibold leading-snug ${
+                                  selectedFundId === fund.id
+                                    ? "text-brand-coral"
+                                    : "text-brand-navy"
+                                }`}
+                              >
+                                {fund.shortName}
+                              </p>
+                              <span className="text-xs font-bold text-brand-navy bg-slate-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                {weight.toFixed(1)}%
+                              </span>
+                            </div>
+                            <p className="text-xs text-brand-tertiary leading-tight line-clamp-2 mb-2">
+                              {fund.name}
+                            </p>
+                            <div className="flex items-center justify-between gap-2 text-xs">
+                              <span className="px-2 py-0.5 bg-slate-100 text-brand-secondary rounded-full font-medium">
+                                {fund.category}
+                              </span>
+                              <span className="font-bold text-red-600">
+                                {fmtPct(fund.ter)}
+                              </span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
 
               {tab === "ejemplos" && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
