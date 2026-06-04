@@ -49,6 +49,7 @@ const RECOMMENDED_BY_CATEGORY: Record<FundCategory, string> = {
   "RF Flexible": "vanguard-global",     // sin equivalente directo
   "Oro": "ishares-gold",
   "Alternativo": "vanguard-global",     // sin equivalente directo
+  "Momentum": "vanguard-global",        // estrategia momentum: el "equivalente" pasivo es indexar global
 };
 
 const FUZZY_NOTES: Partial<Record<FundCategory, string>> = {

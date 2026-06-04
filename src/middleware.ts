@@ -29,6 +29,7 @@ const RUTAS_PUBLICAS_EXACTAS = new Set([
   "/momentum",
   "/kray",
   "/equivalente",
+  "/jubilacion",
   "/favicon.ico",
   "/icon.svg",
   "/apple-icon.svg",
