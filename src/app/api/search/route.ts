@@ -10,9 +10,46 @@
 // =============================================================================
 
 import { NextRequest, NextResponse } from "next/server";
+import { getFundByIsin } from "@/lib/fund-database";
 
 const EODHD_API_TOKEN = process.env.EODHD_API_TOKEN || "";
 const EODHD_BASE_URL = "https://eodhd.com/api";
+
+/**
+ * Intenta recuperar el TER de un fondo vía EODHD /fundamentals como fallback
+ * cuando Morningstar no responde. Lee Net_Expense_Ratio de ETF_Data o
+ * Expense_Ratio/Total_Expense_Ratio de MutualFund_Data.
+ */
+async function fetchTerFromEodhdFundamentals(
+  ticker: string
+): Promise<number | null> {
+  if (!EODHD_API_TOKEN || EODHD_API_TOKEN === "demo") return null;
+  try {
+    const url = `${EODHD_BASE_URL}/fundamentals/${encodeURIComponent(ticker)}?fmt=json&api_token=${EODHD_API_TOKEN}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+    const data = await res.json();
+    // ETF_Data.Net_Expense_Ratio suele venir como número directo (e.g. 0.07)
+    // o como string ("0.07%"). Probamos varias variantes.
+    const candidates = [
+      data?.ETF_Data?.Net_Expense_Ratio,
+      data?.ETF_Data?.Total_Expense_Ratio,
+      data?.MutualFund_Data?.Expense_Ratio,
+      data?.MutualFund_Data?.Net_Expense_Ratio,
+      data?.MutualFund_Data?.Total_Expense_Ratio,
+    ];
+    for (const c of candidates) {
+      if (typeof c === "number" && c > 0 && c < 10) return c;
+      if (typeof c === "string") {
+        const n = parseFloat(c.replace("%", "").trim());
+        if (!isNaN(n) && n > 0 && n < 10) return n;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 // -----------------------------------------------------------------------------
 // Tipos
@@ -189,17 +226,48 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       };
     });
 
-    // TER best-effort vía Morningstar, sólo para fondos/ETFs
+    // TER best-effort por capas (sólo para fondos/ETFs):
+    //   1) BD local — si el ISIN ya está curado, ese TER es el más fiable
+    //   2) Morningstar — busca por ISIN o nombre, lee ongoingCharge
+    //   3) EODHD /fundamentals — ETF_Data.Net_Expense_Ratio o variantes
+    // Cada uno se intenta sólo si los anteriores no han dado fruto.
     const enriched = await Promise.all(
       mapped.map(async (result) => {
         if (result.isStock) return result;
+
+        // 1) Lookup en BD local por ISIN (instantáneo, sin red)
+        if (result.isin) {
+          const local = getFundByIsin(result.isin);
+          if (local && local.ter > 0) {
+            return { ...result, ter: local.ter, isin: result.isin };
+          }
+        }
+
+        // 2) Morningstar
         const msQuery = result.isin || query;
         const msData = await fetchTerFromMorningstar(msQuery, result.symbol);
-        return {
-          ...result,
-          ter: msData.ter,
-          isin: msData.isin || result.isin,
-        };
+        const finalIsin = msData.isin || result.isin;
+        if (msData.ter != null && msData.ter > 0) {
+          return { ...result, ter: msData.ter, isin: finalIsin };
+        }
+
+        // 2.b) Re-intentar BD local con el ISIN devuelto por Morningstar
+        //      (a veces Morningstar normaliza el ISIN aunque no devuelva TER)
+        if (finalIsin && finalIsin !== result.isin) {
+          const local = getFundByIsin(finalIsin);
+          if (local && local.ter > 0) {
+            return { ...result, ter: local.ter, isin: finalIsin };
+          }
+        }
+
+        // 3) EODHD /fundamentals
+        const eodhTer = await fetchTerFromEodhdFundamentals(result.symbol);
+        if (eodhTer != null && eodhTer > 0) {
+          return { ...result, ter: eodhTer, isin: finalIsin };
+        }
+
+        // Nada — devolvemos null para que el frontend sepa que hay que editar
+        return { ...result, ter: null, isin: finalIsin };
       })
     );
 
