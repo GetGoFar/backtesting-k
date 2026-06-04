@@ -121,6 +121,12 @@ export default function MomentumPage() {
                 <span className="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md bg-white text-brand-navy shadow-sm">
                   Momentum
                 </span>
+                <Link
+                  href="/jubilacion"
+                  className="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md transition-colors text-brand-secondary hover:bg-white hover:text-brand-navy"
+                >
+                  Jubilación
+                </Link>
               </nav>
 
               {/* Selector de fuente de datos */}

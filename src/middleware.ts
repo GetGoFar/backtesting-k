@@ -26,6 +26,7 @@ const RUTAS_PUBLICAS_PREFIJO = ["/api/", "/informe/", "/_next/", "/wordpress/"];
 const RUTAS_PUBLICAS_EXACTAS = new Set([
   "/",
   "/momentum",
+  "/jubilacion",
   "/favicon.ico",
   "/icon.svg",
   "/apple-icon.svg",
