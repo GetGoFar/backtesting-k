@@ -20,6 +20,10 @@ import type {
   RetirementConfig,
   RetirementResult,
   RetirementTaxMode,
+  FinancialGoal,
+  GoalType,
+  GoalStart,
+  GoalDuration,
 } from "@/lib/retirement-types";
 import {
   LineChart,
@@ -41,8 +45,27 @@ function defaultConfig(): RetirementConfig {
     retirementAge: 65,
     endAge: 90,
     initialCapital: 50_000,
-    monthlyContributionReal: 500,
-    monthlyWithdrawalReal: 2_000,
+    // Legacy — el motor los ignora si hay `goals` no vacío
+    monthlyContributionReal: 0,
+    monthlyWithdrawalReal: 0,
+    goals: [
+      {
+        id: "default-contribution",
+        type: "contribution",
+        amount: 500,
+        start: "immediately",
+        durationType: "untilRetirement",
+        inflationAdjusted: true,
+      },
+      {
+        id: "default-withdrawal",
+        type: "fixedWithdrawal",
+        amount: 2_000,
+        start: "atRetirement",
+        durationType: "untilEnd",
+        inflationAdjusted: true,
+      },
+    ],
     portfolioAccumulation: { name: "Acumulación", holdings: [] },
     portfolioDistribution: { name: "Distribución", holdings: [] },
     glidePathYears: 5,
@@ -51,6 +74,10 @@ function defaultConfig(): RetirementConfig {
     numPaths: 1000,
     blockSizeMonths: 12,
   };
+}
+
+function newGoalId(): string {
+  return `goal-${Math.floor(Math.random() * 1e9).toString(36)}`;
 }
 
 function buildPortfolioFromPresetId(
@@ -247,12 +274,16 @@ export default function JubilacionPage() {
                 <NumberField label="Edad fin del plan" value={config.endAge} onChange={(v) => setConfig({ ...config, endAge: v })} min={config.retirementAge + 1} max={110} />
               </div>
 
-              {/* Capital y flujos */}
+              {/* Capital inicial */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <NumberField label="Capital inicial (€)" value={config.initialCapital} onChange={(v) => setConfig({ ...config, initialCapital: v })} min={0} step={1000} />
-                <NumberField label="Aporte mensual acumulación (€)" value={config.monthlyContributionReal} onChange={(v) => setConfig({ ...config, monthlyContributionReal: v })} min={0} step={50} />
-                <NumberField label="Retirada mensual jubilación (€)" value={config.monthlyWithdrawalReal} onChange={(v) => setConfig({ ...config, monthlyWithdrawalReal: v })} min={0} step={50} />
               </div>
+
+              {/* Objetivos financieros */}
+              <FinancialGoalsEditor
+                goals={config.goals ?? []}
+                onChange={(goals) => setConfig({ ...config, goals })}
+              />
 
               {/* Carteras */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -320,6 +351,253 @@ export default function JubilacionPage() {
 // -----------------------------------------------------------------------------
 // Inputs reutilizables
 // -----------------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------
+// Editor de objetivos financieros (Financial Goals, como en PV)
+// -----------------------------------------------------------------------------
+
+function FinancialGoalsEditor({
+  goals,
+  onChange,
+}: {
+  goals: FinancialGoal[];
+  onChange: (g: FinancialGoal[]) => void;
+}) {
+  const update = (id: string, patch: Partial<FinancialGoal>) => {
+    onChange(goals.map((g) => (g.id === id ? { ...g, ...patch } : g)));
+  };
+  const remove = (id: string) => onChange(goals.filter((g) => g.id !== id));
+  const add = () =>
+    onChange([
+      ...goals,
+      {
+        id: newGoalId(),
+        type: "contribution",
+        amount: 100,
+        start: "immediately",
+        durationType: "untilRetirement",
+        inflationAdjusted: true,
+      },
+    ]);
+
+  const hasNominal = goals.some((g) => !g.inflationAdjusted);
+
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div>
+          <h4 className="text-sm font-bold text-brand-navy">Objetivos financieros</h4>
+          <p className="text-xs text-brand-tertiary mt-0.5">
+            Aportaciones, retiradas fijas o porcentuales. Cada uno con su propio
+            tramo temporal e ajuste por inflación.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={add}
+          className="px-3 py-1.5 text-sm font-medium text-white bg-brand-coral rounded-lg hover:bg-brand-coral/90"
+        >
+          + Añadir objetivo
+        </button>
+      </div>
+
+      {hasNominal && (
+        <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg flex gap-2 items-start text-xs leading-relaxed">
+          <span className="text-amber-600 mt-0.5">⚠</span>
+          <p className="text-amber-900">
+            <strong>Algún objetivo está en términos NOMINALES</strong> (sin
+            ajustar por inflación). Con 2-3% de inflación anual, su poder
+            adquisitivo se erosiona ~25% por década. Las cifras finales que
+            verás serán optimistas — recomendado dejar todos los objetivos
+            como <em>ajustados por inflación</em>.
+          </p>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {goals.length === 0 && (
+          <p className="text-sm text-brand-tertiary italic text-center py-4">
+            Sin objetivos definidos. Añade al menos uno (típicamente una
+            aportación y una retirada).
+          </p>
+        )}
+        {goals.map((g, idx) => (
+          <div
+            key={g.id}
+            className="p-4 bg-slate-50 border border-slate-200 rounded-lg"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold text-brand-navy uppercase tracking-wider">
+                Objetivo #{idx + 1}
+              </span>
+              <button
+                type="button"
+                onClick={() => remove(g.id)}
+                className="text-xs text-red-600 hover:text-red-800 font-medium"
+              >
+                Eliminar
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Tipo */}
+              <label className="block">
+                <span className="block text-[10px] font-semibold text-brand-tertiary uppercase tracking-wider mb-1">
+                  Tipo
+                </span>
+                <select
+                  value={g.type}
+                  onChange={(e) =>
+                    update(g.id, { type: e.target.value as GoalType })
+                  }
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral bg-white"
+                >
+                  <option value="contribution">Aportación</option>
+                  <option value="fixedWithdrawal">Retirada fija (€)</option>
+                  <option value="percentageWithdrawal">
+                    Retirada porcentaje (% anual)
+                  </option>
+                </select>
+              </label>
+
+              {/* Cantidad o porcentaje */}
+              {g.type === "percentageWithdrawal" ? (
+                <label className="block">
+                  <span className="block text-[10px] font-semibold text-brand-tertiary uppercase tracking-wider mb-1">
+                    % anual sobre patrimonio
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={20}
+                    step={0.1}
+                    value={g.percentagePct ?? 0}
+                    onChange={(e) =>
+                      update(g.id, { percentagePct: parseFloat(e.target.value) || 0 })
+                    }
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral"
+                  />
+                </label>
+              ) : (
+                <label className="block">
+                  <span className="block text-[10px] font-semibold text-brand-tertiary uppercase tracking-wider mb-1">
+                    EUR / mes
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={50}
+                    value={g.amount ?? 0}
+                    onChange={(e) =>
+                      update(g.id, { amount: parseFloat(e.target.value) || 0 })
+                    }
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral"
+                  />
+                </label>
+              )}
+
+              {/* Inflación */}
+              <label className="flex items-center gap-2 sm:mt-6">
+                <input
+                  type="checkbox"
+                  checked={g.inflationAdjusted}
+                  onChange={(e) =>
+                    update(g.id, { inflationAdjusted: e.target.checked })
+                  }
+                  className="w-4 h-4 rounded border-slate-300 text-brand-coral focus:ring-brand-coral/50"
+                />
+                <span className="text-xs text-brand-secondary">
+                  Ajustar por inflación{" "}
+                  <span className="text-brand-tertiary">(recomendado)</span>
+                </span>
+              </label>
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Empieza */}
+              <label className="block">
+                <span className="block text-[10px] font-semibold text-brand-tertiary uppercase tracking-wider mb-1">
+                  Empieza
+                </span>
+                <select
+                  value={g.start}
+                  onChange={(e) =>
+                    update(g.id, { start: e.target.value as GoalStart })
+                  }
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral bg-white"
+                >
+                  <option value="immediately">Inmediatamente</option>
+                  <option value="atRetirement">En la jubilación</option>
+                  <option value="yearsFromNow">Dentro de X años…</option>
+                </select>
+              </label>
+              {g.start === "yearsFromNow" && (
+                <label className="block">
+                  <span className="block text-[10px] font-semibold text-brand-tertiary uppercase tracking-wider mb-1">
+                    Años desde ahora
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={50}
+                    step={1}
+                    value={g.startYearsFromNow ?? 0}
+                    onChange={(e) =>
+                      update(g.id, {
+                        startYearsFromNow: parseInt(e.target.value, 10) || 0,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral"
+                  />
+                </label>
+              )}
+
+              {/* Duración */}
+              <label className="block">
+                <span className="block text-[10px] font-semibold text-brand-tertiary uppercase tracking-wider mb-1">
+                  Duración
+                </span>
+                <select
+                  value={g.durationType}
+                  onChange={(e) =>
+                    update(g.id, {
+                      durationType: e.target.value as GoalDuration,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral bg-white"
+                >
+                  <option value="untilEnd">Hasta el final del plan</option>
+                  <option value="untilRetirement">Hasta la jubilación</option>
+                  <option value="yearsAfterStart">X años desde el inicio</option>
+                </select>
+              </label>
+              {g.durationType === "yearsAfterStart" && (
+                <label className="block">
+                  <span className="block text-[10px] font-semibold text-brand-tertiary uppercase tracking-wider mb-1">
+                    Años de duración
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={80}
+                    step={1}
+                    value={g.durationYears ?? 1}
+                    onChange={(e) =>
+                      update(g.id, {
+                        durationYears: parseInt(e.target.value, 10) || 1,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral"
+                  />
+                </label>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 function NumberField({
   label,

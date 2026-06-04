@@ -29,7 +29,39 @@ import type {
   RetirementResult,
   RetirementYearPoint,
   RetirementHistoricalCohort,
+  FinancialGoal,
 } from "./retirement-types";
+
+// -----------------------------------------------------------------------------
+// Compatibilidad: si la config no trae `goals` explícitos, reconstruimos
+// dos goals por defecto desde los campos legacy: contribución continua hasta
+// jubilación + retirada fija desde jubilación hasta fin del plan. Ambos
+// ajustados por inflación.
+// -----------------------------------------------------------------------------
+function buildLegacyGoals(config: RetirementConfig): FinancialGoal[] {
+  const goals: FinancialGoal[] = [];
+  if (config.monthlyContributionReal > 0) {
+    goals.push({
+      id: "legacy-contribution",
+      type: "contribution",
+      amount: config.monthlyContributionReal,
+      start: "immediately",
+      durationType: "untilRetirement",
+      inflationAdjusted: true,
+    });
+  }
+  if (config.monthlyWithdrawalReal > 0) {
+    goals.push({
+      id: "legacy-withdrawal",
+      type: "fixedWithdrawal",
+      amount: config.monthlyWithdrawalReal,
+      start: "atRetirement",
+      durationType: "untilEnd",
+      inflationAdjusted: true,
+    });
+  }
+  return goals;
+}
 
 // -----------------------------------------------------------------------------
 // IRPF España 2024 sobre el ahorro — tramos progresivos
@@ -139,6 +171,29 @@ function simulatePath(
   let totalWithdrawalsReal = 0;
   let depletionMonth: number | undefined;
 
+  // Normalizar goals: si no vienen explícitos, reconstruir desde los
+  // campos legacy `monthlyContributionReal` / `monthlyWithdrawalReal`.
+  const goals = (config.goals && config.goals.length > 0)
+    ? config.goals
+    : buildLegacyGoals(config);
+
+  // Pre-calcular ventanas [startMonth, endMonth) por goal
+  const goalWindows = goals.map((g) => {
+    const startMonth =
+      g.start === "immediately"
+        ? 0
+        : g.start === "atRetirement"
+        ? monthsAcc
+        : Math.max(0, Math.round((g.startYearsFromNow ?? 0) * 12));
+    const endMonth =
+      g.durationType === "untilEnd"
+        ? totalMonths
+        : g.durationType === "untilRetirement"
+        ? monthsAcc
+        : startMonth + Math.max(0, Math.round((g.durationYears ?? 0) * 12));
+    return { goal: g, startMonth, endMonth };
+  });
+
   for (let m = 0; m < totalMonths; m++) {
     // Reset anual del tracking de IRPF al iniciar nuevo año natural
     if (m > 0 && m % 12 === 0) {
@@ -163,25 +218,48 @@ function simulatePath(
 
     if (currentValue > 0) currentValue *= 1 + retM;
 
-    // ---- 2) Flujos: aportación o retirada ----
-    const isRetiredPhase = m >= monthsAcc;
+    // ---- 2) Flujos: iterar todos los objetivos activos este mes ----
+    // Acumulamos primero las aportaciones (suman a currentValue + costBasis)
+    // y los retiros NOMINALES brutos. Después aplicamos los retiros con IRPF.
+    let contribNomThisMonth = 0;
+    let withdrawNomThisMonth = 0;
+    let contribRealThisMonth = 0;
+    let withdrawRealThisMonth = 0;
 
-    if (!isRetiredPhase) {
-      // Aportación: nominal = contribución real × inflación
-      const contribNom = config.monthlyContributionReal * inflFactor;
-      currentValue += contribNom;
-      costBasis += contribNom;
-      totalContributionsReal += config.monthlyContributionReal;
-    } else if (currentValue > 0) {
-      const withdrawNom = config.monthlyWithdrawalReal * inflFactor;
+    for (const { goal, startMonth, endMonth } of goalWindows) {
+      if (m < startMonth || m >= endMonth) continue;
+      const inflMul = goal.inflationAdjusted ? inflFactor : 1;
+      if (goal.type === "contribution") {
+        const amt = (goal.amount ?? 0) * inflMul;
+        contribNomThisMonth += amt;
+        contribRealThisMonth += amt / inflFactor;
+      } else if (goal.type === "fixedWithdrawal") {
+        const amt = (goal.amount ?? 0) * inflMul;
+        withdrawNomThisMonth += amt;
+        withdrawRealThisMonth += amt / inflFactor;
+      } else if (goal.type === "percentageWithdrawal") {
+        // % anual → mensual = pct/12. Aplicado sobre currentValue tras retorno
+        const pct = (goal.percentagePct ?? 0) / 100 / 12;
+        const amt = currentValue * pct;
+        withdrawNomThisMonth += amt;
+        withdrawRealThisMonth += amt / inflFactor;
+      }
+    }
 
-      // Fracción de la cartera que es plusvalía latente (método coste medio)
+    // Aportaciones primero
+    if (contribNomThisMonth > 0) {
+      currentValue += contribNomThisMonth;
+      costBasis += contribNomThisMonth;
+      totalContributionsReal += contribRealThisMonth;
+    }
+
+    // Retiros con IRPF (sólo si hay capital y hay retiros)
+    if (withdrawNomThisMonth > 0 && currentValue > 0) {
       const gainFraction =
-        currentValue > 0 ? Math.max(0, currentValue - costBasis) / currentValue : 0;
-
-      // Si retiramos `X` nominal: plusvalía realizada = X × gainFraction
-      // En el año natural acumulamos plusvalía y aplicamos tramos.
-      const gainThisMonth = withdrawNom * gainFraction;
+        currentValue > 0
+          ? Math.max(0, currentValue - costBasis) / currentValue
+          : 0;
+      const gainThisMonth = withdrawNomThisMonth * gainFraction;
       const gainAfter = annualGainRecognized + gainThisMonth;
 
       let monthTax = 0;
@@ -194,21 +272,21 @@ function simulatePath(
       }
       annualGainRecognized = gainAfter;
 
-      const totalToTake = withdrawNom + monthTax;
-
+      const totalToTake = withdrawNomThisMonth + monthTax;
       if (totalToTake >= currentValue) {
-        // Se agota este mes
-        depletionMonth = m;
+        if (depletionMonth === undefined) depletionMonth = m;
         const realizedNet = Math.max(0, currentValue - monthTax);
         totalWithdrawalsReal += realizedNet / inflFactor;
         currentValue = 0;
         costBasis = 0;
       } else {
         currentValue -= totalToTake;
-        // Ajustar costBasis proporcionalmente a la parte de capital retirada
         const principalFraction = 1 - gainFraction;
-        costBasis = Math.max(0, costBasis - withdrawNom * principalFraction);
-        totalWithdrawalsReal += config.monthlyWithdrawalReal;
+        costBasis = Math.max(
+          0,
+          costBasis - withdrawNomThisMonth * principalFraction
+        );
+        totalWithdrawalsReal += withdrawRealThisMonth;
       }
     }
 
@@ -315,6 +393,17 @@ export function runRetirementSimulation(input: RunRetirementInput): RetirementRe
   }
   const maxBlockStart = Math.max(0, source.length - effectiveBlockSize);
   const blockStartPoints = maxBlockStart + 1;
+
+  // ---- Aviso por goals en cantidades NOMINALES ----
+  const effectiveGoals = (config.goals && config.goals.length > 0)
+    ? config.goals
+    : buildLegacyGoals(config);
+  const nominalGoals = effectiveGoals.filter((g) => !g.inflationAdjusted);
+  if (nominalGoals.length > 0) {
+    warnings.push(
+      `Hay ${nominalGoals.length} objetivo(s) en cantidades NOMINALES (no ajustadas por inflación). Con 2-3% de inflación anual, su poder adquisitivo se erosiona ~25% por década. Las cifras finales aparentemente "altas" en € de hoy son engañosamente optimistas.`
+    );
+  }
 
   // ---- Avisos por histórico corto e insuficiente para el plan ----
   const recyclingFactor = totalMonths / source.length;

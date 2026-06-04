@@ -17,6 +17,48 @@ import type { Portfolio } from "./types";
 /** Modo fiscal aplicado a las retiradas durante la jubilación. */
 export type RetirementTaxMode = "none" | "spain-irpf" | "flat";
 
+// -----------------------------------------------------------------------------
+// Objetivos financieros (lista de cash-flows configurables)
+// -----------------------------------------------------------------------------
+
+/** Tipo de cash flow del objetivo. */
+export type GoalType =
+  | "contribution" // aportación mensual a la cartera
+  | "fixedWithdrawal" // retirada mensual de cantidad fija
+  | "percentageWithdrawal"; // retirada mensual = porcentaje anual / 12 del patrimonio actual
+
+/** Cuándo arranca el objetivo. */
+export type GoalStart = "immediately" | "atRetirement" | "yearsFromNow";
+
+/** Hasta cuándo se aplica el objetivo. */
+export type GoalDuration =
+  | "untilEnd" // hasta el fin del plan
+  | "untilRetirement" // hasta la edad de jubilación
+  | "yearsAfterStart"; // X años desde el inicio del propio objetivo
+
+export interface FinancialGoal {
+  /** ID único para tracking en UI. */
+  id: string;
+  /** Etiqueta libre opcional (e.g. "ingresos para vivir", "viaje anual"). */
+  purpose?: string;
+  type: GoalType;
+  /** EUR/mes para "contribution" y "fixedWithdrawal". */
+  amount?: number;
+  /** % ANUAL del patrimonio para "percentageWithdrawal" (se divide entre 12
+   *  internamente para aplicar como retirada mensual). */
+  percentagePct?: number;
+  start: GoalStart;
+  /** Sólo si start = "yearsFromNow". */
+  startYearsFromNow?: number;
+  durationType: GoalDuration;
+  /** Sólo si durationType = "yearsAfterStart". */
+  durationYears?: number;
+  /** Si true (recomendado), las cantidades se interpretan como € REALES y se
+   *  multiplican por inflación acumulada cada mes. Si false, son nominales
+   *  fijos (su poder adquisitivo cae con el tiempo). */
+  inflationAdjusted: boolean;
+}
+
 export interface RetirementConfig {
   // === Edades ===
   /** Edad del usuario hoy. */
@@ -26,12 +68,23 @@ export interface RetirementConfig {
   /** Edad de fin del plan (esperanza de vida, ej. 90). */
   endAge: number;
 
-  // === Capital y flujos (en € de hoy, ajustados por inflación dentro del motor) ===
+  // === Capital y flujos ===
   /** Capital ya invertido al inicio del plan. */
   initialCapital: number;
-  /** Aportación mensual durante la acumulación, en € de hoy. */
+  /**
+   * Lista de objetivos financieros (aportaciones, retiradas fijas, retiradas
+   * porcentuales). Cada uno se aplica como cash flow mensual según su
+   * start/duración. Si está vacía, se reconstruye desde los campos legacy
+   * `monthlyContributionReal` / `monthlyWithdrawalReal`.
+   */
+  goals?: FinancialGoal[];
+  /** @deprecated Se mantiene para compat. Si `goals` viene vacío, se
+   *  reconstruye un goal "contribution from now until retirement" con esta
+   *  cantidad ajustada por inflación. */
   monthlyContributionReal: number;
-  /** Retirada mensual deseada durante la jubilación, en € de hoy. */
+  /** @deprecated Se mantiene para compat. Si `goals` viene vacío, se
+   *  reconstruye un goal "fixedWithdrawal from retirement until end" con
+   *  esta cantidad ajustada por inflación. */
   monthlyWithdrawalReal: number;
 
   // === Carteras (glide path A → B en los últimos glidePathYears antes de jubilación) ===
