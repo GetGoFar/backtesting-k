@@ -18,15 +18,27 @@ import {
   getLastBacktestPortfolios,
   type SavedBacktestPortfolio,
 } from "@/lib/last-backtest-portfolios";
+import {
+  getSavedPortfolios,
+  type SavedPortfolio,
+} from "@/lib/saved-portfolios";
 import { getFundById } from "@/lib/fund-database";
 import type { KrayResult } from "@/lib/kray-types";
+
+// Fuente de la cartera seleccionada en el dropdown:
+//   "backtest-a" / "backtest-b" → la última cartera A/B del backtest
+//   `saved-<id>`                → una de las carteras guardadas en localStorage
+type PortfolioSource = "backtest-a" | "backtest-b" | `saved-${string}`;
 
 export default function KrayPage() {
   // Cartera A/B del último backtest (cargadas de localStorage al montar).
   const [portfolioA, setPortfolioA] = useState<SavedBacktestPortfolio | null>(null);
   const [portfolioB, setPortfolioB] = useState<SavedBacktestPortfolio | null>(null);
-  const [selectedSide, setSelectedSide] = useState<"a" | "b">("a");
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  // Carteras guardadas en localStorage (las que el usuario ha guardado a mano)
+  const [savedPortfolios, setSavedPortfolios] = useState<SavedPortfolio[]>([]);
+  // Fuente de la cartera actualmente seleccionada — default: backtest A
+  const [source, setSource] = useState<PortfolioSource>("backtest-a");
 
   // Resultados del análisis
   const [results, setResults] = useState<KrayResult | null>(null);
@@ -41,8 +53,8 @@ export default function KrayPage() {
         setPortfolioA(data.portfolioA ?? null);
         setPortfolioB(data.portfolioB ?? null);
         setSavedAt(data.savedAt);
-        // Si sólo hay B, seleccionarla por defecto
-        if (!data.portfolioA && data.portfolioB) setSelectedSide("b");
+        // Si la fuente actual no es válida con los nuevos datos, ajustar
+        if (!data.portfolioA && data.portfolioB) setSource("backtest-b");
       }
     };
     load();
@@ -50,7 +62,33 @@ export default function KrayPage() {
     return () => window.removeEventListener("epk-last-backtest-portfolios-changed", load);
   }, []);
 
-  const currentPortfolio = selectedSide === "a" ? portfolioA : portfolioB;
+  // Cargar carteras guardadas en localStorage + suscripción a cambios
+  useEffect(() => {
+    const load = () => setSavedPortfolios(getSavedPortfolios());
+    load();
+    window.addEventListener("epk-saved-portfolios-changed", load);
+    return () => window.removeEventListener("epk-saved-portfolios-changed", load);
+  }, []);
+
+  // Resolver la cartera activa a partir de la fuente seleccionada. Todas
+  // se normalizan a la misma forma (`SavedBacktestPortfolio`) para que el
+  // resto de la página no se entere de dónde sale.
+  const currentPortfolio: SavedBacktestPortfolio | null = useMemo(() => {
+    if (source === "backtest-a") return portfolioA;
+    if (source === "backtest-b") return portfolioB;
+    const id = source.replace(/^saved-/, "");
+    const sp = savedPortfolios.find((p) => p.id === id);
+    if (!sp) return null;
+    return {
+      name: sp.name,
+      holdings: sp.holdings.map((h) => ({
+        fundId: h.fundId,
+        weight: h.weight,
+        ...(h.fund ? { fund: h.fund } : {}),
+      })),
+    };
+  }, [source, portfolioA, portfolioB, savedPortfolios]);
+
   const hasResults = !!results;
 
   const handleRun = useCallback(async () => {
@@ -96,11 +134,11 @@ export default function KrayPage() {
     }
   }, [currentPortfolio]);
 
-  // Reset results al cambiar de cartera (A → B)
+  // Reset results al cambiar la fuente (otra cartera elegida)
   useEffect(() => {
     setResults(null);
     setError(null);
-  }, [selectedSide]);
+  }, [source]);
 
   const formattedSaveDate = useMemo(() => {
     if (!savedAt) return null;
@@ -228,11 +266,9 @@ export default function KrayPage() {
                       Cartera a analizar
                     </h3>
                     <p className="text-xs text-white/70 mt-0.5">
-                      {portfolioA || portfolioB
-                        ? formattedSaveDate
-                          ? `Heredada de tu último backtest · ${formattedSaveDate}`
-                          : "Heredada de tu último backtest"
-                        : "Ejecuta primero un backtest para traer una cartera aquí"}
+                      {(portfolioA || portfolioB || savedPortfolios.length > 0)
+                        ? "Elige cualquier cartera del último backtest o de las que tienes guardadas"
+                        : "Ejecuta o guarda primero una cartera"}
                     </p>
                   </div>
                   <button
@@ -245,7 +281,7 @@ export default function KrayPage() {
                 </div>
 
                 <div className="p-6">
-                  {!portfolioA && !portfolioB ? (
+                  {!portfolioA && !portfolioB && savedPortfolios.length === 0 ? (
                     <div className="text-center py-10">
                       <p className="text-base text-brand-navy mb-3">
                         Aún no hay cartera para analizar
@@ -253,8 +289,8 @@ export default function KrayPage() {
                       <p className="text-sm text-brand-tertiary mb-6 max-w-md mx-auto">
                         K-Ray necesita una cartera para radiografiar. Ve a la
                         pestaña <strong>Backtest</strong>, configura una cartera
-                        y ejecútalo. Después vuelve aquí y el análisis se cargará
-                        solo.
+                        y ejecútalo (o guárdala desde el constructor de cartera).
+                        Después vuelve aquí y el análisis se cargará solo.
                       </p>
                       <Link
                         href="/"
@@ -265,36 +301,50 @@ export default function KrayPage() {
                     </div>
                   ) : (
                     <>
-                      {/* Toggle A / B si hay ambas */}
-                      {portfolioA && portfolioB && (
-                        <div className="mb-5 flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-semibold text-brand-tertiary uppercase tracking-wider">
-                            Elegir cartera:
+                      {/* Dropdown con todas las carteras disponibles. Grupos:
+                          (a) Último backtest (A y/o B si las hay)
+                          (b) Mis carteras guardadas (localStorage) */}
+                      <div className="mb-5 flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-semibold text-brand-tertiary uppercase tracking-wider">
+                          Cartera a analizar:
+                        </span>
+                        <select
+                          value={source}
+                          onChange={(e) => setSource(e.target.value as PortfolioSource)}
+                          className="px-3 py-1.5 border border-slate-300 rounded-md text-sm bg-white text-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/30 min-w-[260px]"
+                        >
+                          {(portfolioA || portfolioB) && (
+                            <optgroup label="Del último backtest">
+                              {portfolioA && (
+                                <option value="backtest-a">
+                                  A · {portfolioA.name}
+                                </option>
+                              )}
+                              {portfolioB && (
+                                <option value="backtest-b">
+                                  B · {portfolioB.name}
+                                </option>
+                              )}
+                            </optgroup>
+                          )}
+                          {savedPortfolios.length > 0 && (
+                            <optgroup label="Mis carteras guardadas">
+                              {savedPortfolios.map((sp) => (
+                                <option key={sp.id} value={`saved-${sp.id}`}>
+                                  {sp.name}{" "}
+                                  ({sp.holdings.length} activo
+                                  {sp.holdings.length === 1 ? "" : "s"})
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                        </select>
+                        {source.startsWith("backtest-") && formattedSaveDate && (
+                          <span className="text-xs text-brand-tertiary">
+                            · {formattedSaveDate}
                           </span>
-                          <div className="inline-flex items-center gap-1 bg-slate-100 rounded-lg p-1">
-                            <button
-                              onClick={() => setSelectedSide("a")}
-                              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                                selectedSide === "a"
-                                  ? "bg-white text-brand-navy shadow-sm"
-                                  : "text-brand-secondary hover:text-brand-navy"
-                              }`}
-                            >
-                              A: {portfolioA.name}
-                            </button>
-                            <button
-                              onClick={() => setSelectedSide("b")}
-                              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                                selectedSide === "b"
-                                  ? "bg-white text-brand-navy shadow-sm"
-                                  : "text-brand-secondary hover:text-brand-navy"
-                              }`}
-                            >
-                              B: {portfolioB.name}
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
 
                       {/* Composición */}
                       {currentPortfolio ? (
