@@ -624,6 +624,10 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   const bbvaCapitalPresets = presets.filter((p) => p.id.startsWith("bbva-capital"));
   const bbvaInversionRvPresets = presets.filter((p) => p.id.startsWith("bbva-inversion-rv"));
   const bbvaAcumulacionPresets = presets.filter((p) => p.id.startsWith("bbva-acumulacion"));
+  // Carteras de consultoría individual (clientes) — destacadas arriba del
+  // dropdown para que sean fáciles de encontrar durante revisiones.
+  const consultoriaPresets = presets.filter((p) => p.id.startsWith("pablo-castro-"));
+
   // Estrategias de momentum dinámicas — se ejecutan en cada backtest con
   // las fechas elegidas. Ideales para añadir como SATÉLITE de carteras
   // estáticas (modo "Activo satélite") y ver correlaciones.
@@ -636,7 +640,8 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
       !p.id.startsWith("bbva-capital") &&
       !p.id.startsWith("bbva-inversion-rv") &&
       !p.id.startsWith("bbva-acumulacion") &&
-      !p.id.startsWith("momentum-")
+      !p.id.startsWith("momentum-") &&
+      !p.id.startsWith("pablo-castro-")
   );
 
   return (
@@ -751,6 +756,39 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
 
           {showPresetDropdown && (
             <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-96 overflow-auto">
+              {/* Carteras de Consultoría individual (clientes) — destacadas
+                  arriba del todo para que sean fáciles de encontrar durante
+                  revisiones del cliente. */}
+              {consultoriaPresets.length > 0 && (
+                <div className="p-2 border-b border-slate-100 bg-purple-50/50">
+                  <p className="text-xs font-semibold text-purple-700 uppercase tracking-wider px-2 py-1 flex items-center gap-1.5">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
+                    </svg>
+                    Consultoría individual (clientes)
+                  </p>
+                  {consultoriaPresets.map((preset) => (
+                    <button
+                      key={preset.id}
+                      onClick={() => handlePresetSelect(preset)}
+                      className={`w-full text-left px-3 py-2 rounded-lg hover:bg-purple-100/60 transition-colors ${
+                        selectedPresetId === preset.id ? "bg-purple-100/60" : ""
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-purple-600" />
+                        <span className="font-medium text-sm text-slate-800">
+                          {preset.name}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 ml-4 mt-0.5">
+                        {preset.description}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* Mis carteras guardadas (localStorage) — siempre visible para
                   permitir importar carteras desde otro navegador aunque la
                   lista local esté vacía. */}
