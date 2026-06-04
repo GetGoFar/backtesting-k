@@ -711,19 +711,36 @@ export function runRetirementSimulation(input: RunRetirementInput): RetirementRe
   }
   swrPerWindow.sort((a, b) => a - b);
   pwrPerWindow.sort((a, b) => a - b);
-  const confidencePct = 90;
-  // El "umbral seguro" = peor 10% de los escenarios. Como swrPerWindow está
-  // ordenado ascendente, el percentil 10 (índice 10%) es ese umbral.
-  const safeIdx = Math.max(0, Math.floor(swrPerWindow.length * (100 - confidencePct) / 100));
-  const swrSafe = swrPerWindow[safeIdx] ?? 0;
-  const pwrSafe = pwrPerWindow[safeIdx] ?? 0;
-  const swrMedianVal = percentile(swrPerWindow, 50);
-  const pwrMedianVal = percentile(pwrPerWindow, 50);
 
   const toPctAnnual = (eurMonth: number): number =>
     capitalAtRetirementReal > 0
       ? (eurMonth * 12 / capitalAtRetirementReal) * 100
       : 0;
+
+  // Escenarios: cada uno define un percentil sobre los retiros ordenados
+  // ascendente. p5 = sólo los peores 5% de secuencias soportan ese retiro
+  // (= 95% de éxito); p75 = sólo los mejores 25% lo soportan (= 25% éxito).
+  // Mostramos un espectro para que el usuario vea que la cifra "robusta"
+  // no es la única respuesta.
+  type ScenarioDef = { label: string; key: string; percentile: number };
+  const SCENARIOS: ScenarioDef[] = [
+    { label: "Agorero",     key: "agorero",     percentile: 5  }, // 95% éxito
+    { label: "Conservador", key: "conservador", percentile: 25 }, // 75% éxito
+    { label: "Medio",       key: "medio",       percentile: 50 }, // 50% éxito
+    { label: "Optimista",   key: "optimista",   percentile: 75 }, // 25% éxito
+  ];
+  const scenarios = SCENARIOS.map((s) => {
+    const swrAt = percentile(swrPerWindow, s.percentile);
+    const pwrAt = percentile(pwrPerWindow, s.percentile);
+    return {
+      label: s.label,
+      key: s.key,
+      percentile: s.percentile,
+      successRatePct: 100 - s.percentile,
+      swr: { eurPerMonth: swrAt, pctAnnual: toPctAnnual(swrAt) },
+      pwr: { eurPerMonth: pwrAt, pctAnnual: toPctAnnual(pwrAt) },
+    };
+  });
 
   return {
     config,
@@ -739,11 +756,7 @@ export function runRetirementSimulation(input: RunRetirementInput): RetirementRe
     withdrawalRates: {
       capitalAtRetirementReal,
       windowsAnalyzed: swrPerWindow.length,
-      confidencePct,
-      swr: { eurPerMonth: swrSafe, pctAnnual: toPctAnnual(swrSafe) },
-      pwr: { eurPerMonth: pwrSafe, pctAnnual: toPctAnnual(pwrSafe) },
-      swrMedian: { eurPerMonth: swrMedianVal, pctAnnual: toPctAnnual(swrMedianVal) },
-      pwrMedian: { eurPerMonth: pwrMedianVal, pctAnnual: toPctAnnual(pwrMedianVal) },
+      scenarios,
     },
     representativeMedianPath: {
       monthlyValuesReal: representativePath.monthlyValuesReal,

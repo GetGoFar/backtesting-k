@@ -159,6 +159,22 @@ export interface RetirementHistoricalCohort {
   totalWithdrawnReal: number;
 }
 
+/** Un escenario de tasa de retirada (uno por etiqueta: agorero, conservador,
+ *  medio, optimista). El percentil indica QUÉ tasa, y `successRatePct`
+ *  cuántas secuencias históricas la soportan. */
+export interface WithdrawalScenario {
+  /** Etiqueta humana: "Agorero", "Conservador", "Medio", "Optimista". */
+  label: string;
+  /** Identificador estable: "agorero" | "conservador" | "medio" | "optimista". */
+  key: string;
+  /** Percentil de las tasas (5 = sólo los peores 5%; 75 = sólo los mejores 25%). */
+  percentile: number;
+  /** % de secuencias históricas en que esta tasa sobrevive. */
+  successRatePct: number;
+  swr: { eurPerMonth: number; pctAnnual: number };
+  pwr: { eurPerMonth: number; pctAnnual: number };
+}
+
 export interface RetirementResult {
   config: RetirementConfig;
 
@@ -183,38 +199,23 @@ export interface RetirementResult {
   worstHistoricalCohort?: RetirementHistoricalCohort;
   bestHistoricalCohort?: RetirementHistoricalCohort;
 
-  // === Tasas de retirada (SWR / PWR) ===
+  // === Tasas de retirada (SWR / PWR) por escenario ===
   /**
-   * Retiros mensuales máximos en € reales para dos criterios distintos:
+   * Retiros mensuales máximos en € reales bajo dos criterios:
    *  - SWR (Safe Withdrawal Rate): retiro máx. tal que el dinero NO se agota
-   *    antes de endAge en el ≥90% de secuencias históricas (puede acabar en 0).
-   *  - PWR (Perpetual Withdrawal Rate): retiro máx. tal que el capital final
-   *    en € REALES sea ≥ capital al jubilarse, en el ≥90% de secuencias.
+   *    antes de endAge (puede acabar en 0).
+   *  - PWR (Perpetual Withdrawal Rate): retiro máx. tal que capital final
+   *    en € REALES ≥ capital al jubilarse (poder adquisitivo intacto).
    *
-   * Ambos se calculan sobre el `capitalAtRetirementReal` (mediana del bootstrap
-   * al cumplir la retirementAge). Se usan ventanas históricas contiguas de
-   * `retirement_months` para simular cada escenario sin aleatoriedad.
+   * Se computan sobre `capitalAtRetirementReal` (mediana del bootstrap al
+   * cumplir retirementAge) y N ventanas históricas contiguas de
+   * `retirement_months`. Para cada escenario se reporta el percentil de
+   * retiros que funciona en X% de las secuencias.
    */
   withdrawalRates: {
-    /** Capital real al jubilarse usado como base (mediana del bootstrap, €). */
     capitalAtRetirementReal: number;
-    /** Nº de ventanas históricas analizadas. */
     windowsAnalyzed: number;
-    /** Percentil de confianza usado (90 = robusto, 95 = ultra-conservador). */
-    confidencePct: number;
-    swr: {
-      /** Retiro mensual seguro (€ reales). */
-      eurPerMonth: number;
-      /** Como % anual del capital al jubilarse. */
-      pctAnnual: number;
-    };
-    pwr: {
-      eurPerMonth: number;
-      pctAnnual: number;
-    };
-    /** Mediana (50%) para comparar — más optimista pero menos seguro. */
-    swrMedian: { eurPerMonth: number; pctAnnual: number };
-    pwrMedian: { eurPerMonth: number; pctAnnual: number };
+    scenarios: WithdrawalScenario[];
   };
 
   // === Path representativo del bootstrap normal (mediana, NO un percentil) ===

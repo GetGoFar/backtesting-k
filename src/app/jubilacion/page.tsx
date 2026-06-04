@@ -937,7 +937,7 @@ function ResultsPanel({ results }: { results: RetirementResult }) {
         </div>
       </section>
 
-      {/* Tasas de retirada SWR / PWR */}
+      {/* Tasas de retirada SWR / PWR por ESCENARIO */}
       <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
         <div className="mb-4">
           <h3 className="text-lg font-semibold text-brand-navy font-serif">
@@ -945,98 +945,125 @@ function ResultsPanel({ results }: { results: RetirementResult }) {
           </h3>
           <p className="text-xs text-brand-tertiary mt-0.5 leading-relaxed">
             Sobre tu capital REAL mediano al jubilarte (
-            <strong>{formatEUR(withdrawalRates.capitalAtRetirementReal)}</strong>),
-            tasas de retirada máxima en € de hoy según dos criterios.
-            Calculadas con {withdrawalRates.windowsAnalyzed} ventanas históricas
-            contiguas — la cifra &quot;robusta&quot; es la que sobrevive en el ≥
-            {withdrawalRates.confidencePct}% de las ventanas.
+            <strong>{formatEUR(withdrawalRates.capitalAtRetirementReal)}</strong>
+            ), retiros mensuales máximos en € de hoy bajo dos criterios:
+            <br />
+            <strong className="text-emerald-700">SWR</strong> permite acabar el
+            plan con €0 ·{" "}
+            <strong className="text-indigo-700">PWR</strong> exige preservar el
+            capital real al final. {withdrawalRates.windowsAnalyzed} ventanas
+            históricas contiguas analizadas. Elige el escenario según cuánta
+            tolerancia al fracaso aceptes.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* SWR */}
-          <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50/40 p-5">
-            <div className="flex items-baseline justify-between mb-2">
-              <h4 className="text-sm font-bold text-emerald-700 uppercase tracking-wider">
-                SWR — Safe Withdrawal Rate
-              </h4>
-              <span className="text-[10px] text-emerald-700 font-semibold">
-                Hasta agotar (€0 al final OK)
-              </span>
-            </div>
-            <p className="text-xs text-brand-secondary mb-3 leading-snug">
-              Retiro mensual máximo tal que el dinero <strong>NO se agota</strong>{" "}
-              antes de los {config.endAge} años, en el ≥
-              {withdrawalRates.confidencePct}% de las secuencias históricas.
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b-2 border-slate-200">
+                <th className="text-left py-2 pr-3 font-semibold text-brand-tertiary uppercase text-xs tracking-wider">
+                  Escenario
+                </th>
+                <th className="text-left py-2 px-3 font-semibold text-brand-tertiary uppercase text-xs tracking-wider">
+                  Prob. éxito
+                </th>
+                <th className="text-right py-2 px-3 font-semibold text-emerald-700 uppercase text-xs tracking-wider border-l border-slate-200">
+                  SWR €/mes
+                </th>
+                <th className="text-right py-2 px-3 font-semibold text-emerald-700 uppercase text-xs tracking-wider">
+                  SWR % anual
+                </th>
+                <th className="text-right py-2 px-3 font-semibold text-indigo-700 uppercase text-xs tracking-wider border-l border-slate-200">
+                  PWR €/mes
+                </th>
+                <th className="text-right py-2 pl-3 font-semibold text-indigo-700 uppercase text-xs tracking-wider">
+                  PWR % anual
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {withdrawalRates.scenarios.map((s) => {
+                // Colores semánticos según el grado de optimismo (riesgo)
+                const palette =
+                  s.key === "agorero"
+                    ? { bg: "bg-emerald-50/60", dot: "🟢", label: "text-emerald-700" }
+                    : s.key === "conservador"
+                    ? { bg: "bg-emerald-50/30", dot: "🟢", label: "text-emerald-600" }
+                    : s.key === "medio"
+                    ? { bg: "bg-amber-50/40", dot: "🟡", label: "text-amber-700" }
+                    : { bg: "bg-red-50/30", dot: "🔴", label: "text-red-600" };
+                return (
+                  <tr key={s.key} className={`${palette.bg} border-b border-slate-100`}>
+                    <td className="py-3 pr-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{palette.dot}</span>
+                        <span className={`font-semibold ${palette.label}`}>
+                          {s.label}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-3 text-brand-secondary">
+                      <strong>{s.successRatePct}%</strong> de las secuencias
+                      <br />
+                      <span className="text-[10px] text-brand-tertiary">
+                        (= percentil {s.percentile})
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-right border-l border-slate-200">
+                      <span className="font-mono font-bold text-emerald-700">
+                        {formatEUR(s.swr.eurPerMonth)}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-right text-emerald-700">
+                      {formatNumber(s.swr.pctAnnual, 2)}%
+                    </td>
+                    <td className="py-3 px-3 text-right border-l border-slate-200">
+                      <span className="font-mono font-bold text-indigo-700">
+                        {formatEUR(s.pwr.eurPerMonth)}
+                      </span>
+                    </td>
+                    <td className="py-3 pl-3 text-right text-indigo-700">
+                      {formatNumber(s.pwr.pctAnnual, 2)}%
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 leading-relaxed">
+            <p className="font-semibold text-emerald-700 mb-1">
+              🟢 SWR — Safe Withdrawal Rate
+            </p>
+            <p className="text-emerald-900">
+              Retiro mensual máximo tal que el <strong>dinero NO se agota</strong>{" "}
+              antes de los {config.endAge} años. Acepta acabar con €0.
               Equivalente al &quot;4% rule&quot; de Bengen.
             </p>
-            <div className="bg-white rounded-lg p-4 border border-emerald-200">
-              <p className="text-4xl font-bold font-serif text-emerald-700">
-                {formatEUR(withdrawalRates.swr.eurPerMonth)}
-                <span className="text-xl text-emerald-600 font-normal">/mes</span>
-              </p>
-              <p className="text-sm text-brand-secondary mt-1">
-                <strong className="text-emerald-700">
-                  {formatNumber(withdrawalRates.swr.pctAnnual, 2)}%
-                </strong>{" "}
-                anual sobre el capital al jubilarte
-              </p>
-              <p className="text-xs text-brand-tertiary mt-2 border-t border-emerald-100 pt-2">
-                Escenario mediano:{" "}
-                <span className="font-semibold text-brand-secondary">
-                  {formatEUR(withdrawalRates.swrMedian.eurPerMonth)}/mes ·{" "}
-                  {formatNumber(withdrawalRates.swrMedian.pctAnnual, 2)}%
-                </span>{" "}
-                anual (más optimista, menos seguro)
-              </p>
-            </div>
           </div>
-
-          {/* PWR */}
-          <div className="rounded-xl border-2 border-indigo-200 bg-indigo-50/40 p-5">
-            <div className="flex items-baseline justify-between mb-2">
-              <h4 className="text-sm font-bold text-indigo-700 uppercase tracking-wider">
-                PWR — Perpetual Withdrawal Rate
-              </h4>
-              <span className="text-[10px] text-indigo-700 font-semibold">
-                Mantener capital real
-              </span>
-            </div>
-            <p className="text-xs text-brand-secondary mb-3 leading-snug">
-              Retiro mensual máximo tal que el capital{" "}
-              <strong>al final del plan en € REALES ≥ capital al jubilarte</strong>{" "}
-              (poder adquisitivo intacto, herencia íntegra), en el ≥
-              {withdrawalRates.confidencePct}% de las secuencias.
+          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 leading-relaxed">
+            <p className="font-semibold text-indigo-700 mb-1">
+              🟣 PWR — Perpetual Withdrawal Rate
             </p>
-            <div className="bg-white rounded-lg p-4 border border-indigo-200">
-              <p className="text-4xl font-bold font-serif text-indigo-700">
-                {formatEUR(withdrawalRates.pwr.eurPerMonth)}
-                <span className="text-xl text-indigo-600 font-normal">/mes</span>
-              </p>
-              <p className="text-sm text-brand-secondary mt-1">
-                <strong className="text-indigo-700">
-                  {formatNumber(withdrawalRates.pwr.pctAnnual, 2)}%
-                </strong>{" "}
-                anual sobre el capital al jubilarte
-              </p>
-              <p className="text-xs text-brand-tertiary mt-2 border-t border-indigo-100 pt-2">
-                Escenario mediano:{" "}
-                <span className="font-semibold text-brand-secondary">
-                  {formatEUR(withdrawalRates.pwrMedian.eurPerMonth)}/mes ·{" "}
-                  {formatNumber(withdrawalRates.pwrMedian.pctAnnual, 2)}%
-                </span>{" "}
-                anual (más optimista, menos seguro)
-              </p>
-            </div>
+            <p className="text-indigo-900">
+              Retiro mensual máximo tal que el{" "}
+              <strong>capital final en € REALES ≥ capital al jubilarte</strong>
+              . Preserva poder adquisitivo (herencia íntegra, perpetuo).
+            </p>
           </div>
         </div>
 
         <p className="text-xs text-brand-tertiary mt-4 leading-relaxed">
-          💡 <strong>Diferencia clave</strong>: SWR te permite gastar más
-          porque acepta acabar con 0€; PWR es más conservadora porque preserva
-          el capital para herencia o gastos imprevistos. Si los warnings del
-          panel de fiabilidad indican histórico corto, estas tasas
-          probablemente <strong>sobreestiman</strong> lo que es seguro a futuro.
+          💡 <strong>Cómo leer la tabla</strong>: la fila &quot;Agorero&quot;
+          es la cifra <strong>casi garantizada</strong> — sobrevive en el 95%
+          de las secuencias históricas, pero te obliga a vivir más
+          modestamente. La &quot;Optimista&quot; sólo funciona en el 25% de
+          los escenarios — si te toca un mal sequence-risk al jubilarte, el
+          plan se rompe. <strong>Medio</strong> es la mediana (50/50). Si los
+          warnings del panel de fiabilidad indican histórico corto, estas
+          tasas <strong>sobreestiman</strong> lo que es seguro a futuro.
         </p>
       </section>
 
