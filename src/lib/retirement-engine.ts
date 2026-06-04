@@ -363,6 +363,55 @@ function findWorstWindow(
   };
 }
 
+/**
+ * Simula la fase de retirada con un retiro mensual fijo (en € reales) sobre
+ * un capital inicial real K y una secuencia de retornos REALES mensuales.
+ * Devuelve `success` según el criterio elegido:
+ *   - "noDeplete": dinero no llega a 0 antes del final
+ *   - "preserveCapital": además, capital final ≥ capital inicial K
+ */
+function simulateWithdrawalReal(
+  K: number,
+  R: number,
+  realReturns: number[],
+  criterion: "noDeplete" | "preserveCapital"
+): boolean {
+  let capital = K;
+  for (const r of realReturns) {
+    capital = capital * (1 + r) - R;
+    if (capital <= 0) return false;
+  }
+  return criterion === "preserveCapital" ? capital >= K : true;
+}
+
+/**
+ * Binary search del retiro mensual máximo (€ reales) que cumple el criterio.
+ */
+function findMaxWithdrawal(
+  K: number,
+  realReturns: number[],
+  criterion: "noDeplete" | "preserveCapital"
+): number {
+  if (K <= 0 || realReturns.length === 0) return 0;
+  let lo = 0;
+  let hi = K; // cota superior — retirar todo el capital en un mes
+  for (let i = 0; i < 30; i++) {
+    const mid = (lo + hi) / 2;
+    if (simulateWithdrawalReal(K, mid, realReturns, criterion)) lo = mid;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/**
+ * Convierte retornos NOMINALES mensuales en REALES, dado un inflMonthly.
+ * real = (1 + nominal) / (1 + infl) - 1
+ */
+function toRealReturns(nominal: number[], inflMonthly: number): number[] {
+  const inflFactor = 1 + inflMonthly;
+  return nominal.map((r) => (1 + r) / inflFactor - 1);
+}
+
 function percentile(sorted: number[], p: number): number {
   if (sorted.length === 0) return 0;
   const idx = Math.max(0, Math.min(sorted.length - 1, Math.round((p / 100) * (sorted.length - 1))));
@@ -628,6 +677,54 @@ export function runRetirementSimulation(input: RunRetirementInput): RetirementRe
       ? config.currentAge + seqRepPath.depletionMonth / 12
       : undefined;
 
+  // ---- Tasas de retirada SWR / PWR ----
+  // Capital REAL al jubilarse: mediana del bootstrap en el mes monthsAcc-1
+  const capitalsAtRetirement = paths
+    .map((p) => p.monthlyValuesReal[Math.max(0, monthsAcc - 1)] ?? 0)
+    .sort((a, b) => a - b);
+  const capitalAtRetirementReal = percentile(capitalsAtRetirement, 50);
+
+  // Pasamos los retornos del histórico de la cartera de distribución a REALES
+  const inflMonthly =
+    Math.pow(1 + config.inflationAnnualPct / 100, 1 / 12) - 1;
+  const realReturns = toRealReturns(source.retB, inflMonthly);
+
+  // Para cada ventana contigua del histórico de longitud `retirement_months`
+  // (con wrap modular si el histórico es más corto que la jubilación),
+  // buscamos el retiro máximo según cada criterio.
+  const retMonths = totalMonths - monthsAcc;
+  const swrPerWindow: number[] = [];
+  const pwrPerWindow: number[] = [];
+  if (capitalAtRetirementReal > 0 && retMonths > 0 && realReturns.length > 0) {
+    for (let start = 0; start < source.length; start++) {
+      const window: number[] = [];
+      for (let k = 0; k < retMonths; k++) {
+        window.push(realReturns[(start + k) % source.length]!);
+      }
+      swrPerWindow.push(
+        findMaxWithdrawal(capitalAtRetirementReal, window, "noDeplete")
+      );
+      pwrPerWindow.push(
+        findMaxWithdrawal(capitalAtRetirementReal, window, "preserveCapital")
+      );
+    }
+  }
+  swrPerWindow.sort((a, b) => a - b);
+  pwrPerWindow.sort((a, b) => a - b);
+  const confidencePct = 90;
+  // El "umbral seguro" = peor 10% de los escenarios. Como swrPerWindow está
+  // ordenado ascendente, el percentil 10 (índice 10%) es ese umbral.
+  const safeIdx = Math.max(0, Math.floor(swrPerWindow.length * (100 - confidencePct) / 100));
+  const swrSafe = swrPerWindow[safeIdx] ?? 0;
+  const pwrSafe = pwrPerWindow[safeIdx] ?? 0;
+  const swrMedianVal = percentile(swrPerWindow, 50);
+  const pwrMedianVal = percentile(pwrPerWindow, 50);
+
+  const toPctAnnual = (eurMonth: number): number =>
+    capitalAtRetirementReal > 0
+      ? (eurMonth * 12 / capitalAtRetirementReal) * 100
+      : 0;
+
   return {
     config,
     successProbability,
@@ -639,6 +736,15 @@ export function runRetirementSimulation(input: RunRetirementInput): RetirementRe
     historicalSuccessRate,
     worstHistoricalCohort,
     bestHistoricalCohort,
+    withdrawalRates: {
+      capitalAtRetirementReal,
+      windowsAnalyzed: swrPerWindow.length,
+      confidencePct,
+      swr: { eurPerMonth: swrSafe, pctAnnual: toPctAnnual(swrSafe) },
+      pwr: { eurPerMonth: pwrSafe, pctAnnual: toPctAnnual(pwrSafe) },
+      swrMedian: { eurPerMonth: swrMedianVal, pctAnnual: toPctAnnual(swrMedianVal) },
+      pwrMedian: { eurPerMonth: pwrMedianVal, pctAnnual: toPctAnnual(pwrMedianVal) },
+    },
     representativeMedianPath: {
       monthlyValuesReal: representativePath.monthlyValuesReal,
     },

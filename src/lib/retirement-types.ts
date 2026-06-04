@@ -183,6 +183,40 @@ export interface RetirementResult {
   worstHistoricalCohort?: RetirementHistoricalCohort;
   bestHistoricalCohort?: RetirementHistoricalCohort;
 
+  // === Tasas de retirada (SWR / PWR) ===
+  /**
+   * Retiros mensuales máximos en € reales para dos criterios distintos:
+   *  - SWR (Safe Withdrawal Rate): retiro máx. tal que el dinero NO se agota
+   *    antes de endAge en el ≥90% de secuencias históricas (puede acabar en 0).
+   *  - PWR (Perpetual Withdrawal Rate): retiro máx. tal que el capital final
+   *    en € REALES sea ≥ capital al jubilarse, en el ≥90% de secuencias.
+   *
+   * Ambos se calculan sobre el `capitalAtRetirementReal` (mediana del bootstrap
+   * al cumplir la retirementAge). Se usan ventanas históricas contiguas de
+   * `retirement_months` para simular cada escenario sin aleatoriedad.
+   */
+  withdrawalRates: {
+    /** Capital real al jubilarse usado como base (mediana del bootstrap, €). */
+    capitalAtRetirementReal: number;
+    /** Nº de ventanas históricas analizadas. */
+    windowsAnalyzed: number;
+    /** Percentil de confianza usado (90 = robusto, 95 = ultra-conservador). */
+    confidencePct: number;
+    swr: {
+      /** Retiro mensual seguro (€ reales). */
+      eurPerMonth: number;
+      /** Como % anual del capital al jubilarse. */
+      pctAnnual: number;
+    };
+    pwr: {
+      eurPerMonth: number;
+      pctAnnual: number;
+    };
+    /** Mediana (50%) para comparar — más optimista pero menos seguro. */
+    swrMedian: { eurPerMonth: number; pctAnnual: number };
+    pwrMedian: { eurPerMonth: number; pctAnnual: number };
+  };
+
   // === Path representativo del bootstrap normal (mediana, NO un percentil) ===
   /**
    * Trayectoria mensual completa de UN path REAL del bootstrap — el que cae

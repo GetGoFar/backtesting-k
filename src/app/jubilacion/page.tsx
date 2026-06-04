@@ -674,7 +674,7 @@ function SelectField({
 // -----------------------------------------------------------------------------
 
 function ResultsPanel({ results }: { results: RetirementResult }) {
-  const { successProbability, medianFinalValueReal, medianDepletionAge, depletionProbability, yearByYear, historicalSuccessRate, worstHistoricalCohort, bestHistoricalCohort, historicalCohorts, bootstrapSource, sequenceRisk, representativeMedianPath, warnings, config } = results;
+  const { successProbability, medianFinalValueReal, medianDepletionAge, depletionProbability, yearByYear, historicalSuccessRate, worstHistoricalCohort, bestHistoricalCohort, historicalCohorts, bootstrapSource, sequenceRisk, representativeMedianPath, withdrawalRates, warnings, config } = results;
   // Severidad del aviso de fiabilidad por longitud del histórico
   const histYears = bootstrapSource.historicalMonths / 12;
   const reliability: "high" | "medium" | "low" =
@@ -877,6 +877,109 @@ function ResultsPanel({ results }: { results: RetirementResult }) {
             </AreaChart>
           </ResponsiveContainer>
         </div>
+      </section>
+
+      {/* Tasas de retirada SWR / PWR */}
+      <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-brand-navy font-serif">
+            ¿Cuánto puedes retirar al mes?
+          </h3>
+          <p className="text-xs text-brand-tertiary mt-0.5 leading-relaxed">
+            Sobre tu capital REAL mediano al jubilarte (
+            <strong>{formatEUR(withdrawalRates.capitalAtRetirementReal)}</strong>),
+            tasas de retirada máxima en € de hoy según dos criterios.
+            Calculadas con {withdrawalRates.windowsAnalyzed} ventanas históricas
+            contiguas — la cifra &quot;robusta&quot; es la que sobrevive en el ≥
+            {withdrawalRates.confidencePct}% de las ventanas.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* SWR */}
+          <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50/40 p-5">
+            <div className="flex items-baseline justify-between mb-2">
+              <h4 className="text-sm font-bold text-emerald-700 uppercase tracking-wider">
+                SWR — Safe Withdrawal Rate
+              </h4>
+              <span className="text-[10px] text-emerald-700 font-semibold">
+                Hasta agotar (€0 al final OK)
+              </span>
+            </div>
+            <p className="text-xs text-brand-secondary mb-3 leading-snug">
+              Retiro mensual máximo tal que el dinero <strong>NO se agota</strong>{" "}
+              antes de los {config.endAge} años, en el ≥
+              {withdrawalRates.confidencePct}% de las secuencias históricas.
+              Equivalente al &quot;4% rule&quot; de Bengen.
+            </p>
+            <div className="bg-white rounded-lg p-4 border border-emerald-200">
+              <p className="text-4xl font-bold font-serif text-emerald-700">
+                {formatEUR(withdrawalRates.swr.eurPerMonth)}
+                <span className="text-xl text-emerald-600 font-normal">/mes</span>
+              </p>
+              <p className="text-sm text-brand-secondary mt-1">
+                <strong className="text-emerald-700">
+                  {formatNumber(withdrawalRates.swr.pctAnnual, 2)}%
+                </strong>{" "}
+                anual sobre el capital al jubilarte
+              </p>
+              <p className="text-xs text-brand-tertiary mt-2 border-t border-emerald-100 pt-2">
+                Escenario mediano:{" "}
+                <span className="font-semibold text-brand-secondary">
+                  {formatEUR(withdrawalRates.swrMedian.eurPerMonth)}/mes ·{" "}
+                  {formatNumber(withdrawalRates.swrMedian.pctAnnual, 2)}%
+                </span>{" "}
+                anual (más optimista, menos seguro)
+              </p>
+            </div>
+          </div>
+
+          {/* PWR */}
+          <div className="rounded-xl border-2 border-indigo-200 bg-indigo-50/40 p-5">
+            <div className="flex items-baseline justify-between mb-2">
+              <h4 className="text-sm font-bold text-indigo-700 uppercase tracking-wider">
+                PWR — Perpetual Withdrawal Rate
+              </h4>
+              <span className="text-[10px] text-indigo-700 font-semibold">
+                Mantener capital real
+              </span>
+            </div>
+            <p className="text-xs text-brand-secondary mb-3 leading-snug">
+              Retiro mensual máximo tal que el capital{" "}
+              <strong>al final del plan en € REALES ≥ capital al jubilarte</strong>{" "}
+              (poder adquisitivo intacto, herencia íntegra), en el ≥
+              {withdrawalRates.confidencePct}% de las secuencias.
+            </p>
+            <div className="bg-white rounded-lg p-4 border border-indigo-200">
+              <p className="text-4xl font-bold font-serif text-indigo-700">
+                {formatEUR(withdrawalRates.pwr.eurPerMonth)}
+                <span className="text-xl text-indigo-600 font-normal">/mes</span>
+              </p>
+              <p className="text-sm text-brand-secondary mt-1">
+                <strong className="text-indigo-700">
+                  {formatNumber(withdrawalRates.pwr.pctAnnual, 2)}%
+                </strong>{" "}
+                anual sobre el capital al jubilarte
+              </p>
+              <p className="text-xs text-brand-tertiary mt-2 border-t border-indigo-100 pt-2">
+                Escenario mediano:{" "}
+                <span className="font-semibold text-brand-secondary">
+                  {formatEUR(withdrawalRates.pwrMedian.eurPerMonth)}/mes ·{" "}
+                  {formatNumber(withdrawalRates.pwrMedian.pctAnnual, 2)}%
+                </span>{" "}
+                anual (más optimista, menos seguro)
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <p className="text-xs text-brand-tertiary mt-4 leading-relaxed">
+          💡 <strong>Diferencia clave</strong>: SWR te permite gastar más
+          porque acepta acabar con 0€; PWR es más conservadora porque preserva
+          el capital para herencia o gastos imprevistos. Si los warnings del
+          panel de fiabilidad indican histórico corto, estas tasas
+          probablemente <strong>sobreestiman</strong> lo que es seguro a futuro.
+        </p>
       </section>
 
       {/* Sequence-of-returns risk */}
