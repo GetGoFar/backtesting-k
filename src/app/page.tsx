@@ -441,7 +441,7 @@ export default function Home() {
               </div>
             </a>
 
-            {/* Pestañas Backtest / Momentum */}
+            {/* Pestañas Backtest / Momentum / Jubilación */}
             <nav className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
               <span className="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md bg-white text-brand-navy shadow-sm">
                 Backtest
@@ -451,6 +451,12 @@ export default function Home() {
                 className="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md transition-colors text-brand-secondary hover:bg-white hover:text-brand-navy"
               >
                 Momentum
+              </a>
+              <a
+                href="/jubilacion"
+                className="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md transition-colors text-brand-secondary hover:bg-white hover:text-brand-navy"
+              >
+                Jubilación
               </a>
             </nav>
 

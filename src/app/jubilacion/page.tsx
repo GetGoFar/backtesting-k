@@ -1,0 +1,546 @@
+"use client";
+
+// =============================================================================
+// JUBILACIÓN — Financial Goals al estilo Portfolio Visualizer
+// =============================================================================
+//
+// Simulador de plan de jubilación con block bootstrap 12m + glide path A→B,
+// IRPF español opcional, inflación. Reutiliza presets de cartera del backtest.
+// =============================================================================
+
+import { useState, useMemo } from "react";
+import Link from "next/link";
+import { AccessGate } from "@/components/AccessGate";
+import { DataSourceToggle } from "@/components/DataSourceToggle";
+import { fetchWithSource } from "@/lib/data-source";
+import { getAllPresets } from "@/lib/portfolio-presets";
+import { getFundById } from "@/lib/fund-database";
+import { formatEUR, formatPct, formatNumber } from "@/lib/formatters";
+import type { Portfolio } from "@/lib/types";
+import type {
+  RetirementConfig,
+  RetirementResult,
+  RetirementTaxMode,
+} from "@/lib/retirement-types";
+import {
+  LineChart,
+  Line,
+  Area,
+  AreaChart,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  Legend,
+  ResponsiveContainer,
+  ReferenceLine,
+} from "recharts";
+
+function defaultConfig(): RetirementConfig {
+  return {
+    currentAge: 40,
+    retirementAge: 65,
+    endAge: 90,
+    initialCapital: 50_000,
+    monthlyContributionReal: 500,
+    monthlyWithdrawalReal: 2_000,
+    portfolioAccumulation: { name: "Acumulación", holdings: [] },
+    portfolioDistribution: { name: "Distribución", holdings: [] },
+    glidePathYears: 5,
+    inflationAnnualPct: 2.5,
+    taxMode: "spain-irpf",
+    numPaths: 1000,
+    blockSizeMonths: 12,
+  };
+}
+
+function buildPortfolioFromPresetId(
+  presetId: string,
+  name: string
+): Portfolio | null {
+  const preset = getAllPresets().find((p) => p.id === presetId);
+  if (!preset) return null;
+  // Para fondos custom (no en DB), enviamos también `fund` completo
+  const holdings = preset.holdings.map((h) => {
+    const fund = getFundById(h.fundId);
+    return fund
+      ? { fundId: h.fundId, weight: h.weight, fund }
+      : { fundId: h.fundId, weight: h.weight };
+  });
+  return { name, holdings };
+}
+
+export default function JubilacionPage() {
+  const [presetAccum, setPresetAccum] = useState<string>("");
+  const [presetDist, setPresetDist] = useState<string>("");
+  const [config, setConfig] = useState<RetirementConfig>(defaultConfig());
+  const [results, setResults] = useState<RetirementResult | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const presets = useMemo(() => getAllPresets(), []);
+
+  const canRun = useMemo(() => {
+    return presetAccum && presetDist && config.initialCapital >= 0;
+  }, [presetAccum, presetDist, config.initialCapital]);
+
+  const handleRun = async () => {
+    setIsLoading(true);
+    setError(null);
+    setResults(null);
+
+    const portA = buildPortfolioFromPresetId(presetAccum, "Acumulación");
+    const portB = buildPortfolioFromPresetId(presetDist, "Distribución");
+    if (!portA || !portB) {
+      setError("Selecciona dos carteras válidas");
+      setIsLoading(false);
+      return;
+    }
+
+    const payload: RetirementConfig = {
+      ...config,
+      portfolioAccumulation: portA,
+      portfolioDistribution: portB,
+    };
+
+    try {
+      const res = await fetchWithSource("/api/retirement", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.message ?? "Error al simular");
+      } else {
+        setResults(data as RetirementResult);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error de red");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <AccessGate>
+      <div className="min-h-screen flex flex-col bg-slate-50">
+        {/* Header — replica el de backtest y momentum */}
+        <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-brand-border">
+          <div className="px-4 sm:px-6 py-3">
+            <div className="flex items-center justify-between max-w-[1800px] mx-auto">
+              <a
+                href="https://elproyectok.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 group"
+              >
+                <div className="w-10 h-10 rounded-xl gradient-k flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow">
+                  <span className="text-2xl font-bold text-white">K</span>
+                </div>
+                <div>
+                  <h1 className="text-lg font-semibold text-brand-navy group-hover:text-brand-coral transition-colors font-serif">
+                    Backtesting Tool
+                  </h1>
+                  <p className="text-xs text-brand-tertiary hidden sm:block">
+                    El Proyecto K
+                  </p>
+                </div>
+              </a>
+
+              <nav className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+                <Link
+                  href="/"
+                  className="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md transition-colors text-brand-secondary hover:bg-white hover:text-brand-navy"
+                >
+                  Backtest
+                </Link>
+                <Link
+                  href="/momentum"
+                  className="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md transition-colors text-brand-secondary hover:bg-white hover:text-brand-navy"
+                >
+                  Momentum
+                </Link>
+                <span className="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md bg-white text-brand-navy shadow-sm">
+                  Jubilación
+                </span>
+              </nav>
+
+              <DataSourceToggle />
+
+              <a
+                href="https://elproyectok.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-brand-secondary hover:text-brand-coral transition-colors hidden sm:flex items-center gap-1.5"
+              >
+                <span>elproyectok.com</span>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8 sm:py-12 max-w-[1400px] mx-auto w-full">
+          {/* Intro */}
+          <div className="mb-10 text-center max-w-3xl mx-auto">
+            <h2 className="text-4xl sm:text-5xl font-normal text-brand-navy mb-4 tracking-tight font-serif">
+              Simulador de Jubilación
+            </h2>
+            <p className="text-base sm:text-lg text-brand-secondary leading-relaxed">
+              ¿Te llega el capital? Block bootstrap con 1.000 trayectorias usando
+              retornos históricos reales + glide path entre dos carteras +
+              inflación + IRPF. Te dice la probabilidad de éxito, no una promesa.
+            </p>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-start gap-3">
+              <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+              <div className="flex-1">
+                <p className="font-medium">Error en la simulación</p>
+                <p className="text-sm mt-1">{error}</p>
+              </div>
+              <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 p-1">×</button>
+            </div>
+          )}
+
+          {/* Form */}
+          <section className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-10">
+            <div className="bg-brand-navy px-6 py-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-white font-semibold font-serif text-lg">
+                  Tu plan
+                </h3>
+                <p className="text-xs text-white/70 mt-0.5">
+                  Inputs en € de hoy. La inflación los ajusta cada año.
+                </p>
+              </div>
+              <button
+                onClick={handleRun}
+                disabled={!canRun || isLoading}
+                className="px-5 py-2 bg-brand-coral text-white text-sm font-semibold rounded-lg hover:bg-brand-coral/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isLoading ? "Simulando..." : "Simular"}
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Edades */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <NumberField label="Edad actual" value={config.currentAge} onChange={(v) => setConfig({ ...config, currentAge: v })} min={18} max={100} />
+                <NumberField label="Edad de jubilación" value={config.retirementAge} onChange={(v) => setConfig({ ...config, retirementAge: v })} min={config.currentAge + 1} max={100} />
+                <NumberField label="Edad fin del plan" value={config.endAge} onChange={(v) => setConfig({ ...config, endAge: v })} min={config.retirementAge + 1} max={110} />
+              </div>
+
+              {/* Capital y flujos */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <NumberField label="Capital inicial (€)" value={config.initialCapital} onChange={(v) => setConfig({ ...config, initialCapital: v })} min={0} step={1000} />
+                <NumberField label="Aporte mensual acumulación (€)" value={config.monthlyContributionReal} onChange={(v) => setConfig({ ...config, monthlyContributionReal: v })} min={0} step={50} />
+                <NumberField label="Retirada mensual jubilación (€)" value={config.monthlyWithdrawalReal} onChange={(v) => setConfig({ ...config, monthlyWithdrawalReal: v })} min={0} step={50} />
+              </div>
+
+              {/* Carteras */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <SelectField label="Cartera de acumulación" value={presetAccum} onChange={setPresetAccum} options={presets.map((p) => ({ value: p.id, label: p.name }))} placeholder="Selecciona cartera A..." />
+                <SelectField label="Cartera de distribución (jubilación)" value={presetDist} onChange={setPresetDist} options={presets.map((p) => ({ value: p.id, label: p.name }))} placeholder="Selecciona cartera B..." />
+              </div>
+              <p className="text-xs text-brand-tertiary leading-tight">
+                💡 Glide path: en los <strong>{config.glidePathYears} años</strong> previos
+                a la jubilación, la cartera se desplaza linealmente de A a B. Si eliges
+                la misma para ambas, no hay glide path.
+              </p>
+
+              {/* Macro */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <NumberField label="Inflación anual (%)" value={config.inflationAnnualPct} onChange={(v) => setConfig({ ...config, inflationAnnualPct: v })} min={-5} max={15} step={0.1} />
+                <NumberField label="Glide path (años)" value={config.glidePathYears} onChange={(v) => setConfig({ ...config, glidePathYears: v })} min={0} max={20} />
+                <SelectField
+                  label="Modo fiscal"
+                  value={config.taxMode}
+                  onChange={(v) => setConfig({ ...config, taxMode: v as RetirementTaxMode })}
+                  options={[
+                    { value: "spain-irpf", label: "IRPF España (tramos)" },
+                    { value: "flat", label: "Tasa fija" },
+                    { value: "none", label: "Sin impuestos" },
+                  ]}
+                />
+              </div>
+
+              {config.taxMode === "flat" && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <NumberField label="Tasa fija (%)" value={config.flatTaxRatePct ?? 21} onChange={(v) => setConfig({ ...config, flatTaxRatePct: v })} min={0} max={50} step={0.5} />
+                </div>
+              )}
+
+              {/* Avanzado */}
+              <details className="border-t border-slate-100 pt-4">
+                <summary className="cursor-pointer text-xs font-semibold text-brand-tertiary uppercase tracking-wider">
+                  Opciones avanzadas
+                </summary>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
+                  <NumberField label="Nº de trayectorias" value={config.numPaths} onChange={(v) => setConfig({ ...config, numPaths: v })} min={100} max={5000} step={100} tooltip="Más trayectorias = más precisión pero más tiempo. 1000 es estándar." />
+                  <NumberField label="Tamaño bloque bootstrap (meses)" value={config.blockSizeMonths} onChange={(v) => setConfig({ ...config, blockSizeMonths: v })} min={1} max={60} tooltip="12 preserva la 'secuencia de retornos' anual." />
+                </div>
+              </details>
+            </div>
+          </section>
+
+          {/* Resultados */}
+          {results && <ResultsPanel results={results} />}
+        </main>
+
+        <footer className="border-t border-slate-200 bg-white py-6 mt-10">
+          <div className="max-w-3xl mx-auto px-4 text-center text-xs text-brand-tertiary leading-relaxed">
+            Esta herramienta tiene fines exclusivamente educativos. Las
+            rentabilidades pasadas no garantizan resultados futuros. El simulador
+            asume composición de cartera estable y rebalanceo mensual. El
+            Proyecto K no es una entidad de asesoramiento financiero regulada.
+          </div>
+        </footer>
+      </div>
+    </AccessGate>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Inputs reutilizables
+// -----------------------------------------------------------------------------
+
+function NumberField({
+  label,
+  value,
+  onChange,
+  min,
+  max,
+  step = 1,
+  tooltip,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+  tooltip?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="block text-xs font-semibold text-brand-tertiary uppercase tracking-wider mb-1" title={tooltip}>
+        {label}
+      </span>
+      <input
+        type="number"
+        value={value}
+        onChange={(e) => {
+          const v = parseFloat(e.target.value);
+          if (!isNaN(v)) onChange(v);
+        }}
+        min={min}
+        max={max}
+        step={step}
+        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral"
+      />
+    </label>
+  );
+}
+
+function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: Array<{ value: string; label: string }>;
+  placeholder?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="block text-xs font-semibold text-brand-tertiary uppercase tracking-wider mb-1">
+        {label}
+      </span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral bg-white"
+      >
+        {placeholder && <option value="">{placeholder}</option>}
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Panel de resultados
+// -----------------------------------------------------------------------------
+
+function ResultsPanel({ results }: { results: RetirementResult }) {
+  const { successProbability, medianFinalValueReal, medianDepletionAge, depletionProbability, yearByYear, historicalSuccessRate, worstHistoricalCohort, bestHistoricalCohort, historicalCohorts } = results;
+
+  // Datos para el fan chart (Recharts)
+  const fanData = yearByYear.map((y) => ({
+    age: y.age,
+    p10: Math.round(y.p10),
+    p25: Math.round(y.p25),
+    p50: Math.round(y.p50),
+    p75: Math.round(y.p75),
+    p90: Math.round(y.p90),
+    p10_25_band: Math.max(0, y.p25 - y.p10),
+    p25_50_band: Math.max(0, y.p50 - y.p25),
+    p50_75_band: Math.max(0, y.p75 - y.p50),
+    p75_90_band: Math.max(0, y.p90 - y.p75),
+  }));
+
+  const probColor =
+    successProbability >= 90 ? "emerald" : successProbability >= 70 ? "amber" : "red";
+
+  return (
+    <div className="space-y-8">
+      {/* Probabilidad de éxito + KPIs */}
+      <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          {/* Gauge */}
+          <div className={`rounded-xl p-6 ${probColor === "emerald" ? "bg-emerald-50 border-emerald-200" : probColor === "amber" ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200"} border`}>
+            <p className="text-xs font-semibold uppercase tracking-wider text-brand-tertiary mb-2">
+              Probabilidad de éxito
+            </p>
+            <p className={`text-5xl font-bold font-serif ${probColor === "emerald" ? "text-emerald-700" : probColor === "amber" ? "text-amber-700" : "text-red-700"}`}>
+              {formatNumber(successProbability, 1)}%
+            </p>
+            <p className="text-xs mt-2 text-brand-secondary leading-tight">
+              {successProbability >= 90 ? "Plan sólido — el capital aguanta en la inmensa mayoría de escenarios." : successProbability >= 70 ? "Plan razonable — algo de riesgo de quedarte corto." : "Plan frágil — considera aumentar aportes o reducir retiradas."}
+            </p>
+          </div>
+
+          {/* Mediana final */}
+          <div className="rounded-xl p-6 bg-slate-50 border border-slate-200">
+            <p className="text-xs font-semibold uppercase tracking-wider text-brand-tertiary mb-2">
+              Patrimonio final mediano (€ reales)
+            </p>
+            <p className="text-3xl font-bold font-serif text-brand-navy">
+              {formatEUR(medianFinalValueReal)}
+            </p>
+            <p className="text-xs mt-2 text-brand-secondary">
+              Lo que el 50% de los paths te deja al cumplir {yearByYear[yearByYear.length - 1]?.age} años.
+            </p>
+          </div>
+
+          {/* Edad mediana de agotamiento */}
+          <div className="rounded-xl p-6 bg-slate-50 border border-slate-200">
+            <p className="text-xs font-semibold uppercase tracking-wider text-brand-tertiary mb-2">
+              Edad mediana de agotamiento
+            </p>
+            <p className="text-3xl font-bold font-serif text-brand-navy">
+              {medianDepletionAge !== undefined ? `${formatNumber(medianDepletionAge, 1)} años` : "—"}
+            </p>
+            <p className="text-xs mt-2 text-brand-secondary">
+              Entre los {formatNumber(depletionProbability, 1)}% de paths que se agotan.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Fan chart */}
+      <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+        <h3 className="text-lg font-semibold text-brand-navy font-serif mb-1">
+          Evolución del patrimonio (€ reales)
+        </h3>
+        <p className="text-xs text-brand-tertiary mb-4">
+          Bandas año a año: p10-p25, p25-p50 (mediana), p50-p75, p75-p90. La línea
+          es la mediana. Cuanto más estrecha la banda, más consistente el resultado.
+        </p>
+        <div className="h-96">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={fanData} margin={{ top: 5, right: 5, left: 10, bottom: 5 }} stackOffset="none">
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="age" tick={{ fontSize: 11, fill: "#64748b" }} label={{ value: "Edad", position: "insideBottom", offset: -2, fontSize: 11, fill: "#64748b" }} />
+              <YAxis tick={{ fontSize: 11, fill: "#64748b" }} tickFormatter={(v) => formatEUR(v as number)} width={80} />
+              <RechartsTooltip
+                formatter={(value: number, name: string) => [formatEUR(value), name]}
+                labelFormatter={(l) => `Edad ${l}`}
+                contentStyle={{ backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "12px" }}
+              />
+              <Legend wrapperStyle={{ fontSize: "12px" }} />
+              <Area type="monotone" dataKey="p10" stackId="1" stroke="none" fill="transparent" name="p10" />
+              <Area type="monotone" dataKey="p10_25_band" stackId="1" stroke="none" fill="#e11d48" fillOpacity={0.15} name="p10-p25" />
+              <Area type="monotone" dataKey="p25_50_band" stackId="1" stroke="none" fill="#e11d48" fillOpacity={0.30} name="p25-p50" />
+              <Area type="monotone" dataKey="p50_75_band" stackId="1" stroke="none" fill="#2563eb" fillOpacity={0.30} name="p50-p75" />
+              <Area type="monotone" dataKey="p75_90_band" stackId="1" stroke="none" fill="#2563eb" fillOpacity={0.15} name="p75-p90" />
+              <Line type="monotone" dataKey="p50" stroke="#1d4ed8" strokeWidth={2.5} dot={false} name="Mediana" />
+              <ReferenceLine y={0} stroke="#dc2626" strokeDasharray="4 4" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
+      {/* Cohortes históricos */}
+      <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+        <h3 className="text-lg font-semibold text-brand-navy font-serif mb-1">
+          Secuencias históricas reales
+        </h3>
+        <p className="text-xs text-brand-tertiary mb-4">
+          Resultado del MISMO plan ejecutado empezando en cada mes histórico
+          disponible (no aleatorio). Enseña el <strong>sequence of returns risk</strong>:
+          jubilarse en 2000 (dotcom) vs 2009 (post-crisis) cambia totalmente el final.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          <div className="rounded-lg p-4 bg-slate-50 border border-slate-200">
+            <p className="text-[10px] font-semibold uppercase text-brand-tertiary mb-1">% éxito histórico</p>
+            <p className="text-2xl font-bold font-serif text-brand-navy">{formatNumber(historicalSuccessRate, 1)}%</p>
+          </div>
+          {worstHistoricalCohort && (
+            <div className="rounded-lg p-4 bg-red-50 border border-red-200">
+              <p className="text-[10px] font-semibold uppercase text-red-700 mb-1">Peor cohorte</p>
+              <p className="text-lg font-bold font-serif text-red-700">{worstHistoricalCohort.startMonth}</p>
+              <p className="text-xs text-red-600">
+                Final: {formatEUR(worstHistoricalCohort.finalValueReal)}
+                {worstHistoricalCohort.depletionAge !== undefined && ` · agotado a los ${formatNumber(worstHistoricalCohort.depletionAge, 0)} años`}
+              </p>
+            </div>
+          )}
+          {bestHistoricalCohort && (
+            <div className="rounded-lg p-4 bg-emerald-50 border border-emerald-200">
+              <p className="text-[10px] font-semibold uppercase text-emerald-700 mb-1">Mejor cohorte</p>
+              <p className="text-lg font-bold font-serif text-emerald-700">{bestHistoricalCohort.startMonth}</p>
+              <p className="text-xs text-emerald-600">Final: {formatEUR(bestHistoricalCohort.finalValueReal)}</p>
+            </div>
+          )}
+        </div>
+        <div className="overflow-x-auto max-h-[400px] overflow-y-auto border border-slate-100 rounded-lg">
+          <table className="w-full text-xs">
+            <thead className="sticky top-0 bg-white border-b border-slate-200">
+              <tr>
+                <th className="text-left font-semibold text-brand-tertiary uppercase py-2 px-3">Inicio</th>
+                <th className="text-right font-semibold text-brand-tertiary uppercase py-2 px-3">Final real</th>
+                <th className="text-right font-semibold text-brand-tertiary uppercase py-2 px-3">Edad agotamiento</th>
+                <th className="text-center font-semibold text-brand-tertiary uppercase py-2 px-3">Éxito</th>
+              </tr>
+            </thead>
+            <tbody>
+              {historicalCohorts.slice().sort((a, b) => a.startMonth.localeCompare(b.startMonth)).map((c) => (
+                <tr key={c.startMonth} className={`border-b border-slate-100 ${c.success ? "" : "bg-red-50/30"}`}>
+                  <td className="py-1.5 px-3 font-mono text-brand-secondary">{c.startMonth}</td>
+                  <td className={`py-1.5 px-3 text-right font-mono ${c.success ? "text-emerald-700" : "text-red-700"}`}>{formatEUR(c.finalValueReal)}</td>
+                  <td className="py-1.5 px-3 text-right font-mono">{c.depletionAge !== undefined ? formatNumber(c.depletionAge, 0) : "—"}</td>
+                  <td className="py-1.5 px-3 text-center">{c.success ? "✓" : "✗"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
+}
