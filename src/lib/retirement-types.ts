@@ -130,6 +130,27 @@ export interface RetirementResult {
   worstHistoricalCohort?: RetirementHistoricalCohort;
   bestHistoricalCohort?: RetirementHistoricalCohort;
 
+  // === Metadata del bootstrap (para que el usuario sepa la fiabilidad) ===
+  /** Diagnóstico de la fuente histórica usada por el bootstrap. */
+  bootstrapSource: {
+    /** Meses comunes entre las dos carteras (longitud del histórico usable). */
+    historicalMonths: number;
+    /** Mes inicial del histórico común (YYYY-MM). */
+    historicalStartMonth: string;
+    /** Mes final del histórico común (YYYY-MM). */
+    historicalEndMonth: string;
+    /** Meses totales del plan (endAge − currentAge) × 12. */
+    planMonths: number;
+    /** Ratio plan/histórico — cuántas veces se "recicla" el histórico. */
+    recyclingFactor: number;
+    /** Block size que el usuario pidió (input). */
+    requestedBlockSize: number;
+    /** Block size efectivamente usado (puede haberse reducido por histórico corto). */
+    effectiveBlockSize: number;
+    /** Número de puntos de inicio posibles para los bloques (= histórico − blockSize). */
+    blockStartPoints: number;
+  };
+
   // === Avisos ===
   warnings: string[];
 }

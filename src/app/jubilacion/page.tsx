@@ -396,7 +396,20 @@ function SelectField({
 // -----------------------------------------------------------------------------
 
 function ResultsPanel({ results }: { results: RetirementResult }) {
-  const { successProbability, medianFinalValueReal, medianDepletionAge, depletionProbability, yearByYear, historicalSuccessRate, worstHistoricalCohort, bestHistoricalCohort, historicalCohorts } = results;
+  const { successProbability, medianFinalValueReal, medianDepletionAge, depletionProbability, yearByYear, historicalSuccessRate, worstHistoricalCohort, bestHistoricalCohort, historicalCohorts, bootstrapSource, warnings } = results;
+  // Severidad del aviso de fiabilidad por longitud del histórico
+  const histYears = bootstrapSource.historicalMonths / 12;
+  const reliability: "high" | "medium" | "low" =
+    bootstrapSource.recyclingFactor <= 0.6 && histYears >= 15
+      ? "high"
+      : bootstrapSource.recyclingFactor <= 1.5 && histYears >= 10
+      ? "medium"
+      : "low";
+  const fmtMonth = (m: string) => {
+    const [y, mo] = m.split("-").map(Number) as [number, number];
+    if (!y || !mo) return m;
+    return new Date(y, mo - 1, 1).toLocaleDateString("es-ES", { month: "short", year: "numeric" });
+  };
 
   // Datos para el fan chart (Recharts)
   const fanData = yearByYear.map((y) => ({
@@ -417,6 +430,100 @@ function ResultsPanel({ results }: { results: RetirementResult }) {
 
   return (
     <div className="space-y-8">
+      {/* Diagnóstico del bootstrap — fiabilidad de los resultados */}
+      <section
+        className={`rounded-2xl border p-5 ${
+          reliability === "high"
+            ? "bg-emerald-50 border-emerald-200"
+            : reliability === "medium"
+            ? "bg-amber-50 border-amber-200"
+            : "bg-red-50 border-red-200"
+        }`}
+      >
+        <div className="flex items-start gap-3">
+          <div className="text-2xl leading-none">
+            {reliability === "high" ? "🟢" : reliability === "medium" ? "🟡" : "🔴"}
+          </div>
+          <div className="flex-1">
+            <p
+              className={`text-sm font-semibold uppercase tracking-wider mb-2 ${
+                reliability === "high"
+                  ? "text-emerald-700"
+                  : reliability === "medium"
+                  ? "text-amber-700"
+                  : "text-red-700"
+              }`}
+            >
+              Fiabilidad de la simulación —{" "}
+              {reliability === "high" ? "Alta" : reliability === "medium" ? "Media" : "Baja"}
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+              <div>
+                <p className="text-xs text-brand-tertiary uppercase tracking-wider">Histórico común</p>
+                <p className="font-semibold text-brand-navy">
+                  {histYears.toFixed(1)} años
+                </p>
+                <p className="text-[10px] text-brand-tertiary">
+                  {fmtMonth(bootstrapSource.historicalStartMonth)} →{" "}
+                  {fmtMonth(bootstrapSource.historicalEndMonth)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-brand-tertiary uppercase tracking-wider">Plan</p>
+                <p className="font-semibold text-brand-navy">
+                  {(bootstrapSource.planMonths / 12).toFixed(0)} años
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-brand-tertiary uppercase tracking-wider">
+                  Reciclado del histórico
+                </p>
+                <p className="font-semibold text-brand-navy">
+                  ×{bootstrapSource.recyclingFactor.toFixed(1)}
+                </p>
+                <p className="text-[10px] text-brand-tertiary">
+                  {bootstrapSource.recyclingFactor <= 1
+                    ? "histórico cubre el plan"
+                    : "el histórico se repite"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-brand-tertiary uppercase tracking-wider">
+                  Bloques posibles
+                </p>
+                <p className="font-semibold text-brand-navy">
+                  {bootstrapSource.blockStartPoints}
+                </p>
+                <p className="text-[10px] text-brand-tertiary">
+                  blockSize:{" "}
+                  {bootstrapSource.effectiveBlockSize === bootstrapSource.requestedBlockSize
+                    ? `${bootstrapSource.effectiveBlockSize}m`
+                    : `${bootstrapSource.effectiveBlockSize}m (ajustado desde ${bootstrapSource.requestedBlockSize}m)`}
+                </p>
+              </div>
+            </div>
+            {warnings.length > 0 && (
+              <ul className="mt-4 space-y-1.5 text-xs leading-relaxed">
+                {warnings.map((w, i) => (
+                  <li
+                    key={i}
+                    className={
+                      reliability === "high"
+                        ? "text-emerald-900"
+                        : reliability === "medium"
+                        ? "text-amber-900"
+                        : "text-red-900"
+                    }
+                  >
+                    ⚠ {w}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </section>
+
       {/* Probabilidad de éxito + KPIs */}
       <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">

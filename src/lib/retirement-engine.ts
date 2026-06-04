@@ -113,7 +113,10 @@ function glideWeight(
 function simulatePath(
   config: RetirementConfig,
   source: BootstrapSource,
-  sampler: (year: number) => number
+  /** Recibe el índice de bloque (0, 1, 2, ...) y devuelve el mes inicial del
+   *  bloque en el histórico. La frecuencia con la que se llama depende de
+   *  `config.blockSizeMonths` (1 vez por bloque). */
+  sampler: (blockIdx: number) => number
 ): PathResult {
   const monthsAcc = (config.retirementAge - config.currentAge) * 12;
   const totalMonths = (config.endAge - config.currentAge) * 12;
@@ -147,10 +150,14 @@ function simulatePath(
     const inflFactor = Math.pow(1 + inflMonthly, m);
 
     // ---- 1) Retorno del mes vía block bootstrap + glide path ----
-    const yearOfPlan = Math.floor(m / 12);
-    const monthInYear = m % 12;
-    const blockStart = sampler(yearOfPlan);
-    const histIdx = (blockStart + monthInYear) % source.length;
+    // Sampler se invoca una vez por BLOQUE (no por año). Dentro de un bloque
+    // los meses son consecutivos en el histórico, preservando autocorrelación
+    // intra-bloque. Entre bloques distintos, independencia.
+    const blockSize = config.blockSizeMonths;
+    const blockIdxInPlan = Math.floor(m / blockSize);
+    const monthInBlock = m % blockSize;
+    const blockStart = sampler(blockIdxInPlan);
+    const histIdx = (blockStart + monthInBlock) % source.length;
     const wA = glideWeight(m, monthsAcc, glidePathMonths);
     const retM = wA * source.retA[histIdx]! + (1 - wA) * source.retB[histIdx]!;
 
@@ -286,20 +293,59 @@ export function runRetirementSimulation(input: RunRetirementInput): RetirementRe
 
   const totalYears = config.endAge - config.currentAge;
   const totalMonths = totalYears * 12;
-  const maxBlockStart = Math.max(0, source.length - config.blockSizeMonths);
+  const requestedBlockSize = config.blockSizeMonths;
 
+  // ---- Auto-ajuste del blockSize cuando el histórico es corto ----
+  // Si los puntos de inicio posibles son muy pocos, el bootstrap apenas
+  // sortea entre N alternativas → trayectorias clónicas, percentiles falsamente
+  // estrechos. Auto-reducimos blockSize para tener al menos ~24 puntos de
+  // inicio, con un mínimo de 1 mes. AVISAMOS al usuario del ajuste.
+  let effectiveBlockSize = requestedBlockSize;
+  const MIN_BLOCK_START_POINTS = 24;
+  if (source.length - effectiveBlockSize < MIN_BLOCK_START_POINTS) {
+    effectiveBlockSize = Math.max(
+      1,
+      Math.min(requestedBlockSize, source.length - MIN_BLOCK_START_POINTS)
+    );
+    if (effectiveBlockSize < requestedBlockSize) {
+      warnings.push(
+        `Histórico corto (${source.length} meses): blockSize reducido de ${requestedBlockSize} a ${effectiveBlockSize} meses para que el bootstrap tenga al menos ${MIN_BLOCK_START_POINTS} puntos de inicio posibles y aporte diversidad.`
+      );
+    }
+  }
+  const maxBlockStart = Math.max(0, source.length - effectiveBlockSize);
+  const blockStartPoints = maxBlockStart + 1;
+
+  // ---- Avisos por histórico corto e insuficiente para el plan ----
+  const recyclingFactor = totalMonths / source.length;
+  if (source.length < 180) {
+    warnings.push(
+      `Histórico común de sólo ${source.length} meses (${(source.length / 12).toFixed(1)} años). Mínimo recomendado: 15 años. El bootstrap puede no incluir crisis severas y sobrestimar la probabilidad de éxito.`
+    );
+  }
+  if (recyclingFactor > 1.5) {
+    warnings.push(
+      `El plan dura ${(totalMonths / 12).toFixed(0)} años pero el histórico solo cubre ${(source.length / 12).toFixed(1)}. Cada cohorte histórico recicla el histórico ${recyclingFactor.toFixed(1)} veces, lo que infla artificialmente la estabilidad de los percentiles.`
+    );
+  }
   if (maxBlockStart === 0) {
     warnings.push(
-      `El histórico (${source.length} meses) es justo el tamaño del bloque (${config.blockSizeMonths}); el bootstrap no aporta diversidad. Considera reducir blockSizeMonths o ampliar histórico.`
+      `El histórico (${source.length} meses) es igual o menor al tamaño del bloque (${effectiveBlockSize}); el bootstrap no aporta diversidad.`
     );
   }
 
   // ---- 1) Bootstrap aleatorio: numPaths trayectorias ----
+  // Bloque de tamaño efectivo (puede haberse reducido arriba) — pasamos al
+  // simulador la versión "efectiva" sustituyendo en la config local.
+  const cfgEffective: RetirementConfig = {
+    ...config,
+    blockSizeMonths: effectiveBlockSize,
+  };
   const paths: PathResult[] = [];
   for (let i = 0; i < config.numPaths; i++) {
     const sampler = (_year: number) =>
-      Math.floor(Math.random() * (maxBlockStart + 1));
-    paths.push(simulatePath(config, source, sampler));
+      Math.floor(Math.random() * blockStartPoints);
+    paths.push(simulatePath(cfgEffective, source, sampler));
   }
 
   // ---- 2) Percentiles año a año (valores reales al cierre de cada año) ----
@@ -353,9 +399,11 @@ export function runRetirementSimulation(input: RunRetirementInput): RetirementRe
   // Cuántos meses de histórico necesitamos como mínimo para correr UN cohorte
   // completo de forma determinista. Usamos sampling con wrap si no llega.
   for (let start = 0; start < source.length; start++) {
-    // Para cada año del plan, índice de inicio = start + year*12 (con wrap)
-    const sampler = (year: number) => (start + year * 12) % source.length;
-    const path = simulatePath(config, source, sampler);
+    // Para cada bloque del plan, índice de inicio = start + blockIdx*blockSize
+    // (con wrap modular si el plan es más largo que el histórico).
+    const sampler = (blockIdx: number) =>
+      (start + blockIdx * effectiveBlockSize) % source.length;
+    const path = simulatePath(cfgEffective, source, sampler);
     const finalReal = path.monthlyValuesReal[needed - 1] ?? 0;
     const success = finalReal > 0;
     const depletionAge =
@@ -394,6 +442,16 @@ export function runRetirementSimulation(input: RunRetirementInput): RetirementRe
     historicalSuccessRate,
     worstHistoricalCohort,
     bestHistoricalCohort,
+    bootstrapSource: {
+      historicalMonths: source.length,
+      historicalStartMonth: aligned.months[0] ?? "",
+      historicalEndMonth: aligned.months[aligned.months.length - 1] ?? "",
+      planMonths: totalMonths,
+      recyclingFactor,
+      requestedBlockSize,
+      effectiveBlockSize,
+      blockStartPoints,
+    },
     warnings,
   };
 }
