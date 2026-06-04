@@ -139,6 +139,13 @@ export interface RetirementYearPoint {
   contributionsCumulativeReal: number;
   /** Acumulado de retiradas (€ reales) desde el inicio del plan. */
   withdrawalsCumulativeReal: number;
+  /** Aportación REAL realizada DURANTE este año (€). Para "contribution" es
+   *  la suma de 12 mensualidades reales. */
+  contributionRealAnnual: number;
+  /** Retirada REAL realizada DURANTE este año (€). Para "fixedWithdrawal" es
+   *  determinista; para "percentageWithdrawal" es la MEDIANA cross-paths
+   *  (porque depende del valor de la cartera en cada path). */
+  withdrawalRealAnnual: number;
   /** % de paths con valor > 0 al final de este año. */
   survivalRate: number;
 }

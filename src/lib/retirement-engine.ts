@@ -104,6 +104,10 @@ interface PathResult {
   totalContributionsReal: number;
   /** Acumulado de retiradas (netas de IRPF) en € reales. */
   totalWithdrawalsReal: number;
+  /** Aportación REAL año a año (€). Índice 0 = año 1 del plan, etc. */
+  contributionsRealPerYear: number[];
+  /** Retirada REAL año a año (€). */
+  withdrawalsRealPerYear: number[];
 }
 
 interface BootstrapSource {
@@ -169,6 +173,9 @@ function simulatePath(
   const monthlyValuesReal: number[] = [];
   let totalContributionsReal = 0;
   let totalWithdrawalsReal = 0;
+  const totalYears = Math.ceil(totalMonths / 12);
+  const contributionsRealPerYear: number[] = new Array(totalYears).fill(0);
+  const withdrawalsRealPerYear: number[] = new Array(totalYears).fill(0);
   let depletionMonth: number | undefined;
 
   // Normalizar goals: si no vienen explícitos, reconstruir desde los
@@ -251,6 +258,10 @@ function simulatePath(
       currentValue += contribNomThisMonth;
       costBasis += contribNomThisMonth;
       totalContributionsReal += contribRealThisMonth;
+      const yearIdx = Math.floor(m / 12);
+      if (yearIdx < contributionsRealPerYear.length) {
+        contributionsRealPerYear[yearIdx]! += contribRealThisMonth;
+      }
     }
 
     // Retiros con IRPF (sólo si hay capital y hay retiros)
@@ -273,10 +284,15 @@ function simulatePath(
       annualGainRecognized = gainAfter;
 
       const totalToTake = withdrawNomThisMonth + monthTax;
+      const yearIdx = Math.floor(m / 12);
       if (totalToTake >= currentValue) {
         if (depletionMonth === undefined) depletionMonth = m;
         const realizedNet = Math.max(0, currentValue - monthTax);
-        totalWithdrawalsReal += realizedNet / inflFactor;
+        const realizedNetReal = realizedNet / inflFactor;
+        totalWithdrawalsReal += realizedNetReal;
+        if (yearIdx < withdrawalsRealPerYear.length) {
+          withdrawalsRealPerYear[yearIdx]! += realizedNetReal;
+        }
         currentValue = 0;
         costBasis = 0;
       } else {
@@ -287,6 +303,9 @@ function simulatePath(
           costBasis - withdrawNomThisMonth * principalFraction
         );
         totalWithdrawalsReal += withdrawRealThisMonth;
+        if (yearIdx < withdrawalsRealPerYear.length) {
+          withdrawalsRealPerYear[yearIdx]! += withdrawRealThisMonth;
+        }
       }
     }
 
@@ -298,6 +317,8 @@ function simulatePath(
     depletionMonth,
     totalContributionsReal,
     totalWithdrawalsReal,
+    contributionsRealPerYear,
+    withdrawalsRealPerYear,
   };
 }
 
@@ -520,16 +541,29 @@ export function runRetirementSimulation(input: RunRetirementInput): RetirementRe
   // ---- 2) Percentiles año a año (valores reales al cierre de cada año) ----
   const currentYear = new Date().getUTCFullYear();
   const yearByYear: RetirementYearPoint[] = [];
+  let contribCumReal = 0;
+  let withdrawCumReal = 0;
   for (let year = 1; year <= totalYears; year++) {
     const m = year * 12 - 1; // último mes de ese año (índice 0-based)
     const valuesAtMonth = paths
       .map((p) => p.monthlyValuesReal[m] ?? 0)
       .sort((a, b) => a - b);
     const survivors = valuesAtMonth.filter((v) => v > 0).length;
-    // Aportaciones acumuladas en €/reales hasta este mes
-    const monthsAcc = (config.retirementAge - config.currentAge) * 12;
-    const contribMonths = Math.min(m + 1, monthsAcc);
-    const withdrawMonths = Math.max(0, m + 1 - monthsAcc);
+
+    // Flujos anuales REALES — mediana cross-paths (las % withdrawal varían por
+    // path; para contribution y fixedWithdrawal todos los paths son iguales).
+    const yearIdx = year - 1;
+    const contribsThisYearSorted = paths
+      .map((p) => p.contributionsRealPerYear[yearIdx] ?? 0)
+      .sort((a, b) => a - b);
+    const withdrawsThisYearSorted = paths
+      .map((p) => p.withdrawalsRealPerYear[yearIdx] ?? 0)
+      .sort((a, b) => a - b);
+    const contribRealAnnual = percentile(contribsThisYearSorted, 50);
+    const withdrawRealAnnual = percentile(withdrawsThisYearSorted, 50);
+    contribCumReal += contribRealAnnual;
+    withdrawCumReal += withdrawRealAnnual;
+
     yearByYear.push({
       age: config.currentAge + year,
       year: currentYear + year,
@@ -538,8 +572,10 @@ export function runRetirementSimulation(input: RunRetirementInput): RetirementRe
       p50: percentile(valuesAtMonth, 50),
       p75: percentile(valuesAtMonth, 75),
       p90: percentile(valuesAtMonth, 90),
-      contributionsCumulativeReal: config.monthlyContributionReal * contribMonths,
-      withdrawalsCumulativeReal: config.monthlyWithdrawalReal * withdrawMonths,
+      contributionsCumulativeReal: contribCumReal,
+      withdrawalsCumulativeReal: withdrawCumReal,
+      contributionRealAnnual: contribRealAnnual,
+      withdrawalRealAnnual: withdrawRealAnnual,
       survivalRate: paths.length > 0 ? (survivors / paths.length) * 100 : 0,
     });
   }

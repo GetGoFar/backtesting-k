@@ -30,6 +30,8 @@ import {
   Line,
   Area,
   AreaChart,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -936,6 +938,152 @@ function ResultsPanel({ results }: { results: RetirementResult }) {
           </ResponsiveContainer>
         </div>
       </section>
+
+      {/* Flujos anuales (aportaciones + retiradas en € reales) */}
+      {(() => {
+        const hasAnyFlow = yearByYear.some(
+          (y) => y.contributionRealAnnual > 0 || y.withdrawalRealAnnual > 0
+        );
+        if (!hasAnyFlow) return null;
+        const flowData = yearByYear.map((y) => ({
+          age: y.age,
+          aportacion: Math.round(y.contributionRealAnnual),
+          retirada: -Math.round(y.withdrawalRealAnnual), // negativo para que vaya hacia abajo en el gráfico
+          retiradaAbs: Math.round(y.withdrawalRealAnnual),
+        }));
+        // Para la tabla: agrupar por fase (acumulación, jubilación)
+        // Sólo mostramos años con flujo no nulo. Si hay muchos, mostrar
+        // resumen quinquenal o cada N años — por ahora mostramos todos
+        // dentro de un contenedor scrollable.
+        return (
+          <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-brand-navy font-serif">
+                Flujos anuales (€ reales)
+              </h3>
+              <p className="text-xs text-brand-tertiary mt-0.5 leading-relaxed">
+                Aportaciones (verde) y retiradas (rojo) que de hecho recibes
+                cada año en € de hoy. Para retiradas en porcentaje, mostramos
+                la <strong>mediana cross-paths</strong> (varía según el valor
+                de la cartera; en escenarios mejores cobrarías más).
+              </p>
+            </div>
+
+            {/* Gráfico de barras */}
+            <div className="h-80 mb-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={flowData}
+                  margin={{ top: 5, right: 5, left: 10, bottom: 5 }}
+                  stackOffset="sign"
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis
+                    dataKey="age"
+                    tick={{ fontSize: 11, fill: "#64748b" }}
+                    label={{ value: "Edad", position: "insideBottom", offset: -2, fontSize: 11, fill: "#64748b" }}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: "#64748b" }}
+                    tickFormatter={(v) => formatEUR(v as number)}
+                    width={80}
+                  />
+                  <RechartsTooltip
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload || payload.length === 0) return null;
+                      const d = payload[0]?.payload as {
+                        aportacion: number;
+                        retiradaAbs: number;
+                      } | undefined;
+                      if (!d) return null;
+                      return (
+                        <div className="bg-white border border-slate-200 rounded-lg shadow-md px-3 py-2 text-xs">
+                          <div className="font-semibold text-brand-navy mb-1.5">Edad {label}</div>
+                          {d.aportacion > 0 && (
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="text-emerald-700">↑ Aportación</span>
+                              <span className="font-mono text-emerald-700 font-semibold">
+                                {formatEUR(d.aportacion)}
+                              </span>
+                            </div>
+                          )}
+                          {d.retiradaAbs > 0 && (
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="text-red-700">↓ Retirada</span>
+                              <span className="font-mono text-red-700 font-semibold">
+                                {formatEUR(d.retiradaAbs)}
+                              </span>
+                            </div>
+                          )}
+                          {d.aportacion > 0 && d.retiradaAbs > 0 && (
+                            <div className="flex items-center justify-between gap-4 border-t border-slate-200 pt-0.5 mt-0.5">
+                              <span className="font-semibold text-brand-navy">Neto</span>
+                              <span className="font-mono font-bold text-brand-navy">
+                                {formatEUR(d.aportacion - d.retiradaAbs)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: "12px" }} />
+                  <ReferenceLine y={0} stroke="#64748b" />
+                  <ReferenceLine
+                    x={config.retirementAge}
+                    stroke="#94a3b8"
+                    strokeDasharray="3 3"
+                    label={{ value: "Jubilación", position: "top", fontSize: 10, fill: "#94a3b8" }}
+                  />
+                  <Bar dataKey="aportacion" fill="#10b981" name="Aportación" />
+                  <Bar dataKey="retirada" fill="#dc2626" name="Retirada" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Tabla detallada plegable */}
+            <details className="text-xs">
+              <summary className="cursor-pointer text-brand-navy font-medium hover:text-brand-coral">
+                Ver tabla detallada año a año
+              </summary>
+              <div className="mt-3 overflow-x-auto max-h-[400px] overflow-y-auto border border-slate-100 rounded-lg">
+                <table className="w-full">
+                  <thead className="sticky top-0 bg-white border-b border-slate-200">
+                    <tr>
+                      <th className="text-left font-semibold text-brand-tertiary uppercase py-2 px-3">Edad</th>
+                      <th className="text-right font-semibold text-emerald-700 uppercase py-2 px-3">Aportación</th>
+                      <th className="text-right font-semibold text-red-700 uppercase py-2 px-3">Retirada</th>
+                      <th className="text-right font-semibold text-brand-tertiary uppercase py-2 px-3">Neto</th>
+                      <th className="text-right font-semibold text-brand-tertiary uppercase py-2 px-3">Patrimonio (mediana)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {yearByYear
+                      .filter((y) => y.contributionRealAnnual > 0 || y.withdrawalRealAnnual > 0)
+                      .map((y) => (
+                        <tr key={y.age} className="border-b border-slate-100 hover:bg-slate-50">
+                          <td className="py-1.5 px-3 font-mono text-brand-secondary">{y.age}</td>
+                          <td className="py-1.5 px-3 text-right font-mono text-emerald-700">
+                            {y.contributionRealAnnual > 0 ? formatEUR(y.contributionRealAnnual) : "—"}
+                          </td>
+                          <td className="py-1.5 px-3 text-right font-mono text-red-700">
+                            {y.withdrawalRealAnnual > 0 ? `−${formatEUR(y.withdrawalRealAnnual)}` : "—"}
+                          </td>
+                          <td className="py-1.5 px-3 text-right font-mono text-brand-navy">
+                            {formatEUR(y.contributionRealAnnual - y.withdrawalRealAnnual)}
+                          </td>
+                          <td className="py-1.5 px-3 text-right font-mono text-brand-secondary">
+                            {formatEUR(y.p50)}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </section>
+        );
+      })()}
 
       {/* Tasas de retirada SWR / PWR por ESCENARIO */}
       <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
