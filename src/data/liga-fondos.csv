@@ -1,6 +1,6 @@
 isin,nombre,gestora,tipo,categoria,ter_pct,benchmark_isin,benchmark_ticker,benchmark_notas,ref_dq3,ref_dq5,ref_dq10
 ES0174930000,Santander GO RV Norteamerica A,Santander,Bancario,RV EEUU,2.11,IE00B3XXRP09,VUSA.AS,Vanguard S&P 500,31899.25,56919.22,81440.47
-ES0114277033,BBVA Megatendencia Demografía,BBVA,Bancario,RV Global,2.79,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),21264.68,26179.18,75945.7
+ES0114277033,BBVA Megatendencia Demografía,BBVA,Bancario,RV Global,1.98,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),21264.68,26179.18,75945.7
 ES0181407000,Unicaja Renta Variable USA A,Unicaja,Bancario,RV EEUU,2.35,IE00B3XXRP09,VUSA.AS,Vanguard S&P 500,27075.7,40918.19,65093.39
 ES0174979007,Santander Future Wealth A,Santander,Bancario,RV Global,2.18,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),26074.63,40852.52,65015.76
 ES0113607008,Santander Sostenible Acciones A,Santander,Bancario,RV Global,1.7,IE00B4L5Y983,IWDA.AS,iShares MSCI World (default),17497.03,34520.56,57124.43

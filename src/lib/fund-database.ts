@@ -2194,6 +2194,174 @@ const PABLO_FUNDS: Fund[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// CaixaBank Smart — fondos de la cartera gestionada Smart Money
+// 13 fondos UCITS de CaixaBank Asset Management. Cada uno replica un índice
+// concreto vía ETFs/futuros + gestión activa marginal. TERs sobre los reales
+// publicados por CaixaBank AM (mgmt + dep + extras ≈ ongoing charge).
+// -----------------------------------------------------------------------------
+
+const CAIXABANK_SMART_FUNDS: Fund[] = [
+  // --- Renta Variable ---
+  {
+    id: "caixa-smart-rv-usa",
+    name: "CaixaBank Smart Renta Variable USA, FI",
+    shortName: "CaixaBank Smart RV USA",
+    isin: "ES0115663009",
+    ter: 0.40,
+    category: "RV EEUU",
+    type: "index",
+    bank: "CaixaBank",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "caixa-smart-rv-europa",
+    name: "CaixaBank Smart Renta Variable Europa, FI",
+    shortName: "CaixaBank Smart RV Europa",
+    isin: "ES0137509008",
+    ter: 0.36,
+    category: "RV Europa",
+    type: "index",
+    bank: "CaixaBank",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "caixa-smart-rv-emergente",
+    name: "CaixaBank Smart Renta Variable Emergente, FI",
+    shortName: "CaixaBank Smart RV Emergente",
+    isin: "ES0137657005",
+    ter: 0.61,
+    category: "RV Emergentes",
+    type: "index",
+    bank: "CaixaBank",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "caixa-smart-rv-japon",
+    name: "CaixaBank Smart Renta Variable Japón, FI",
+    shortName: "CaixaBank Smart RV Japón",
+    isin: "ES0180966006",
+    ter: 0.36,
+    category: "RV Japón",
+    type: "index",
+    bank: "CaixaBank",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "caixa-smart-rv-real-estate",
+    name: "CaixaBank Smart Renta Variable Real Estate, FI",
+    shortName: "CaixaBank Smart RV Real Estate",
+    isin: "ES0137510006",
+    ter: 0.22,
+    category: "RV REITs",
+    type: "index",
+    bank: "CaixaBank",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  // --- Renta Fija ---
+  {
+    id: "caixa-smart-rf-deuda-1-3",
+    name: "CaixaBank Smart Renta Fija Deuda Pública 1-3, FI",
+    shortName: "CaixaBank Smart RF Deuda 1-3",
+    isin: "ES0180967004",
+    ter: 0.22,
+    category: "RF EUR Gov Corto",
+    type: "index",
+    bank: "CaixaBank",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "caixa-smart-rf-privada",
+    name: "CaixaBank Smart Renta Fija Privada, FI",
+    shortName: "CaixaBank Smart RF Privada",
+    isin: "ES0170741005",
+    ter: 0.45,
+    category: "RF EUR Corp",
+    type: "index",
+    bank: "CaixaBank",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "caixa-smart-rf-corto-plazo",
+    name: "CaixaBank Smart Renta Fija Corto Plazo, FI",
+    shortName: "CaixaBank Smart RF Corto Plazo",
+    isin: "ES0137609006",
+    ter: 0.13,
+    category: "RF EUR Gov Corto",
+    type: "index",
+    bank: "CaixaBank",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "caixa-smart-rf-deuda-7-10",
+    name: "CaixaBank Smart Renta Fija Deuda Pública 7-10, FI",
+    shortName: "CaixaBank Smart RF Deuda 7-10",
+    isin: "ES0137627008",
+    ter: 0.22,
+    category: "RF EUR Gov Largo",
+    type: "index",
+    bank: "CaixaBank",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "caixa-smart-rf-internacional",
+    name: "CaixaBank Smart Renta Fija Internacional, FI",
+    shortName: "CaixaBank Smart RF Internacional",
+    isin: "ES0115654008",
+    ter: 0.40,
+    category: "RF Flexible",
+    type: "index",
+    bank: "CaixaBank",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+  {
+    id: "caixa-smart-rf-high-yield",
+    name: "CaixaBank Smart Renta Fija High Yield, FI",
+    shortName: "CaixaBank Smart RF High Yield",
+    isin: "ES0137414001",
+    ter: 0.22,
+    category: "RF EUR Corp",
+    type: "index",
+    bank: "CaixaBank",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "caixa-smart-rf-inflacion",
+    name: "CaixaBank Smart Renta Fija Inflación, FI",
+    shortName: "CaixaBank Smart RF Inflación",
+    isin: "ES0115653000",
+    ter: 0.36,
+    category: "RF Inflation EUR",
+    type: "index",
+    bank: "CaixaBank",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "caixa-smart-rf-emergente",
+    name: "CaixaBank Smart Renta Fija Emergente, FI",
+    shortName: "CaixaBank Smart RF Emergente",
+    isin: "ES0137475002",
+    ter: 0.40,
+    category: "RF Flexible",
+    type: "index",
+    bank: "CaixaBank",
+    currency: "EUR",
+    terSource: "estimated",
+  },
+];
+
+// -----------------------------------------------------------------------------
 // Todos los fondos combinados
 // -----------------------------------------------------------------------------
 
@@ -2206,6 +2374,7 @@ const ALL_FUNDS: Fund[] = [
   ...BBVA_INVERSION_RV_FUNDS,
   ...BBVA_ACUMULACION_FUNDS,
   ...PABLO_FUNDS,
+  ...CAIXABANK_SMART_FUNDS,
 ];
 
 // Mapa para búsqueda rápida por ID

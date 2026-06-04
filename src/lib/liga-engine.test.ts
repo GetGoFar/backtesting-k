@@ -416,6 +416,8 @@ function mockResultado(isin: string, dq5: number): ResultadoFondo {
     dq3: dq5 * 0.6,
     dq5,
     dq10: dq5 * 1.6,
+    dq5Proyectado: false,
+    dq10Proyectado: false,
     liga: "europa",
     fechaInicio: "2018-01-01",
     fechaFin: "2025-01-01",

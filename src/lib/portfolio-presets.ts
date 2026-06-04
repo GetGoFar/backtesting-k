@@ -1361,6 +1361,40 @@ const BBVA_ACUMULACION_PRESETS: PortfolioPreset[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// CaixaBank Smart Money — carteras gestionadas con fondos Smart de CaixaBank AM
+// El servicio Smart Money tiene 5 perfiles. Smart Money 5 es el más agresivo
+// (100% RV teórico aunque el extracto real mezcla algo de RF). Pesos extraídos
+// del extracto real de un cliente y renormalizados a 100% (originales 99.9%).
+// -----------------------------------------------------------------------------
+
+const CAIXABANK_SMART_PRESETS: PortfolioPreset[] = [
+  {
+    id: "caixabank-smartmoney-5",
+    name: "Caixabank SmartMoney 5",
+    description:
+      "Cartera gestionada CaixaBank Smart Money 5 (perfil más agresivo). 13 fondos CaixaBank Smart FI. ~72% RV (USA + Europa + Emergente + Japón + REITs) y ~28% RF (deuda pública, privada, corto, HY, inflación, emergente).",
+    type: "index",
+    holdings: [
+      // RV — 72.1%
+      { fundId: "caixa-smart-rv-usa", weight: 34.4 },
+      { fundId: "caixa-smart-rv-europa", weight: 15.3 },
+      { fundId: "caixa-smart-rv-emergente", weight: 11.5 },
+      { fundId: "caixa-smart-rv-japon", weight: 7.6 },
+      { fundId: "caixa-smart-rv-real-estate", weight: 3.3 },
+      // RF — 27.9%
+      { fundId: "caixa-smart-rf-deuda-1-3", weight: 7.6 },
+      { fundId: "caixa-smart-rf-privada", weight: 6.6 },
+      { fundId: "caixa-smart-rf-corto-plazo", weight: 3.8 },
+      { fundId: "caixa-smart-rf-deuda-7-10", weight: 2.8 },
+      { fundId: "caixa-smart-rf-internacional", weight: 2.8 },
+      { fundId: "caixa-smart-rf-high-yield", weight: 1.9 },
+      { fundId: "caixa-smart-rf-inflacion", weight: 1.4 },
+      { fundId: "caixa-smart-rf-emergente", weight: 1.0 },
+    ],
+  },
+];
+
+// -----------------------------------------------------------------------------
 // Todos los presets combinados
 // -----------------------------------------------------------------------------
 
@@ -1378,6 +1412,7 @@ const ALL_PRESETS: PortfolioPreset[] = [
   ...BBVA_CAPITAL_PRESETS,
   ...BBVA_INVERSION_RV_PRESETS,
   ...BBVA_ACUMULACION_PRESETS,
+  ...CAIXABANK_SMART_PRESETS,
   ...MOMENTUM_CARTERA_PRESETS,
 ];
 

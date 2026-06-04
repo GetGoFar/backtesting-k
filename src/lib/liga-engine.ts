@@ -78,9 +78,17 @@ export interface ResultadoFondo {
   alfa3: number | null;         // alfa de los últimos 3 años
   alfa5: number | null;         // alfa de los últimos 5 años
   alfa10: number | null;        // alfa de los últimos 10 años
-  dq3: number | null;           // € (calculado con alfa3)
-  dq5: number | null;           // € (calculado con alfa5)
-  dq10: number | null;          // € (calculado con alfa10)
+  // dq3/dq5/dq10 se calculan SIEMPRE con una única alfa base (la de la ventana
+  // disponible más larga, preferentemente 5y), proyectada a cada horizonte.
+  // Esto garantiza que los tres valores sean coherentes (mismo signo, magnitud
+  // creciente) — igual que la metodología de la página original. Cuando la
+  // ventana de la alfa base es más corta que el horizonte, el dq es una
+  // proyección y se marca con la flag correspondiente.
+  dq3: number | null;           // €
+  dq5: number | null;           // €
+  dq10: number | null;          // €
+  dq5Proyectado: boolean;       // true si dq5 proyecta una alfa de < 5 años
+  dq10Proyectado: boolean;      // true si dq10 proyecta una alfa de < 10 años
   liga: LigaCategoria | null;
   fechaInicio: string | null;   // primer NAV usado (ventana 5y)
   fechaFin: string | null;      // último NAV usado (ventana 5y)
@@ -360,6 +368,62 @@ export function dineroQuemado(
   return inversion * (1 - Math.pow(1 + alfaPct / 100, anos));
 }
 
+export interface ProyeccionDineroQuemado {
+  alfaBase: number | null;       // alfa usada para los tres horizontes (%)
+  ventanaBaseAnos: number | null; // 3, 5 o 10 — longitud real de la ventana de alfaBase
+  dq3: number | null;
+  dq5: number | null;
+  dq10: number | null;
+  dq5Proyectado: boolean;
+  dq10Proyectado: boolean;
+}
+
+/**
+ * Calcula dq3/dq5/dq10 COHERENTES a partir de las alfas disponibles por ventana.
+ *
+ * Metodología (igual que la página original): se elige UNA alfa base y se
+ * proyecta a los tres horizontes con la fórmula dineroQuemado. Así los tres
+ * valores comparten signo y crecen en magnitud — nunca aparece un dq10 nulo o
+ * incoherente con el dq5.
+ *
+ * Elección de la alfa base, por orden de preferencia:
+ *   1. alfa5  (la liga se ordena por dq5; es la cabecera)
+ *   2. alfa10 (si no hay 5y pero sí 10y, raro)
+ *   3. alfa3  (fondos jóvenes)
+ *
+ * Marcamos como "proyectado" cuando la ventana de la alfa base es más corta
+ * que el horizonte (p.ej. proyectar una alfa de 5 años a 10 años).
+ */
+export function proyectarDineroQuemado(
+  alfa3: number | null,
+  alfa5: number | null,
+  alfa10: number | null,
+): ProyeccionDineroQuemado {
+  let alfaBase: number | null = null;
+  let ventana: number | null = null;
+  if (alfa5 != null) { alfaBase = alfa5; ventana = 5; }
+  else if (alfa10 != null) { alfaBase = alfa10; ventana = 10; }
+  else if (alfa3 != null) { alfaBase = alfa3; ventana = 3; }
+
+  if (alfaBase == null || ventana == null) {
+    return {
+      alfaBase: null, ventanaBaseAnos: null,
+      dq3: null, dq5: null, dq10: null,
+      dq5Proyectado: false, dq10Proyectado: false,
+    };
+  }
+
+  return {
+    alfaBase,
+    ventanaBaseAnos: ventana,
+    dq3: dineroQuemado(alfaBase, 3),
+    dq5: dineroQuemado(alfaBase, 5),
+    dq10: dineroQuemado(alfaBase, 10),
+    dq5Proyectado: ventana < 5,
+    dq10Proyectado: ventana < 10,
+  };
+}
+
 /**
  * Asigna categoría de liga por cuartil sobre dq5 (mayor dq5 = peor).
  * `posicion` es la posición 1-indexada en el ranking ordenado descendentemente
@@ -423,14 +487,8 @@ export async function generarSnapshot(
 
     // Caso preferente: Morningstar nos da al menos una alfa.
     if (ms && (ms.alfa3 != null || ms.alfa5 != null || ms.alfa10 != null)) {
-      const dq3 = ms.alfa3 != null ? dineroQuemado(ms.alfa3, 3) : null;
-      const dq5 = ms.alfa5 != null ? dineroQuemado(ms.alfa5, 5) : null;
-      const dq10 = ms.alfa10 != null ? dineroQuemado(ms.alfa10, 10) : null;
-
-      // Alfa "principal" = alfa5 si existe, si no alfa10, si no alfa3.
-      const alfaPpalVal = ms.alfa5 ?? ms.alfa10 ?? ms.alfa3 ?? null;
-      // Anos observados aproximados segun la ventana mas larga con dato.
-      const anosObs = ms.alfa10 != null ? 10 : ms.alfa5 != null ? 5 : ms.alfa3 != null ? 3 : null;
+      // Proyectamos UNA alfa base a 3/5/10 para que los tres dq sean coherentes.
+      const proy = proyectarDineroQuemado(ms.alfa3 ?? null, ms.alfa5 ?? null, ms.alfa10 ?? null);
 
       resultados.push({
         isin: f.isin,
@@ -439,17 +497,19 @@ export async function generarSnapshot(
         tipo: f.tipo,
         categoria: f.categoria,
         ter: f.ter_pct,
-        alfa: alfaPpalVal,
+        alfa: proy.alfaBase,
         alfa3: ms.alfa3 ?? null,
         alfa5: ms.alfa5 ?? null,
         alfa10: ms.alfa10 ?? null,
-        dq3,
-        dq5,
-        dq10,
+        dq3: proy.dq3,
+        dq5: proy.dq5,
+        dq10: proy.dq10,
+        dq5Proyectado: proy.dq5Proyectado,
+        dq10Proyectado: proy.dq10Proyectado,
         liga: null,
         fechaInicio: null,
         fechaFin: null,
-        anosObservados: anosObs,
+        anosObservados: proy.ventanaBaseAnos,
         stale: false,
         tendencia: "sin_ref",
         dq5Anterior: null,
@@ -478,11 +538,14 @@ export async function generarSnapshot(
       continue;
     }
 
-    const dq3 = alfa3 ? dineroQuemado(alfa3.alfaPct, 3) : null;
-    const dq5 = alfa5 ? dineroQuemado(alfa5.alfaPct, 5) : null;
-    const dq10 = alfa10 ? dineroQuemado(alfa10.alfaPct, 10) : null;
-
-    const alfaPpal = alfa5 ?? alfa10 ?? alfa3;
+    // Proyectamos UNA alfa base a 3/5/10 para coherencia entre horizontes.
+    const proy = proyectarDineroQuemado(
+      alfa3?.alfaPct ?? null,
+      alfa5?.alfaPct ?? null,
+      alfa10?.alfaPct ?? null,
+    );
+    // La ventana que aportó la alfa base, para fechas/años observados.
+    const ventanaBase = alfa5 ?? alfa10 ?? alfa3;
 
     resultados.push({
       isin: f.isin,
@@ -491,17 +554,19 @@ export async function generarSnapshot(
       tipo: f.tipo,
       categoria: f.categoria,
       ter: f.ter_pct,
-      alfa: alfaPpal!.alfaPct,
+      alfa: proy.alfaBase,
       alfa3: alfa3?.alfaPct ?? null,
       alfa5: alfa5?.alfaPct ?? null,
       alfa10: alfa10?.alfaPct ?? null,
-      dq3,
-      dq5,
-      dq10,
+      dq3: proy.dq3,
+      dq5: proy.dq5,
+      dq10: proy.dq10,
+      dq5Proyectado: proy.dq5Proyectado,
+      dq10Proyectado: proy.dq10Proyectado,
       liga: null,           // se asigna después de ordenar
-      fechaInicio: alfaPpal!.fechaInicio,
-      fechaFin: alfaPpal!.fechaFin,
-      anosObservados: alfaPpal!.anos,
+      fechaInicio: ventanaBase!.fechaInicio,
+      fechaFin: ventanaBase!.fechaFin,
+      anosObservados: ventanaBase!.anos,
       stale: false,
       tendencia: "sin_ref", // se asigna después al comparar con previo
       dq5Anterior: null,
@@ -595,6 +660,8 @@ function stalePorFalta(f: FondoCsv, previo?: ResultadoFondo): ResultadoFondo {
     dq3: f.ref_dq3 || null,
     dq5: f.ref_dq5 || null,
     dq10: f.ref_dq10 || null,
+    dq5Proyectado: false,
+    dq10Proyectado: false,
     liga: null,
     fechaInicio: null,
     fechaFin: null,

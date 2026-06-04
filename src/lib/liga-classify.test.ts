@@ -94,6 +94,8 @@ function mockSnapshot(dq5s: (number | null)[]): SnapshotLiga {
     dq3: dq5 != null ? dq5 * 0.6 : null,
     dq5,
     dq10: dq5 != null ? dq5 * 1.6 : null,
+    dq5Proyectado: false,
+    dq10Proyectado: false,
     liga: "europa",
     fechaInicio: "2018-01-01",
     fechaFin: "2025-01-01",
