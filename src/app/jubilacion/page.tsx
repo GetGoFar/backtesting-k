@@ -944,16 +944,18 @@ function ResultsPanel({ results }: { results: RetirementResult }) {
             ¿Cuánto puedes retirar al mes?
           </h3>
           <p className="text-xs text-brand-tertiary mt-0.5 leading-relaxed">
-            Sobre tu capital REAL mediano al jubilarte (
+            Capital REAL mediano al jubilarte:{" "}
             <strong>{formatEUR(withdrawalRates.capitalAtRetirementReal)}</strong>
-            ), retiros mensuales máximos en € de hoy bajo dos criterios:
+            . Las tasas se calculan{" "}
+            <strong>path-por-path sobre {withdrawalRates.pathsAnalyzed} simulaciones</strong>{" "}
+            integrando la variabilidad del capital al jubilarse + los retornos
+            post-jubilación. Coherentes con la probabilidad de éxito.
             <br />
             <strong className="text-emerald-700">SWR</strong> permite acabar el
             plan con €0 ·{" "}
             <strong className="text-indigo-700">PWR</strong> exige preservar el
-            capital real al final. {withdrawalRates.windowsAnalyzed} ventanas
-            históricas contiguas analizadas. Elige el escenario según cuánta
-            tolerancia al fracaso aceptes.
+            capital real al final. Elige el escenario según cuánta tolerancia
+            al fracaso aceptes.
           </p>
         </div>
 

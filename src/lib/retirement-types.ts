@@ -213,7 +213,13 @@ export interface RetirementResult {
    * retiros que funciona en X% de las secuencias.
    */
   withdrawalRates: {
+    /** Capital REAL al jubilarse usado como referencia para mostrar (mediana
+     *  de los paths SIN retiros pre-jubilación). Las tasas YA integran la
+     *  variabilidad del capital al jubilarse de los demás paths. */
     capitalAtRetirementReal: number;
+    /** Número de paths del bootstrap usados para calcular las tasas. */
+    pathsAnalyzed: number;
+    /** @deprecated alias retrocompat de pathsAnalyzed. */
     windowsAnalyzed: number;
     scenarios: WithdrawalScenario[];
   };

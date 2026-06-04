@@ -677,40 +677,60 @@ export function runRetirementSimulation(input: RunRetirementInput): RetirementRe
       ? config.currentAge + seqRepPath.depletionMonth / 12
       : undefined;
 
-  // ---- Tasas de retirada SWR / PWR ----
-  // Capital REAL al jubilarse: mediana del bootstrap en el mes monthsAcc-1
-  const capitalsAtRetirement = paths
-    .map((p) => p.monthlyValuesReal[Math.max(0, monthsAcc - 1)] ?? 0)
-    .sort((a, b) => a - b);
-  const capitalAtRetirementReal = percentile(capitalsAtRetirement, 50);
-
-  // Pasamos los retornos del histórico de la cartera de distribución a REALES
-  const inflMonthly =
-    Math.pow(1 + config.inflationAnnualPct / 100, 1 / 12) - 1;
-  const realReturns = toRealReturns(source.retB, inflMonthly);
-
-  // Para cada ventana contigua del histórico de longitud `retirement_months`
-  // (con wrap modular si el histórico es más corto que la jubilación),
-  // buscamos el retiro máximo según cada criterio.
+  // ---- Tasas de retirada SWR / PWR (path-by-path) ----
+  //
+  // IMPORTANTE: las tasas se calculan path-por-path para integrar la
+  // incertidumbre conjunta del CAPITAL al jubilarse + RETORNOS post-jubilación.
+  // Si calculáramos sobre la mediana del capital, las tasas resultantes
+  // serían inconsistentes con la probabilidad de éxito (un path con capital
+  // bajo al jubilarse se agota con tasas bien por debajo del PWR mediano).
+  //
+  // Para evitar que los retiros configurados por el usuario contaminen el
+  // cálculo, re-corremos K paths con SÓLO las aportaciones (sin retiros).
+  // De cada path extraemos:
+  //   1. Capital REAL al jubilarse
+  //   2. Retornos REALES mes a mes post-jubilación
+  // Luego binary search del max R que cumple cada criterio.
+  const SWR_PATHS = 1000;
+  const contribOnlyGoals = effectiveGoals.filter(
+    (g) => g.type === "contribution"
+  );
+  const cfgNoWithdrawal: RetirementConfig = {
+    ...config,
+    goals: contribOnlyGoals,
+    monthlyWithdrawalReal: 0,
+    blockSizeMonths: effectiveBlockSize,
+  };
   const retMonths = totalMonths - monthsAcc;
-  const swrPerWindow: number[] = [];
-  const pwrPerWindow: number[] = [];
-  if (capitalAtRetirementReal > 0 && retMonths > 0 && realReturns.length > 0) {
-    for (let start = 0; start < source.length; start++) {
-      const window: number[] = [];
-      for (let k = 0; k < retMonths; k++) {
-        window.push(realReturns[(start + k) % source.length]!);
-      }
-      swrPerWindow.push(
-        findMaxWithdrawal(capitalAtRetirementReal, window, "noDeplete")
-      );
-      pwrPerWindow.push(
-        findMaxWithdrawal(capitalAtRetirementReal, window, "preserveCapital")
-      );
+  const swrPerPath: number[] = [];
+  const pwrPerPath: number[] = [];
+  const capitalsAtRetirementAll: number[] = [];
+  for (let i = 0; i < SWR_PATHS && retMonths > 0; i++) {
+    const sampler = (_b: number) =>
+      Math.floor(Math.random() * blockStartPoints);
+    const p = simulatePath(cfgNoWithdrawal, source, sampler);
+    const capitalReal = p.monthlyValuesReal[Math.max(0, monthsAcc - 1)] ?? 0;
+    if (capitalReal <= 0) continue;
+    capitalsAtRetirementAll.push(capitalReal);
+    // Retornos REALES post-jubilación: derivados de la propia serie del path
+    // (que ya está en € reales). r_real[m] = V[m]/V[m-1] − 1
+    const postReal: number[] = [];
+    for (let m = monthsAcc; m < totalMonths; m++) {
+      const prev = p.monthlyValuesReal[m - 1] ?? 0;
+      const curr = p.monthlyValuesReal[m] ?? 0;
+      if (prev > 0) postReal.push(curr / prev - 1);
+      else postReal.push(0);
     }
+    swrPerPath.push(findMaxWithdrawal(capitalReal, postReal, "noDeplete"));
+    pwrPerPath.push(findMaxWithdrawal(capitalReal, postReal, "preserveCapital"));
   }
-  swrPerWindow.sort((a, b) => a - b);
-  pwrPerWindow.sort((a, b) => a - b);
+  swrPerPath.sort((a, b) => a - b);
+  pwrPerPath.sort((a, b) => a - b);
+  capitalsAtRetirementAll.sort((a, b) => a - b);
+
+  // Capital de referencia para mostrar en UI: mediana de los paths SIN retiros
+  // (es el capital que tendrías al jubilarte si no haces retiros pre-jub).
+  const capitalAtRetirementReal = percentile(capitalsAtRetirementAll, 50);
 
   const toPctAnnual = (eurMonth: number): number =>
     capitalAtRetirementReal > 0
@@ -731,8 +751,8 @@ export function runRetirementSimulation(input: RunRetirementInput): RetirementRe
     { label: "Optimista",   key: "optimista",   percentile: 75 }, // 25% éxito
   ];
   const scenarios = SCENARIOS.map((s) => {
-    const swrAt = percentile(swrPerWindow, s.percentile);
-    const pwrAt = percentile(pwrPerWindow, s.percentile);
+    const swrAt = percentile(swrPerPath, s.percentile);
+    const pwrAt = percentile(pwrPerPath, s.percentile);
     return {
       label: s.label,
       key: s.key,
@@ -756,7 +776,8 @@ export function runRetirementSimulation(input: RunRetirementInput): RetirementRe
     bestHistoricalCohort,
     withdrawalRates: {
       capitalAtRetirementReal,
-      windowsAnalyzed: swrPerWindow.length,
+      pathsAnalyzed: swrPerPath.length,
+      windowsAnalyzed: swrPerPath.length, // legacy alias
       scenarios,
     },
     representativeMedianPath: {
