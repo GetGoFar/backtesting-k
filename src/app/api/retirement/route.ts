@@ -78,13 +78,21 @@ async function buildPortfolioMonthlyReturns(
   );
 
   // 3) Encontrar meses comunes entre todos los fondos activos
-  let commonMonths: Set<string> | null = null;
+  let commonMonths: Set<string> = new Set<string>();
+  let isFirst = true;
   for (const ret of fundReturns.values()) {
-    const set = new Set(ret.keys());
-    if (commonMonths === null) commonMonths = set;
-    else commonMonths = new Set([...commonMonths].filter((m) => set.has(m)));
+    const set = new Set<string>(ret.keys());
+    if (isFirst) {
+      commonMonths = set;
+      isFirst = false;
+    } else {
+      const prev = commonMonths;
+      commonMonths = new Set<string>(
+        Array.from(prev).filter((m) => set.has(m))
+      );
+    }
   }
-  if (!commonMonths || commonMonths.size < 12) {
+  if (commonMonths.size < 12) {
     throw new Error(
       `Cartera "${portfolio.name}": menos de 12 meses comunes entre los fondos`
     );
