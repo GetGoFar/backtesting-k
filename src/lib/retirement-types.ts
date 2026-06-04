@@ -183,6 +183,31 @@ export interface RetirementResult {
   worstHistoricalCohort?: RetirementHistoricalCohort;
   bestHistoricalCohort?: RetirementHistoricalCohort;
 
+  // === Sequence-of-returns risk: peor escenario al jubilarse ===
+  /**
+   * Resultado del "stress test" de riesgo de secuencia: tomamos la peor
+   * ventana de N años (default 5) del histórico y la inyectamos justo al
+   * inicio de la jubilación. Mide el caso peor "sequence risk" — un crash
+   * en los primeros años de retirada puede arruinar un plan que la media
+   * a largo plazo aprobaría con creces.
+   */
+  sequenceRisk: {
+    /** Tamaño de la ventana usada (meses). */
+    windowMonths: number;
+    /** Mes del histórico donde arranca la peor ventana (YYYY-MM). */
+    worstWindowStartMonth: string;
+    /** Rentabilidad total acumulada en esa ventana (%). */
+    worstWindowCumulativeReturn: number;
+    /** Patrimonio final real bajo este escenario (€). */
+    finalValueReal: number;
+    /** ¿Se agota el dinero antes del fin del plan? */
+    success: boolean;
+    /** Edad a la que se agota (si se agota). */
+    depletionAge?: number;
+    /** Valor mensual real para graficar (€). */
+    monthlyValuesReal: number[];
+  };
+
   // === Metadata del bootstrap (para que el usuario sepa la fiabilidad) ===
   /** Diagnóstico de la fuente histórica usada por el bootstrap. */
   bootstrapSource: {

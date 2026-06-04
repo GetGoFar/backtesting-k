@@ -674,7 +674,7 @@ function SelectField({
 // -----------------------------------------------------------------------------
 
 function ResultsPanel({ results }: { results: RetirementResult }) {
-  const { successProbability, medianFinalValueReal, medianDepletionAge, depletionProbability, yearByYear, historicalSuccessRate, worstHistoricalCohort, bestHistoricalCohort, historicalCohorts, bootstrapSource, warnings } = results;
+  const { successProbability, medianFinalValueReal, medianDepletionAge, depletionProbability, yearByYear, historicalSuccessRate, worstHistoricalCohort, bestHistoricalCohort, historicalCohorts, bootstrapSource, sequenceRisk, warnings, config } = results;
   // Severidad del aviso de fiabilidad por longitud del histórico
   const histYears = bootstrapSource.historicalMonths / 12;
   const reliability: "high" | "medium" | "low" =
@@ -875,6 +875,137 @@ function ResultsPanel({ results }: { results: RetirementResult }) {
               <Line type="monotone" dataKey="p50" stroke="#1d4ed8" strokeWidth={2.5} dot={false} name="Mediana" />
               <ReferenceLine y={0} stroke="#dc2626" strokeDasharray="4 4" />
             </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
+      {/* Sequence-of-returns risk */}
+      <section className="bg-white rounded-2xl border border-red-200 shadow-sm p-6">
+        <div className="flex items-start gap-3 mb-3">
+          <div className="text-2xl">⚠️</div>
+          <div className="flex-1">
+            <h3 className="text-lg font-semibold text-red-700 font-serif">
+              Riesgo de secuencia de rentabilidades
+            </h3>
+            <p className="text-xs text-brand-tertiary mt-0.5 leading-relaxed">
+              Qué pasaría si los <strong>peores {(sequenceRisk.windowMonths / 12).toFixed(0)} años</strong> del histórico ocurrieran{" "}
+              <strong>justo cuando te jubilas</strong>. Mide el peor caso de
+              &quot;sequence of returns risk&quot; — un crash al inicio de la
+              retirada puede arruinar un plan que la media a largo plazo
+              aprobaría con creces.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <div className="rounded-lg p-4 bg-red-50 border border-red-200">
+            <p className="text-[10px] font-semibold uppercase text-red-700 mb-1">
+              Peor ventana histórica
+            </p>
+            <p className="text-base font-bold font-serif text-red-700">
+              {sequenceRisk.worstWindowStartMonth}
+            </p>
+            <p className="text-xs text-red-600">
+              {sequenceRisk.worstWindowCumulativeReturn >= 0 ? "+" : ""}
+              {formatNumber(sequenceRisk.worstWindowCumulativeReturn, 1)}% acumulado
+              en {(sequenceRisk.windowMonths / 12).toFixed(0)} años
+            </p>
+          </div>
+
+          <div
+            className={`rounded-lg p-4 border ${
+              sequenceRisk.success
+                ? "bg-amber-50 border-amber-200"
+                : "bg-red-50 border-red-300"
+            }`}
+          >
+            <p
+              className={`text-[10px] font-semibold uppercase mb-1 ${
+                sequenceRisk.success ? "text-amber-700" : "text-red-700"
+              }`}
+            >
+              Resultado del stress test
+            </p>
+            <p
+              className={`text-base font-bold font-serif ${
+                sequenceRisk.success ? "text-amber-700" : "text-red-700"
+              }`}
+            >
+              {sequenceRisk.success ? "Aguanta" : "Plan ARRUINADO"}
+            </p>
+            <p className="text-xs text-brand-secondary">
+              {sequenceRisk.success
+                ? "El plan sobrevive incluso con sequence risk"
+                : sequenceRisk.depletionAge !== undefined
+                ? `Dinero agotado a los ${formatNumber(sequenceRisk.depletionAge, 0)} años`
+                : "El plan no llega al final"}
+            </p>
+          </div>
+
+          <div className="rounded-lg p-4 bg-slate-50 border border-slate-200">
+            <p className="text-[10px] font-semibold uppercase text-brand-tertiary mb-1">
+              Patrimonio final (€ reales)
+            </p>
+            <p className="text-base font-bold font-serif text-brand-navy">
+              {formatEUR(sequenceRisk.finalValueReal)}
+            </p>
+            <p className="text-xs text-brand-secondary">
+              {medianFinalValueReal > 0
+                ? `${formatNumber((sequenceRisk.finalValueReal / medianFinalValueReal) * 100, 0)}% de la mediana`
+                : "—"}
+            </p>
+          </div>
+
+          <div className="rounded-lg p-4 bg-slate-50 border border-slate-200">
+            <p className="text-[10px] font-semibold uppercase text-brand-tertiary mb-1">
+              vs Mediana (sin stress)
+            </p>
+            <p className="text-base font-bold font-serif text-brand-navy">
+              {medianFinalValueReal > sequenceRisk.finalValueReal
+                ? `${formatEUR(medianFinalValueReal - sequenceRisk.finalValueReal)} menos`
+                : "—"}
+            </p>
+            <p className="text-xs text-brand-secondary">
+              Coste del peor inicio
+            </p>
+          </div>
+        </div>
+
+        {/* Mini-gráfico: evolución del path de sequence risk vs mediana */}
+        <div className="mt-4 h-56">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={sequenceRisk.monthlyValuesReal
+                .filter((_, i) => i % 6 === 0)
+                .map((v, i) => ({
+                  age: config.currentAge + (i * 6) / 12,
+                  sequenceRisk: Math.max(0, v),
+                  mediana:
+                    yearByYear[Math.min(Math.floor((i * 6) / 12), yearByYear.length - 1)]?.p50 ?? 0,
+                }))}
+              margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis
+                dataKey="age"
+                tick={{ fontSize: 10, fill: "#64748b" }}
+                tickFormatter={(v) => `${Math.round(v as number)}`}
+              />
+              <YAxis
+                tick={{ fontSize: 10, fill: "#64748b" }}
+                tickFormatter={(v) => formatEUR(v as number)}
+                width={70}
+              />
+              <RechartsTooltip
+                formatter={(value: number) => formatEUR(value)}
+                labelFormatter={(l) => `Edad ${Math.round(l as number)}`}
+                contentStyle={{ backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "11px" }}
+              />
+              <Legend wrapperStyle={{ fontSize: "11px" }} />
+              <ReferenceLine x={config.retirementAge} stroke="#e11d48" strokeDasharray="3 3" label={{ value: "Jubilación", position: "top", fontSize: 10, fill: "#e11d48" }} />
+              <Line type="monotone" dataKey="mediana" stroke="#1d4ed8" strokeWidth={2} dot={false} name="Mediana" />
+              <Line type="monotone" dataKey="sequenceRisk" stroke="#dc2626" strokeWidth={2.5} dot={false} name="Sequence risk" />
+            </LineChart>
           </ResponsiveContainer>
         </div>
       </section>

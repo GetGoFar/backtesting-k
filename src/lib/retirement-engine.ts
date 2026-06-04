@@ -333,6 +333,36 @@ function alignReturns(
 /**
  * Calcula percentiles de un array de valores numéricos.
  */
+/**
+ * Encuentra la ventana de `windowMonths` consecutivos cuya rentabilidad
+ * acumulada es la PEOR. Devuelve el índice de inicio y el retorno acumulado.
+ * Se usa para el stress test de sequence-of-returns risk: inyectar este
+ * tramo al inicio de la jubilación.
+ */
+function findWorstWindow(
+  returns: number[],
+  windowMonths: number
+): { startIdx: number; cumulativeReturn: number } {
+  if (returns.length < windowMonths) {
+    return { startIdx: 0, cumulativeReturn: 0 };
+  }
+  let worstStart = 0;
+  let worstCum = Infinity;
+  for (let i = 0; i + windowMonths <= returns.length; i++) {
+    let cum = 1;
+    for (let k = 0; k < windowMonths; k++) cum *= 1 + returns[i + k]!;
+    if (cum < worstCum) {
+      worstCum = cum;
+      worstStart = i;
+    }
+  }
+  // Retornar como porcentaje: (1+r)−1 × 100
+  return {
+    startIdx: worstStart,
+    cumulativeReturn: (worstCum - 1) * 100,
+  };
+}
+
 function percentile(sorted: number[], p: number): number {
   if (sorted.length === 0) return 0;
   const idx = Math.max(0, Math.min(sorted.length - 1, Math.round((p / 100) * (sorted.length - 1))));
@@ -371,6 +401,7 @@ export function runRetirementSimulation(input: RunRetirementInput): RetirementRe
 
   const totalYears = config.endAge - config.currentAge;
   const totalMonths = totalYears * 12;
+  const monthsAcc = (config.retirementAge - config.currentAge) * 12;
   const requestedBlockSize = config.blockSizeMonths;
 
   // ---- Auto-ajuste del blockSize cuando el histórico es corto ----
@@ -520,6 +551,69 @@ export function runRetirementSimulation(input: RunRetirementInput): RetirementRe
     .slice()
     .sort((a, b) => b.finalValueReal - a.finalValueReal)[0];
 
+  // ---- 5) Sequence-of-returns risk: peor ventana inyectada al jubilarse ----
+  // Buscamos la peor ventana de 5 años (60 meses) en el histórico de la cartera
+  // de DISTRIBUCIÓN (la que se usa post-jubilación). Si la jubilación dura
+  // menos de 5 años, usamos toda esa duración. Si el histórico es menor que
+  // la ventana solicitada, recortamos a la longitud del histórico.
+  const desiredWindowMonths = 60;
+  const retirementMonths = totalMonths - monthsAcc;
+  const windowMonths = Math.min(
+    desiredWindowMonths,
+    Math.max(12, retirementMonths),
+    source.length
+  );
+  const worstWindow = findWorstWindow(source.retB, windowMonths);
+
+  // Construimos un sampler especial: random durante acumulación, luego
+  // INYECTAR la peor ventana en los bloques que cubren los primeros
+  // `windowMonths` de jubilación, y random después.
+  const sequenceRiskSampler = (blockIdx: number): number => {
+    const monthOfPlan = blockIdx * effectiveBlockSize;
+    if (monthOfPlan < monthsAcc) {
+      // Acumulación → random
+      return Math.floor(Math.random() * blockStartPoints);
+    }
+    const monthsIntoRetirement = monthOfPlan - monthsAcc;
+    if (monthsIntoRetirement < windowMonths) {
+      // Inyectar peor ventana — el offset dentro de la ventana se calcula
+      // según en qué punto del bloque estamos
+      const offsetInWindow = monthsIntoRetirement;
+      // El sampler devuelve un blockStart; los meses del bloque son
+      // (blockStart + monthInBlock) % source.length. Queremos que el
+      // resultado coincida con worstWindow.startIdx + offsetInWindow para
+      // monthInBlock=0. Así que blockStart = worstWindow.startIdx + offsetInWindow.
+      return (worstWindow.startIdx + offsetInWindow) % source.length;
+    }
+    // Post peor-ventana → random
+    return Math.floor(Math.random() * blockStartPoints);
+  };
+  // Promediamos múltiples runs del escenario de riesgo (la parte aleatoria
+  // pre/post peor-ventana añade variabilidad). Tomamos la MEDIANA del valor
+  // final para representar el escenario.
+  const SEQ_RISK_RUNS = 200;
+  const seqRiskPaths: PathResult[] = [];
+  for (let i = 0; i < SEQ_RISK_RUNS; i++) {
+    seqRiskPaths.push(simulatePath(cfgEffective, source, sequenceRiskSampler));
+  }
+  // Mediana del valor final + cohorte mediano (representativo)
+  const seqFinalSorted = seqRiskPaths
+    .map((p) => p.monthlyValuesReal[totalMonths - 1] ?? 0)
+    .sort((a, b) => a - b);
+  const seqMedianFinal = seqFinalSorted[Math.floor(seqFinalSorted.length / 2)] ?? 0;
+  // Path representativo: el que más cerca está de la mediana
+  const seqRepIdx = seqRiskPaths
+    .map((p, i) => ({
+      i,
+      diff: Math.abs((p.monthlyValuesReal[totalMonths - 1] ?? 0) - seqMedianFinal),
+    }))
+    .sort((a, b) => a.diff - b.diff)[0]?.i ?? 0;
+  const seqRepPath = seqRiskPaths[seqRepIdx]!;
+  const seqDepletion =
+    seqRepPath.depletionMonth !== undefined
+      ? config.currentAge + seqRepPath.depletionMonth / 12
+      : undefined;
+
   return {
     config,
     successProbability,
@@ -531,6 +625,15 @@ export function runRetirementSimulation(input: RunRetirementInput): RetirementRe
     historicalSuccessRate,
     worstHistoricalCohort,
     bestHistoricalCohort,
+    sequenceRisk: {
+      windowMonths,
+      worstWindowStartMonth: aligned.months[worstWindow.startIdx] ?? "",
+      worstWindowCumulativeReturn: worstWindow.cumulativeReturn,
+      finalValueReal: seqRepPath.monthlyValuesReal[totalMonths - 1] ?? 0,
+      success: (seqRepPath.monthlyValuesReal[totalMonths - 1] ?? 0) > 0,
+      depletionAge: seqDepletion,
+      monthlyValuesReal: seqRepPath.monthlyValuesReal,
+    },
     bootstrapSource: {
       historicalMonths: source.length,
       historicalStartMonth: aligned.months[0] ?? "",
