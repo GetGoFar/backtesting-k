@@ -1370,9 +1370,11 @@ const BBVA_ACUMULACION_PRESETS: PortfolioPreset[] = [
 // -----------------------------------------------------------------------------
 // Cartera Pablo Castro — consultoría individual
 // Extraída del Excel look-through del cliente (patrimonio total ~2.98M€) tras
-// excluir Unit Linked ARIMA (293k€), Smart Money 5 (269k€), Plan Pensiones
-// CABK (130k€), Private Equity Abante (15k€) y Ethereum ETC (57k€).
-// Quedan 14 holdings líquidos cotizados, capital invertido ~2.21M€.
+// excluir Unit Linked ARIMA (293k€), Smart Money 5 (269k€), Private Equity
+// Abante (15k€) y Ethereum ETC (57k€). El Plan de Pensiones CaixaBank RV
+// Internacional (130k€) SÍ se incluye, modelado como SXR8 con TER 1.5%
+// (entrada `pablo-castro-pp-cabk-rv-internacional` en fund-database.ts).
+// Quedan 15 holdings líquidos, capital invertido ~2.34M€.
 // -----------------------------------------------------------------------------
 
 const PABLO_CASTRO_PRESETS: PortfolioPreset[] = [
@@ -1380,26 +1382,28 @@ const PABLO_CASTRO_PRESETS: PortfolioPreset[] = [
     id: "pablo-castro-cartera",
     name: "Cartera Pablo Castro",
     description:
-      "Cartera real del cliente Pablo de Castro (consultoría K) — 14 holdings líquidos: ETFs (SPDR ACWI IMI), acciones IBEX (Colonial, Iberdrola, Repsol, Viscofan, Merlin), Bitcoin ETP, oro físico y 6 fondos UCITS activos (Fidelity Tech, MSS Global Brands, Bestinfond, Capital Group, DWS, Pictet). Capital líquido ~2.21M€.",
+      "Cartera real del cliente Pablo de Castro (consultoría K) — 15 holdings líquidos: ETFs (SPDR ACWI IMI, Bitcoin ETP, oro físico), Plan Pensiones CaixaBank RV Internacional (proxy SXR8), acciones IBEX (Colonial, Iberdrola, Repsol, Viscofan, Merlin) y 6 fondos UCITS activos (Fidelity Tech, MSS Global Brands, Bestinfond, Capital Group, DWS, Pictet). Capital líquido ~2.34M€.",
     type: "active",
     holdings: [
-      // Pasivo / ETFs (40.2%)
-      { fundId: "spdr-msci-acwi-imi", weight: 26.96 },
-      { fundId: "xbt-bitcoin-tracker-eur", weight: 11.65 },
-      { fundId: "ishares-gold", weight: 1.58 },
-      // Acciones individuales (18.0%)
-      { fundId: "stock-colonial", weight: 5.99 },
-      { fundId: "stock-iberdrola", weight: 5.57 },
-      { fundId: "stock-repsol", weight: 2.97 },
-      { fundId: "stock-viscofan", weight: 2.95 },
-      { fundId: "stock-merlin", weight: 1.52 },
-      // Fondos UCITS activos (41.8%)
-      { fundId: "fidelity-global-technology", weight: 23.70 },
-      { fundId: "mss-global-brands-zh", weight: 5.11 },
-      { fundId: "bestinfond-fi", weight: 4.49 },
-      { fundId: "capital-group-new-perspective-bh-eur", weight: 3.24 },
-      { fundId: "dws-invest-top-dividend-ld", weight: 2.25 },
-      { fundId: "pictet-smartcity-p-eur", weight: 2.03 },
+      // Pasivo / ETFs (37.95%)
+      { fundId: "spdr-msci-acwi-imi", weight: 25.46 },
+      { fundId: "xbt-bitcoin-tracker-eur", weight: 11.00 },
+      { fundId: "ishares-gold", weight: 1.49 },
+      // Plan de pensiones (5.54%) — proxy S&P 500 EUR con TER 1.5%
+      { fundId: "pablo-castro-pp-cabk-rv-internacional", weight: 5.54 },
+      // Acciones individuales (17.96%)
+      { fundId: "stock-colonial", weight: 5.66 },
+      { fundId: "stock-iberdrola", weight: 5.26 },
+      { fundId: "stock-repsol", weight: 2.81 },
+      { fundId: "stock-viscofan", weight: 2.79 },
+      { fundId: "stock-merlin", weight: 1.44 },
+      // Fondos UCITS activos (38.55%)
+      { fundId: "fidelity-global-technology", weight: 22.39 },
+      { fundId: "mss-global-brands-zh", weight: 4.83 },
+      { fundId: "bestinfond-fi", weight: 4.24 },
+      { fundId: "capital-group-new-perspective-bh-eur", weight: 3.06 },
+      { fundId: "dws-invest-top-dividend-ld", weight: 2.12 },
+      { fundId: "pictet-smartcity-p-eur", weight: 1.91 },
     ],
   },
 ];

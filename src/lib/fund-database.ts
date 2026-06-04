@@ -2522,6 +2522,26 @@ const PABLO_CASTRO_FUNDS: Fund[] = [
     currency: "EUR",
     terSource: "curated",
   },
+  // --- Proxy: Plan de Pensiones CaixaBank RV Internacional ---
+  // El cliente tiene un PP CaixaBank RV Internacional que en su composición
+  // efectiva es prácticamente S&P 500 en euros. Lo modelamos como SXR8 (mismo
+  // ISIN/ticker que iShares Core S&P 500) pero con TER 1.5% para reflejar
+  // los costes reales del envoltorio de plan de pensiones. El FUNDS_BY_ISIN
+  // map prioriza la entrada original `vanguard-sp500` (TER 0.07%) cuando se
+  // busca por ISIN externamente, así que no contamina el lookup principal.
+  {
+    id: "pablo-castro-pp-cabk-rv-internacional",
+    name: "Plan Pensiones CaixaBank RV Internacional (proxy S&P 500)",
+    shortName: "PP CaixaBank RV Intl",
+    isin: "IE00B5BMR087",
+    ticker: "SXR8.DE",
+    ter: 1.5,
+    category: "RV EEUU",
+    type: "active",
+    bank: "CaixaBank",
+    currency: "EUR",
+    terSource: "estimated",
+  },
 ];
 
 // -----------------------------------------------------------------------------
@@ -2547,9 +2567,17 @@ const FUNDS_BY_ID = new Map<string, Fund>(
 );
 
 // Mapa para búsqueda rápida por ISIN
-const FUNDS_BY_ISIN = new Map<string, Fund>(
-  ALL_FUNDS.map((fund) => [fund.isin, fund])
-);
+// Lookup por ISIN — si dos fondos comparten el mismo ISIN (e.g. un proxy
+// sintético con TER distinto al original), el PRIMERO en el array gana.
+// El orden de ALL_FUNDS coloca INDEXED_FUNDS al principio, así que los
+// fondos curados "fiables" (terConfirmed=true) prevalecen sobre proxies
+// con el mismo ISIN añadidos posteriormente.
+const FUNDS_BY_ISIN = new Map<string, Fund>();
+for (const fund of ALL_FUNDS) {
+  if (!FUNDS_BY_ISIN.has(fund.isin)) {
+    FUNDS_BY_ISIN.set(fund.isin, fund);
+  }
+}
 
 // -----------------------------------------------------------------------------
 // Funciones de acceso a datos
