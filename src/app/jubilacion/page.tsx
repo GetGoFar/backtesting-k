@@ -674,7 +674,7 @@ function SelectField({
 // -----------------------------------------------------------------------------
 
 function ResultsPanel({ results }: { results: RetirementResult }) {
-  const { successProbability, medianFinalValueReal, medianDepletionAge, depletionProbability, yearByYear, historicalSuccessRate, worstHistoricalCohort, bestHistoricalCohort, historicalCohorts, bootstrapSource, sequenceRisk, warnings, config } = results;
+  const { successProbability, medianFinalValueReal, medianDepletionAge, depletionProbability, yearByYear, historicalSuccessRate, worstHistoricalCohort, bestHistoricalCohort, historicalCohorts, bootstrapSource, sequenceRisk, representativeMedianPath, warnings, config } = results;
   // Severidad del aviso de fiabilidad por longitud del histórico
   const histYears = bootstrapSource.historicalMonths / 12;
   const reliability: "high" | "medium" | "low" =
@@ -971,18 +971,26 @@ function ResultsPanel({ results }: { results: RetirementResult }) {
           </div>
         </div>
 
-        {/* Mini-gráfico: evolución del path de sequence risk vs mediana */}
+        {/* Mini-gráfico: dos trayectorias REALES — path representativo del
+            bootstrap vs path con sequence-risk inyectado. Ambos son paths
+            mensuales reales, así que la comparación es directa (no como
+            comparar contra un p50 que cruza paths). */}
         <div className="mt-4 h-56">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={sequenceRisk.monthlyValuesReal
                 .filter((_, i) => i % 6 === 0)
-                .map((v, i) => ({
-                  age: config.currentAge + (i * 6) / 12,
-                  sequenceRisk: Math.max(0, v),
-                  mediana:
-                    yearByYear[Math.min(Math.floor((i * 6) / 12), yearByYear.length - 1)]?.p50 ?? 0,
-                }))}
+                .map((v, i) => {
+                  const monthIdx = i * 6;
+                  return {
+                    age: config.currentAge + monthIdx / 12,
+                    sequenceRisk: Math.max(0, v),
+                    representativa: Math.max(
+                      0,
+                      representativeMedianPath.monthlyValuesReal[monthIdx] ?? 0
+                    ),
+                  };
+                })}
               margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -1003,11 +1011,33 @@ function ResultsPanel({ results }: { results: RetirementResult }) {
               />
               <Legend wrapperStyle={{ fontSize: "11px" }} />
               <ReferenceLine x={config.retirementAge} stroke="#e11d48" strokeDasharray="3 3" label={{ value: "Jubilación", position: "top", fontSize: 10, fill: "#e11d48" }} />
-              <Line type="monotone" dataKey="mediana" stroke="#1d4ed8" strokeWidth={2} dot={false} name="Mediana" />
-              <Line type="monotone" dataKey="sequenceRisk" stroke="#dc2626" strokeWidth={2.5} dot={false} name="Sequence risk" />
+              <Line
+                type="monotone"
+                dataKey="representativa"
+                stroke="#1d4ed8"
+                strokeWidth={2}
+                dot={false}
+                name="Trayectoria típica (bootstrap)"
+              />
+              <Line
+                type="monotone"
+                dataKey="sequenceRisk"
+                stroke="#dc2626"
+                strokeWidth={2.5}
+                dot={false}
+                name="Trayectoria con sequence risk"
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
+        <p className="mt-2 text-[11px] text-brand-tertiary leading-relaxed">
+          Ambas curvas son <strong>trayectorias reales mes a mes</strong>: la
+          azul es el path del bootstrap normal cuyo patrimonio final cae más
+          cerca de la mediana (escenario &quot;típico&quot;); la roja es la
+          misma simulación pero con la peor ventana histórica de 5 años
+          inyectada al jubilarse. Las dos pueden tener mucha volatilidad
+          intra-anual — eso es real, no un artefacto del agregado.
+        </p>
       </section>
 
       {/* Cohortes históricos */}

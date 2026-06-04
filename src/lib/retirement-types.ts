@@ -183,6 +183,17 @@ export interface RetirementResult {
   worstHistoricalCohort?: RetirementHistoricalCohort;
   bestHistoricalCohort?: RetirementHistoricalCohort;
 
+  // === Path representativo del bootstrap normal (mediana, NO un percentil) ===
+  /**
+   * Trayectoria mensual completa de UN path REAL del bootstrap — el que cae
+   * más cerca del p50 del valor final. Sirve para graficar una curva "típica"
+   * comparable directamente con el path del sequence risk (ambos son
+   * trayectorias reales mes a mes, no agregaciones cruzando paths).
+   */
+  representativeMedianPath: {
+    monthlyValuesReal: number[];
+  };
+
   // === Sequence-of-returns risk: peor escenario al jubilarse ===
   /**
    * Resultado del "stress test" de riesgo de secuencia: tomamos la peor

@@ -513,6 +513,20 @@ export function runRetirementSimulation(input: RunRetirementInput): RetirementRe
       : undefined;
   const medianFinalValueReal = percentile(finalValues, 50);
 
+  // Path representativo: del conjunto bootstrap, el que más cerca queda
+  // del p50 al final. Sirve para tener UNA trayectoria real comparable con
+  // la del sequence risk (en vez de el p50 cruzando paths, que no es una
+  // trayectoria real).
+  const representativeIdx = paths
+    .map((p, i) => ({
+      i,
+      diff: Math.abs(
+        (p.monthlyValuesReal[totalMonths - 1] ?? 0) - medianFinalValueReal
+      ),
+    }))
+    .sort((a, b) => a.diff - b.diff)[0]?.i ?? 0;
+  const representativePath = paths[representativeIdx]!;
+
   // ---- 4) Cohortes históricos (uno por cada posible mes de inicio) ----
   const cohorts: RetirementHistoricalCohort[] = [];
   const needed = totalMonths;
@@ -625,6 +639,9 @@ export function runRetirementSimulation(input: RunRetirementInput): RetirementRe
     historicalSuccessRate,
     worstHistoricalCohort,
     bestHistoricalCohort,
+    representativeMedianPath: {
+      monthlyValuesReal: representativePath.monthlyValuesReal,
+    },
     sequenceRisk: {
       windowMonths,
       worstWindowStartMonth: aligned.months[worstWindow.startIdx] ?? "",
