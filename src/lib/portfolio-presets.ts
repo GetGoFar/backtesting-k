@@ -1367,6 +1367,43 @@ const BBVA_ACUMULACION_PRESETS: PortfolioPreset[] = [
 // del extracto real de un cliente y renormalizados a 100% (originales 99.9%).
 // -----------------------------------------------------------------------------
 
+// -----------------------------------------------------------------------------
+// Cartera Pablo Castro — consultoría individual
+// Extraída del Excel look-through del cliente (patrimonio total ~2.98M€) tras
+// excluir Unit Linked ARIMA (293k€), Smart Money 5 (269k€), Plan Pensiones
+// CABK (130k€), Private Equity Abante (15k€) y Ethereum ETC (57k€).
+// Quedan 14 holdings líquidos cotizados, capital invertido ~2.21M€.
+// -----------------------------------------------------------------------------
+
+const PABLO_CASTRO_PRESETS: PortfolioPreset[] = [
+  {
+    id: "pablo-castro-cartera",
+    name: "Cartera Pablo Castro",
+    description:
+      "Cartera real del cliente Pablo de Castro (consultoría K) — 14 holdings líquidos: ETFs (SPDR ACWI IMI), acciones IBEX (Colonial, Iberdrola, Repsol, Viscofan, Merlin), Bitcoin ETP, oro físico y 6 fondos UCITS activos (Fidelity Tech, MSS Global Brands, Bestinfond, Capital Group, DWS, Pictet). Capital líquido ~2.21M€.",
+    type: "active",
+    holdings: [
+      // Pasivo / ETFs (40.2%)
+      { fundId: "spdr-msci-acwi-imi", weight: 26.96 },
+      { fundId: "xbt-bitcoin-tracker-eur", weight: 11.65 },
+      { fundId: "ishares-gold", weight: 1.58 },
+      // Acciones individuales (18.0%)
+      { fundId: "stock-colonial", weight: 5.99 },
+      { fundId: "stock-iberdrola", weight: 5.57 },
+      { fundId: "stock-repsol", weight: 2.97 },
+      { fundId: "stock-viscofan", weight: 2.95 },
+      { fundId: "stock-merlin", weight: 1.52 },
+      // Fondos UCITS activos (41.8%)
+      { fundId: "fidelity-global-technology", weight: 23.70 },
+      { fundId: "mss-global-brands-zh", weight: 5.11 },
+      { fundId: "bestinfond-fi", weight: 4.49 },
+      { fundId: "capital-group-new-perspective-bh-eur", weight: 3.24 },
+      { fundId: "dws-invest-top-dividend-ld", weight: 2.25 },
+      { fundId: "pictet-smartcity-p-eur", weight: 2.03 },
+    ],
+  },
+];
+
 const CAIXABANK_SMART_PRESETS: PortfolioPreset[] = [
   {
     id: "caixabank-smartmoney-5",
@@ -1413,6 +1450,7 @@ const ALL_PRESETS: PortfolioPreset[] = [
   ...BBVA_INVERSION_RV_PRESETS,
   ...BBVA_ACUMULACION_PRESETS,
   ...CAIXABANK_SMART_PRESETS,
+  ...PABLO_CASTRO_PRESETS,
   ...MOMENTUM_CARTERA_PRESETS,
 ];
 

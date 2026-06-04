@@ -2362,6 +2362,169 @@ const CAIXABANK_SMART_FUNDS: Fund[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// Cartera Pablo Castro — 14 holdings líquidos extraídos del Excel look-through
+// (excluyendo Unit Linked, Smart Money, Plan Pensiones, Private Equity).
+// Mezcla ETFs UCITS + acciones españolas individuales + fondos UCITS activos.
+// -----------------------------------------------------------------------------
+
+const PABLO_CASTRO_FUNDS: Fund[] = [
+  // --- ETFs e instrumentos cotizados ---
+  {
+    id: "spdr-msci-acwi-imi",
+    name: "SPDR MSCI ACWI IMI UCITS ETF",
+    shortName: "SPDR MSCI ACWI IMI",
+    isin: "IE00B3YLTY66",
+    ticker: "SPYI.DE", // Xetra
+    ter: 0.17,
+    category: "RV Global",
+    type: "index",
+    currency: "USD",
+    terSource: "curated",
+  },
+  {
+    id: "xbt-bitcoin-tracker-eur",
+    name: "Bitcoin Tracker EUR XBT Provider",
+    shortName: "Bitcoin Tracker EUR (XBT)",
+    isin: "SE0007525332",
+    ticker: "BITCOIN-XBTE.ST",
+    ter: 0.95,
+    category: "Alternativo",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  // --- Acciones españolas individuales (sin TER) ---
+  {
+    id: "stock-colonial",
+    name: "Inmobiliaria Colonial SOCIMI SA",
+    shortName: "Colonial",
+    isin: "ES0139140174",
+    ticker: "COL.MC",
+    ter: 0,
+    category: "RV REITs",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "stock-iberdrola",
+    name: "Iberdrola S.A.",
+    shortName: "Iberdrola",
+    isin: "ES0144580Y14",
+    ticker: "IBE.MC",
+    ter: 0,
+    category: "RV España",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "stock-repsol",
+    name: "Repsol S.A.",
+    shortName: "Repsol",
+    isin: "ES0173516115",
+    ticker: "REP.MC",
+    ter: 0,
+    category: "RV España",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "stock-viscofan",
+    name: "Viscofan S.A.",
+    shortName: "Viscofan",
+    isin: "ES0184262212",
+    ticker: "VIS.MC",
+    ter: 0,
+    category: "RV España",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "stock-merlin",
+    name: "Merlin Properties SOCIMI SA",
+    shortName: "Merlin Properties",
+    isin: "ES0105025003",
+    ticker: "MRL.MC",
+    ter: 0,
+    category: "RV REITs",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  // --- Fondos UCITS activos (.EUFUND) ---
+  {
+    id: "fidelity-global-technology",
+    name: "Fidelity Global Technology A-EUR",
+    shortName: "Fidelity Global Technology",
+    isin: "LU0099574567",
+    ter: 1.02,
+    category: "RV Sectorial",
+    type: "active",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "mss-global-brands-zh",
+    name: "Morgan Stanley Global Brands Z Hedged",
+    shortName: "MSS Global Brands Zh",
+    isin: "LU0360483019",
+    ter: 1.65,
+    category: "RV Global",
+    type: "active",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "bestinfond-fi",
+    name: "Bestinfond FI",
+    shortName: "Bestinfond",
+    isin: "ES0114673033",
+    ter: 1.80,
+    category: "RV Global",
+    type: "active",
+    bank: "Bestinver",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "capital-group-new-perspective-bh-eur",
+    name: "Capital Group New Perspective Fund (LUX) Bh-EUR",
+    shortName: "Capital Group New Perspective",
+    isin: "LU1295552621",
+    ter: 1.40,
+    category: "RV Global",
+    type: "active",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "dws-invest-top-dividend-ld",
+    name: "DWS Invest Top Dividend LD",
+    shortName: "DWS Top Dividend",
+    isin: "LU0507266061",
+    ter: 1.50,
+    category: "RV Global",
+    type: "active",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "pictet-smartcity-p-eur",
+    name: "Pictet - SmartCity P EUR",
+    shortName: "Pictet SmartCity",
+    isin: "LU0503634221",
+    ter: 1.97,
+    category: "RV Sectorial",
+    type: "active",
+    currency: "EUR",
+    terSource: "curated",
+  },
+];
+
+// -----------------------------------------------------------------------------
 // Todos los fondos combinados
 // -----------------------------------------------------------------------------
 
@@ -2375,6 +2538,7 @@ const ALL_FUNDS: Fund[] = [
   ...BBVA_ACUMULACION_FUNDS,
   ...PABLO_FUNDS,
   ...CAIXABANK_SMART_FUNDS,
+  ...PABLO_CASTRO_FUNDS,
 ];
 
 // Mapa para búsqueda rápida por ID
