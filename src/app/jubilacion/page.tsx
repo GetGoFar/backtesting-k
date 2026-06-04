@@ -983,9 +983,11 @@ function ResultsPanel({ results }: { results: RetirementResult }) {
             </thead>
             <tbody>
               {withdrawalRates.scenarios.map((s) => {
-                // Colores semánticos según el grado de optimismo (riesgo)
+                // Colores semánticos según el grado de optimismo/riesgo
                 const palette =
-                  s.key === "agorero"
+                  s.key === "bengen"
+                    ? { bg: "bg-emerald-100/60", dot: "🛡️", label: "text-emerald-800" }
+                    : s.key === "agorero"
                     ? { bg: "bg-emerald-50/60", dot: "🟢", label: "text-emerald-700" }
                     : s.key === "conservador"
                     ? { bg: "bg-emerald-50/30", dot: "🟢", label: "text-emerald-600" }
@@ -1056,14 +1058,17 @@ function ResultsPanel({ results }: { results: RetirementResult }) {
         </div>
 
         <p className="text-xs text-brand-tertiary mt-4 leading-relaxed">
-          💡 <strong>Cómo leer la tabla</strong>: la fila &quot;Agorero&quot;
-          es la cifra <strong>casi garantizada</strong> — sobrevive en el 95%
-          de las secuencias históricas, pero te obliga a vivir más
-          modestamente. La &quot;Optimista&quot; sólo funciona en el 25% de
-          los escenarios — si te toca un mal sequence-risk al jubilarte, el
-          plan se rompe. <strong>Medio</strong> es la mediana (50/50). Si los
-          warnings del panel de fiabilidad indican histórico corto, estas
-          tasas <strong>sobreestiman</strong> lo que es seguro a futuro.
+          💡 <strong>Cómo leer la tabla</strong>:{" "}
+          <strong>Bengen</strong> es la cifra del paper original de 1994 —
+          sobrevive incluso en el peor 1% de las secuencias históricas
+          (jubilarse el día antes del crash del 29, p.ej.). Es el techo
+          ultra-conservador que da casi cualquier escenario. La{" "}
+          <strong>Agorero</strong> (95%) y <strong>Conservador</strong> (75%)
+          son los típicos del sector. <strong>Medio</strong> es 50/50 — si
+          tienes mala suerte el plan falla. <strong>Optimista</strong> sólo
+          funciona si te toca el 25% mejor de los escenarios. Si los warnings
+          del panel de fiabilidad indican histórico corto, todas estas tasas{" "}
+          <strong>sobreestiman</strong> lo seguro a futuro.
         </p>
       </section>
 

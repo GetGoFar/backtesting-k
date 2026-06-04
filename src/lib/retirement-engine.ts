@@ -724,6 +724,7 @@ export function runRetirementSimulation(input: RunRetirementInput): RetirementRe
   // no es la única respuesta.
   type ScenarioDef = { label: string; key: string; percentile: number };
   const SCENARIOS: ScenarioDef[] = [
+    { label: "Bengen",      key: "bengen",      percentile: 1  }, // 99% éxito — equivalente a la peor secuencia histórica del paper original
     { label: "Agorero",     key: "agorero",     percentile: 5  }, // 95% éxito
     { label: "Conservador", key: "conservador", percentile: 25 }, // 75% éxito
     { label: "Medio",       key: "medio",       percentile: 50 }, // 50% éxito
