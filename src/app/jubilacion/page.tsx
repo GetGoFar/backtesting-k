@@ -689,8 +689,24 @@ function ResultsPanel({ results }: { results: RetirementResult }) {
     return new Date(y, mo - 1, 1).toLocaleDateString("es-ES", { month: "short", year: "numeric" });
   };
 
-  // Datos para el fan chart (Recharts)
-  const fanData = yearByYear.map((y) => ({
+  // Datos para el fan chart (Recharts). PRIMER PUNTO: el capital inicial en
+  // age = currentAge, antes de cualquier retorno. Sin esto, la curva arranca
+  // en age = currentAge + 1 con valores ya post-1-año, lo que visualmente
+  // hace parecer que "sale desde 0" cuando en realidad sale del capital
+  // inicial. Todos los percentiles del punto 0 son iguales al capital inicial.
+  const initialPoint = {
+    age: config.currentAge,
+    p10: Math.round(config.initialCapital),
+    p25: Math.round(config.initialCapital),
+    p50: Math.round(config.initialCapital),
+    p75: Math.round(config.initialCapital),
+    p90: Math.round(config.initialCapital),
+    p10_25_band: 0,
+    p25_50_band: 0,
+    p50_75_band: 0,
+    p75_90_band: 0,
+  };
+  const fanData = [initialPoint, ...yearByYear.map((y) => ({
     age: y.age,
     p10: Math.round(y.p10),
     p25: Math.round(y.p25),
@@ -701,7 +717,7 @@ function ResultsPanel({ results }: { results: RetirementResult }) {
     p25_50_band: Math.max(0, y.p50 - y.p25),
     p50_75_band: Math.max(0, y.p75 - y.p50),
     p75_90_band: Math.max(0, y.p90 - y.p75),
-  }));
+  }))];
 
   const probColor =
     successProbability >= 90 ? "emerald" : successProbability >= 70 ? "amber" : "red";
@@ -862,9 +878,51 @@ function ResultsPanel({ results }: { results: RetirementResult }) {
               <XAxis dataKey="age" tick={{ fontSize: 11, fill: "#64748b" }} label={{ value: "Edad", position: "insideBottom", offset: -2, fontSize: 11, fill: "#64748b" }} />
               <YAxis tick={{ fontSize: 11, fill: "#64748b" }} tickFormatter={(v) => formatEUR(v as number)} width={80} />
               <RechartsTooltip
-                formatter={(value: number, name: string) => [formatEUR(value), name]}
-                labelFormatter={(l) => `Edad ${l}`}
-                contentStyle={{ backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "12px" }}
+                content={({ active, payload, label }) => {
+                  if (!active || !payload || payload.length === 0) return null;
+                  // El payload contiene varios items (uno por <Area>/<Line>),
+                  // pero todos comparten el mismo `payload` (el dato de la
+                  // fila). Tomamos el primero y mostramos los percentiles
+                  // CUMULATIVOS reales — no los anchos de banda.
+                  const first = payload[0];
+                  const d = first?.payload as {
+                    p10: number;
+                    p25: number;
+                    p50: number;
+                    p75: number;
+                    p90: number;
+                  } | undefined;
+                  if (!d) return null;
+                  return (
+                    <div className="bg-white border border-slate-200 rounded-lg shadow-md px-3 py-2 text-xs">
+                      <div className="font-semibold text-brand-navy mb-1.5">
+                        Edad {label}
+                      </div>
+                      <div className="space-y-0.5">
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-blue-700 font-medium">p90 (mejor)</span>
+                          <span className="font-mono text-brand-navy">{formatEUR(d.p90)}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-blue-600">p75</span>
+                          <span className="font-mono text-brand-navy">{formatEUR(d.p75)}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4 border-t border-slate-200 pt-0.5 mt-0.5">
+                          <span className="font-semibold text-brand-navy">p50 (mediana)</span>
+                          <span className="font-mono font-bold text-brand-navy">{formatEUR(d.p50)}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4 border-t border-slate-200 pt-0.5 mt-0.5">
+                          <span className="text-red-600">p25</span>
+                          <span className="font-mono text-brand-navy">{formatEUR(d.p25)}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-red-700 font-medium">p10 (peor)</span>
+                          <span className="font-mono text-brand-navy">{formatEUR(d.p10)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }}
               />
               <Legend wrapperStyle={{ fontSize: "12px" }} />
               <Area type="monotone" dataKey="p10" stackId="1" stroke="none" fill="transparent" name="p10" />
