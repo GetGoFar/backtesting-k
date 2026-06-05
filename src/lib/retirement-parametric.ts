@@ -440,11 +440,22 @@ export function runParametricRetirement(config: ParametricConfig): ParametricRes
     });
   }
 
-  // ---- Sequence risk: el path con peor 5-año cumulativo post-jubilación ----
+  // ---- Sequence risk: percentil 1 de los cumulativos de 5 años post-jub ----
+  //
+  // Tomar el path LITERAL más malo de 1000 da un escenario p~0.1% — un
+  // "outlier" de 1 entre 1.000, no representativo del "peor caso plausible".
+  // Para una cartera tipo K4 (vol 7%) eso produce ~−40% acumulado en 5 años,
+  // estadísticamente posible pero engañoso.
+  //
+  // Usamos el percentil 1 (el "10º peor" de 1.000), que es la convención del
+  // sector y matchea el "Bengen" de los SWR. Equivalente al "peor 1% de
+  // secuencias históricas".
   const retMonths = totalMonths - monthsAcc;
   const seqWindowMonths = Math.min(60, Math.max(12, retMonths));
-  let worstPath: PathOut | null = null;
-  let worstCumProd = Infinity;
+  const SEQ_PERCENTILE = 1; // percentil del cumulativo a usar como "sequence risk"
+
+  type PathWithCum = { path: PathOut; cum: number };
+  const validPaths: PathWithCum[] = [];
   for (const p of paths) {
     if (p.depletionMonth !== undefined && p.depletionMonth < monthsAcc) continue;
     let cum = 1;
@@ -452,12 +463,19 @@ export function runParametricRetirement(config: ParametricConfig): ParametricRes
       const r = p.postReturnsReal[k] ?? 0;
       cum *= 1 + r;
     }
-    if (cum < worstCumProd) {
-      worstCumProd = cum;
-      worstPath = p;
-    }
+    validPaths.push({ path: p, cum });
   }
-  const seqPath = worstPath ?? representativePath;
+  validPaths.sort((a, b) => a.cum - b.cum);
+  const seqIdx = Math.max(
+    0,
+    Math.min(
+      validPaths.length - 1,
+      Math.floor((SEQ_PERCENTILE / 100) * (validPaths.length - 1))
+    )
+  );
+  const seqEntry = validPaths[seqIdx];
+  const seqPath = seqEntry?.path ?? representativePath;
+  const seqCumProd = seqEntry?.cum ?? 1;
   const seqDepletion =
     seqPath.depletionMonth !== undefined
       ? config.currentAge + seqPath.depletionMonth / 12
@@ -467,8 +485,7 @@ export function runParametricRetirement(config: ParametricConfig): ParametricRes
     finalValueReal: seqPath.monthlyValuesReal[totalMonths - 1] ?? 0,
     success: (seqPath.monthlyValuesReal[totalMonths - 1] ?? 0) > 0,
     depletionAge: seqDepletion,
-    worstWindowCumulativeReturn:
-      worstCumProd === Infinity ? 0 : (worstCumProd - 1) * 100,
+    worstWindowCumulativeReturn: (seqCumProd - 1) * 100,
     monthlyValuesReal: seqPath.monthlyValuesReal,
   };
 

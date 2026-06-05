@@ -932,11 +932,13 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
               Riesgo de secuencia
             </h3>
             <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
-              Qué pasaría si los peores{" "}
-              {(sequenceRisk.windowMonths / 12).toFixed(0)} años de la
+              Escenario <strong>p1</strong> (1 entre 100): qué pasaría si los
+              peores {(sequenceRisk.windowMonths / 12).toFixed(0)} años de la
               simulación ocurrieran <strong>justo al jubilarte</strong>. Un
               crash al inicio del retiro puede arruinar un plan que la media
-              aprobaría con creces.
+              aprobaría con creces. No es el peor caso absoluto (eso sería un
+              outlier 1 entre mil) sino la convención del sector para
+              &quot;peor caso plausible&quot;.
             </p>
           </div>
         </div>
