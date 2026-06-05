@@ -906,19 +906,15 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
                     <td
                       className="py-3 px-3 text-right border-l border-slate-200 font-mono font-bold text-indigo-700"
                       title={
-                        Number.isNaN(s.pwr.eurPerMonth)
-                          ? "En este escenario adverso la cartera de distribución no consigue preservar capital real ni siquiera sin retirar nada"
+                        s.pwr.eurPerMonth === 0
+                          ? "En este escenario la cartera no genera rendimiento real positivo — no hay margen para retiros sostenibles."
                           : undefined
                       }
                     >
-                      {Number.isNaN(s.pwr.eurPerMonth)
-                        ? "—"
-                        : fmtEUR(s.pwr.eurPerMonth)}
+                      {fmtEUR(s.pwr.eurPerMonth)}
                     </td>
                     <td className="py-3 pl-3 text-right text-indigo-700">
-                      {Number.isNaN(s.pwr.pctAnnual)
-                        ? "—"
-                        : fmtPct(s.pwr.pctAnnual)}
+                      {fmtPct(s.pwr.pctAnnual)}
                     </td>
                   </tr>
                 );
@@ -933,12 +929,11 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
           fija tus retiros en la cifra Bengen.
         </p>
         <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-          ℹ️ <strong>&quot;—&quot; en PWR</strong> significa que en ese
-          escenario adverso la cartera de distribución no logra mantener su
-          poder adquisitivo ni siquiera sin retirar nada — el sequence risk
-          es demasiado fuerte. PWR es mucho más exigente que SWR: aceptar
-          que el capital baje en términos reales (SWR) deja mucho más
-          margen para retiradas.
+          ℹ️ <strong>PWR clásica (perpetua):</strong> tasa que retirarías si la
+          cartera rindiera siempre su CAGR real geométrico. Calculada path por
+          path como K × CAGR_real / 12. Si en un escenario la cartera no
+          genera rendimiento real positivo, PWR es 0 € (no hay rendimiento
+          sostenible que retirar).
         </p>
       </section>
 

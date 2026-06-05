@@ -386,8 +386,8 @@ function drawWithdrawalTable(
     `${s.successRatePct.toFixed(0)}%`,
     fmtEUR.format(s.swr.eurPerMonth),
     `${s.swr.pctAnnual.toFixed(2)}%`,
-    Number.isNaN(s.pwr.eurPerMonth) ? "—" : fmtEUR.format(s.pwr.eurPerMonth),
-    Number.isNaN(s.pwr.pctAnnual) ? "—" : `${s.pwr.pctAnnual.toFixed(2)}%`,
+    fmtEUR.format(s.pwr.eurPerMonth),
+    `${s.pwr.pctAnnual.toFixed(2)}%`,
   ]);
 
   autoTable(doc, {

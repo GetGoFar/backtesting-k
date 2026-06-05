@@ -358,13 +358,6 @@ function findMaxWithdrawal(
   criterion: "noDeplete" | "preserveCapital"
 ): number {
   if (K <= 0 || realReturns.length === 0) return 0;
-  // Para preserveCapital: si ni siquiera retirando 0€ se mantiene el capital
-  // real (la cartera pierde poder adquisitivo por sí sola en este path),
-  // devolvemos NaN. Distinto de "el máximo retiro es 0€".
-  if (criterion === "preserveCapital" &&
-      !simulateWithdrawalReal(K, 0, realReturns, criterion)) {
-    return NaN;
-  }
   let lo = 0;
   let hi = K;
   for (let i = 0; i < 30; i++) {
@@ -373,6 +366,35 @@ function findMaxWithdrawal(
     else hi = mid;
   }
   return lo;
+}
+
+/**
+ * PWR clásica (perpetua) basada en el CAGR real geométrico del path.
+ *
+ * Para retornos constantes a tasa μ_real, retirar K*μ/12 al mes preserva
+ * capital exactamente (independiente del horizonte). Esta función calcula
+ * la PWR equivalente del path como si su CAGR real fuera constante.
+ *
+ * Por qué no usamos `findMaxWithdrawal(preserveCapital)`: el método estricto
+ * exige capital_final ≥ K exacto, lo que castiga muchísimo el sequence risk
+ * (paths con mala racha temprana penalizan irrecuperablemente la PWR aunque
+ * el CAGR realizado sea bueno). Para PWR — concepto orientado a "qué
+ * rendimiento real genera la cartera a largo plazo" — la versión basada en
+ * CAGR es más intuitiva, sin NaN y se alinea con la PWR clásica de Bogle/
+ * Bernstein. Mantenemos `findMaxWithdrawal(noDeplete)` para SWR porque ahí
+ * sí importa la secuencia exacta de retornos.
+ */
+function pwrFromCagrReal(
+  K: number,
+  capitalFinalReal: number,
+  yearsPost: number
+): number {
+  if (K <= 0 || yearsPost <= 0 || capitalFinalReal <= 0) return 0;
+  const cagrReal = Math.pow(capitalFinalReal / K, 1 / yearsPost) - 1;
+  // Si la cartera pierde poder adquisitivo (CAGR real negativo), PWR=0:
+  // no hay rendimiento sostenible que retirar — al contrario, mantener
+  // capital requeriría aportar, no retirar.
+  return Math.max(0, (K * cagrReal) / 12);
 }
 
 function percentile(sorted: number[], p: number): number {
@@ -531,6 +553,7 @@ export function runParametricRetirement(config: ParametricConfig): ParametricRes
   const swrPerPath: number[] = [];
   const pwrPerPath: number[] = [];
   const capitalsAtRetirement: number[] = [];
+  const yearsPost = (totalMonths - monthsAcc) / 12;
   for (let i = 0; i < numPaths && retMonths > 0; i++) {
     const p = simulateParametricPath(cfgNoWithdrawal);
     if (p.capitalAtRetirementReal <= 0) continue;
@@ -538,32 +561,19 @@ export function runParametricRetirement(config: ParametricConfig): ParametricRes
     swrPerPath.push(
       findMaxWithdrawal(p.capitalAtRetirementReal, p.postReturnsReal, "noDeplete")
     );
+    const capitalFinalReal = p.monthlyValuesReal[totalMonths - 1] ?? 0;
     pwrPerPath.push(
-      findMaxWithdrawal(
-        p.capitalAtRetirementReal,
-        p.postReturnsReal,
-        "preserveCapital"
-      )
+      pwrFromCagrReal(p.capitalAtRetirementReal, capitalFinalReal, yearsPost)
     );
   }
   swrPerPath.sort((a, b) => a - b);
-  // PWR: ordenamos NaN al inicio (peor que cualquier número). En la lectura,
-  // un NaN en un percentil bajo significa "ni siquiera retirando 0€ se
-  // preserva capital real en este escenario de mercado".
-  pwrPerPath.sort((a, b) => {
-    if (Number.isNaN(a) && Number.isNaN(b)) return 0;
-    if (Number.isNaN(a)) return -1;
-    if (Number.isNaN(b)) return 1;
-    return a - b;
-  });
+  pwrPerPath.sort((a, b) => a - b);
   capitalsAtRetirement.sort((a, b) => a - b);
   const capitalAtRetirementReal = percentile(capitalsAtRetirement, 50);
-  const toPctAnnual = (eurMonth: number): number => {
-    if (Number.isNaN(eurMonth)) return NaN;
-    return capitalAtRetirementReal > 0
+  const toPctAnnual = (eurMonth: number): number =>
+    capitalAtRetirementReal > 0
       ? (eurMonth * 12 / capitalAtRetirementReal) * 100
       : 0;
-  };
 
   const SCENARIO_DEFS = [
     { label: "Bengen", key: "bengen", percentile: 1 },
