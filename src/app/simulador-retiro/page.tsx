@@ -144,14 +144,60 @@ export default function SimuladorRetiroPage() {
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (typeof window === "undefined" || window.parent === window) return;
-    const sendHeight = () => {
-      const h = rootRef.current?.scrollHeight ?? document.body.scrollHeight;
-      window.parent.postMessage({ type: "epk-iframe-height", height: h }, "*");
+
+    // Medir la altura REAL del contenido (no afectada por min-h-screen).
+    // El root tiene `min-h-screen` (100vh) para verse bien standalone; pero
+    // dentro de un iframe ese 100vh es la altura del iframe, lo que crea
+    // un acoplamiento: el padre ajusta la altura → 100vh cambia → root
+    // crece → se vuelve a notificar. Para romperlo, medimos el bounding
+    // del primer hijo (el wrapper interno que NO tiene min-h-screen).
+    const measure = (): number => {
+      const inner = rootRef.current?.firstElementChild as HTMLElement | null;
+      if (inner) {
+        // `offsetTop + offsetHeight` da la posición Y del final del wrapper,
+        // que es la altura real del contenido sin contar el min-h-screen.
+        return inner.offsetTop + inner.offsetHeight;
+      }
+      return document.documentElement.scrollHeight;
     };
+
+    let lastSent = 0;
+    let rafId = 0;
+    const sendHeight = () => {
+      // Coalesce: requestAnimationFrame evita ráfagas durante reflows.
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        const h = measure();
+        // Solo notificar si el delta es significativo (evita loops por
+        // diferencias subpíxel y rebotes del ResizeObserver).
+        if (Math.abs(h - lastSent) < 4) return;
+        lastSent = h;
+        window.parent.postMessage(
+          { type: "epk-iframe-height", height: h },
+          "*"
+        );
+      });
+    };
+
     sendHeight();
+    // Observamos el WRAPPER INTERNO, no el root con min-h-screen. Cambios
+    // del root debido al 100vh del iframe ya no disparan rebotes.
+    const inner = rootRef.current?.firstElementChild as HTMLElement | null;
     const ro = new ResizeObserver(sendHeight);
-    if (rootRef.current) ro.observe(rootRef.current);
-    return () => ro.disconnect();
+    if (inner) ro.observe(inner);
+    // Repetir varias veces durante el primer segundo: hay assets, fuentes
+    // y layout shifts que cambian la altura final.
+    const t1 = setTimeout(sendHeight, 200);
+    const t2 = setTimeout(sendHeight, 600);
+    const t3 = setTimeout(sendHeight, 1200);
+    return () => {
+      ro.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
   }, [results]);
 
   return (
