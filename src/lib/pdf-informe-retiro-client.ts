@@ -106,34 +106,37 @@ export function generateInformePdf(args: {
 
     // PWR perpetua — sección dedicada
     if (results.withdrawalRates.pwrPerpetual) {
-      y = checkPageBreak(doc, y, 40);
+      y = checkPageBreak(doc, y, 50);
       y = drawSectionTitle(
         doc,
         "PWR — Tasa perpetua para preservar capital",
         margin,
-        y + 4
+        y + 6
       );
-      drawPwrPerpetualBox(doc, pageW, margin, y, results);
-      y = getY(doc, y + 30) + 3;
+      // drawPwrPerpetualBox dibuja a partir de `y` y devuelve el `y` final
+      // (NO usamos getY aquí porque la caja no es una autoTable — getY
+      // devolvería el final de la última tabla y haría retroceder y).
+      y = drawPwrPerpetualBox(doc, pageW, margin, y + 2, results);
+      y += 4;
       doc.setFontSize(7.5);
       doc.setTextColor(...C.muted);
       const pwrNote = doc.splitTextToSize(
-        "Tasa que mantiene capital real constante si la cartera rinde a su CAGR real geom. Depende solo de la cartera de distribución (rentab esperada y volatilidad), NO del capital ni de las aportaciones. La mediana es 'si tu cartera rinde como se espera'; el rango p25-p75 cubre la mitad central de escenarios.",
+        "Tasa que mantiene capital real constante si la cartera rinde a su CAGR real geométrico. Depende solo de la cartera de distribución (rentabilidad esperada y volatilidad), NO del capital ni de las aportaciones. La mediana es 'si tu cartera rinde como se espera'; el rango p25-p75 cubre la mitad central de escenarios.",
         pageW - margin * 2
       );
       doc.text(pwrNote, margin, y);
-      y += pwrNote.length * 3.5 + 3;
+      y += pwrNote.length * 3.5 + 4;
     }
   }
 
   // ---------- Riesgo de secuencia ----------
-  y = checkPageBreak(doc, y, 50);
+  y = checkPageBreak(doc, y, 70);
   y = drawSectionTitle(doc, "Riesgo de secuencia (sequence risk)", margin, y + 6);
   y = drawSequenceRisk(doc, pageW, margin, y + 2, results);
 
   // ---------- CTA final ----------
   y = checkPageBreak(doc, y, 50);
-  drawCta(doc, pageW, margin, y + 6);
+  drawCta(doc, pageW, margin, y + 8);
 
   // Pie de página en todas las páginas
   drawFooters(doc, pageW);
@@ -571,9 +574,9 @@ function drawPwrPerpetualBox(
   margin: number,
   y: number,
   r: ParametricResult
-): void {
+): number {
   const pwr = r.withdrawalRates.pwrPerpetual;
-  if (!pwr) return;
+  if (!pwr) return y;
   const usableW = pageW - margin * 2;
   const boxW = (usableW - 6) / 3;
   const boxH = 26;
@@ -632,6 +635,7 @@ function drawPwrPerpetualBox(
   });
 
   doc.setTextColor(...C.text);
+  return y + boxH;
 }
 
 // -----------------------------------------------------------------------------
