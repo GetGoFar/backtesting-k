@@ -61,6 +61,7 @@ interface Preset {
 }
 const PRESETS: Preset[] = [
   { label: "Cartera K10", ret: 8.5, vol: 11 },
+  { label: "Cartera K4", ret: 7, vol: 7 },
   { label: "100% RV global", ret: 8, vol: 16 },
   { label: "80/20 (agresiva)", ret: 7.2, vol: 13 },
   { label: "60/40 (clásica)", ret: 6, vol: 10 },
