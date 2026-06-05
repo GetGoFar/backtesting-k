@@ -182,11 +182,11 @@ export default function SimuladorRetiroPage() {
 
 function Header() {
   return (
-    <header className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-      <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 font-serif">
+    <header className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6">
+      <h1 className="text-xl sm:text-3xl font-bold text-slate-900 font-serif">
         Simulador de retiro
       </h1>
-      <p className="text-sm text-slate-600 mt-1 leading-relaxed">
+      <p className="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed">
         Estima si tu plan de jubilación va a aguantar usando Monte Carlo
         paramétrico log-normal. Tú defines la rentabilidad y volatilidad
         esperadas; la simulación genera 1.000 escenarios y te dice la
@@ -230,20 +230,20 @@ function ConfigPanel({
 }) {
   return (
     <section className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-      <div className="bg-slate-900 px-6 py-4 flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-white font-semibold font-serif text-lg">
+      <div className="bg-slate-900 px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between flex-wrap gap-3">
+        <h2 className="text-white font-semibold font-serif text-base sm:text-lg">
           Configura tu plan
         </h2>
         <button
           onClick={onRun}
           disabled={isLoading}
-          className="px-5 py-2 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-400 text-white text-sm font-semibold rounded-lg transition-colors"
+          className="px-4 sm:px-5 py-2 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-400 text-white text-sm font-semibold rounded-lg transition-colors"
         >
           {isLoading ? "Calculando…" : "▶ Simular"}
         </button>
       </div>
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-6">
         {/* Edades */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <NumberField
@@ -617,10 +617,10 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
       )}
 
       {/* KPIs */}
-      <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+      <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6">
           <div
-            className={`rounded-xl p-5 border ${
+            className={`rounded-xl p-4 sm:p-5 border ${
               probColor === "emerald"
                 ? "bg-emerald-50 border-emerald-200"
                 : probColor === "amber"
@@ -628,11 +628,11 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
                 : "bg-red-50 border-red-200"
             }`}
           >
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5 sm:mb-2">
               Probabilidad de éxito
             </p>
             <p
-              className={`text-5xl font-bold font-serif ${
+              className={`text-4xl sm:text-5xl font-bold font-serif ${
                 probColor === "emerald"
                   ? "text-emerald-700"
                   : probColor === "amber"
@@ -642,7 +642,7 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
             >
               {successProbability.toFixed(1)}%
             </p>
-            <p className="text-xs mt-2 text-slate-600">
+            <p className="text-xs mt-1.5 sm:mt-2 text-slate-600">
               {successProbability >= 90
                 ? "Plan sólido — aguanta en la inmensa mayoría de escenarios."
                 : successProbability >= 70
@@ -650,27 +650,27 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
                 : "Plan frágil — considera aumentar aportes o reducir retiradas."}
             </p>
           </div>
-          <div className="rounded-xl p-5 bg-slate-50 border border-slate-200">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+          <div className="rounded-xl p-4 sm:p-5 bg-slate-50 border border-slate-200">
+            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5 sm:mb-2">
               Patrimonio final mediano (€ reales)
             </p>
-            <p className="text-3xl font-bold font-serif text-slate-900">
+            <p className="text-2xl sm:text-3xl font-bold font-serif text-slate-900 break-all">
               {fmtEUR(medianFinalValueReal)}
             </p>
-            <p className="text-xs mt-2 text-slate-600">
+            <p className="text-xs mt-1.5 sm:mt-2 text-slate-600">
               Lo que el 50% de los paths te deja a los {config.endAge} años.
             </p>
           </div>
-          <div className="rounded-xl p-5 bg-slate-50 border border-slate-200">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+          <div className="rounded-xl p-4 sm:p-5 bg-slate-50 border border-slate-200">
+            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5 sm:mb-2">
               Edad mediana de agotamiento
             </p>
-            <p className="text-3xl font-bold font-serif text-slate-900">
+            <p className="text-2xl sm:text-3xl font-bold font-serif text-slate-900">
               {medianDepletionAge !== undefined
                 ? `${medianDepletionAge.toFixed(1)} años`
                 : "—"}
             </p>
-            <p className="text-xs mt-2 text-slate-600">
+            <p className="text-xs mt-1.5 sm:mt-2 text-slate-600">
               Entre los {depletionProbability.toFixed(1)}% que se agotan.
             </p>
           </div>
@@ -678,23 +678,34 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
       </section>
 
       {/* Fan chart */}
-      <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-slate-900 font-serif mb-1">
+      <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6">
+        <h3 className="text-base sm:text-lg font-semibold text-slate-900 font-serif mb-1">
           Evolución del patrimonio (€ reales)
         </h3>
         <p className="text-xs text-slate-500 mb-4">
           Bandas año a año: p10-p25, p25-p50 (mediana), p50-p75, p75-p90. La
           línea es la mediana. Cuanto más estrecha la banda, más consistente.
         </p>
-        <div className="h-80 sm:h-96">
+        <div className="h-72 sm:h-96 -mx-1 sm:mx-0">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={fanData} margin={{ top: 5, right: 5, left: 10, bottom: 5 }}>
+            <AreaChart data={fanData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="age" tick={{ fontSize: 11, fill: "#64748b" }} />
+              <XAxis
+                dataKey="age"
+                tick={{ fontSize: 10, fill: "#64748b" }}
+                interval="preserveStartEnd"
+                minTickGap={20}
+              />
               <YAxis
-                tick={{ fontSize: 11, fill: "#64748b" }}
-                tickFormatter={(v) => fmtEUR(v as number)}
-                width={80}
+                tick={{ fontSize: 10, fill: "#64748b" }}
+                tickFormatter={(v) => {
+                  const n = v as number;
+                  if (Math.abs(n) >= 1_000_000)
+                    return `${(n / 1_000_000).toFixed(1)}M`;
+                  if (Math.abs(n) >= 1_000) return `${Math.round(n / 1_000)}k`;
+                  return `${n}`;
+                }}
+                width={50}
               />
               <RechartsTooltip
                 content={({ active, payload, label }) => {
@@ -808,8 +819,8 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
       </section>
 
       {/* SWR/PWR */}
-      <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-slate-900 font-serif">
+      <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6">
+        <h3 className="text-base sm:text-lg font-semibold text-slate-900 font-serif">
           ¿Cuánto puedes retirar al mes?
         </h3>
         <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
@@ -820,87 +831,117 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
           <strong className="text-emerald-700">SWR</strong> = retiro máx. sin
           agotar antes de los {config.endAge} años (acepta acabar en €0).
         </p>
-        <div className="overflow-x-auto mt-4">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b-2 border-slate-200">
-                <th className="text-left py-2 pr-3 font-semibold text-slate-500 uppercase text-xs tracking-wider">
-                  Escenario
-                </th>
-                <th className="text-left py-2 px-3 font-semibold text-slate-500 uppercase text-xs tracking-wider">
-                  Prob. éxito
-                </th>
-                <th className="text-right py-2 px-3 font-semibold text-emerald-700 uppercase text-xs tracking-wider border-l border-slate-200">
-                  SWR €/mes
-                </th>
-                <th className="text-right py-2 pl-3 font-semibold text-emerald-700 uppercase text-xs tracking-wider">
-                  SWR % anual
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {withdrawalRates.scenarios.map((s) => {
-                const palette =
-                  s.key === "bengen"
-                    ? {
-                        bg: "bg-emerald-100/60",
-                        dot: "🛡️",
-                        label: "text-emerald-800",
-                      }
-                    : s.key === "agorero"
-                    ? {
-                        bg: "bg-emerald-50/60",
-                        dot: "🟢",
-                        label: "text-emerald-700",
-                      }
-                    : s.key === "conservador"
-                    ? {
-                        bg: "bg-emerald-50/30",
-                        dot: "🟢",
-                        label: "text-emerald-600",
-                      }
-                    : s.key === "medio"
-                    ? {
-                        bg: "bg-amber-50/40",
-                        dot: "🟡",
-                        label: "text-amber-700",
-                      }
-                    : {
-                        bg: "bg-red-50/30",
-                        dot: "🔴",
-                        label: "text-red-600",
-                      };
-                return (
-                  <tr
-                    key={s.key}
-                    className={`${palette.bg} border-b border-slate-100`}
-                  >
-                    <td className="py-3 pr-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">{palette.dot}</span>
-                        <span className={`font-semibold ${palette.label}`}>
-                          {s.label}
+        {/* Tabla SWR — tabla en desktop, cards en móvil */}
+        {(() => {
+          const getPalette = (key: string) => {
+            if (key === "bengen")
+              return { bg: "bg-emerald-100/60", dot: "🛡️", label: "text-emerald-800" };
+            if (key === "agorero")
+              return { bg: "bg-emerald-50/60", dot: "🟢", label: "text-emerald-700" };
+            if (key === "conservador")
+              return { bg: "bg-emerald-50/30", dot: "🟢", label: "text-emerald-600" };
+            if (key === "medio")
+              return { bg: "bg-amber-50/40", dot: "🟡", label: "text-amber-700" };
+            return { bg: "bg-red-50/30", dot: "🔴", label: "text-red-600" };
+          };
+          return (
+            <>
+              {/* Versión tabla — md+ */}
+              <div className="hidden md:block overflow-x-auto mt-4">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b-2 border-slate-200">
+                      <th className="text-left py-2 pr-3 font-semibold text-slate-500 uppercase text-xs tracking-wider">
+                        Escenario
+                      </th>
+                      <th className="text-left py-2 px-3 font-semibold text-slate-500 uppercase text-xs tracking-wider">
+                        Prob. éxito
+                      </th>
+                      <th className="text-right py-2 px-3 font-semibold text-emerald-700 uppercase text-xs tracking-wider border-l border-slate-200">
+                        SWR €/mes
+                      </th>
+                      <th className="text-right py-2 pl-3 font-semibold text-emerald-700 uppercase text-xs tracking-wider">
+                        SWR % anual
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {withdrawalRates.scenarios.map((s) => {
+                      const palette = getPalette(s.key);
+                      return (
+                        <tr
+                          key={s.key}
+                          className={`${palette.bg} border-b border-slate-100`}
+                        >
+                          <td className="py-3 pr-3">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">{palette.dot}</span>
+                              <span className={`font-semibold ${palette.label}`}>
+                                {s.label}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 text-slate-600">
+                            <strong>{s.successRatePct}%</strong>{" "}
+                            <span className="text-[10px] text-slate-500">
+                              (p{s.percentile})
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-right border-l border-slate-200 font-mono font-bold text-emerald-700">
+                            {fmtEUR(s.swr.eurPerMonth)}
+                          </td>
+                          <td className="py-3 pl-3 text-right text-emerald-700">
+                            {fmtPct(s.swr.pctAnnual)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {/* Versión cards — móvil */}
+              <div className="md:hidden mt-4 space-y-2">
+                {withdrawalRates.scenarios.map((s) => {
+                  const palette = getPalette(s.key);
+                  return (
+                    <div
+                      key={s.key}
+                      className={`${palette.bg} rounded-lg border border-slate-200 p-3`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-base">{palette.dot}</span>
+                          <span className={`font-semibold ${palette.label}`}>
+                            {s.label}
+                          </span>
+                        </div>
+                        <span className="text-xs text-slate-600 whitespace-nowrap">
+                          <strong>{s.successRatePct}%</strong>{" "}
+                          <span className="text-[10px] text-slate-500">
+                            (p{s.percentile})
+                          </span>
                         </span>
                       </div>
-                    </td>
-                    <td className="py-3 px-3 text-slate-600">
-                      <strong>{s.successRatePct}%</strong>{" "}
-                      <span className="text-[10px] text-slate-500">
-                        (p{s.percentile})
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-right border-l border-slate-200 font-mono font-bold text-emerald-700">
-                      {fmtEUR(s.swr.eurPerMonth)}
-                    </td>
-                    <td className="py-3 pl-3 text-right text-emerald-700">
-                      {fmtPct(s.swr.pctAnnual)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      <div className="flex items-baseline justify-between border-t border-slate-200/60 pt-2">
+                        <span className="text-[10px] uppercase tracking-wider text-emerald-700 font-semibold">
+                          SWR
+                        </span>
+                        <div className="text-right">
+                          <span className="font-mono font-bold text-emerald-700 text-base">
+                            {fmtEUR(s.swr.eurPerMonth)}
+                          </span>
+                          <span className="text-xs text-emerald-700 ml-1">
+                            /mes · {fmtPct(s.swr.pctAnnual)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          );
+        })()}
         <p className="text-xs text-slate-500 mt-3 leading-relaxed">
           💡 <strong>Bengen</strong> sobrevive en el 99% de los escenarios
           simulados. <strong>Optimista</strong> sólo si te toca el 25% mejor.
@@ -909,14 +950,14 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
         </p>
 
         {/* PWR perpetua — sección dedicada */}
-        <div className="mt-6 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl border border-indigo-200 p-5">
-          <div className="flex items-start gap-3 mb-3">
-            <div className="text-2xl">♾️</div>
+        <div className="mt-6 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl border border-indigo-200 p-4 sm:p-5">
+          <div className="flex items-start gap-2 sm:gap-3 mb-3">
+            <div className="text-xl sm:text-2xl">♾️</div>
             <div className="flex-1">
-              <h4 className="text-base font-bold text-indigo-900 font-serif">
+              <h4 className="text-sm sm:text-base font-bold text-indigo-900 font-serif leading-tight">
                 PWR — Tasa perpetua para preservar capital
               </h4>
-              <p className="text-xs text-indigo-700 mt-0.5 leading-relaxed">
+              <p className="text-xs text-indigo-700 mt-1 leading-relaxed">
                 Si tu objetivo es mantener el capital indefinidamente (legado o
                 independencia perpetua), retira hasta esta tasa. Depende{" "}
                 <strong>solo</strong> de tu cartera de distribución (su
@@ -989,11 +1030,11 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
       </section>
 
       {/* Sequence risk */}
-      <section className="bg-white rounded-2xl border border-red-200 shadow-sm p-6">
-        <div className="flex items-start gap-3 mb-4">
-          <div className="text-2xl">⚠️</div>
+      <section className="bg-white rounded-2xl border border-red-200 shadow-sm p-4 sm:p-6">
+        <div className="flex items-start gap-2 sm:gap-3 mb-4">
+          <div className="text-xl sm:text-2xl">⚠️</div>
           <div>
-            <h3 className="text-lg font-semibold text-red-700 font-serif">
+            <h3 className="text-base sm:text-lg font-semibold text-red-700 font-serif">
               Riesgo de secuencia
             </h3>
             <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
@@ -1060,11 +1101,19 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
                 dataKey="age"
                 tick={{ fontSize: 10, fill: "#64748b" }}
                 tickFormatter={(v) => `${Math.round(v as number)}`}
+                interval="preserveStartEnd"
+                minTickGap={20}
               />
               <YAxis
                 tick={{ fontSize: 10, fill: "#64748b" }}
-                tickFormatter={(v) => fmtEUR(v as number)}
-                width={70}
+                tickFormatter={(v) => {
+                  const n = v as number;
+                  if (Math.abs(n) >= 1_000_000)
+                    return `${(n / 1_000_000).toFixed(1)}M`;
+                  if (Math.abs(n) >= 1_000) return `${Math.round(n / 1_000)}k`;
+                  return `${n}`;
+                }}
+                width={45}
               />
               <RechartsTooltip
                 formatter={(value: number) => fmtEUR(value)}
@@ -1182,9 +1231,9 @@ function DownloadReportSection({
 
   if (done) {
     return (
-      <section className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-6 sm:p-8 text-center">
-        <div className="text-4xl mb-2">✅</div>
-        <h3 className="text-lg font-semibold text-emerald-800 font-serif mb-1">
+      <section className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-4 sm:p-8 text-center">
+        <div className="text-3xl sm:text-4xl mb-2">✅</div>
+        <h3 className="text-base sm:text-lg font-semibold text-emerald-800 font-serif mb-1">
           Tu informe ya está descargado
         </h3>
         <p className="text-sm text-emerald-900 max-w-md mx-auto leading-relaxed">
@@ -1197,10 +1246,10 @@ function DownloadReportSection({
   }
 
   return (
-    <section className="bg-gradient-to-br from-rose-50 via-white to-amber-50 border-2 border-rose-200 rounded-2xl p-6 sm:p-8 shadow-sm">
-      <div className="text-center mb-5">
-        <div className="text-4xl mb-2">📄</div>
-        <h3 className="text-xl sm:text-2xl font-bold text-slate-900 font-serif">
+    <section className="bg-gradient-to-br from-rose-50 via-white to-amber-50 border-2 border-rose-200 rounded-2xl p-4 sm:p-8 shadow-sm">
+      <div className="text-center mb-4 sm:mb-5">
+        <div className="text-3xl sm:text-4xl mb-2">📄</div>
+        <h3 className="text-lg sm:text-2xl font-bold text-slate-900 font-serif leading-tight">
           Llévate este análisis en PDF
         </h3>
         <p className="text-sm text-slate-600 mt-2 max-w-2xl mx-auto leading-relaxed">
