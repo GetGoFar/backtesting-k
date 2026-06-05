@@ -290,11 +290,11 @@ function KpiCard({ label, valorFondo, valorK10, mejor, nombreFondo }: KpiCardPro
           <span style={{ fontSize: 12, color: "#1d4ed8", fontWeight: 600, maxWidth: "55%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {nombreFondo}
           </span>
-          <span style={{ fontSize: 18, fontWeight: 700, color: fondoMejor ? "#059669" : "#222" }}>{valorFondo}</span>
+          <span style={{ fontSize: 18, fontWeight: 700, whiteSpace: "nowrap", color: fondoMejor ? "#059669" : "#222" }}>{valorFondo}</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           <span style={{ fontSize: 12, color: "#dc2626", fontWeight: 600 }}>K10 Inbestme</span>
-          <span style={{ fontSize: 18, fontWeight: 700, color: !fondoMejor ? "#059669" : "#222" }}>{valorK10}</span>
+          <span style={{ fontSize: 18, fontWeight: 700, whiteSpace: "nowrap", color: !fondoMejor ? "#059669" : "#222" }}>{valorK10}</span>
         </div>
       </div>
       <div style={{ marginTop: 10, fontSize: 11, color: !fondoMejor ? "#dc2626" : "#059669", fontWeight: 600 }}>
