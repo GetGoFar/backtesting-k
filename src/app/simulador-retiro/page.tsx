@@ -1360,6 +1360,17 @@ function NumberField({
   step?: number;
   hint?: string;
 }) {
+  // Estado local de texto para permitir borrar todos los dígitos sin que
+  // React revierta al valor numérico previo. El input siempre puede quedar
+  // vacío temporalmente. Cuando pierde el foco se normaliza al value externo.
+  const [text, setText] = useState(String(value));
+  const lastSentRef = useRef(value);
+  useEffect(() => {
+    if (value !== lastSentRef.current) {
+      setText(String(value));
+      lastSentRef.current = value;
+    }
+  }, [value]);
   return (
     <label className="block">
       <span className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
@@ -1367,10 +1378,21 @@ function NumberField({
       </span>
       <input
         type="number"
-        value={value}
+        inputMode="decimal"
+        value={text}
         onChange={(e) => {
-          const v = parseFloat(e.target.value);
-          if (!isNaN(v)) onChange(v);
+          const t = e.target.value;
+          setText(t);
+          const v = parseFloat(t);
+          if (!isNaN(v)) {
+            lastSentRef.current = v;
+            onChange(v);
+          }
+        }}
+        onBlur={() => {
+          if (text === "" || isNaN(parseFloat(text))) {
+            setText(String(value));
+          }
         }}
         min={min}
         max={max}
@@ -1397,14 +1419,36 @@ function SmallNum({
   step?: number;
   suffix?: string;
 }) {
+  // Estado local de texto: permite borrar todo el contenido temporalmente.
+  // Sin esto, parseFloat("") = NaN no propaga, React revierte al value
+  // previo, y queda atrapado el primer dígito sin poder borrarse.
+  const [text, setText] = useState(String(value));
+  const lastSentRef = useRef(value);
+  useEffect(() => {
+    if (value !== lastSentRef.current) {
+      setText(String(value));
+      lastSentRef.current = value;
+    }
+  }, [value]);
   return (
     <div className="relative">
       <input
         type="number"
-        value={value}
+        inputMode="decimal"
+        value={text}
         onChange={(e) => {
-          const v = parseFloat(e.target.value);
-          if (!isNaN(v)) onChange(v);
+          const t = e.target.value;
+          setText(t);
+          const v = parseFloat(t);
+          if (!isNaN(v)) {
+            lastSentRef.current = v;
+            onChange(v);
+          }
+        }}
+        onBlur={() => {
+          if (text === "" || isNaN(parseFloat(text))) {
+            setText(String(value));
+          }
         }}
         min={min}
         max={max}
