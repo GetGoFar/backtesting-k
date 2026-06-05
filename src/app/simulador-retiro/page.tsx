@@ -603,6 +603,41 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
       ? "amber"
       : "red";
 
+  // -----------------------------------------------------------------
+  // Cálculo del retiro real planificado (suma de goals de retirada
+  // activos al jubilarse). Se usa para comparar con el SWR Bengen y
+  // dar contexto: "estás retirando X vs lo sostenible (SWR Bengen)".
+  // -----------------------------------------------------------------
+  const retiroPlanificadoEurMes = (() => {
+    const K = withdrawalRates.capitalAtRetirementReal;
+    let total = 0;
+    for (const g of config.goals) {
+      if (g.type === "contribution") continue;
+      // Solo contamos goals que estén activos en jubilación
+      const empezaEnJub =
+        g.start === "atRetirement" ||
+        g.start === "immediately" ||
+        (g.start === "yearsFromNow" &&
+          (g.startYearsFromNow ?? 0) <=
+            config.retirementAge - config.currentAge);
+      if (!empezaEnJub) continue;
+      if (g.type === "fixedWithdrawal") {
+        total += g.amount ?? 0;
+      } else if (g.type === "percentageWithdrawal") {
+        total += (K * (g.percentagePct ?? 0)) / 100 / 12;
+      }
+    }
+    return total;
+  })();
+
+  const swrBengen =
+    withdrawalRates.scenarios.find((s) => s.key === "bengen")?.swr
+      .eurPerMonth ?? 0;
+  const overdraw =
+    retiroPlanificadoEurMes > 0 &&
+    swrBengen > 0 &&
+    retiroPlanificadoEurMes > swrBengen;
+
   return (
     <div className="space-y-6">
       {/* Warnings */}
@@ -828,9 +863,79 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
           <strong>{fmtEUR(withdrawalRates.capitalAtRetirementReal)}</strong>.
           Tasas calculadas path-por-path sobre{" "}
           {withdrawalRates.pathsAnalyzed} simulaciones.{" "}
-          <strong className="text-emerald-700">SWR</strong> = retiro máx. sin
-          agotar antes de los {config.endAge} años (acepta acabar en €0).
+          <strong className="text-emerald-700">SWR</strong> = retiro máximo que
+          tu cartera puede sostener sin agotarse antes de los {config.endAge}{" "}
+          años. <em>No es lo que vas a retirar — es lo máximo seguro.</em>
         </p>
+
+        {/* Comparación: tu retiro real vs SWR Bengen */}
+        {retiroPlanificadoEurMes > 0 && (
+          <div
+            className={`mt-4 rounded-xl border p-3 sm:p-4 ${
+              overdraw
+                ? "bg-red-50 border-red-200"
+                : "bg-emerald-50 border-emerald-200"
+            }`}
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <p
+                  className={`text-xs uppercase tracking-wider font-semibold ${
+                    overdraw ? "text-red-700" : "text-emerald-700"
+                  }`}
+                >
+                  {overdraw
+                    ? "Tu retiro planificado supera lo sostenible"
+                    : "Tu retiro planificado está dentro de lo sostenible"}
+                </p>
+                <p className="text-sm text-slate-700 mt-1 leading-relaxed">
+                  {overdraw ? (
+                    <>
+                      Estás planeando retirar{" "}
+                      <strong className="text-red-700">
+                        {fmtEUR(retiroPlanificadoEurMes)}/mes
+                      </strong>{" "}
+                      pero tu cartera solo sostiene con seguridad (Bengen 99%)
+                      hasta{" "}
+                      <strong className="text-emerald-700">
+                        {fmtEUR(swrBengen)}/mes
+                      </strong>
+                      . Por eso ves esa probabilidad de éxito. Para que
+                      aguante: <strong>bájalo</strong>, <strong>aporta más</strong>,{" "}
+                      o <strong>retrasa la jubilación</strong>.
+                    </>
+                  ) : (
+                    <>
+                      Estás planeando retirar{" "}
+                      <strong className="text-emerald-700">
+                        {fmtEUR(retiroPlanificadoEurMes)}/mes
+                      </strong>{" "}
+                      y tu cartera sostiene con seguridad (Bengen 99%) hasta{" "}
+                      <strong className="text-emerald-700">
+                        {fmtEUR(swrBengen)}/mes
+                      </strong>
+                      . Tienes margen.
+                    </>
+                  )}
+                </p>
+              </div>
+              {overdraw && (
+                <div className="bg-white rounded-lg border border-red-200 px-3 py-2 text-right whitespace-nowrap">
+                  <p className="text-[10px] uppercase text-red-600 font-semibold">
+                    Exceso
+                  </p>
+                  <p className="text-lg font-bold text-red-700 font-mono">
+                    {(
+                      (retiroPlanificadoEurMes / swrBengen - 1) *
+                      100
+                    ).toFixed(0)}
+                    %
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         {/* Tabla SWR — tabla en desktop, cards en móvil */}
         {(() => {
           const getPalette = (key: string) => {
@@ -949,7 +1054,12 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
           fija tus retiros en la cifra Bengen.
         </p>
 
-        {/* PWR perpetua — sección dedicada */}
+        {/* PWR perpetua — sección dedicada
+            Solo se muestra si el plan tiene posibilidades reales de durar
+            (éxito >= 50%). En escenarios de ruina, hablar de "preservar
+            capital" no tiene sentido conceptual — primero hay que conseguir
+            que el plan no agote. */}
+        {successProbability >= 50 && (
         <div className="mt-6 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl border border-indigo-200 p-4 sm:p-5">
           <div className="flex items-start gap-2 sm:gap-3 mb-3">
             <div className="text-xl sm:text-2xl">♾️</div>
@@ -1027,6 +1137,22 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
             que aguanta sin agotar).
           </p>
         </div>
+        )}
+
+        {/* Aviso si la PWR no se muestra por plan en ruina */}
+        {successProbability < 50 && (
+          <div className="mt-6 bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-600 leading-relaxed">
+            <strong className="text-slate-800">
+              No se muestra la PWR (tasa perpetua para preservar capital)
+            </strong>{" "}
+            porque tu plan actual no alcanza el {config.endAge} con margen
+            ({successProbability.toFixed(1)}% de éxito). Antes de pensar en
+            preservar capital indefinidamente, primero hay que conseguir que
+            el plan no se agote — ajusta retiros, aportes o edad de jubilación
+            usando la cifra <strong>SWR Bengen</strong> de arriba como
+            referencia.
+          </div>
+        )}
       </section>
 
       {/* Sequence risk */}

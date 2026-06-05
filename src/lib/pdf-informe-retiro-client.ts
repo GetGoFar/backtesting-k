@@ -109,10 +109,20 @@ export function generateInformePdf(args: {
     y = ensureSpace(doc, y + 8, 90);
     y = drawSectionTitle(doc, y, "04", "Cuánto puedes retirar al jubilarte");
     y = drawCapitalNote(doc, y, results);
+
+    // Comparación retiro planificado vs SWR Bengen
+    const retiroPlanificado = calcRetiroPlanificado(config, results);
+    if (retiroPlanificado > 0) {
+      y = drawRetiroComparison(doc, y, results, retiroPlanificado);
+    }
+
     y = drawSwrTable(doc, y, results);
 
-    // 05 — PWR perpetua
-    if (results.withdrawalRates.pwrPerpetual) {
+    // 05 — PWR perpetua (solo si el plan tiene posibilidades reales)
+    if (
+      results.withdrawalRates.pwrPerpetual &&
+      results.successProbability >= 50
+    ) {
       y = ensureSpace(doc, y + 8, 75);
       y = drawSectionTitle(
         doc,
@@ -952,4 +962,87 @@ function getAutoTableY(doc: jsPDF, fallback: number): number {
   };
   const d = doc as DocWithAutoTable;
   return d.lastAutoTable?.finalY ?? fallback;
+}
+
+// -----------------------------------------------------------------------------
+// Retiro planificado vs SWR Bengen (contexto para los escenarios)
+// -----------------------------------------------------------------------------
+
+function calcRetiroPlanificado(
+  config: ParametricConfig,
+  results: ParametricResult
+): number {
+  const K = results.withdrawalRates.capitalAtRetirementReal;
+  let total = 0;
+  for (const g of config.goals) {
+    if (g.type === "contribution") continue;
+    const activoEnJub =
+      g.start === "atRetirement" ||
+      g.start === "immediately" ||
+      (g.start === "yearsFromNow" &&
+        (g.startYearsFromNow ?? 0) <=
+          config.retirementAge - config.currentAge);
+    if (!activoEnJub) continue;
+    if (g.type === "fixedWithdrawal") {
+      total += g.amount ?? 0;
+    } else if (g.type === "percentageWithdrawal") {
+      total += (K * (g.percentagePct ?? 0)) / 100 / 12;
+    }
+  }
+  return total;
+}
+
+function drawRetiroComparison(
+  doc: jsPDF,
+  y: number,
+  results: ParametricResult,
+  retiroPlanificado: number
+): number {
+  const swrBengen =
+    results.withdrawalRates.scenarios.find((s) => s.key === "bengen")?.swr
+      .eurPerMonth ?? 0;
+  if (swrBengen <= 0) return y;
+  const overdraw = retiroPlanificado > swrBengen;
+  const padding = 5;
+  const barW = 3;
+  const innerLeft = ML + barW + padding;
+  const innerW = CW - barW - padding * 2;
+
+  const titulo = overdraw
+    ? "Tu retiro planificado supera lo sostenible"
+    : "Tu retiro planificado está dentro de lo sostenible";
+  const cuerpo = overdraw
+    ? `Estás planeando retirar ${fmtEUR0.format(retiroPlanificado)}/mes pero tu cartera solo sostiene con seguridad (Bengen 99%) hasta ${fmtEUR0.format(swrBengen)}/mes. Por eso ves esa probabilidad de éxito. Para que aguante: bájalo, aporta más, o retrasa la jubilación.`
+    : `Estás planeando retirar ${fmtEUR0.format(retiroPlanificado)}/mes y tu cartera sostiene con seguridad (Bengen 99%) hasta ${fmtEUR0.format(swrBengen)}/mes. Tienes margen.`;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  const cuerpoLines = doc.splitTextToSize(cuerpo, innerW);
+  const boxH = padding + 5 + 3 + cuerpoLines.length * 4.4 + padding;
+
+  // Fondo crema con tono según overdraw
+  doc.setFillColor(C.rowAlt[0], C.rowAlt[1], C.rowAlt[2]);
+  doc.rect(ML, y, CW, boxH, "F");
+  // Barra izquierda — roja si overdraw, verde si OK
+  const barColor = overdraw ? C.red : C.green;
+  doc.setFillColor(barColor[0], barColor[1], barColor[2]);
+  doc.rect(ML, y, barW, boxH, "F");
+
+  // Título
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(barColor[0], barColor[1], barColor[2]);
+  doc.text(titulo, innerLeft, y + padding + 4);
+
+  // Cuerpo
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
+  let cursorY = y + padding + 11;
+  for (const line of cuerpoLines) {
+    doc.text(line, innerLeft, cursorY);
+    cursorY += 4.4;
+  }
+
+  return y + boxH + 3;
 }
