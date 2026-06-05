@@ -1037,7 +1037,191 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
           </ResponsiveContainer>
         </div>
       </section>
+
+      {/* Captura de lead — descarga PDF */}
+      <DownloadReportSection config={config} results={results} />
     </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Sección de descarga PDF — pide email + nombre, suscribe a Beehiiv y descarga
+// -----------------------------------------------------------------------------
+
+function DownloadReportSection({
+  config,
+  results,
+}: {
+  config: ParametricConfig;
+  results: ParametricResult;
+}) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [consent, setConsent] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  const handleDownload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !consent) return;
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      // 1) Suscribir lead a Beehiiv (server-side)
+      const res = await fetch("/api/simulador-retiro/informe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          name: name.trim() || undefined,
+          consent: true,
+          planSummary: {
+            capitalInicial: config.initialCapital,
+            edadActual: config.currentAge,
+            edadJubilacion: config.retirementAge,
+            probExito: results.successProbability,
+          },
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(data.error ?? `HTTP ${res.status}`);
+      }
+      // 2) Generar PDF en cliente y forzar descarga
+      const { generateInformePdf } = await import(
+        "@/lib/pdf-informe-retiro-client"
+      );
+      const doc = generateInformePdf({
+        subscriberName: name.trim() || undefined,
+        config,
+        results,
+      });
+      const fileName = `Informe_Jubilacion_K_${new Date()
+        .toISOString()
+        .slice(0, 10)}.pdf`;
+      doc.save(fileName);
+      setDone(true);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? `No se pudo generar el informe: ${err.message}`
+          : "Error desconocido"
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <section className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-6 sm:p-8 text-center">
+        <div className="text-4xl mb-2">✅</div>
+        <h3 className="text-lg font-semibold text-emerald-800 font-serif mb-1">
+          Tu informe ya está descargado
+        </h3>
+        <p className="text-sm text-emerald-900 max-w-md mx-auto leading-relaxed">
+          Si no lo encuentras, revisa la carpeta de descargas del navegador.
+          También te llegará por email contenido educativo cada semana — el
+          siguiente paso para hacer este plan realidad.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="bg-gradient-to-br from-rose-50 via-white to-amber-50 border-2 border-rose-200 rounded-2xl p-6 sm:p-8 shadow-sm">
+      <div className="text-center mb-5">
+        <div className="text-4xl mb-2">📄</div>
+        <h3 className="text-xl sm:text-2xl font-bold text-slate-900 font-serif">
+          Llévate este análisis en PDF
+        </h3>
+        <p className="text-sm text-slate-600 mt-2 max-w-2xl mx-auto leading-relaxed">
+          Tu plan con todos los gráficos, las tablas de retiros seguros y un
+          resumen ejecutivo — para guardar, revisar con calma o compartir con
+          tu pareja. Y entrarás a la newsletter de El Proyecto K para seguir
+          construyendo tu plan.
+        </p>
+      </div>
+
+      <form
+        onSubmit={handleDownload}
+        className="max-w-xl mx-auto space-y-3"
+      >
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Tu nombre (opcional)"
+          disabled={isSubmitting}
+          className="w-full px-4 py-3 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 disabled:bg-slate-50"
+        />
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            setError(null);
+          }}
+          placeholder="Tu email *"
+          required
+          disabled={isSubmitting}
+          className={`w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
+            error
+              ? "border-red-300 bg-red-50 focus:ring-red-300"
+              : "border-slate-300 focus:ring-rose-300 focus:border-rose-400"
+          } disabled:bg-slate-50`}
+        />
+        <label className="flex items-start gap-2 text-xs text-slate-600 leading-relaxed cursor-pointer">
+          <input
+            type="checkbox"
+            checked={consent}
+            onChange={(e) => setConsent(e.target.checked)}
+            disabled={isSubmitting}
+            className="mt-0.5 w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-300"
+          />
+          <span>
+            Acepto recibir el informe en PDF y la newsletter de El Proyecto K
+            con contenido educativo sobre inversión indexada. Puedo darme de
+            baja en cualquier momento.{" "}
+            <a
+              href="https://elproyectok.com/privacidad"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-rose-600 hover:underline"
+            >
+              Política de privacidad
+            </a>
+            .
+          </span>
+        </label>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-900">
+            ⚠ {error}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={isSubmitting || !email.trim() || !consent}
+          className={`w-full py-3 text-sm font-semibold rounded-lg transition-colors ${
+            isSubmitting || !email.trim() || !consent
+              ? "bg-slate-200 text-slate-500 cursor-not-allowed"
+              : "bg-rose-600 hover:bg-rose-700 text-white shadow-sm"
+          }`}
+        >
+          {isSubmitting ? "Generando informe…" : "📥 Descargar informe PDF"}
+        </button>
+
+        <p className="text-[10px] text-slate-500 text-center">
+          Generamos el PDF al instante. Sin spam, sin compartir tu email con
+          terceros.
+        </p>
+      </form>
+    </section>
   );
 }
 
