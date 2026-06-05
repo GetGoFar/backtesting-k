@@ -358,6 +358,13 @@ function findMaxWithdrawal(
   criterion: "noDeplete" | "preserveCapital"
 ): number {
   if (K <= 0 || realReturns.length === 0) return 0;
+  // Para preserveCapital: si ni siquiera retirando 0€ se mantiene el capital
+  // real (la cartera pierde poder adquisitivo por sí sola en este path),
+  // devolvemos NaN. Distinto de "el máximo retiro es 0€".
+  if (criterion === "preserveCapital" &&
+      !simulateWithdrawalReal(K, 0, realReturns, criterion)) {
+    return NaN;
+  }
   let lo = 0;
   let hi = K;
   for (let i = 0; i < 30; i++) {
@@ -540,13 +547,23 @@ export function runParametricRetirement(config: ParametricConfig): ParametricRes
     );
   }
   swrPerPath.sort((a, b) => a - b);
-  pwrPerPath.sort((a, b) => a - b);
+  // PWR: ordenamos NaN al inicio (peor que cualquier número). En la lectura,
+  // un NaN en un percentil bajo significa "ni siquiera retirando 0€ se
+  // preserva capital real en este escenario de mercado".
+  pwrPerPath.sort((a, b) => {
+    if (Number.isNaN(a) && Number.isNaN(b)) return 0;
+    if (Number.isNaN(a)) return -1;
+    if (Number.isNaN(b)) return 1;
+    return a - b;
+  });
   capitalsAtRetirement.sort((a, b) => a - b);
   const capitalAtRetirementReal = percentile(capitalsAtRetirement, 50);
-  const toPctAnnual = (eurMonth: number): number =>
-    capitalAtRetirementReal > 0
+  const toPctAnnual = (eurMonth: number): number => {
+    if (Number.isNaN(eurMonth)) return NaN;
+    return capitalAtRetirementReal > 0
       ? (eurMonth * 12 / capitalAtRetirementReal) * 100
       : 0;
+  };
 
   const SCENARIO_DEFS = [
     { label: "Bengen", key: "bengen", percentile: 1 },
