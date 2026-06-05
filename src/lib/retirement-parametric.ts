@@ -158,8 +158,13 @@ interface PathOut {
   depletionMonth?: number;
   /** Capital REAL al inicio de cada mes (para SWR/PWR path-by-path). */
   capitalAtRetirementReal: number;
-  /** Retornos REALES post-jubilación. */
+  /** Retornos REALES post-jubilación incluyendo el efecto de los flujos
+   *  (contribuciones/retiradas). Útil para SWR/PWR. */
   postReturnsReal: number[];
+  /** Retornos REALES post-jubilación PUROS DE MERCADO (sin efecto de los
+   *  flujos). Útil para identificar la "peor ventana" de mercado en el
+   *  sequence risk, sin que las retiradas inflen artificialmente las pérdidas. */
+  postMarketReturnsReal: number[];
 }
 
 function glideWeight(m: number, monthsAcc: number, glidePathMonths: number): number {
@@ -221,6 +226,7 @@ function simulateParametricPath(config: ParametricConfig): PathOut {
   let depletionMonth: number | undefined;
   let capitalAtRetirementReal = 0;
   const postReturnsReal: number[] = [];
+  const postMarketReturnsReal: number[] = [];
   let prevValueReal: number | undefined;
 
   for (let m = 0; m < totalMonths; m++) {
@@ -245,6 +251,14 @@ function simulateParametricPath(config: ParametricConfig): PathOut {
     const retM = wA * retA + (1 - wA) * retB;
 
     if (currentValue > 0) currentValue *= 1 + retM;
+
+    // Si estamos en jubilación, capturamos el retorno PURO DE MERCADO REAL
+    // antes de aplicar flujos. Esto se usa para identificar la peor ventana
+    // de mercado en el sequence risk sin contaminar con efecto de retiradas.
+    if (m >= monthsAcc) {
+      const realMonthly = (1 + retM) / (1 + inflMonthly) - 1;
+      postMarketReturnsReal.push(realMonthly);
+    }
 
     // --- 2) Cash flows según goals ---
     let contribNomThisMonth = 0;
@@ -311,7 +325,13 @@ function simulateParametricPath(config: ParametricConfig): PathOut {
     prevValueReal = real;
   }
 
-  return { monthlyValuesReal, depletionMonth, capitalAtRetirementReal, postReturnsReal };
+  return {
+    monthlyValuesReal,
+    depletionMonth,
+    capitalAtRetirementReal,
+    postReturnsReal,
+    postMarketReturnsReal,
+  };
 }
 
 // -----------------------------------------------------------------------------
@@ -454,13 +474,18 @@ export function runParametricRetirement(config: ParametricConfig): ParametricRes
   const seqWindowMonths = Math.min(60, Math.max(12, retMonths));
   const SEQ_PERCENTILE = 1; // percentil del cumulativo a usar como "sequence risk"
 
+  // IMPORTANTE: usamos postMarketReturnsReal (puros de mercado, SIN retiros)
+  // para identificar la peor ventana. Si usáramos postReturnsReal (que
+  // incluye el efecto de las retiradas), una cartera con vol baja pero
+  // con retiradas altas saldría con "peor ventana -50%" cuando en realidad
+  // el mercado sólo hizo -15% y el resto fue por sacar dinero.
   type PathWithCum = { path: PathOut; cum: number };
   const validPaths: PathWithCum[] = [];
   for (const p of paths) {
     if (p.depletionMonth !== undefined && p.depletionMonth < monthsAcc) continue;
     let cum = 1;
     for (let k = 0; k < seqWindowMonths; k++) {
-      const r = p.postReturnsReal[k] ?? 0;
+      const r = p.postMarketReturnsReal[k] ?? 0;
       cum *= 1 + r;
     }
     validPaths.push({ path: p, cum });
