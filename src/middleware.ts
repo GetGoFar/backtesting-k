@@ -30,6 +30,7 @@ const RUTAS_PUBLICAS_EXACTAS = new Set([
   "/kray",
   "/equivalente",
   "/jubilacion",
+  "/simulador-retiro",
   "/favicon.ico",
   "/icon.svg",
   "/apple-icon.svg",
