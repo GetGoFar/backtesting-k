@@ -240,7 +240,7 @@
 			'<div class="liga-jornada-banner">' +
 				'<div class="liga-jornada-left">' +
 					'<div class="liga-jornada-titulo">🏆 Jornada ' + jornada + ' · ' + mes.charAt( 0 ).toUpperCase() + mes.slice( 1 ) + ' ' + anyo + '</div>' +
-					'<div class="liga-jornada-sub">La clasificación se mueve cada mes con datos frescos de Morningstar</div>' +
+					'<div class="liga-jornada-sub">La clasificación se mueve cada mes con datos frescos</div>' +
 				'</div>' +
 				'<div class="liga-jornada-right">' +
 					'<div class="liga-jornada-fecha-label">Última actualización</div>' +

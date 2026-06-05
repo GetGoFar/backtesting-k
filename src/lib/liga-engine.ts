@@ -131,6 +131,12 @@ const BENCHMARK_GLOBAL = "SPYY.XETRA";
 // metodologías y daba resultados incoherentes) para que la liga sea consistente.
 const USAR_MORNINGSTAR_ALFAS = false;
 
+// Tendencia (columna "Tend."): momentum reciente del fondo frente al ACWI sobre
+// los últimos ~30 días naturales. ▲ si batió al índice el último mes, ▼ si quedó
+// por debajo, = si está dentro de ±1 punto porcentual.
+const TEND_VENTANA_DIAS = 30;
+const TEND_UMBRAL_PCT = 1;
+
 // -----------------------------------------------------------------------------
 // CSV
 // -----------------------------------------------------------------------------
@@ -641,14 +647,14 @@ export async function generarSnapshot(
       fechaFin: ventanaBase!.fechaFin,
       anosObservados: ventanaBase!.anos,
       stale: false,
-      tendencia: "sin_ref", // se asigna después al comparar con previo
+      tendencia: calcularTendencia30dias(navsFondo, navsB), // momentum vs ACWI últimos ~30 días
       dq5Anterior: null,
       deltaDq5: null,
     });
   }
 
-  // Asigna tendencia comparando con el snapshot anterior (si existe)
-  asignarTendencia(resultados, previos, opts.snapshotPrevio != null);
+  // La tendencia es el momentum reciente (vs ACWI, ~30 días), calculado por fondo
+  // en el bucle anterior. Ya no se compara contra el snapshot mensual anterior.
 
   // Ranking + categoría: orden descendente por dq5 (mayor = peor).
   // Solo fondos con datos frescos (no stale) participan en la categorización.
@@ -752,6 +758,44 @@ function stalePorFalta(f: FondoCsv, previo?: ResultadoFondo): ResultadoFondo {
  * fluctuaciones intradía.
  */
 const UMBRAL_ESTABLE_EUR = 500;
+
+/**
+ * Tendencia de momentum reciente: rendimiento del fondo frente al ACWI en los
+ * últimos ~TEND_VENTANA_DIAS días naturales (sobre el rango común).
+ *   mejorando  → el fondo batió al índice en el último mes (▲)
+ *   empeorando → quedó por debajo del índice (▼)
+ *   estable    → diferencia dentro de ±TEND_UMBRAL_PCT puntos porcentuales
+ *   sin_ref    → no hay suficiente histórico reciente común
+ */
+function calcularTendencia30dias(navsFondo: NavPoint[], navsBench: NavPoint[]): Tendencia {
+  if (navsFondo.length < 2 || navsBench.length < 2) return "sin_ref";
+  const benchMap = new Map<string, number>();
+  for (const p of navsBench) benchMap.set(p.date, p.nav);
+  // Último punto común
+  let fF: NavPoint | undefined;
+  let fB: number | undefined;
+  for (let i = navsFondo.length - 1; i >= 0; i--) {
+    const p = navsFondo[i];
+    if (!p) continue;
+    const b = benchMap.get(p.date);
+    if (b != null) { fF = p; fB = b; break; }
+  }
+  if (!fF || fB == null) return "sin_ref";
+  // Primer punto común con fecha >= (fin - ventana)
+  const cutoff = restarAnos(fF.date, TEND_VENTANA_DIAS / DIAS_POR_ANO);
+  let iF: NavPoint | undefined;
+  let iB: number | undefined;
+  for (const p of navsFondo) {
+    if (p.date < cutoff) continue;
+    const b = benchMap.get(p.date);
+    if (b != null) { iF = p; iB = b; break; }
+  }
+  if (!iF || iB == null || iF.date === fF.date || iF.nav <= 0 || iB <= 0) return "sin_ref";
+  const excesoPct = ((fF.nav / iF.nav - 1) - (fB / iB - 1)) * 100;
+  if (excesoPct > TEND_UMBRAL_PCT) return "mejorando";
+  if (excesoPct < -TEND_UMBRAL_PCT) return "empeorando";
+  return "estable";
+}
 
 function asignarTendencia(
   resultados: ResultadoFondo[],
