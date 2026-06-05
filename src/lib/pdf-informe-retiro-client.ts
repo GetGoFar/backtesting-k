@@ -55,8 +55,11 @@ export function generateInformePdf(args: {
 
   let y = drawHeader(doc, pageW, margin, subscriberName);
 
+  // ---------- Veredicto humorístico (variante según prob. éxito) ----------
+  y = drawVerdict(doc, pageW, margin, y + 4, results, subscriberName);
+
   // ---------- Resumen ejecutivo (KPIs) ----------
-  y = drawSectionTitle(doc, "Resumen ejecutivo", margin, y + 4);
+  y = drawSectionTitle(doc, "Resumen ejecutivo", margin, y + 6);
   y = drawKpis(doc, pageW, margin, y + 2, results);
 
   // ---------- Tu configuración ----------
@@ -181,6 +184,117 @@ function drawHeader(
 
   doc.setTextColor(...C.text);
   return 32;
+}
+
+// -----------------------------------------------------------------------------
+// Veredicto humorístico — caja destacada con mensaje según probabilidad éxito
+// -----------------------------------------------------------------------------
+
+interface VerdictCopy {
+  tone: "great" | "ok" | "tight" | "bad";
+  emoji: string;
+  title: string;
+  body: string;
+}
+
+function pickVerdict(
+  probPct: number,
+  subscriberName?: string
+): VerdictCopy {
+  const nameTag = subscriberName ? `${subscriberName}, ` : "";
+  if (probPct >= 90) {
+    return {
+      tone: "great",
+      emoji: "🎉",
+      title: `${nameTag}vas a poder permitirte ese crucero (y el siguiente)`,
+      body: `Plan sólido — tu cartera aguanta en el ${probPct.toFixed(0)}% de los escenarios simulados. Si mantienes la disciplina (aportar lo previsto, no tocar el capital en mercados malos, evitar productos bancarios con comisiones que te roben el alfa), llegas a la jubilación con margen para vivir y dejar herencia. Lo difícil ahora no es el plan; es no salirse de él.`,
+    };
+  }
+  if (probPct >= 75) {
+    return {
+      tone: "ok",
+      emoji: "🟢",
+      title: `${nameTag}vas bien encaminado — el plan funciona, con asterisco`,
+      body: `Aguantas en el ${probPct.toFixed(0)}% de escenarios. No está mal, pero ese 25% restante (donde el plan se queda corto) suele ser por sequence risk en los primeros años de jubilación. Considera: un pequeño extra mensual de aportación, retrasar 1-2 años la jubilación, o reducir el retiro en años con bolsa fea. Pequeños ajustes ahora = mucha tranquilidad luego.`,
+    };
+  }
+  if (probPct >= 50) {
+    return {
+      tone: "tight",
+      emoji: "🟡",
+      title: `${nameTag}el plan respira con dificultad`,
+      body: `Solo el ${probPct.toFixed(0)}% de escenarios simulados sobreviven hasta el final. Eso es echar una moneda al aire para tu jubilación — no es una posición cómoda. Las palancas que te quedan: aportar más, retrasar la jubilación, o ajustar a la baja la retirada mensual prevista. La cartera está bien; el problema son las cuentas. Toca renegociar contigo mismo.`,
+    };
+  }
+  return {
+    tone: "bad",
+    emoji: "🔴",
+    title: `${nameTag}¿te paso el teléfono de Glovo? Buscan repartidores…`,
+    body: `Mira, te lo digo con cariño: solo el ${probPct.toFixed(0)}% de los escenarios llegan al final del plan. Eso significa que la cuenta NO sale con la configuración actual. No te asustes — para eso hemos hecho la simulación, para verlo AHORA y no a los 70. Los números mandan: o aportar mucho más, o jubilarte más tarde, o vivir con bastante menos. Cuanto antes ajustes el plan, menos doloroso es el cambio.`,
+  };
+}
+
+function drawVerdict(
+  doc: jsPDF,
+  pageW: number,
+  margin: number,
+  y: number,
+  results: ParametricResult,
+  subscriberName?: string
+): number {
+  const v = pickVerdict(results.successProbability, subscriberName);
+
+  // Paleta según tono
+  const palette = {
+    great: { bg: [236, 253, 245], border: C.emerald, text: C.emerald },
+    ok: { bg: [240, 253, 244], border: C.emerald, text: C.emerald },
+    tight: { bg: [254, 252, 232], border: C.amber, text: C.amber },
+    bad: { bg: [254, 242, 242], border: C.red, text: C.red },
+  }[v.tone];
+
+  const usableW = pageW - margin * 2;
+  const padding = 5;
+  const titleFontSize = 12;
+  const bodyFontSize = 9;
+  const lineHeight = 4.2;
+
+  // Estimar altura: título + cuerpo
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(titleFontSize);
+  const titleLines = doc.splitTextToSize(`${v.emoji}  ${v.title}`, usableW - padding * 2);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(bodyFontSize);
+  const bodyLines = doc.splitTextToSize(v.body, usableW - padding * 2);
+  const boxH =
+    padding + titleLines.length * 5 + 2 + bodyLines.length * lineHeight + padding;
+
+  // Box
+  doc.setFillColor(palette.bg[0]!, palette.bg[1]!, palette.bg[2]!);
+  doc.setDrawColor(palette.border[0], palette.border[1], palette.border[2]);
+  doc.setLineWidth(0.5);
+  doc.roundedRect(margin, y, usableW, boxH, 3, 3, "FD");
+
+  // Título
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(titleFontSize);
+  doc.setTextColor(palette.text[0], palette.text[1], palette.text[2]);
+  let cursorY = y + padding + 4;
+  for (const line of titleLines) {
+    doc.text(line, margin + padding, cursorY);
+    cursorY += 5;
+  }
+
+  // Cuerpo
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(bodyFontSize);
+  doc.setTextColor(...C.text);
+  cursorY += 2;
+  for (const line of bodyLines) {
+    doc.text(line, margin + padding, cursorY);
+    cursorY += lineHeight;
+  }
+
+  return y + boxH;
 }
 
 // -----------------------------------------------------------------------------
