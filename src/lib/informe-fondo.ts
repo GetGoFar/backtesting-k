@@ -24,6 +24,8 @@ import type { BacktestConfig, BacktestResult } from "./types";
 
 const PRESET_K10 = "k-inbestme-10";
 const INVERSION_INICIAL = 10_000;
+const COMISION_INBESTME = 0.5; // % de gestión más alta de Inbestme, sobre la K10
+const BANDA_RELATIVA = 0.5; // rebalanceo por bandas relativas del 50% (chequeo mensual)
 
 export interface InformeKpi {
   valorFinal: number;
@@ -67,11 +69,19 @@ const DIAS_POR_ANO = 365.25;
 
 /**
  * Convierte BacktestResult del motor en KPI simplificado para el informe.
+ * Valor y CAGR se dan "AL LIQUIDAR": valor final menos los impuestos pendientes
+ * (IRPF sobre la plusvalía latente si se vendiera todo al final). Así ambas
+ * carteras se comparan de igual a igual, después de impuestos.
  */
-function toKpi(r: BacktestResult): InformeKpi {
+function toKpi(r: BacktestResult, anos: number): InformeKpi {
+  const valorFinal = Math.round(r.finalValue - (r.fees?.pendingTaxes ?? 0));
+  const cagr =
+    anos > 0 && valorFinal > 0
+      ? Math.pow(valorFinal / INVERSION_INICIAL, 1 / anos) - 1
+      : r.metrics.cagr;
   return {
-    valorFinal: Math.round(r.finalValue),
-    cagr: r.metrics.cagr,
+    valorFinal,
+    cagr,
     volatilidad: r.metrics.volatility,
     maxDrawdown: r.metrics.maxDrawdown,
   };
@@ -108,15 +118,25 @@ export async function generarInformeFondo(
     portfolioA: {
       name: nombreFondo,
       holdings: [{ fundId: `adhoc-${isin}`, weight: 100 }],
+      // El TER del fondo ya está descontado en su valor liquidativo (EODHD),
+      // así que no aplicamos comisión adicional. Solo IRPF al liquidar.
+      taxMode: "spain-irpf",
     },
     portfolioB: {
       name: k10Preset.name,
       holdings: k10Preset.holdings,
+      // Comisión de gestión más alta de Inbestme (0,5%) sobre la K10, además
+      // del TER implícito de los ETFs. Rebalanceo por bandas relativas del 50%
+      // (chequeo mensual). IRPF al liquidar, igual que el fondo.
+      managementFee: COMISION_INBESTME,
+      rebalanceBandRelative: BANDA_RELATIVA,
+      taxMode: "spain-irpf",
     },
     startDate: inicioIso,
     endDate: finIso,
     initialAmount: INVERSION_INICIAL,
     rebalanceFrequency: "monthly",
+    rebalanceBandRelative: BANDA_RELATIVA,
     useCommonDateRange: true,
     // Mensual: Pablo prefiere ese granularity para comparar (encaja mejor
     // visualmente con la curva del backtester completo). Las metricas
@@ -190,8 +210,8 @@ export async function generarInformeFondo(
     fechas: fechasA,
     valorFondo: valoresA,
     valorK10: valoresB,
-    kpiFondo: toKpi(res.a),
-    kpiK10: toKpi(res.b),
+    kpiFondo: toKpi(res.a, anosCubiertos),
+    kpiK10: toKpi(res.b, anosCubiertos),
     correlacion,
     rangoFechas: { inicio: fechaIni, fin: fechaFin },
     anosCubiertos,
