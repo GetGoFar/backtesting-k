@@ -58,7 +58,7 @@ export default function InformeChart({ fechas, fondo, k10, nombreFondo }: Props)
           <Line
             type="monotone"
             dataKey="k10"
-            name="Cartera K10 Sectorial"
+            name="Cartera K10 Inbestme"
             stroke="#dc2626"
             strokeWidth={2.5}
             dot={false}

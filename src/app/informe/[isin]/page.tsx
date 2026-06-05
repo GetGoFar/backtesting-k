@@ -2,7 +2,7 @@
 // PÁGINA: /informe/[isin]
 // =============================================================================
 //
-// Informe personalizado del fondo del usuario vs Cartera K10 Sectorial.
+// Informe personalizado del fondo del usuario vs Cartera K10 Inbestme.
 // Página dinámica (server-rendered): cada visita ejecuta el backtest con
 // los NAVs más actuales (cacheados 12h en CDN para no abusar del proveedor de datos).
 //
@@ -127,9 +127,12 @@ export default async function InformePage({ params, searchParams }: Props) {
           <div style={{ color: "#666", fontSize: 14 }}>
             <code style={{ background: "#eef0f4", padding: "2px 8px", borderRadius: 4 }}>{inf.isin}</code>
             {" · "}
-            vs Cartera K10 Sectorial (80% RV Sectorial + 20% Oro)
+            comparativa vs Cartera K10 Inbestme — neta de comisiones (0,5%) y después de IRPF
             {" · "}
             {inf.anosCubiertos.toFixed(1)} años analizados
+          </div>
+          <div style={{ color: "#888", fontSize: 12, marginTop: 6 }}>
+            Valores al liquidar: descontados los impuestos (IRPF de plusvalías) de ambas carteras y la comisión de gestión del 0,5% de Inbestme sobre la K10. El TER de tu fondo ya está incluido en su valor liquidativo.
           </div>
         </div>
 
@@ -143,11 +146,11 @@ export default async function InformePage({ params, searchParams }: Props) {
         {/* KPIs */}
         <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginTop: 16 }}>
           <KpiCard
-            label="Valor final"
+            label="Valor al liquidar"
             valorFondo={fmtEur(inf.kpiFondo.valorFinal)}
             valorK10={fmtEur(inf.kpiK10.valorFinal)}
             mejor={fondoMejor ? "fondo" : "k10"}
-            tooltip="Cuánto vale tu inversión inicial de 10.000 € al final del período."
+            tooltip="Lo que te llevarías tras vender al final, ya descontado el IRPF de las plusvalías. Sobre 10.000 € iniciales."
             nombreFondo={inf.nombreFondo}
           />
           <KpiCard
@@ -203,12 +206,12 @@ export default async function InformePage({ params, searchParams }: Props) {
           <h3 style={{ margin: "0 0 8px", fontSize: 16, color: fondoMejor ? "#1d4ed8" : "#dc2626" }}>
             {fondoMejor
               ? "Tu fondo bate a la K10 en valor final"
-              : "La K10 Sectorial bate a tu fondo"}
+              : "La K10 Inbestme bate a tu fondo"}
           </h3>
           <p style={{ margin: 0, color: "#444", lineHeight: 1.5 }}>
             {fondoMejor
               ? `Sobre 10.000 € invertidos durante ${inf.anosCubiertos.toFixed(1)} años, tu fondo terminó ${fmtEur(Math.abs(dq5Equiv))} por encima de la cartera K10. Ten en cuenta que ambas carteras tienen composición distinta — parte de la diferencia es estructural (sectores, geografías, factores), no solo habilidad del gestor. Aun así, una outperformance sostenida frente a una cartera indexada barata es notable.`
-              : `Sobre 10.000 € invertidos durante ${inf.anosCubiertos.toFixed(1)} años, la K10 Sectorial terminó ${fmtEur(Math.abs(dq5Equiv))} por encima de tu fondo. Esa diferencia tiene varios componentes: las comisiones del fondo activo (que se las queda la gestora año tras año), las decisiones de stockpicking del gestor, y la composición sectorial distinta. La cartera indexada captura el mercado de forma eficiente y barata; el fondo activo te cobra por intentar batirlo y, en este caso, no lo está consiguiendo.`}
+              : `Sobre 10.000 € invertidos durante ${inf.anosCubiertos.toFixed(1)} años, la K10 Inbestme terminó ${fmtEur(Math.abs(dq5Equiv))} por encima de tu fondo. Esa diferencia tiene varios componentes: las comisiones del fondo activo (que se las queda la gestora año tras año), las decisiones de stockpicking del gestor, y la composición sectorial distinta. La cartera indexada captura el mercado de forma eficiente y barata; el fondo activo te cobra por intentar batirlo y, en este caso, no lo está consiguiendo.`}
           </p>
         </section>
 
@@ -290,7 +293,7 @@ function KpiCard({ label, valorFondo, valorK10, mejor, nombreFondo }: KpiCardPro
           <span style={{ fontSize: 18, fontWeight: 700, color: fondoMejor ? "#059669" : "#222" }}>{valorFondo}</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-          <span style={{ fontSize: 12, color: "#dc2626", fontWeight: 600 }}>K10 Sectorial</span>
+          <span style={{ fontSize: 12, color: "#dc2626", fontWeight: 600 }}>K10 Inbestme</span>
           <span style={{ fontSize: 18, fontWeight: 700, color: !fondoMejor ? "#059669" : "#222" }}>{valorK10}</span>
         </div>
       </div>
