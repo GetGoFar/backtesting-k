@@ -74,7 +74,8 @@ export interface ResultadoFondo {
   // ventana disponible). Se conserva para compatibilidad con consumidores
   // antiguos del snapshot que sólo leen `alfa`. Las nuevas vistas deberían
   // usar alfa3/alfa5/alfa10 directamente.
-  alfa: number | null;          // anualizada en % (ej: -2.34)
+  alfa: number | null;          // alfa de Jensen anualizada en % (ej: -2.34), Rf=0
+  beta?: number | null;         // beta vs ACWI de la ventana base (retornos mensuales)
   alfa3: number | null;         // alfa de los últimos 3 años
   alfa5: number | null;         // alfa de los últimos 5 años
   alfa10: number | null;        // alfa de los últimos 10 años
@@ -118,6 +119,17 @@ const INVERSION_REF = 100_000;
 const DIAS_POR_ANO = 365.25;
 const CSV_PATH = join(process.cwd(), "src", "data", "liga-fondos.csv");
 const EODHD_BASE_URL = "https://eodhd.com/api";
+
+// Benchmark único para toda la liga: SPDR MSCI ACWI UCITS ETF (Acc), cotizado en
+// Xetra y denominado en EUR (mismo que los NAV .EUFUND de los fondos, así no hay
+// desajuste de divisa). Todos los fondos se miden como "coste de oportunidad
+// frente a invertir en el índice global" (no es alfa vs el índice propio del fondo).
+const BENCHMARK_GLOBAL = "SPYY.XETRA";
+
+// Metodología unificada: todos los fondos se calculan por CAGR-diff vs ACWI en
+// EUR. Desactivamos la preferencia por alfas de Morningstar (que mezclaba dos
+// metodologías y daba resultados incoherentes) para que la liga sea consistente.
+const USAR_MORNINGSTAR_ALFAS = false;
 
 // -----------------------------------------------------------------------------
 // CSV
@@ -233,9 +245,58 @@ export function calcularCAGR(navIni: number, navFin: number, anos: number): numb
 
 export interface AlfaResultado {
   alfaPct: number;
+  beta: number;
   fechaInicio: string;
   fechaFin: string;
   anos: number;
+}
+
+/**
+ * Beta del fondo respecto al benchmark sobre retornos MENSUALES en el rango
+ * común [desde, hasta]. beta = cov(r_fondo, r_bench) / var(r_bench).
+ * Devuelve null si hay menos de 6 retornos mensuales o varianza nula.
+ *
+ * Resamplea a fin de mes (último NAV común de cada mes; navsFondo viene en
+ * orden ascendente, así que el último set sobreescribe = cierre de mes).
+ */
+function betaMensual(
+  navsFondo: NavPoint[],
+  benchMap: Map<string, number>,
+  desde: string,
+  hasta: string,
+): number | null {
+  const porMes = new Map<string, { f: number; b: number }>();
+  for (const p of navsFondo) {
+    if (p.date < desde || p.date > hasta) continue;
+    const b = benchMap.get(p.date);
+    if (b == null) continue;
+    porMes.set(p.date.slice(0, 7), { f: p.nav, b });
+  }
+  const meses = Array.from(porMes.keys()).sort();
+  const rf: number[] = [];
+  const rb: number[] = [];
+  for (let i = 1; i < meses.length; i++) {
+    const a = porMes.get(meses[i - 1] as string)!;
+    const c = porMes.get(meses[i] as string)!;
+    if (a.f > 0 && a.b > 0) {
+      rf.push(c.f / a.f - 1);
+      rb.push(c.b / a.b - 1);
+    }
+  }
+  const n = rb.length;
+  if (n < 6) return null;
+  const mf = rf.reduce((s, x) => s + x, 0) / n;
+  const mb = rb.reduce((s, x) => s + x, 0) / n;
+  let cov = 0;
+  let varb = 0;
+  for (let i = 0; i < n; i++) {
+    const rfi = rf[i] as number;
+    const rbi = rb[i] as number;
+    cov += (rfi - mf) * (rbi - mb);
+    varb += (rbi - mb) * (rbi - mb);
+  }
+  if (varb <= 0) return null;
+  return cov / varb;
 }
 
 /**
@@ -297,8 +358,14 @@ export function calcularAlfa(
   const cagrBench = calcularCAGR(iniBench, finBench, anos);
   if (cagrFondo == null || cagrBench == null) return null;
 
-  const alfaPct = (cagrFondo - cagrBench) * 100;
-  return { alfaPct, fechaInicio: iniFondo.date, fechaFin: finFondo.date, anos };
+  // Alfa de Jensen con tasa libre de riesgo Rf = 0:
+  //   α = R_fondo − β · R_ACWI
+  // donde β = cov/var de retornos mensuales. Si no hay suficientes meses para
+  // estimar β de forma fiable, caemos a β = 1 (equivale a la diferencia de CAGR).
+  const beta = betaMensual(navsFondo, benchMap, iniFondo.date, finFondo.date);
+  const betaUsada = beta != null && isFinite(beta) ? beta : 1;
+  const alfaPct = (cagrFondo - betaUsada * cagrBench) * 100;
+  return { alfaPct, beta: betaUsada, fechaInicio: iniFondo.date, fechaFin: finFondo.date, anos };
 }
 
 /** Resta `anos` años a una fecha YYYY-MM-DD; devuelve YYYY-MM-DD. */
@@ -387,8 +454,8 @@ export interface ProyeccionDineroQuemado {
  * incoherente con el dq5.
  *
  * Elección de la alfa base, por orden de preferencia:
- *   1. alfa5  (la liga se ordena por dq5; es la cabecera)
- *   2. alfa10 (si no hay 5y pero sí 10y, raro)
+ *   1. alfa10 (ventana larga: la más estable, evita distorsión por rally reciente)
+ *   2. alfa5  (si el fondo no tiene 10y de histórico)
  *   3. alfa3  (fondos jóvenes)
  *
  * Marcamos como "proyectado" cuando la ventana de la alfa base es más corta
@@ -401,8 +468,11 @@ export function proyectarDineroQuemado(
 ): ProyeccionDineroQuemado {
   let alfaBase: number | null = null;
   let ventana: number | null = null;
-  if (alfa5 != null) { alfaBase = alfa5; ventana = 5; }
-  else if (alfa10 != null) { alfaBase = alfa10; ventana = 10; }
+  // Preferimos la ventana MÁS LARGA disponible (10 > 5 > 3): es la más estable y
+  // evita que un rally reciente (p.ej. banca/bolsa española 2021-2026) infle el
+  // resultado de un fondo regional/apalancado y lo proyecte erróneamente a 10 años.
+  if (alfa10 != null) { alfaBase = alfa10; ventana = 10; }
+  else if (alfa5 != null) { alfaBase = alfa5; ventana = 5; }
   else if (alfa3 != null) { alfaBase = alfa3; ventana = 3; }
 
   if (alfaBase == null || ventana == null) {
@@ -479,7 +549,9 @@ export async function generarSnapshot(
   // no devuelve datos, caemos al calculo CAGR-diff vs benchmark del CSV
   // como redundancia. Concurrencia limitada para no saturar la API publica
   // de Morningstar.
-  const msAlfas = await obtenerAlfasMorningstarBatch(fondos.map((f) => f.isin), 16);
+  const msAlfas = USAR_MORNINGSTAR_ALFAS
+    ? await obtenerAlfasMorningstarBatch(fondos.map((f) => f.isin), 16)
+    : new Map<string, { alfa3: number | null; alfa5: number | null; alfa10: number | null }>();
 
   const resultados: ResultadoFondo[] = [];
   for (const f of fondos) {
@@ -545,7 +617,7 @@ export async function generarSnapshot(
       alfa10?.alfaPct ?? null,
     );
     // La ventana que aportó la alfa base, para fechas/años observados.
-    const ventanaBase = alfa5 ?? alfa10 ?? alfa3;
+    const ventanaBase = alfa10 ?? alfa5 ?? alfa3;
 
     resultados.push({
       isin: f.isin,
@@ -555,6 +627,7 @@ export async function generarSnapshot(
       categoria: f.categoria,
       ter: f.ter_pct,
       alfa: proy.alfaBase,
+      beta: ventanaBase?.beta ?? null,
       alfa3: alfa3?.alfaPct ?? null,
       alfa5: alfa5?.alfaPct ?? null,
       alfa10: alfa10?.alfaPct ?? null,
@@ -625,12 +698,11 @@ async function obtenerAlfasMorningstarBatch(
   return out;
 }
 
-function simboloBenchmark(f: FondoCsv): string {
-  if (f.benchmark_ticker) return f.benchmark_ticker;
-  if (f.benchmark_isin && f.benchmark_isin !== "MIXED_60_40") {
-    return `${f.benchmark_isin}.EUFUND`;
-  }
-  return "";
+function simboloBenchmark(_f: FondoCsv): string {
+  // Benchmark único para todos los fondos: MSCI ACWI (SPYY.XETRA) en EUR.
+  // Antes se leía el benchmark por fondo del CSV, lo que introducía desajustes
+  // de divisa (p.ej. IXP.US en USD) y de rango — origen de los alfas erróneos.
+  return BENCHMARK_GLOBAL;
 }
 
 function stalePorFalta(f: FondoCsv, previo?: ResultadoFondo): ResultadoFondo {
