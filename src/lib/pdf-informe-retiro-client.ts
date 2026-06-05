@@ -1,14 +1,17 @@
 // =============================================================================
-// PDF Informe Jubilación — Generador CLIENT-SIDE con jsPDF
+// PDF Informe Jubilación — Branding El Proyecto K (paleta beige/coral)
 // =============================================================================
 //
-// Se ejecuta en el navegador tras la suscripción exitosa a Beehiiv. Toma la
-// config y los resultados de la simulación y genera un PDF descargable con
-// el plan completo (KPIs, configuración, objetivos, SWR/PWR, riesgo secuencia).
+// Replica el sistema visual de elproyectok.com (basado en references/brand_guide.md
+// del skill proyectok-pdf):
+//   - Fondo beige #F5F0E8 en toda la página
+//   - Acentos coral #C0392B (líneas, números de sección, headers de tabla)
+//   - Tipografía Helvetica (built-in jsPDF, idéntica a la del skill ReportLab)
+//   - Cover page + content pages con header/footer marca
+//   - Tablas con header rojo, filas alternadas beige/cream, grid sutil
+//   - KPI boxes y callouts coherentes con la marca
 //
-// Por qué client-side: evita dependencias pesadas en el servidor
-// (@react-pdf/renderer da problemas TS con React 18 + Next 16) y aprovecha que
-// jsPDF ya está instalado en el proyecto.
+// Se ejecuta client-side: jsPDF en navegador, sin dependencias pesadas en server.
 // =============================================================================
 
 import jsPDF from "jspdf";
@@ -18,30 +21,51 @@ import type {
   ParametricResult,
 } from "./retirement-parametric";
 
-// Paleta EPK
+// -----------------------------------------------------------------------------
+// Paleta El Proyecto K (extraída del brand guide oficial)
+// -----------------------------------------------------------------------------
+
 const C = {
-  navy: [15, 23, 42] as [number, number, number],
-  coral: [225, 29, 72] as [number, number, number],
-  text: [30, 41, 59] as [number, number, number],
-  muted: [100, 116, 139] as [number, number, number],
-  border: [226, 232, 240] as [number, number, number],
-  bgSoft: [248, 250, 252] as [number, number, number],
-  emerald: [4, 120, 87] as [number, number, number],
-  amber: [180, 83, 9] as [number, number, number],
-  red: [185, 28, 28] as [number, number, number],
-  indigo: [55, 48, 163] as [number, number, number],
+  beige: [245, 240, 232] as [number, number, number], // BG_BEIGE — fondo
+  red: [192, 57, 43] as [number, number, number], // RED_ACCENT — marca
+  dark: [44, 44, 44] as [number, number, number], // DARK_TEXT
+  gray: [107, 107, 107] as [number, number, number], // GRAY_TEXT
+  rowLight: [250, 247, 242] as [number, number, number], // TABLE_ROW_LIGHT
+  rowAlt: [240, 235, 225] as [number, number, number], // TABLE_ROW_ALT (CTA bg)
+  border: [213, 206, 189] as [number, number, number], // TABLE_BORDER
+  green: [46, 125, 50] as [number, number, number], // GREEN_POS
+  redNeg: [198, 40, 40] as [number, number, number], // RED_NEG
+  darkBg: [44, 62, 80] as [number, number, number], // DARK_BG
+  white: [255, 255, 255] as [number, number, number],
 };
+
+// -----------------------------------------------------------------------------
+// Layout A4 en mm (jsPDF usa mm como unidad)
+// -----------------------------------------------------------------------------
+
+const PAGE_W = 210;
+const PAGE_H = 297;
+const ML = 19; // ~55pt margin izquierdo
+const MR = 19; // ~55pt margin derecho
+const CW = PAGE_W - ML - MR; // ancho útil ~172mm
+const HEADER_Y = 13;
+const FOOTER_Y = PAGE_H - 12;
+const CONTENT_TOP = 22; // espacio para header
+const CONTENT_BOTTOM = PAGE_H - 17; // espacio para footer
+
+// -----------------------------------------------------------------------------
+// Formatters
+// -----------------------------------------------------------------------------
 
 const fmtEUR0 = new Intl.NumberFormat("es-ES", {
   style: "currency",
   currency: "EUR",
   maximumFractionDigits: 0,
 });
-const fmtEUR = new Intl.NumberFormat("es-ES", {
-  style: "currency",
-  currency: "EUR",
-  maximumFractionDigits: 2,
-});
+
+// -----------------------------------------------------------------------------
+// Entry point
+// -----------------------------------------------------------------------------
 
 export function generateInformePdf(args: {
   subscriberName?: string;
@@ -50,147 +74,176 @@ export function generateInformePdf(args: {
 }): jsPDF {
   const { subscriberName, config, results } = args;
   const doc = new jsPDF({ unit: "mm", format: "a4" });
-  const pageW = doc.internal.pageSize.getWidth();
-  const margin = 18;
 
-  let y = drawHeader(doc, pageW, margin, subscriberName);
+  // === Página 1: Cover ===
+  applyPageBackground(doc);
+  drawCover(doc, subscriberName);
 
-  // ---------- Veredicto humorístico (variante según prob. éxito) ----------
-  y = drawVerdict(doc, pageW, margin, y + 4, results, subscriberName);
+  // === Página 2+: Contenido ===
+  doc.addPage();
+  applyPageBackground(doc);
+  let y = CONTENT_TOP;
 
-  // ---------- Resumen ejecutivo (KPIs) ----------
-  y = drawSectionTitle(doc, "Resumen ejecutivo", margin, y + 6);
-  y = drawKpis(doc, pageW, margin, y + 2, results);
+  // Veredicto destacado
+  y = drawVerdict(doc, y, results, subscriberName);
 
-  // ---------- Tu configuración ----------
-  y = drawSectionTitle(doc, "Tu configuración", margin, y + 6);
-  drawConfigTable(doc, margin, y, config);
-  y = getY(doc, y + 10);
+  // 01 — Resumen ejecutivo
+  y = ensureSpace(doc, y + 8, 70);
+  y = drawSectionTitle(doc, y, "01", "Resumen ejecutivo");
+  y = drawKpis(doc, y, results, config);
 
-  // ---------- Objetivos financieros ----------
+  // 02 — Tu configuración
+  y = ensureSpace(doc, y + 8, 80);
+  y = drawSectionTitle(doc, y, "02", "Tu configuración");
+  y = drawConfigTable(doc, y, config);
+
+  // 03 — Objetivos (si hay)
   if (config.goals && config.goals.length > 0) {
-    y = checkPageBreak(doc, y, 40);
-    y = drawSectionTitle(doc, "Tus objetivos financieros", margin, y + 4);
-    drawGoalsTable(doc, margin, y, config);
-    y = getY(doc, y + 10);
+    y = ensureSpace(doc, y + 8, 60);
+    y = drawSectionTitle(doc, y, "03", "Tus objetivos financieros");
+    y = drawGoalsTable(doc, y, config);
   }
 
-  // ---------- Tasas de retirada SWR ----------
+  // 04 — SWR
   if (results.withdrawalRates?.scenarios?.length > 0) {
-    y = checkPageBreak(doc, y, 60);
-    y = drawSectionTitle(
-      doc,
-      "Cuánto puedes retirar al jubilarte (SWR)",
-      margin,
-      y + 6
-    );
-    doc.setFontSize(9);
-    doc.setTextColor(...C.muted);
-    doc.text(
-      `Basado en un capital de ${fmtEUR0.format(results.withdrawalRates.capitalAtRetirementReal)} en la jubilación (€ reales de hoy).`,
-      margin,
-      y
-    );
-    y += 3;
-    drawWithdrawalTable(doc, margin, y, results);
-    y = getY(doc, y + 10);
-    y += 3;
-    doc.setFontSize(8);
-    doc.setTextColor(...C.muted);
-    doc.text(
-      "SWR: tasa que aguanta sin agotar capital hasta el final del horizonte (acepta acabar en €0).",
-      margin,
-      y
-    );
-    y += 5;
+    y = ensureSpace(doc, y + 8, 90);
+    y = drawSectionTitle(doc, y, "04", "Cuánto puedes retirar al jubilarte");
+    y = drawCapitalNote(doc, y, results);
+    y = drawSwrTable(doc, y, results);
 
-    // PWR perpetua — sección dedicada
+    // 05 — PWR perpetua
     if (results.withdrawalRates.pwrPerpetual) {
-      y = checkPageBreak(doc, y, 50);
+      y = ensureSpace(doc, y + 8, 75);
       y = drawSectionTitle(
         doc,
-        "PWR — Tasa perpetua para preservar capital",
-        margin,
-        y + 6
+        y,
+        "05",
+        "PWR — Tasa perpetua para preservar capital"
       );
-      // drawPwrPerpetualBox dibuja a partir de `y` y devuelve el `y` final
-      // (NO usamos getY aquí porque la caja no es una autoTable — getY
-      // devolvería el final de la última tabla y haría retroceder y).
-      y = drawPwrPerpetualBox(doc, pageW, margin, y + 2, results);
-      y += 4;
-      doc.setFontSize(7.5);
-      doc.setTextColor(...C.muted);
-      const pwrNote = doc.splitTextToSize(
-        "Tasa que mantiene capital real constante si la cartera rinde a su CAGR real geométrico. Depende solo de la cartera de distribución (rentabilidad esperada y volatilidad), NO del capital ni de las aportaciones. La mediana es 'si tu cartera rinde como se espera'; el rango p25-p75 cubre la mitad central de escenarios.",
-        pageW - margin * 2
-      );
-      doc.text(pwrNote, margin, y);
-      y += pwrNote.length * 3.5 + 4;
+      y = drawPwrBoxes(doc, y, results);
+      y = drawPwrExplanation(doc, y);
     }
   }
 
-  // ---------- Riesgo de secuencia ----------
-  y = checkPageBreak(doc, y, 70);
-  y = drawSectionTitle(doc, "Riesgo de secuencia (sequence risk)", margin, y + 6);
-  y = drawSequenceRisk(doc, pageW, margin, y + 2, results);
+  // 06 — Riesgo de secuencia
+  y = ensureSpace(doc, y + 8, 75);
+  y = drawSectionTitle(doc, y, "06", "Riesgo de secuencia");
+  y = drawSequenceRisk(doc, y, results);
 
-  // ---------- CTA final ----------
-  y = checkPageBreak(doc, y, 50);
-  drawCta(doc, pageW, margin, y + 8);
+  // 07 — CTA final
+  y = ensureSpace(doc, y + 8, 70);
+  y = drawCta(doc, y);
 
-  // Pie de página en todas las páginas
-  drawFooters(doc, pageW);
+  // Header/footer en todas las páginas de contenido
+  drawHeadersFooters(doc);
 
   return doc;
 }
 
 // -----------------------------------------------------------------------------
-// Header
+// Background y helpers de página
 // -----------------------------------------------------------------------------
 
-function drawHeader(
-  doc: jsPDF,
-  pageW: number,
-  margin: number,
-  subscriberName?: string
-): number {
-  // Banda navy
-  doc.setFillColor(...C.navy);
-  doc.rect(0, 0, pageW, 28, "F");
-  // Cuadrado coral con K
-  doc.setFillColor(...C.coral);
-  doc.rect(margin, 8, 12, 12, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.text("K", margin + 6, 16.5, { align: "center", baseline: "middle" });
+function applyPageBackground(doc: jsPDF): void {
+  doc.setFillColor(C.beige[0], C.beige[1], C.beige[2]);
+  doc.rect(0, 0, PAGE_W, PAGE_H, "F");
+}
 
-  // Título
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(15);
-  doc.text("Tu plan de jubilación", margin + 18, 14);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(200, 200, 220);
-  const fecha = new Date().toLocaleDateString("es-ES", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-  const subtitleParts = [
-    "Simulación paramétrica · El Proyecto K",
-    subscriberName ? `Para ${subscriberName}` : null,
-    fecha,
-  ].filter(Boolean);
-  doc.text(subtitleParts.join(" · "), margin + 18, 19);
-
-  doc.setTextColor(...C.text);
-  return 32;
+/** Si no cabe el bloque `needed` mm en la página, salta a la siguiente. */
+function ensureSpace(doc: jsPDF, y: number, needed: number): number {
+  if (y + needed > CONTENT_BOTTOM) {
+    doc.addPage();
+    applyPageBackground(doc);
+    return CONTENT_TOP;
+  }
+  return y;
 }
 
 // -----------------------------------------------------------------------------
-// Veredicto humorístico — caja destacada con mensaje según probabilidad éxito
+// Cover page
+// -----------------------------------------------------------------------------
+
+function drawCover(doc: jsPDF, subscriberName?: string): void {
+  const titleY = 115;
+
+  // Línea roja corta a la izquierda (acento característico ProyectoK)
+  doc.setDrawColor(C.red[0], C.red[1], C.red[2]);
+  doc.setLineWidth(1);
+  doc.line(ML, titleY - 12, ML + 28, titleY - 12);
+
+  // Título grande
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(30);
+  doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
+  doc.text("Tu plan de jubilación", ML, titleY);
+
+  // Subtítulo
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(12);
+  doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
+  doc.text("Simulación paramétrica · Monte Carlo log-normal", ML, titleY + 10);
+
+  // Personalización
+  const fecha = new Date().toLocaleDateString("es-ES", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const personalParts = [];
+  if (subscriberName) personalParts.push(`Para ${subscriberName}`);
+  personalParts.push(fecha);
+  doc.setFontSize(11);
+  doc.text(personalParts.join(" · "), ML, titleY + 18);
+
+  // Bloque marca abajo
+  const brandY = PAGE_H - 55;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.setTextColor(C.red[0], C.red[1], C.red[2]);
+  doc.text("El Proyecto K", ML, brandY);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
+  doc.text(
+    "Tu camino hacia la independencia financiera con inversión indexada",
+    ML,
+    brandY + 5
+  );
+  doc.text("www.elproyectok.com", ML, brandY + 10);
+}
+
+// -----------------------------------------------------------------------------
+// Section title (patrón ProyectoK: "01" rojo + título grande + línea roja)
+// -----------------------------------------------------------------------------
+
+function drawSectionTitle(
+  doc: jsPDF,
+  y: number,
+  num: string,
+  title: string
+): number {
+  // Número de sección rojo
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(C.red[0], C.red[1], C.red[2]);
+  doc.text(num, ML, y);
+
+  // Título grande
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(17);
+  doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
+  doc.text(title, ML, y + 7);
+
+  // Línea separadora roja full-width
+  doc.setDrawColor(C.red[0], C.red[1], C.red[2]);
+  doc.setLineWidth(0.4);
+  doc.line(ML, y + 11, ML + CW, y + 11);
+
+  return y + 16;
+}
+
+// -----------------------------------------------------------------------------
+// Veredicto (callout con línea izquierda al estilo CTA ProyectoK)
 // -----------------------------------------------------------------------------
 
 interface VerdictCopy {
@@ -239,66 +292,58 @@ function pickVerdict(
 
 function drawVerdict(
   doc: jsPDF,
-  pageW: number,
-  margin: number,
   y: number,
   results: ParametricResult,
   subscriberName?: string
 ): number {
   const v = pickVerdict(results.successProbability, subscriberName);
 
-  // Paleta según tono — barra lateral coloreada + fondo crema sutil (estilo EPK)
-  const palette = {
-    great: { bar: C.emerald, bg: [240, 253, 244] as [number, number, number] },
-    ok: { bar: C.emerald, bg: [240, 253, 244] as [number, number, number] },
-    tight: { bar: C.amber, bg: [254, 252, 232] as [number, number, number] },
-    bad: { bar: C.red, bg: [254, 242, 242] as [number, number, number] },
-  }[v.tone];
-
-  const usableW = pageW - margin * 2;
   const padding = 6;
-  const barW = 3; // ancho de la barra lateral
-  const innerLeft = margin + barW + padding;
-  const innerW = usableW - barW - padding * 2;
-  const titleFontSize = 12;
-  const bodyFontSize = 9;
-  const lineHeight = 4.4;
+  const barW = 3;
+  const innerLeft = ML + barW + padding;
+  const innerW = CW - barW - padding * 2;
 
-  // Calcular altura: badge + título + cuerpo
+  // Calcular altura
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(titleFontSize);
+  doc.setFontSize(8);
+  const badgeH = 4;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
   const titleLines = doc.splitTextToSize(v.title, innerW);
+
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(bodyFontSize);
+  doc.setFontSize(10);
   const bodyLines = doc.splitTextToSize(v.body, innerW);
+
   const boxH =
     padding +
-    4 + // badge
-    3 +
+    badgeH +
+    4 +
     titleLines.length * 5.5 +
-    3 +
-    bodyLines.length * lineHeight +
+    4 +
+    bodyLines.length * 4.6 +
     padding;
 
-  // Fondo crema sutil
-  doc.setFillColor(palette.bg[0], palette.bg[1], palette.bg[2]);
-  doc.rect(margin, y, usableW, boxH, "F");
+  // Fondo crema (TABLE_ROW_ALT — coherente con el callout ProyectoK)
+  doc.setFillColor(C.rowAlt[0], C.rowAlt[1], C.rowAlt[2]);
+  doc.rect(ML, y, CW, boxH, "F");
 
-  // Barra lateral de color (estilo callout editorial)
-  doc.setFillColor(palette.bar[0], palette.bar[1], palette.bar[2]);
-  doc.rect(margin, y, barW, boxH, "F");
+  // Barra lateral roja (estilo CTA brand)
+  doc.setFillColor(C.red[0], C.red[1], C.red[2]);
+  doc.rect(ML, y, barW, boxH, "F");
 
-  // Badge (etiqueta del veredicto)
+  // Badge en mayúsculas
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.5);
-  doc.setTextColor(palette.bar[0], palette.bar[1], palette.bar[2]);
+  doc.setFontSize(8);
+  doc.setTextColor(C.red[0], C.red[1], C.red[2]);
   doc.text(v.badge.toUpperCase(), innerLeft, y + padding + 2);
 
   // Título
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(titleFontSize);
-  doc.setTextColor(...C.navy);
-  let cursorY = y + padding + 8;
+  doc.setFontSize(13);
+  doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
+  let cursorY = y + padding + 9;
   for (const line of titleLines) {
     doc.text(line, innerLeft, cursorY);
     cursorY += 5.5;
@@ -306,117 +351,120 @@ function drawVerdict(
 
   // Cuerpo
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(bodyFontSize);
-  doc.setTextColor(...C.text);
-  cursorY += 1;
+  doc.setFontSize(10);
+  doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
+  cursorY += 2;
   for (const line of bodyLines) {
     doc.text(line, innerLeft, cursorY);
-    cursorY += lineHeight;
+    cursorY += 4.6;
   }
 
   return y + boxH;
 }
 
 // -----------------------------------------------------------------------------
-// Section title
-// -----------------------------------------------------------------------------
-
-function drawSectionTitle(
-  doc: jsPDF,
-  text: string,
-  x: number,
-  y: number
-): number {
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.setTextColor(...C.navy);
-  doc.text(text, x, y);
-  // Subrayado coral
-  doc.setDrawColor(...C.coral);
-  doc.setLineWidth(0.8);
-  doc.line(x, y + 1.5, x + 22, y + 1.5);
-  doc.setTextColor(...C.text);
-  return y + 6;
-}
-
-// -----------------------------------------------------------------------------
-// KPIs
+// KPIs (3 boxes con número grande + label + sub-metric)
 // -----------------------------------------------------------------------------
 
 function drawKpis(
   doc: jsPDF,
-  pageW: number,
-  margin: number,
   y: number,
-  r: ParametricResult
+  r: ParametricResult,
+  config: ParametricConfig
 ): number {
-  const usableW = pageW - margin * 2;
-  const boxW = (usableW - 6) / 3;
-  const boxH = 22;
+  const boxW = (CW - 6) / 3;
+  const boxH = 28;
 
-  const kpis: Array<{ label: string; value: string; color: [number, number, number] }> = [
+  const probColor = probColorFor(r.successProbability);
+
+  const kpis: Array<{
+    label: string;
+    value: string;
+    sub: string;
+    color: [number, number, number];
+  }> = [
     {
       label: "Probabilidad de éxito",
-      value: `${r.successProbability.toFixed(0)}%`,
-      color: probColor(r.successProbability),
+      value: `${r.successProbability.toFixed(1)}%`,
+      sub:
+        r.successProbability >= 90
+          ? "Plan sólido"
+          : r.successProbability >= 70
+            ? "Margen ajustado"
+            : "Plan frágil",
+      color: probColor,
     },
     {
-      label: "Valor final mediano (real)",
+      label: "Patrimonio final mediano",
       value: fmtEUR0.format(Math.max(0, r.medianFinalValueReal)),
-      color: C.navy,
+      sub: `A los ${config.endAge} años (€ reales)`,
+      color: C.dark,
     },
     {
       label:
         r.medianDepletionAge !== undefined
-          ? "Edad mediana de agotamiento"
-          : "% paths agotados",
+          ? "Edad mediana agotamiento"
+          : "Paths agotados",
       value:
         r.medianDepletionAge !== undefined
           ? `${r.medianDepletionAge.toFixed(0)} años`
           : `${r.depletionProbability.toFixed(0)}%`,
-      color: r.medianDepletionAge !== undefined ? C.amber : C.red,
+      sub:
+        r.medianDepletionAge !== undefined
+          ? `Entre el ${r.depletionProbability.toFixed(1)}% que se agota`
+          : "Plan no llega al final",
+      color: r.depletionProbability < 5 ? C.green : C.redNeg,
     },
   ];
 
   kpis.forEach((k, i) => {
-    const x = margin + i * (boxW + 3);
-    // Borde y fondo
-    doc.setFillColor(...C.bgSoft);
-    doc.setDrawColor(...C.border);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(x, y, boxW, boxH, 2, 2, "FD");
-    // Label
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(...C.muted);
-    doc.text(k.label, x + 3, y + 6);
-    // Value
+    const x = ML + i * (boxW + 3);
+    // Fondo TABLE_ROW_ALT — coherente con KPI boxes ProyectoK
+    doc.setFillColor(C.rowAlt[0], C.rowAlt[1], C.rowAlt[2]);
+    doc.rect(x, y, boxW, boxH, "F");
+    // Borde sutil
+    doc.setDrawColor(C.border[0], C.border[1], C.border[2]);
+    doc.setLineWidth(0.2);
+    doc.rect(x, y, boxW, boxH, "S");
+
+    // Número grande (top)
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.setTextColor(...k.color);
-    doc.text(k.value, x + 3, y + 16);
+    doc.setFontSize(18);
+    doc.setTextColor(k.color[0], k.color[1], k.color[2]);
+    doc.text(k.value, x + boxW / 2, y + 11, { align: "center" });
+
+    // Label en mayúsculas pequeño
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
+    doc.text(k.label.toUpperCase(), x + boxW / 2, y + 17, { align: "center" });
+
+    // Sub-metric pequeño bold colored
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(k.color[0], k.color[1], k.color[2]);
+    doc.text(k.sub, x + boxW / 2, y + 23, { align: "center" });
   });
 
-  doc.setTextColor(...C.text);
-  return y + boxH + 4;
+  doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
+  return y + boxH;
 }
 
-function probColor(prob: number): [number, number, number] {
-  if (prob >= 80) return C.emerald;
-  if (prob >= 60) return C.amber;
-  return C.red;
+function probColorFor(prob: number): [number, number, number] {
+  if (prob >= 80) return C.green;
+  if (prob >= 60) return [180, 83, 9];
+  return C.redNeg;
 }
 
 // -----------------------------------------------------------------------------
-// Tablas
+// Config table
 // -----------------------------------------------------------------------------
 
 function drawConfigTable(
   doc: jsPDF,
-  margin: number,
   y: number,
   c: ParametricConfig
-): void {
+): number {
   const rows: Array<[string, string]> = [
     ["Edad actual", `${c.currentAge} años`],
     ["Edad de jubilación", `${c.retirementAge} años`],
@@ -424,11 +472,11 @@ function drawConfigTable(
     ["Capital inicial", fmtEUR0.format(c.initialCapital)],
     [
       "Cartera acumulación",
-      `Rtb. esperada ${c.accumulationReturn.toFixed(1)}% · Volatilidad ${c.accumulationVol.toFixed(1)}%`,
+      `${c.accumulationReturn.toFixed(1)}% retorno · ${c.accumulationVol.toFixed(1)}% volatilidad`,
     ],
     [
       "Cartera distribución",
-      `Rtb. esperada ${c.distributionReturn.toFixed(1)}% · Volatilidad ${c.distributionVol.toFixed(1)}%`,
+      `${c.distributionReturn.toFixed(1)}% retorno · ${c.distributionVol.toFixed(1)}% volatilidad`,
     ],
     [
       "Glide path",
@@ -437,47 +485,52 @@ function drawConfigTable(
         : "Cambio instantáneo en la jubilación",
     ],
     ["Inflación", `${c.inflationAnnualPct.toFixed(1)}% anual`],
-    ["Simulaciones Monte Carlo", `${c.numPaths.toLocaleString("es-ES")} paths`],
+    [
+      "Simulaciones Monte Carlo",
+      `${c.numPaths.toLocaleString("es-ES")} paths`,
+    ],
   ];
 
   autoTable(doc, {
     startY: y,
-    margin: { left: margin, right: margin },
-    head: [],
+    margin: { left: ML, right: MR },
+    head: [["Parámetro", "Valor"]],
     body: rows,
-    theme: "plain",
+    theme: "striped",
+    headStyles: {
+      fillColor: C.red,
+      textColor: C.white,
+      fontStyle: "bold",
+      fontSize: 9,
+      cellPadding: { top: 4, right: 6, bottom: 4, left: 6 },
+    },
     styles: {
       font: "helvetica",
       fontSize: 9,
-      cellPadding: { top: 2, right: 3, bottom: 2, left: 3 },
-      textColor: C.text,
+      cellPadding: { top: 4, right: 6, bottom: 4, left: 6 },
+      textColor: C.dark,
+      lineColor: C.border,
+      lineWidth: 0.2,
     },
+    bodyStyles: { fillColor: C.rowLight },
+    alternateRowStyles: { fillColor: C.rowAlt },
     columnStyles: {
-      0: { fontStyle: "bold", textColor: C.muted, cellWidth: 55 },
-      1: { textColor: C.text },
-    },
-    didDrawCell: (data) => {
-      // Línea separadora
-      if (data.section === "body" && data.column.index === 0) {
-        doc.setDrawColor(...C.border);
-        doc.setLineWidth(0.1);
-        doc.line(
-          data.cell.x,
-          data.cell.y + data.cell.height,
-          data.cell.x + data.cell.width * 2,
-          data.cell.y + data.cell.height
-        );
-      }
+      0: { fontStyle: "bold", cellWidth: 65 },
     },
   });
+
+  return getAutoTableY(doc, y + 40) + 2;
 }
+
+// -----------------------------------------------------------------------------
+// Goals table
+// -----------------------------------------------------------------------------
 
 function drawGoalsTable(
   doc: jsPDF,
-  margin: number,
   y: number,
   c: ParametricConfig
-): void {
+): number {
   const rows = c.goals.map((g) => {
     const tipo =
       g.type === "contribution"
@@ -506,80 +559,117 @@ function drawGoalsTable(
 
   autoTable(doc, {
     startY: y,
-    margin: { left: margin, right: margin },
+    margin: { left: ML, right: MR },
     head: [["Objetivo", "Tipo", "Cuándo", "Importe", "Duración"]],
     body: rows,
     theme: "striped",
     headStyles: {
-      fillColor: C.navy,
-      textColor: [255, 255, 255],
+      fillColor: C.red,
+      textColor: C.white,
+      fontStyle: "bold",
       fontSize: 9,
+      cellPadding: { top: 4, right: 4, bottom: 4, left: 4 },
     },
     styles: {
       font: "helvetica",
       fontSize: 8.5,
-      cellPadding: 2,
-      textColor: C.text,
+      cellPadding: { top: 4, right: 4, bottom: 4, left: 4 },
+      textColor: C.dark,
+      lineColor: C.border,
+      lineWidth: 0.2,
     },
-    alternateRowStyles: { fillColor: C.bgSoft },
+    bodyStyles: { fillColor: C.rowLight },
+    alternateRowStyles: { fillColor: C.rowAlt },
+    columnStyles: {
+      0: { fontStyle: "bold" },
+    },
   });
+
+  return getAutoTableY(doc, y + 30) + 2;
 }
 
-function drawWithdrawalTable(
+// -----------------------------------------------------------------------------
+// Capital note + SWR table
+// -----------------------------------------------------------------------------
+
+function drawCapitalNote(
   doc: jsPDF,
-  margin: number,
   y: number,
   r: ParametricResult
-): void {
+): number {
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
+  doc.text(
+    `Capital real mediano al jubilarte: ${fmtEUR0.format(r.withdrawalRates.capitalAtRetirementReal)}. SWR = tasa máxima que aguanta sin agotar capital hasta el final del horizonte.`,
+    ML,
+    y,
+    { maxWidth: CW }
+  );
+  return y + 7;
+}
+
+function drawSwrTable(
+  doc: jsPDF,
+  y: number,
+  r: ParametricResult
+): number {
   const rows = r.withdrawalRates.scenarios.map((s) => [
     s.label,
-    `${s.successRatePct.toFixed(0)}%`,
-    fmtEUR.format(s.swr.eurPerMonth),
+    `${s.successRatePct}%`,
+    fmtEUR0.format(s.swr.eurPerMonth),
     `${s.swr.pctAnnual.toFixed(2)}%`,
   ]);
 
   autoTable(doc, {
     startY: y,
-    margin: { left: margin, right: margin },
-    head: [["Escenario", "% éxito", "SWR €/mes", "SWR % anual"]],
+    margin: { left: ML, right: MR },
+    head: [["Escenario", "% éxito", "€/mes", "% anual"]],
     body: rows,
     theme: "striped",
     headStyles: {
-      fillColor: C.navy,
-      textColor: [255, 255, 255],
+      fillColor: C.red,
+      textColor: C.white,
+      fontStyle: "bold",
       fontSize: 9,
+      cellPadding: { top: 4, right: 6, bottom: 4, left: 6 },
+      halign: "center",
     },
     styles: {
       font: "helvetica",
-      fontSize: 9,
-      cellPadding: 2.5,
-      textColor: C.text,
+      fontSize: 9.5,
+      cellPadding: { top: 4, right: 6, bottom: 4, left: 6 },
+      textColor: C.dark,
+      lineColor: C.border,
+      lineWidth: 0.2,
     },
-    alternateRowStyles: { fillColor: C.bgSoft },
+    bodyStyles: { fillColor: C.rowLight },
+    alternateRowStyles: { fillColor: C.rowAlt },
     columnStyles: {
-      0: { fontStyle: "bold" },
-      2: { halign: "right" },
+      0: { fontStyle: "bold", cellWidth: 50 },
+      1: { halign: "center" },
+      2: { halign: "right", fontStyle: "bold" },
       3: { halign: "right" },
     },
   });
+
+  return getAutoTableY(doc, y + 40) + 2;
 }
 
 // -----------------------------------------------------------------------------
-// PWR perpetua — caja destacada con p25/p50/p75
+// PWR perpetua — 3 KPI boxes con destacado central
 // -----------------------------------------------------------------------------
 
-function drawPwrPerpetualBox(
+function drawPwrBoxes(
   doc: jsPDF,
-  pageW: number,
-  margin: number,
   y: number,
   r: ParametricResult
 ): number {
   const pwr = r.withdrawalRates.pwrPerpetual;
   if (!pwr) return y;
-  const usableW = pageW - margin * 2;
-  const boxW = (usableW - 6) / 3;
-  const boxH = 26;
+
+  const boxW = (CW - 6) / 3;
+  const boxH = 32;
 
   const items: Array<{
     label: string;
@@ -608,195 +698,258 @@ function drawPwrPerpetualBox(
   ];
 
   items.forEach((it, i) => {
-    const x = margin + i * (boxW + 3);
+    const x = ML + i * (boxW + 3);
+
     if (it.highlight) {
-      doc.setFillColor(224, 231, 255); // indigo-100
-      doc.setDrawColor(C.indigo[0], C.indigo[1], C.indigo[2]);
-      doc.setLineWidth(0.5);
+      // Box destacado — fondo rojo (header color) con texto blanco
+      doc.setFillColor(C.red[0], C.red[1], C.red[2]);
+      doc.rect(x, y, boxW, boxH, "F");
     } else {
-      doc.setFillColor(238, 242, 255); // indigo-50
-      doc.setDrawColor(199, 210, 254);
-      doc.setLineWidth(0.3);
+      doc.setFillColor(C.rowAlt[0], C.rowAlt[1], C.rowAlt[2]);
+      doc.rect(x, y, boxW, boxH, "F");
+      doc.setDrawColor(C.border[0], C.border[1], C.border[2]);
+      doc.setLineWidth(0.2);
+      doc.rect(x, y, boxW, boxH, "S");
     }
-    doc.roundedRect(x, y, boxW, boxH, 2, 2, "FD");
-    // Label
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.setTextColor(...C.indigo);
-    doc.text(it.label.toUpperCase(), x + 3, y + 6);
-    // Value €/mes
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(it.highlight ? 14 : 12);
-    doc.text(`${fmtEUR0.format(it.eur)}/mes`, x + 3, y + 15);
-    // % real anual
+
+    const labelColor = it.highlight ? C.white : C.gray;
+    const valueColor = it.highlight ? C.white : C.dark;
+    const subColor = it.highlight ? C.white : C.red;
+
+    // Label superior
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.text(`${it.pct.toFixed(2)}% real anual`, x + 3, y + 22);
+    doc.setFontSize(7.5);
+    doc.setTextColor(labelColor[0], labelColor[1], labelColor[2]);
+    doc.text(it.label.toUpperCase(), x + boxW / 2, y + 6, { align: "center" });
+
+    // €/mes
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(it.highlight ? 17 : 15);
+    doc.setTextColor(valueColor[0], valueColor[1], valueColor[2]);
+    doc.text(`${fmtEUR0.format(it.eur)}/mes`, x + boxW / 2, y + 17, {
+      align: "center",
+    });
+
+    // % real anual
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(subColor[0], subColor[1], subColor[2]);
+    doc.text(`${it.pct.toFixed(2)}% real anual`, x + boxW / 2, y + 25, {
+      align: "center",
+    });
   });
 
-  doc.setTextColor(...C.text);
-  return y + boxH;
+  doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
+  return y + boxH + 3;
+}
+
+function drawPwrExplanation(doc: jsPDF, y: number): number {
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
+  const note = doc.splitTextToSize(
+    "Tasa que mantiene capital real constante si la cartera rinde a su CAGR real geométrico. Depende solo de la cartera de distribución (rentabilidad esperada y volatilidad), NO del capital ni de las aportaciones. La mediana representa 'si tu cartera rinde como se espera'; el rango p25–p75 cubre la mitad central de escenarios.",
+    CW
+  );
+  doc.text(note, ML, y + 2);
+  return y + 2 + note.length * 3.5 + 2;
 }
 
 // -----------------------------------------------------------------------------
-// Sequence risk
+// Sequence risk — callout con línea izquierda roja (estilo CTA)
 // -----------------------------------------------------------------------------
 
 function drawSequenceRisk(
   doc: jsPDF,
-  pageW: number,
-  margin: number,
   y: number,
   r: ParametricResult
 ): number {
-  const usableW = pageW - margin * 2;
-  const barW = 3;
   const padding = 6;
-  const innerLeft = margin + barW + padding;
-  const innerW = usableW - barW - padding * 2;
+  const barW = 3;
+  const innerLeft = ML + barW + padding;
+  const innerW = CW - barW - padding * 2;
 
-  // `worstWindowCumulativeReturn` ya viene en % desde el motor
-  // (ej. -22.4 significa -22.4%). NO multiplicar por 100 de nuevo.
+  // worstWindowCumulativeReturn YA viene como porcentaje del motor (-22.4)
   const dropPct = Math.abs(r.sequenceRisk.worstWindowCumulativeReturn);
   const yearsWindow = r.sequenceRisk.windowMonths / 12;
   const title = `Caída del ${dropPct.toFixed(1)}% en los primeros ${yearsWindow.toFixed(0)} años post-jubilación`;
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
+  doc.setFontSize(12);
   const titleLines = doc.splitTextToSize(title, innerW);
 
   const bodyText =
-    "Simulamos cómo se comporta tu plan si justo al jubilarte sufres un mercado MUY adverso (peor 1% de escenarios). Es el llamado riesgo de secuencia: una mala racha temprana puede agotar tu capital aunque la rentabilidad media sea buena.";
+    "Simulamos cómo se comporta tu plan si justo al jubilarte sufres un mercado muy adverso (peor 1% de escenarios). Es el llamado riesgo de secuencia: una mala racha temprana puede agotar tu capital aunque la rentabilidad media sea buena.";
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
+  doc.setFontSize(9.5);
   const bodyLines = doc.splitTextToSize(bodyText, innerW);
 
   const resultadoStr = r.sequenceRisk.success
     ? `Aun así, tu plan sobreviviría hasta los ${r.config.endAge} años con ${fmtEUR0.format(Math.max(0, r.sequenceRisk.finalValueReal))} restantes.`
     : `En ese escenario tu plan se agotaría hacia los ${r.sequenceRisk.depletionAge?.toFixed(0) ?? "—"} años.`;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9.5);
+  doc.setFontSize(10);
   const resultLines = doc.splitTextToSize(resultadoStr, innerW);
 
   const boxH =
     padding +
     titleLines.length * 5.5 +
-    2 +
-    bodyLines.length * 4.4 +
     3 +
+    bodyLines.length * 4.4 +
+    4 +
     resultLines.length * 5 +
     padding;
 
-  // Fondo crema rojo suave + barra lateral
-  doc.setFillColor(254, 242, 242);
-  doc.rect(margin, y, usableW, boxH, "F");
-  doc.setFillColor(...C.red);
-  doc.rect(margin, y, barW, boxH, "F");
+  // Fondo crema con tinte cálido
+  doc.setFillColor(C.rowAlt[0], C.rowAlt[1], C.rowAlt[2]);
+  doc.rect(ML, y, CW, boxH, "F");
+
+  // Barra izquierda roja
+  doc.setFillColor(C.red[0], C.red[1], C.red[2]);
+  doc.rect(ML, y, barW, boxH, "F");
 
   let cursorY = y + padding + 4;
+
   // Título
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.setTextColor(...C.red);
+  doc.setFontSize(12);
+  doc.setTextColor(C.red[0], C.red[1], C.red[2]);
   for (const line of titleLines) {
     doc.text(line, innerLeft, cursorY);
     cursorY += 5.5;
   }
   cursorY += 2;
-  // Cuerpo explicativo
+
+  // Cuerpo
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(...C.text);
+  doc.setFontSize(9.5);
+  doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
   for (const line of bodyLines) {
     doc.text(line, innerLeft, cursorY);
     cursorY += 4.4;
   }
   cursorY += 3;
-  // Resultado (verde si sobrevive, rojo si se agota)
+
+  // Resultado
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9.5);
-  doc.setTextColor(
-    r.sequenceRisk.success ? C.emerald[0] : C.red[0],
-    r.sequenceRisk.success ? C.emerald[1] : C.red[1],
-    r.sequenceRisk.success ? C.emerald[2] : C.red[2]
-  );
+  doc.setFontSize(10);
+  const resColor = r.sequenceRisk.success ? C.green : C.redNeg;
+  doc.setTextColor(resColor[0], resColor[1], resColor[2]);
   for (const line of resultLines) {
     doc.text(line, innerLeft, cursorY);
     cursorY += 5;
   }
 
-  doc.setTextColor(...C.text);
+  doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
   return y + boxH;
 }
 
 // -----------------------------------------------------------------------------
-// CTA
+// CTA final (estilo CTA ProyectoK: fondo crema con línea izquierda roja)
 // -----------------------------------------------------------------------------
 
-function drawCta(doc: jsPDF, pageW: number, margin: number, y: number): void {
-  const usableW = pageW - margin * 2;
-  doc.setFillColor(...C.navy);
-  doc.roundedRect(margin, y, usableW, 32, 3, 3, "F");
+function drawCta(doc: jsPDF, y: number): number {
+  const padding = 8;
+  const barW = 3;
+  const innerLeft = ML + barW + padding;
+  const innerW = CW - barW - padding * 2;
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.setTextColor(255, 255, 255);
-  doc.text("¿Y ahora qué?", margin + 5, y + 9);
+  const title = "¿Y ahora qué?";
+  const bodyText =
+    "Esta simulación te da la base, pero un plan financiero real requiere ajustarlo a tu situación fiscal, tu tolerancia al riesgo y tus objetivos. En El Proyecto K te enseñamos a construirlo paso a paso, sin productos bancarios sobrecargados de comisiones, con inversión indexada de bajo coste.";
+  const linkText = "Visita elproyectok.com para empezar.";
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(220, 220, 230);
-  const cta = doc.splitTextToSize(
-    "Esta simulación te da la base, pero un plan financiero real requiere ajustarlo a tu situación fiscal, tu tolerancia al riesgo y tus objetivos. En El Proyecto K te enseñamos a construirlo paso a paso, sin productos bancarios sobrecargados de comisiones, con inversión indexada de bajo coste.",
-    usableW - 10
-  );
-  doc.text(cta, margin + 5, y + 15);
-
-  doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
-  doc.setTextColor(...C.coral);
-  doc.text("Visita elproyectok.com", margin + 5, y + 28);
+  const bodyLines = doc.splitTextToSize(bodyText, innerW);
 
-  doc.setTextColor(...C.text);
+  const boxH = padding + 7 + 4 + bodyLines.length * 4.6 + 4 + 6 + padding;
+
+  doc.setFillColor(C.rowAlt[0], C.rowAlt[1], C.rowAlt[2]);
+  doc.rect(ML, y, CW, boxH, "F");
+  doc.setFillColor(C.red[0], C.red[1], C.red[2]);
+  doc.rect(ML, y, barW, boxH, "F");
+
+  let cursorY = y + padding + 5;
+
+  // Título
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
+  doc.text(title, innerLeft, cursorY);
+  cursorY += 8;
+
+  // Cuerpo
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
+  for (const line of bodyLines) {
+    doc.text(line, innerLeft, cursorY);
+    cursorY += 4.6;
+  }
+  cursorY += 3;
+
+  // Link en rojo
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(C.red[0], C.red[1], C.red[2]);
+  doc.text(linkText, innerLeft, cursorY);
+
+  doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
+  return y + boxH;
 }
 
 // -----------------------------------------------------------------------------
-// Footers + utilidades
+// Header + footer en todas las páginas de contenido (no en cover)
 // -----------------------------------------------------------------------------
 
-function drawFooters(doc: jsPDF, pageW: number): void {
-  const pages = doc.getNumberOfPages();
-  for (let i = 1; i <= pages; i++) {
+function drawHeadersFooters(doc: jsPDF): void {
+  const total = doc.getNumberOfPages();
+  // Saltamos la cover (página 1)
+  for (let i = 2; i <= total; i++) {
     doc.setPage(i);
-    const pageH = doc.internal.pageSize.getHeight();
-    doc.setDrawColor(...C.border);
+
+    // --- Header ---
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
+    doc.text("El Proyecto K", ML, HEADER_Y);
+
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
+    doc.text("Simulador de jubilación", ML + CW, HEADER_Y, {
+      align: "right",
+    });
+
+    // Línea roja debajo del header
+    doc.setDrawColor(C.red[0], C.red[1], C.red[2]);
+    doc.setLineWidth(0.5);
+    doc.line(ML, HEADER_Y + 2.5, ML + CW, HEADER_Y + 2.5);
+
+    // --- Footer ---
+    // Línea gris fina arriba
+    doc.setDrawColor(C.border[0], C.border[1], C.border[2]);
     doc.setLineWidth(0.2);
-    doc.line(18, pageH - 12, pageW - 18, pageH - 12);
+    doc.line(ML, FOOTER_Y - 4, ML + CW, FOOTER_Y - 4);
+
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
-    doc.setTextColor(...C.muted);
-    doc.text(
-      "El Proyecto K · elproyectok.com · Esta simulación es educativa, no constituye asesoramiento financiero.",
-      18,
-      pageH - 7
-    );
-    doc.text(`${i} / ${pages}`, pageW - 18, pageH - 7, { align: "right" });
+    doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
+    doc.text("www.elproyectok.com", ML, FOOTER_Y);
+    doc.text(`${i - 1} / ${total - 1}`, ML + CW, FOOTER_Y, {
+      align: "right",
+    });
   }
 }
 
-function getY(doc: jsPDF, fallback: number): number {
+// -----------------------------------------------------------------------------
+// Utilidades
+// -----------------------------------------------------------------------------
+
+function getAutoTableY(doc: jsPDF, fallback: number): number {
   type DocWithAutoTable = jsPDF & {
     lastAutoTable?: { finalY?: number };
   };
   const d = doc as DocWithAutoTable;
   return d.lastAutoTable?.finalY ?? fallback;
-}
-
-function checkPageBreak(doc: jsPDF, y: number, needed: number): number {
-  const pageH = doc.internal.pageSize.getHeight();
-  if (y + needed > pageH - 18) {
-    doc.addPage();
-    return 18;
-  }
-  return y;
 }
