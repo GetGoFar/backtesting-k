@@ -73,8 +73,8 @@ const DIAS_POR_ANO = 365.25;
  * (IRPF sobre la plusvalía latente si se vendiera todo al final). Así ambas
  * carteras se comparan de igual a igual, después de impuestos.
  */
-function toKpi(r: BacktestResult, anos: number): InformeKpi {
-  const valorFinal = Math.round(r.finalValue - (r.fees?.pendingTaxes ?? 0));
+function toKpi(r: BacktestResult, anos: number, factor = 1): InformeKpi {
+  const valorFinal = Math.round((r.finalValue - (r.fees?.pendingTaxes ?? 0)) * factor);
   const cagr =
     anos > 0 && valorFinal > 0
       ? Math.pow(valorFinal / INVERSION_INICIAL, 1 / anos) - 1
@@ -162,6 +162,17 @@ export async function generarInformeFondo(
   const valoresA = res.a.timeSeries.map((p) => Math.round(p.value));
   const valoresB = res.b.timeSeries.map((p) => Math.round(p.value));
 
+  // 4b) Rebasar AMBAS series a 10.000 € en la primera fecha mostrada, para que
+  //     las dos líneas arranquen EXACTAMENTE del mismo punto el mismo día
+  //     (equivale a invertir 10.000 € ese día en ambas). El display mensual del
+  //     motor empieza en el primer fin de mes con la K10 ya movida unas semanas,
+  //     lo que la hacía arrancar por debajo. Rebasar por 10.000/valor_inicial es
+  //     exacto: convierte el valor a "10.000 € invertidos en la fecha inicial".
+  const factorFondo = valoresA[0] && valoresA[0] > 0 ? INVERSION_INICIAL / valoresA[0] : 1;
+  const factorK10 = valoresB[0] && valoresB[0] > 0 ? INVERSION_INICIAL / valoresB[0] : 1;
+  for (let i = 0; i < valoresA.length; i++) valoresA[i] = Math.round(valoresA[i]! * factorFondo);
+  for (let i = 0; i < valoresB.length; i++) valoresB[i] = Math.round(valoresB[i]! * factorK10);
+
   // 5) Correlación: viene del backtest si lo expone, si no calculamos manual
   let correlacion = res.correlation ?? null;
   if (correlacion == null) {
@@ -184,11 +195,15 @@ export async function generarInformeFondo(
     k10: mapaB.get(ano) ?? 0,
   }));
 
-  // 8) Drawdowns: alinear las dos series por fecha
-  const drawdowns = alinearSeries(
-    res.a.drawdowns.map((p) => ({ fecha: p.exactDate || p.date, valor: p.drawdown })),
-    res.b.drawdowns.map((p) => ({ fecha: p.exactDate || p.date, valor: p.drawdown })),
-  );
+  // 8) Drawdowns: se calculan desde la MISMA serie de valores mensual ya
+  //    alineada (mismas fechas para ambas carteras). Antes se alineaban dos
+  //    series del motor con fechas distintas rellenando huecos con 0, lo que
+  //    producía picos verticales falsos. Así salen continuos y coherentes.
+  const drawdowns: SerieTemporal = {
+    fechas: fechasA.slice(),
+    valoresFondo: serieDrawdown(valoresA),
+    valoresK10: serieDrawdown(valoresB),
+  };
 
   // 9) Rolling returns 1/3/5 años
   const rolling1y = alinearSeries(
@@ -210,8 +225,8 @@ export async function generarInformeFondo(
     fechas: fechasA,
     valorFondo: valoresA,
     valorK10: valoresB,
-    kpiFondo: toKpi(res.a, anosCubiertos),
-    kpiK10: toKpi(res.b, anosCubiertos),
+    kpiFondo: toKpi(res.a, anosCubiertos, factorFondo),
+    kpiK10: toKpi(res.b, anosCubiertos, factorK10),
     correlacion,
     rangoFechas: { inicio: fechaIni, fin: fechaFin },
     anosCubiertos,
@@ -221,6 +236,15 @@ export async function generarInformeFondo(
     rolling3y,
     rolling5y,
   };
+}
+
+/** Serie de drawdown (% negativo, ej: -7.4) desde una serie de valores. */
+function serieDrawdown(valores: number[]): number[] {
+  let pico = -Infinity;
+  return valores.map((v) => {
+    if (v > pico) pico = v;
+    return pico > 0 ? (v / pico - 1) * 100 : 0;
+  });
 }
 
 /** Alinea dos series por fecha; valor faltante se pone en 0. */

@@ -109,6 +109,12 @@ export default async function InformePage({ params, searchParams }: Props) {
   return (
     <main style={pageStyle}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "20px" }}>
+        {/* KPIs: 2 columnas por defecto (2+2), 4 en una fila en pantalla ancha.
+            Nunca 3+1. */}
+        <style>{`
+          .informe-kpis { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          @media (min-width: 880px) { .informe-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+        `}</style>
         {/* Header */}
         <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -144,7 +150,7 @@ export default async function InformePage({ params, searchParams }: Props) {
         </section>
 
         {/* KPIs */}
-        <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginTop: 16 }}>
+        <section className="informe-kpis" style={{ marginTop: 16 }}>
           <KpiCard
             label="Valor al liquidar"
             valorFondo={fmtEur(inf.kpiFondo.valorFinal)}
@@ -222,7 +228,7 @@ export default async function InformePage({ params, searchParams }: Props) {
             En el taller de El Proyecto K te enseñamos paso a paso, sin tecnicismos.
           </p>
           <a
-            href="https://elproyectok.com/taller"
+            href="https://elproyectok.com/inscripcion/"
             style={{
               display: "inline-block",
               background: "linear-gradient(135deg, #ff4444, #ff6b6b)",
