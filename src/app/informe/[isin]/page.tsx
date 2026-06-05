@@ -222,7 +222,7 @@ export default async function InformePage({ params, searchParams }: Props) {
             En el taller de El Proyecto K te enseñamos paso a paso, sin tecnicismos.
           </p>
           <a
-            href="https://elproyectok.com/taller"
+            href="https://elproyectok.com/inscripcion/"
             style={{
               display: "inline-block",
               background: "linear-gradient(135deg, #ff4444, #ff6b6b)",
