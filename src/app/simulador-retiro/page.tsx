@@ -818,9 +818,7 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
           Tasas calculadas path-por-path sobre{" "}
           {withdrawalRates.pathsAnalyzed} simulaciones.{" "}
           <strong className="text-emerald-700">SWR</strong> = retiro máx. sin
-          agotar antes de los {config.endAge} años (acepta acabar en €0) ·{" "}
-          <strong className="text-indigo-700">PWR</strong> = retiro máx.
-          preservando capital real al final.
+          agotar antes de los {config.endAge} años (acepta acabar en €0).
         </p>
         <div className="overflow-x-auto mt-4">
           <table className="w-full text-sm">
@@ -835,14 +833,8 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
                 <th className="text-right py-2 px-3 font-semibold text-emerald-700 uppercase text-xs tracking-wider border-l border-slate-200">
                   SWR €/mes
                 </th>
-                <th className="text-right py-2 px-3 font-semibold text-emerald-700 uppercase text-xs tracking-wider">
+                <th className="text-right py-2 pl-3 font-semibold text-emerald-700 uppercase text-xs tracking-wider">
                   SWR % anual
-                </th>
-                <th className="text-right py-2 px-3 font-semibold text-indigo-700 uppercase text-xs tracking-wider border-l border-slate-200">
-                  PWR €/mes
-                </th>
-                <th className="text-right py-2 pl-3 font-semibold text-indigo-700 uppercase text-xs tracking-wider">
-                  PWR % anual
                 </th>
               </tr>
             </thead>
@@ -900,21 +892,8 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
                     <td className="py-3 px-3 text-right border-l border-slate-200 font-mono font-bold text-emerald-700">
                       {fmtEUR(s.swr.eurPerMonth)}
                     </td>
-                    <td className="py-3 px-3 text-right text-emerald-700">
+                    <td className="py-3 pl-3 text-right text-emerald-700">
                       {fmtPct(s.swr.pctAnnual)}
-                    </td>
-                    <td
-                      className="py-3 px-3 text-right border-l border-slate-200 font-mono font-bold text-indigo-700"
-                      title={
-                        s.pwr.eurPerMonth === 0
-                          ? "En este escenario la cartera no genera rendimiento real positivo — no hay margen para retiros sostenibles."
-                          : undefined
-                      }
-                    >
-                      {fmtEUR(s.pwr.eurPerMonth)}
-                    </td>
-                    <td className="py-3 pl-3 text-right text-indigo-700">
-                      {fmtPct(s.pwr.pctAnnual)}
                     </td>
                   </tr>
                 );
@@ -928,13 +907,85 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
           Si el plan que ves &quot;aguanta&quot; pero quieres dormir tranquilo,
           fija tus retiros en la cifra Bengen.
         </p>
-        <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-          ℹ️ <strong>PWR clásica (perpetua):</strong> tasa que retirarías si la
-          cartera rindiera siempre su CAGR real geométrico. Calculada path por
-          path como K × CAGR_real / 12. Si en un escenario la cartera no
-          genera rendimiento real positivo, PWR es 0 € (no hay rendimiento
-          sostenible que retirar).
-        </p>
+
+        {/* PWR perpetua — sección dedicada */}
+        <div className="mt-6 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl border border-indigo-200 p-5">
+          <div className="flex items-start gap-3 mb-3">
+            <div className="text-2xl">♾️</div>
+            <div className="flex-1">
+              <h4 className="text-base font-bold text-indigo-900 font-serif">
+                PWR — Tasa perpetua para preservar capital
+              </h4>
+              <p className="text-xs text-indigo-700 mt-0.5 leading-relaxed">
+                Si tu objetivo es mantener el capital indefinidamente (legado o
+                independencia perpetua), retira hasta esta tasa. Depende{" "}
+                <strong>solo</strong> de tu cartera de distribución (su
+                rentabilidad real esperada), NO del capital ni de las
+                aportaciones.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+            <div className="bg-white/70 rounded-lg p-3 border border-indigo-100">
+              <div className="text-[10px] uppercase tracking-wider text-indigo-500 font-semibold">
+                Conservador (p25)
+              </div>
+              <div className="text-xl font-bold text-indigo-700 font-mono mt-1">
+                {fmtEUR(withdrawalRates.pwrPerpetual.eurPerMonthP25)}
+                <span className="text-xs font-normal text-indigo-500">
+                  {" "}
+                  /mes
+                </span>
+              </div>
+              <div className="text-xs text-indigo-600 mt-0.5">
+                {fmtPct(withdrawalRates.pwrPerpetual.pctAnnualP25)} real anual
+              </div>
+            </div>
+            <div className="bg-indigo-100 rounded-lg p-3 border-2 border-indigo-300 shadow-sm">
+              <div className="text-[10px] uppercase tracking-wider text-indigo-700 font-bold">
+                Mediana (p50) ⭐
+              </div>
+              <div className="text-2xl font-bold text-indigo-800 font-mono mt-1">
+                {fmtEUR(withdrawalRates.pwrPerpetual.eurPerMonthMedian)}
+                <span className="text-xs font-normal text-indigo-600">
+                  {" "}
+                  /mes
+                </span>
+              </div>
+              <div className="text-xs text-indigo-700 mt-0.5 font-semibold">
+                {fmtPct(withdrawalRates.pwrPerpetual.pctAnnualMedian)} real
+                anual
+              </div>
+            </div>
+            <div className="bg-white/70 rounded-lg p-3 border border-indigo-100">
+              <div className="text-[10px] uppercase tracking-wider text-indigo-500 font-semibold">
+                Optimista (p75)
+              </div>
+              <div className="text-xl font-bold text-indigo-700 font-mono mt-1">
+                {fmtEUR(withdrawalRates.pwrPerpetual.eurPerMonthP75)}
+                <span className="text-xs font-normal text-indigo-500">
+                  {" "}
+                  /mes
+                </span>
+              </div>
+              <div className="text-xs text-indigo-600 mt-0.5">
+                {fmtPct(withdrawalRates.pwrPerpetual.pctAnnualP75)} real anual
+              </div>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-indigo-600/80 mt-3 leading-relaxed">
+            ℹ️ Cálculo: PWR = K × CAGR_real_geométrico / 12, donde K es tu
+            capital al jubilarte y CAGR_real es el rendimiento real anualizado
+            de la cartera de distribución sobre el horizonte de la simulación.
+            La mediana representa &quot;si tu cartera rinde como se espera&quot;;
+            el rango p25-p75 cubre la mitad central de escenarios. Para
+            escenarios MÁS adversos (p1, p5) la cartera puede no preservar
+            capital — eso es información que la columna SWR ya captura (tasa
+            que aguanta sin agotar).
+          </p>
+        </div>
       </section>
 
       {/* Sequence risk */}

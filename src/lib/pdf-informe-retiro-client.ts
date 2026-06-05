@@ -29,6 +29,7 @@ const C = {
   emerald: [4, 120, 87] as [number, number, number],
   amber: [180, 83, 9] as [number, number, number],
   red: [185, 28, 28] as [number, number, number],
+  indigo: [55, 48, 163] as [number, number, number],
 };
 
 const fmtEUR0 = new Intl.NumberFormat("es-ES", {
@@ -71,12 +72,12 @@ export function generateInformePdf(args: {
     y = getY(doc, y + 10);
   }
 
-  // ---------- Tasas de retirada SWR/PWR ----------
+  // ---------- Tasas de retirada SWR ----------
   if (results.withdrawalRates?.scenarios?.length > 0) {
     y = checkPageBreak(doc, y, 60);
     y = drawSectionTitle(
       doc,
-      "Cuánto puedes retirar al jubilarte",
+      "Cuánto puedes retirar al jubilarte (SWR)",
       margin,
       y + 6
     );
@@ -94,17 +95,32 @@ export function generateInformePdf(args: {
     doc.setFontSize(8);
     doc.setTextColor(...C.muted);
     doc.text(
-      "SWR: Safe Withdrawal Rate — agotar el capital al final del horizonte.",
+      "SWR: tasa que aguanta sin agotar capital hasta el final del horizonte (acepta acabar en €0).",
       margin,
       y
     );
-    y += 4;
-    doc.text(
-      "PWR: Perpetual Withdrawal Rate — mantener el capital intacto en términos reales.",
-      margin,
-      y
-    );
-    y += 3;
+    y += 5;
+
+    // PWR perpetua — sección dedicada
+    if (results.withdrawalRates.pwrPerpetual) {
+      y = checkPageBreak(doc, y, 40);
+      y = drawSectionTitle(
+        doc,
+        "PWR — Tasa perpetua para preservar capital",
+        margin,
+        y + 4
+      );
+      drawPwrPerpetualBox(doc, pageW, margin, y, results);
+      y = getY(doc, y + 30) + 3;
+      doc.setFontSize(7.5);
+      doc.setTextColor(...C.muted);
+      const pwrNote = doc.splitTextToSize(
+        "Tasa que mantiene capital real constante si la cartera rinde a su CAGR real geom. Depende solo de la cartera de distribución (rentab esperada y volatilidad), NO del capital ni de las aportaciones. La mediana es 'si tu cartera rinde como se espera'; el rango p25-p75 cubre la mitad central de escenarios.",
+        pageW - margin * 2
+      );
+      doc.text(pwrNote, margin, y);
+      y += pwrNote.length * 3.5 + 3;
+    }
   }
 
   // ---------- Riesgo de secuencia ----------
@@ -386,23 +402,12 @@ function drawWithdrawalTable(
     `${s.successRatePct.toFixed(0)}%`,
     fmtEUR.format(s.swr.eurPerMonth),
     `${s.swr.pctAnnual.toFixed(2)}%`,
-    fmtEUR.format(s.pwr.eurPerMonth),
-    `${s.pwr.pctAnnual.toFixed(2)}%`,
   ]);
 
   autoTable(doc, {
     startY: y,
     margin: { left: margin, right: margin },
-    head: [
-      [
-        "Escenario",
-        "% éxito",
-        "SWR €/mes",
-        "SWR % anual",
-        "PWR €/mes",
-        "PWR % anual",
-      ],
-    ],
+    head: [["Escenario", "% éxito", "SWR €/mes", "SWR % anual"]],
     body: rows,
     theme: "striped",
     headStyles: {
@@ -421,10 +426,81 @@ function drawWithdrawalTable(
       0: { fontStyle: "bold" },
       2: { halign: "right" },
       3: { halign: "right" },
-      4: { halign: "right" },
-      5: { halign: "right" },
     },
   });
+}
+
+// -----------------------------------------------------------------------------
+// PWR perpetua — caja destacada con p25/p50/p75
+// -----------------------------------------------------------------------------
+
+function drawPwrPerpetualBox(
+  doc: jsPDF,
+  pageW: number,
+  margin: number,
+  y: number,
+  r: ParametricResult
+): void {
+  const pwr = r.withdrawalRates.pwrPerpetual;
+  if (!pwr) return;
+  const usableW = pageW - margin * 2;
+  const boxW = (usableW - 6) / 3;
+  const boxH = 26;
+
+  const items: Array<{
+    label: string;
+    eur: number;
+    pct: number;
+    highlight: boolean;
+  }> = [
+    {
+      label: "Conservador (p25)",
+      eur: pwr.eurPerMonthP25,
+      pct: pwr.pctAnnualP25,
+      highlight: false,
+    },
+    {
+      label: "Mediana (p50)",
+      eur: pwr.eurPerMonthMedian,
+      pct: pwr.pctAnnualMedian,
+      highlight: true,
+    },
+    {
+      label: "Optimista (p75)",
+      eur: pwr.eurPerMonthP75,
+      pct: pwr.pctAnnualP75,
+      highlight: false,
+    },
+  ];
+
+  items.forEach((it, i) => {
+    const x = margin + i * (boxW + 3);
+    if (it.highlight) {
+      doc.setFillColor(224, 231, 255); // indigo-100
+      doc.setDrawColor(C.indigo[0], C.indigo[1], C.indigo[2]);
+      doc.setLineWidth(0.5);
+    } else {
+      doc.setFillColor(238, 242, 255); // indigo-50
+      doc.setDrawColor(199, 210, 254);
+      doc.setLineWidth(0.3);
+    }
+    doc.roundedRect(x, y, boxW, boxH, 2, 2, "FD");
+    // Label
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(...C.indigo);
+    doc.text(it.label.toUpperCase(), x + 3, y + 6);
+    // Value €/mes
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(it.highlight ? 14 : 12);
+    doc.text(`${fmtEUR0.format(it.eur)}/mes`, x + 3, y + 15);
+    // % real anual
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text(`${it.pct.toFixed(2)}% real anual`, x + 3, y + 22);
+  });
+
+  doc.setTextColor(...C.text);
 }
 
 // -----------------------------------------------------------------------------

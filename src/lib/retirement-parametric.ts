@@ -84,6 +84,25 @@ export interface ParametricResult {
     capitalAtRetirementReal: number;
     pathsAnalyzed: number;
     scenarios: WithdrawalScenario[];
+    /**
+     * PWR clásica (perpetua): la cartera mantiene capital real constante si
+     * sus retornos coinciden con el CAGR real geom. NO es por escenarios de
+     * éxito (eso es SWR); es una propiedad de la cartera de distribución.
+     * Mostramos la mediana del CAGR real cross-paths como punto central y
+     * p25/p75 como rango razonable.
+     */
+    pwrPerpetual: {
+      /** PWR mediana (€/mes) — punto central. */
+      eurPerMonthMedian: number;
+      /** PWR mediana (% real anual). */
+      pctAnnualMedian: number;
+      /** PWR en el percentil 25 (€/mes) — escenarios menos favorables. */
+      eurPerMonthP25: number;
+      pctAnnualP25: number;
+      /** PWR en el percentil 75 (€/mes) — escenarios más favorables. */
+      eurPerMonthP75: number;
+      pctAnnualP75: number;
+    };
   };
 
   warnings: string[];
@@ -552,6 +571,7 @@ export function runParametricRetirement(config: ParametricConfig): ParametricRes
   };
   const swrPerPath: number[] = [];
   const pwrPerPath: number[] = [];
+  const cagrsRealPerPath: number[] = [];
   const capitalsAtRetirement: number[] = [];
   const yearsPost = (totalMonths - monthsAcc) / 12;
   for (let i = 0; i < numPaths && retMonths > 0; i++) {
@@ -565,15 +585,44 @@ export function runParametricRetirement(config: ParametricConfig): ParametricRes
     pwrPerPath.push(
       pwrFromCagrReal(p.capitalAtRetirementReal, capitalFinalReal, yearsPost)
     );
+    // CAGR real geom del path (puede ser negativo en paths adversos). Lo
+    // recogemos cross-paths para calcular la PWR clásica perpetua como un
+    // único número con su rango.
+    if (yearsPost > 0 && capitalFinalReal > 0) {
+      cagrsRealPerPath.push(
+        Math.pow(capitalFinalReal / p.capitalAtRetirementReal, 1 / yearsPost) - 1
+      );
+    } else if (yearsPost > 0) {
+      // Cartera agotada sin retiradas (raro): CAGR equivalente a -100%
+      cagrsRealPerPath.push(-1);
+    }
   }
   swrPerPath.sort((a, b) => a - b);
   pwrPerPath.sort((a, b) => a - b);
+  cagrsRealPerPath.sort((a, b) => a - b);
   capitalsAtRetirement.sort((a, b) => a - b);
   const capitalAtRetirementReal = percentile(capitalsAtRetirement, 50);
   const toPctAnnual = (eurMonth: number): number =>
     capitalAtRetirementReal > 0
       ? (eurMonth * 12 / capitalAtRetirementReal) * 100
       : 0;
+
+  // PWR clásica perpetua: K × CAGR real geom. Punto central = mediana,
+  // rango = p25/p75 para reflejar incertidumbre sin meterse en colas
+  // extremas que no son significativas para PWR.
+  const cagrMedian = percentile(cagrsRealPerPath, 50);
+  const cagrP25 = percentile(cagrsRealPerPath, 25);
+  const cagrP75 = percentile(cagrsRealPerPath, 75);
+  const pwrPerpEur = (cagrPct: number): number =>
+    Math.max(0, (capitalAtRetirementReal * cagrPct) / 12);
+  const pwrPerpetual = {
+    eurPerMonthMedian: pwrPerpEur(cagrMedian),
+    pctAnnualMedian: cagrMedian * 100,
+    eurPerMonthP25: pwrPerpEur(cagrP25),
+    pctAnnualP25: cagrP25 * 100,
+    eurPerMonthP75: pwrPerpEur(cagrP75),
+    pctAnnualP75: cagrP75 * 100,
+  };
 
   const SCENARIO_DEFS = [
     { label: "Bengen", key: "bengen", percentile: 1 },
@@ -628,6 +677,7 @@ export function runParametricRetirement(config: ParametricConfig): ParametricRes
       capitalAtRetirementReal,
       pathsAnalyzed: swrPerPath.length,
       scenarios,
+      pwrPerpetual,
     },
     warnings,
   };
