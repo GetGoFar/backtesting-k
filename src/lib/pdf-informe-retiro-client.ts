@@ -192,7 +192,7 @@ function drawHeader(
 
 interface VerdictCopy {
   tone: "great" | "ok" | "tight" | "bad";
-  emoji: string;
+  badge: string;
   title: string;
   body: string;
 }
@@ -205,31 +205,31 @@ function pickVerdict(
   if (probPct >= 90) {
     return {
       tone: "great",
-      emoji: "🎉",
+      badge: "Plan sólido",
       title: `${nameTag}vas a poder permitirte ese crucero (y el siguiente)`,
-      body: `Plan sólido — tu cartera aguanta en el ${probPct.toFixed(0)}% de los escenarios simulados. Si mantienes la disciplina (aportar lo previsto, no tocar el capital en mercados malos, evitar productos bancarios con comisiones que te roben el alfa), llegas a la jubilación con margen para vivir y dejar herencia. Lo difícil ahora no es el plan; es no salirse de él.`,
+      body: `Tu cartera aguanta en el ${probPct.toFixed(0)}% de los escenarios simulados. Si mantienes la disciplina (aportar lo previsto, no tocar el capital en mercados malos, evitar productos bancarios con comisiones que te roben el alfa), llegas a la jubilación con margen para vivir y dejar herencia. Lo difícil ahora no es el plan; es no salirse de él.`,
     };
   }
   if (probPct >= 75) {
     return {
       tone: "ok",
-      emoji: "🟢",
+      badge: "Plan razonable",
       title: `${nameTag}vas bien encaminado — el plan funciona, con asterisco`,
-      body: `Aguantas en el ${probPct.toFixed(0)}% de escenarios. No está mal, pero ese 25% restante (donde el plan se queda corto) suele ser por sequence risk en los primeros años de jubilación. Considera: un pequeño extra mensual de aportación, retrasar 1-2 años la jubilación, o reducir el retiro en años con bolsa fea. Pequeños ajustes ahora = mucha tranquilidad luego.`,
+      body: `Aguantas en el ${probPct.toFixed(0)}% de escenarios. No está mal, pero ese resto (donde el plan se queda corto) suele ser por sequence risk en los primeros años de jubilación. Considera: un pequeño extra mensual de aportación, retrasar 1-2 años la jubilación, o reducir el retiro en años con bolsa fea. Pequeños ajustes ahora = mucha tranquilidad luego.`,
     };
   }
   if (probPct >= 50) {
     return {
       tone: "tight",
-      emoji: "🟡",
+      badge: "Plan ajustado",
       title: `${nameTag}el plan respira con dificultad`,
       body: `Solo el ${probPct.toFixed(0)}% de escenarios simulados sobreviven hasta el final. Eso es echar una moneda al aire para tu jubilación — no es una posición cómoda. Las palancas que te quedan: aportar más, retrasar la jubilación, o ajustar a la baja la retirada mensual prevista. La cartera está bien; el problema son las cuentas. Toca renegociar contigo mismo.`,
     };
   }
   return {
     tone: "bad",
-    emoji: "🔴",
-    title: `${nameTag}¿te paso el teléfono de Glovo? Buscan repartidores…`,
+    badge: "Plan frágil",
+    title: `${nameTag}¿te paso el teléfono de Glovo? Buscan repartidores...`,
     body: `Mira, te lo digo con cariño: solo el ${probPct.toFixed(0)}% de los escenarios llegan al final del plan. Eso significa que la cuenta NO sale con la configuración actual. No te asustes — para eso hemos hecho la simulación, para verlo AHORA y no a los 70. Los números mandan: o aportar mucho más, o jubilarte más tarde, o vivir con bastante menos. Cuanto antes ajustes el plan, menos doloroso es el cambio.`,
   };
 }
@@ -244,53 +244,70 @@ function drawVerdict(
 ): number {
   const v = pickVerdict(results.successProbability, subscriberName);
 
-  // Paleta según tono
+  // Paleta según tono — barra lateral coloreada + fondo crema sutil (estilo EPK)
   const palette = {
-    great: { bg: [236, 253, 245], border: C.emerald, text: C.emerald },
-    ok: { bg: [240, 253, 244], border: C.emerald, text: C.emerald },
-    tight: { bg: [254, 252, 232], border: C.amber, text: C.amber },
-    bad: { bg: [254, 242, 242], border: C.red, text: C.red },
+    great: { bar: C.emerald, bg: [240, 253, 244] as [number, number, number] },
+    ok: { bar: C.emerald, bg: [240, 253, 244] as [number, number, number] },
+    tight: { bar: C.amber, bg: [254, 252, 232] as [number, number, number] },
+    bad: { bar: C.red, bg: [254, 242, 242] as [number, number, number] },
   }[v.tone];
 
   const usableW = pageW - margin * 2;
-  const padding = 5;
+  const padding = 6;
+  const barW = 3; // ancho de la barra lateral
+  const innerLeft = margin + barW + padding;
+  const innerW = usableW - barW - padding * 2;
   const titleFontSize = 12;
   const bodyFontSize = 9;
-  const lineHeight = 4.2;
+  const lineHeight = 4.4;
 
-  // Estimar altura: título + cuerpo
+  // Calcular altura: badge + título + cuerpo
   doc.setFont("helvetica", "bold");
   doc.setFontSize(titleFontSize);
-  const titleLines = doc.splitTextToSize(`${v.emoji}  ${v.title}`, usableW - padding * 2);
+  const titleLines = doc.splitTextToSize(v.title, innerW);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(bodyFontSize);
-  const bodyLines = doc.splitTextToSize(v.body, usableW - padding * 2);
+  const bodyLines = doc.splitTextToSize(v.body, innerW);
   const boxH =
-    padding + titleLines.length * 5 + 2 + bodyLines.length * lineHeight + padding;
+    padding +
+    4 + // badge
+    3 +
+    titleLines.length * 5.5 +
+    3 +
+    bodyLines.length * lineHeight +
+    padding;
 
-  // Box
-  doc.setFillColor(palette.bg[0]!, palette.bg[1]!, palette.bg[2]!);
-  doc.setDrawColor(palette.border[0], palette.border[1], palette.border[2]);
-  doc.setLineWidth(0.5);
-  doc.roundedRect(margin, y, usableW, boxH, 3, 3, "FD");
+  // Fondo crema sutil
+  doc.setFillColor(palette.bg[0], palette.bg[1], palette.bg[2]);
+  doc.rect(margin, y, usableW, boxH, "F");
+
+  // Barra lateral de color (estilo callout editorial)
+  doc.setFillColor(palette.bar[0], palette.bar[1], palette.bar[2]);
+  doc.rect(margin, y, barW, boxH, "F");
+
+  // Badge (etiqueta del veredicto)
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7.5);
+  doc.setTextColor(palette.bar[0], palette.bar[1], palette.bar[2]);
+  doc.text(v.badge.toUpperCase(), innerLeft, y + padding + 2);
 
   // Título
   doc.setFont("helvetica", "bold");
   doc.setFontSize(titleFontSize);
-  doc.setTextColor(palette.text[0], palette.text[1], palette.text[2]);
-  let cursorY = y + padding + 4;
+  doc.setTextColor(...C.navy);
+  let cursorY = y + padding + 8;
   for (const line of titleLines) {
-    doc.text(line, margin + padding, cursorY);
-    cursorY += 5;
+    doc.text(line, innerLeft, cursorY);
+    cursorY += 5.5;
   }
 
   // Cuerpo
   doc.setFont("helvetica", "normal");
   doc.setFontSize(bodyFontSize);
   doc.setTextColor(...C.text);
-  cursorY += 2;
+  cursorY += 1;
   for (const line of bodyLines) {
-    doc.text(line, margin + padding, cursorY);
+    doc.text(line, innerLeft, cursorY);
     cursorY += lineHeight;
   }
 
@@ -413,7 +430,7 @@ function drawConfigTable(
     [
       "Glide path",
       c.glidePathYears > 0
-        ? `${c.glidePathYears} años de transición A→B`
+        ? `${c.glidePathYears} años de transición A a B`
         : "Cambio instantáneo en la jubilación",
     ],
     ["Inflación", `${c.inflationAnnualPct.toFixed(1)}% anual`],
@@ -629,44 +646,80 @@ function drawSequenceRisk(
   r: ParametricResult
 ): number {
   const usableW = pageW - margin * 2;
-  const boxH = 32;
-  // Box destacado
-  doc.setFillColor(254, 242, 242); // rojo muy suave
-  doc.setDrawColor(252, 165, 165);
-  doc.setLineWidth(0.4);
-  doc.roundedRect(margin, y, usableW, boxH, 2, 2, "FD");
+  const barW = 3;
+  const padding = 6;
+  const innerLeft = margin + barW + padding;
+  const innerW = usableW - barW - padding * 2;
 
-  const dropPct = Math.abs(r.sequenceRisk.worstWindowCumulativeReturn) * 100;
+  // `worstWindowCumulativeReturn` ya viene en % desde el motor
+  // (ej. -22.4 significa -22.4%). NO multiplicar por 100 de nuevo.
+  const dropPct = Math.abs(r.sequenceRisk.worstWindowCumulativeReturn);
+  const yearsWindow = r.sequenceRisk.windowMonths / 12;
+  const title = `Caída del ${dropPct.toFixed(1)}% en los primeros ${yearsWindow.toFixed(0)} años post-jubilación`;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  const titleLines = doc.splitTextToSize(title, innerW);
+
+  const bodyText =
+    "Simulamos cómo se comporta tu plan si justo al jubilarte sufres un mercado MUY adverso (peor 1% de escenarios). Es el llamado riesgo de secuencia: una mala racha temprana puede agotar tu capital aunque la rentabilidad media sea buena.";
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  const bodyLines = doc.splitTextToSize(bodyText, innerW);
+
+  const resultadoStr = r.sequenceRisk.success
+    ? `Aun así, tu plan sobreviviría hasta los ${r.config.endAge} años con ${fmtEUR0.format(Math.max(0, r.sequenceRisk.finalValueReal))} restantes.`
+    : `En ese escenario tu plan se agotaría hacia los ${r.sequenceRisk.depletionAge?.toFixed(0) ?? "—"} años.`;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9.5);
+  const resultLines = doc.splitTextToSize(resultadoStr, innerW);
+
+  const boxH =
+    padding +
+    titleLines.length * 5.5 +
+    2 +
+    bodyLines.length * 4.4 +
+    3 +
+    resultLines.length * 5 +
+    padding;
+
+  // Fondo crema rojo suave + barra lateral
+  doc.setFillColor(254, 242, 242);
+  doc.rect(margin, y, usableW, boxH, "F");
+  doc.setFillColor(...C.red);
+  doc.rect(margin, y, barW, boxH, "F");
+
+  let cursorY = y + padding + 4;
+  // Título
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   doc.setTextColor(...C.red);
-  doc.text(
-    `Caída del ${dropPct.toFixed(1)}% en los primeros ${r.sequenceRisk.windowMonths / 12} años post-jubilación`,
-    margin + 4,
-    y + 7
-  );
-
+  for (const line of titleLines) {
+    doc.text(line, innerLeft, cursorY);
+    cursorY += 5.5;
+  }
+  cursorY += 2;
+  // Cuerpo explicativo
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(...C.text);
-  const explainText = doc.splitTextToSize(
-    "Simulamos cómo se comporta tu plan si justo al jubilarte sufres un mercado MUY adverso (peor 1% de escenarios). Es el llamado riesgo de secuencia: una mala racha temprana puede agotar tu capital aunque la rentabilidad media sea buena.",
-    usableW - 8
-  );
-  doc.text(explainText, margin + 4, y + 13);
-
+  for (const line of bodyLines) {
+    doc.text(line, innerLeft, cursorY);
+    cursorY += 4.4;
+  }
+  cursorY += 3;
+  // Resultado (verde si sobrevive, rojo si se agota)
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
+  doc.setFontSize(9.5);
   doc.setTextColor(
     r.sequenceRisk.success ? C.emerald[0] : C.red[0],
     r.sequenceRisk.success ? C.emerald[1] : C.red[1],
     r.sequenceRisk.success ? C.emerald[2] : C.red[2]
   );
-  const resultadoStr = r.sequenceRisk.success
-    ? `Aun así, tu plan sobreviviría hasta los ${r.config.endAge} años con ${fmtEUR0.format(Math.max(0, r.sequenceRisk.finalValueReal))} restantes.`
-    : `En ese escenario tu plan se agotaría hacia los ${r.sequenceRisk.depletionAge?.toFixed(0) ?? "—"} años.`;
-  const resultadoText = doc.splitTextToSize(resultadoStr, usableW - 8);
-  doc.text(resultadoText, margin + 4, y + boxH - 4);
+  for (const line of resultLines) {
+    doc.text(line, innerLeft, cursorY);
+    cursorY += 5;
+  }
 
   doc.setTextColor(...C.text);
   return y + boxH;
@@ -698,7 +751,7 @@ function drawCta(doc: jsPDF, pageW: number, margin: number, y: number): void {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(...C.coral);
-  doc.text("→ elproyectok.com", margin + 5, y + 28);
+  doc.text("Visita elproyectok.com", margin + 5, y + 28);
 
   doc.setTextColor(...C.text);
 }
