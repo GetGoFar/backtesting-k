@@ -125,7 +125,7 @@ interface SecurityLevel {
 const SECURITY_LEVELS: SecurityLevel[] = [
   { pct: 99, label: "No me fío un pelo", scenarioKey: "bengen", emoji: "🛡️" },
   { pct: 95, label: "Soy optimista", scenarioKey: "agorero", emoji: "🙂" },
-  { pct: 75, label: "Soy muy optimista", scenarioKey: "conservador", emoji: "😎" },
+  { pct: 75, label: "Me gusta vivir al límite", scenarioKey: "conservador", emoji: "😎" },
   { pct: 50, label: "A lo loco", scenarioKey: "medio", emoji: "🎲" },
 ];
 
@@ -403,29 +403,52 @@ type WithdrawalStrategy = "spend-all" | "preserve";
  *      escenarios (tasa perpetua al p5).
  *  Como preservar es más exigente que no agotar, herencia siempre pide
  *  aportar más que morir-con-cero — que es lo lógico. */
-const GUIDED_CONFIDENCE = 95;
+const GUIDED_CONFIDENCE = 95; // nivel preseleccionado por defecto
 
-/** €/mes que puede retirar según la estrategia, AMBOS al 95% de confianza. */
-function getWithdrawalValue(
-  result: ParametricResult,
-  strategy: WithdrawalStrategy
+/** PWR (€/mes) al nivel de seguridad pedido. El percentil del PWR mapea al
+ *  nivel: conservar capital en el X% de escenarios = percentil (100-X). */
+function pwrEurAtLevel(
+  pwr: ParametricResult["withdrawalRates"]["pwrPerpetual"],
+  level: number
 ): number {
-  if (strategy === "spend-all") {
-    // SWR Agorero (p5) = no agotar en el 95% de escenarios.
-    const s = result.withdrawalRates.scenarios.find((x) => x.key === "agorero");
-    return s ? s.swr.eurPerMonth : 0;
+  switch (level) {
+    case 99:
+      return pwr.eurPerMonthP1;
+    case 95:
+      return pwr.eurPerMonthP5;
+    case 75:
+      return pwr.eurPerMonthP25;
+    default: // 50
+      return pwr.eurPerMonthMedian;
   }
-  // PWR al p5 = conservar capital en el 95% de escenarios.
-  return result.withdrawalRates.pwrPerpetual?.eurPerMonthP5 ?? 0;
 }
 
-/** Modo A: cuánto podrá gastar al mes según la estrategia elegida.
- *  El retiro se calcula al 95% de confianza (ver getWithdrawalValue), así
- *  que la probabilidad de éxito es 95% por construcción — no hace falta
- *  recalcularla con una simulación extra. */
+/** €/mes que puede retirar según la estrategia, al nivel de seguridad pedido.
+ *  - spend-all (SWR): no agotar el capital en el `level`% de escenarios.
+ *  - preserve (PWR): conservar el capital en el `level`% de escenarios. */
+function getWithdrawalValue(
+  result: ParametricResult,
+  strategy: WithdrawalStrategy,
+  level: number
+): number {
+  if (strategy === "spend-all") {
+    const lvl =
+      SECURITY_LEVELS.find((l) => l.pct === level) ?? SECURITY_LEVELS[1]!;
+    const s = result.withdrawalRates.scenarios.find(
+      (x) => x.key === lvl.scenarioKey
+    );
+    return s ? s.swr.eurPerMonth : 0;
+  }
+  return pwrEurAtLevel(result.withdrawalRates.pwrPerpetual, level);
+}
+
+/** Modo A: cuánto podrá gastar al mes según la estrategia y el nivel de
+ *  seguridad elegidos. La probabilidad de éxito es el `level`% por
+ *  construcción — no hace falta recalcularla con una simulación extra. */
 function computeMaxSpending(
   inputs: GuidedInputs,
-  strategy: WithdrawalStrategy
+  strategy: WithdrawalStrategy,
+  level: number
 ): {
   maxMonthly: number;
   legacyMedian: number;
@@ -433,7 +456,7 @@ function computeMaxSpending(
 } {
   const config = buildGuidedConfig(inputs);
   const r = runParametricRetirement(config);
-  const maxMonthly = getWithdrawalValue(r, strategy);
+  const maxMonthly = getWithdrawalValue(r, strategy, level);
   return {
     maxMonthly,
     legacyMedian: r.medianFinalValueReal,
@@ -442,12 +465,13 @@ function computeMaxSpending(
 }
 
 /** Modo B: cuánto necesita aportar al mes para asegurar un gasto objetivo
- *  al 95% de confianza. Búsqueda binaria sobre la aportación (el retiro al
- *  95% crece monótonamente con la aportación). */
+ *  al nivel de seguridad elegido. Búsqueda binaria sobre la aportación (el
+ *  retiro al `level`% crece monótonamente con la aportación). */
 function computeRequiredContribution(
   base: Omit<GuidedInputs, "monthlyContribution">,
   targetMonthly: number,
-  strategy: WithdrawalStrategy
+  strategy: WithdrawalStrategy,
+  level: number
 ): {
   contribution: number;
   achievable: boolean;
@@ -458,7 +482,8 @@ function computeRequiredContribution(
       runParametricRetirement(
         buildGuidedConfig({ ...base, monthlyContribution: contribution })
       ),
-      strategy
+      strategy,
+      level
     );
 
   // ¿El capital inicial ya basta sin aportar nada?
@@ -495,6 +520,7 @@ type GuidedGoal = "spend" | "contribute"; // A = spend, B = contribute
 interface GuidedResult {
   goal: GuidedGoal;
   strategy: WithdrawalStrategy;
+  securityLevel: number;
   // Modo A
   maxMonthly?: number;
   legacyMedian?: number;
@@ -520,6 +546,7 @@ function GuidedWizard({
   const [monthlyAmount, setMonthlyAmount] = useState(""); // aportación (A) u objetivo (B)
   const [profileLevel, setProfileLevel] = useState<number | null>(null);
   const [strategy, setStrategy] = useState<WithdrawalStrategy | null>(null);
+  const [secLevel, setSecLevel] = useState<number>(GUIDED_CONFIDENCE);
   const [calculating, setCalculating] = useState(false);
   const [result, setResult] = useState<GuidedResult | null>(null);
 
@@ -529,12 +556,13 @@ function GuidedWizard({
     setMonthlyAmount("");
     setProfileLevel(null);
     setStrategy(null);
+    setSecLevel(GUIDED_CONFIDENCE);
     setResult(null);
   };
 
   // Pasos: 0=objetivo, 1=edad, 2=jubilación, 3=capital, 4=cantidad,
-  //        5=perfil, 6=estrategia (vivirlo todo / dejar herencia)
-  const STEPS = 7;
+  //        5=perfil, 6=estrategia, 7=nivel de seguridad
+  const STEPS = 8;
 
   const runCalc = () => {
     const strat: WithdrawalStrategy = strategy ?? "spend-all";
@@ -551,11 +579,13 @@ function GuidedWizard({
         if (goal === "spend") {
           const { maxMonthly, legacyMedian, config } = computeMaxSpending(
             inputs,
-            strat
+            strat,
+            secLevel
           );
           setResult({
             goal: "spend",
             strategy: strat,
+            securityLevel: secLevel,
             maxMonthly,
             legacyMedian,
             config,
@@ -564,10 +594,11 @@ function GuidedWizard({
         } else {
           const target = Number(monthlyAmount) || 0;
           const { contribution, achievable, config } =
-            computeRequiredContribution(inputs, target, strat);
+            computeRequiredContribution(inputs, target, strat, secLevel);
           setResult({
             goal: "contribute",
             strategy: strat,
+            securityLevel: secLevel,
             requiredContribution: contribution,
             achievable,
             config,
@@ -624,6 +655,7 @@ function GuidedWizard({
     if (step === 4) return Number(monthlyAmount) > 0;
     if (step === 5) return profileLevel !== null;
     if (step === 6) return strategy !== null;
+    if (step === 7) return secLevel > 0; // siempre hay un nivel por defecto
     return false;
   };
 
@@ -711,6 +743,9 @@ function GuidedWizard({
         )}
         {step === 6 && (
           <GuidedStepStrategy strategy={strategy} onSelect={setStrategy} />
+        )}
+        {step === 7 && (
+          <GuidedStepSecurity level={secLevel} onSelect={setSecLevel} />
         )}
       </div>
 
@@ -950,10 +985,63 @@ function GuidedStepStrategy({
         </button>
       </div>
       <p className="text-[11px] text-slate-400 mt-4 leading-relaxed">
-        Ambas se calculan al mismo nivel de seguridad ({GUIDED_CONFIDENCE}%):
-        &quot;vivirlo todo&quot; es el retiro que no agota tu capital en el 95%
-        de escenarios; &quot;dejar herencia&quot; el que lo conserva intacto en
-        el 95%. Conservar es más exigente, así que pedirá aportar algo más.
+        &quot;Vivirlo todo&quot; es el retiro que no agota tu capital;
+        &quot;dejar herencia&quot;, el que lo conserva intacto para tus
+        herederos. Conservar es más exigente, así que pedirá aportar algo más.
+        En la siguiente pregunta eliges con qué seguridad quieres el resultado.
+      </p>
+    </div>
+  );
+}
+
+// ---- Paso: nivel de seguridad (¿cuánto te fías?) ----
+function GuidedStepSecurity({
+  level,
+  onSelect,
+}: {
+  level: number;
+  onSelect: (l: number) => void;
+}) {
+  return (
+    <div className="flex-1">
+      <div className="text-3xl mb-2">🎯</div>
+      <h2 className="text-lg sm:text-2xl font-bold text-slate-900 font-serif mb-1">
+        ¿Con qué seguridad quieres saberlo?
+      </h2>
+      <p className="text-sm text-slate-500 mb-4">
+        Cuanto más te fíes del mercado, más podrás retirar — pero menos margen
+        tendrás si las cosas van mal. El 95% es un buen equilibrio.
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        {SECURITY_LEVELS.map((lvl) => {
+          const active = lvl.pct === level;
+          return (
+            <button
+              key={lvl.pct}
+              onClick={() => onSelect(lvl.pct)}
+              className={`text-left p-3 rounded-xl border-2 transition-colors ${
+                active
+                  ? "border-rose-400 bg-rose-50"
+                  : "border-slate-200 hover:border-rose-200"
+              }`}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="text-base">{lvl.emoji}</span>
+                <span className="text-lg font-bold text-slate-900">
+                  {lvl.pct}%
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-500 mt-0.5 leading-tight">
+                {lvl.label}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-[11px] text-slate-400 mt-4 leading-relaxed">
+        Significa: en ese % de los escenarios de mercado simulados, tu plan
+        cumple lo que prometemos. El 99% es lo más prudente; el 50%, lo más
+        arriesgado.
       </p>
     </div>
   );
@@ -1049,7 +1137,7 @@ function GuidedResultScreen({
         </div>
       )}
 
-      {/* Nivel de confianza — fijo al 95% por construcción del cálculo */}
+      {/* Nivel de seguridad elegido en el wizard */}
       {!(result.goal === "contribute" && !result.achievable) && (
         <div className="mt-6 max-w-md mx-auto">
           <div className="flex items-center justify-between text-xs mb-1.5">
@@ -1057,22 +1145,22 @@ function GuidedResultScreen({
               Nivel de seguridad del plan
             </span>
             <span className="font-bold text-emerald-700">
-              {GUIDED_CONFIDENCE}%
+              {result.securityLevel}%
             </span>
           </div>
           <div className="h-2.5 bg-slate-200 rounded-full overflow-hidden">
             <div
               className="h-full rounded-full bg-emerald-500"
-              style={{ width: `${GUIDED_CONFIDENCE}%` }}
+              style={{ width: `${result.securityLevel}%` }}
             />
           </div>
           <p className="text-[11px] text-slate-400 mt-1.5 text-center">
-            Calculado para que funcione en el {GUIDED_CONFIDENCE}% de los
+            Calculado para que funcione en el {result.securityLevel}% de los
             escenarios de mercado simulados:{" "}
             {result.strategy === "preserve"
-              ? `en 95 de cada 100, conservas tu capital intacto hasta los ${GUIDED_END_AGE} años para dejarlo en herencia`
-              : `en 95 de cada 100, tu dinero llega hasta los ${GUIDED_END_AGE} años sin agotarse`}
-            . Solo el 5% peor de escenarios se quedaría corto.
+              ? `en ${result.securityLevel} de cada 100, conservas tu capital intacto hasta los ${GUIDED_END_AGE} años para dejarlo en herencia`
+              : `en ${result.securityLevel} de cada 100, tu dinero llega hasta los ${GUIDED_END_AGE} años sin agotarse`}
+            . El resto de escenarios se quedaría corto.
           </p>
         </div>
       )}
@@ -1164,11 +1252,11 @@ function GuidedResultScreen({
 
       <p className="text-[11px] text-slate-400 mt-5 text-center max-w-2xl mx-auto leading-relaxed">
         Cálculo sobre 1.000 simulaciones de mercado (Monte Carlo), inflación
-        2,5%, horizonte hasta los {GUIDED_END_AGE} años. Ambas estrategias se
-        calculan al mismo nivel de seguridad ({GUIDED_CONFIDENCE}%):{" "}
+        2,5%, horizonte hasta los {GUIDED_END_AGE} años, al nivel de seguridad
+        del {result.securityLevel}% que elegiste:{" "}
         {result.strategy === "spend-all"
-          ? "el retiro que no agota el capital en el 95% de los escenarios (regla de Bengen)."
-          : "el retiro que conserva el capital en el 95% de los escenarios (tasa perpetua)."}{" "}
+          ? `el retiro que no agota el capital en el ${result.securityLevel}% de los escenarios (regla de Bengen).`
+          : `el retiro que conserva el capital en el ${result.securityLevel}% de los escenarios (tasa perpetua).`}{" "}
         Por eso dejar herencia siempre pide aportar más que vivirlo todo. Esto
         es una estimación educativa, no asesoramiento financiero personalizado.
       </p>
