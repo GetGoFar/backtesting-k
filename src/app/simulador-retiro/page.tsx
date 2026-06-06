@@ -109,6 +109,9 @@ const GUIDED_END_AGE = 95;
 const GUIDED_GLIDE_YEARS = 5;
 // URL del test de perfil de riesgo de El Proyecto K.
 const TEST_PERFIL_URL = "https://elproyectok.com/test-perfil/";
+// CTAs del final del funnel.
+const TALLER_URL = "https://elproyectok.com/inscripcion/";
+const CARTERAS_K_URL = "https://elproyectok.com/carteras-k/";
 
 // -----------------------------------------------------------------------------
 // Configuración por defecto
@@ -366,77 +369,129 @@ function buildGuidedConfig(args: GuidedInputs): ParametricConfig {
   };
 }
 
-/** SWR del escenario Bengen (p1, "peor caso plausible") en €/mes reales. */
-function getBengenSwr(result: ParametricResult): number {
-  const s = result.withdrawalRates.scenarios.find((x) => x.key === "bengen");
-  return s ? s.swr.eurPerMonth : 0;
+/** Estrategia de retiro elegida en el wizard:
+ *  - "spend-all": vivirlo todo / morir con cero (SWR de Bengen, p1)
+ *  - "preserve":  dejar herencia / conservar el capital (PWR perpetua) */
+type WithdrawalStrategy = "spend-all" | "preserve";
+
+/** €/mes que puede retirar según la estrategia.
+ *  - SWR: escenario Bengen (p1, "peor caso plausible"). El criterio es no
+ *    agotar el capital antes del final — aceptando acabar cerca de 0.
+ *  - PWR: tasa perpetua mediana (CAGR real esperado). Preservar capital ya
+ *    lleva un margen de seguridad incorporado, por eso usamos la mediana y
+ *    no el peor 1% (la literatura de PWR lo respalda). */
+function getWithdrawalValue(
+  result: ParametricResult,
+  strategy: WithdrawalStrategy
+): number {
+  if (strategy === "spend-all") {
+    const s = result.withdrawalRates.scenarios.find((x) => x.key === "bengen");
+    return s ? s.swr.eurPerMonth : 0;
+  }
+  return result.withdrawalRates.pwrPerpetual?.eurPerMonthMedian ?? 0;
 }
 
-/** Modo A: cuánto podrá gastar al mes en el peor escenario. */
-function computeMaxSpending(inputs: GuidedInputs): {
+/** Probabilidad de que el plan aguante (capital > 0 al final) si se retira
+ *  `monthlyWithdrawal` €/mes. Corre una simulación adicional con la retirada
+ *  como objetivo fijo. */
+function computeSuccessProbability(
+  config: ParametricConfig,
+  monthlyWithdrawal: number
+): { successProb: number; legacyMedian: number } {
+  if (monthlyWithdrawal <= 0) {
+    const r = runParametricRetirement(config);
+    return {
+      successProb: r.successProbability,
+      legacyMedian: r.medianFinalValueReal,
+    };
+  }
+  const withWithdrawal: ParametricConfig = {
+    ...config,
+    goals: [
+      ...config.goals,
+      {
+        id: "guided-withdrawal",
+        type: "fixedWithdrawal",
+        amount: monthlyWithdrawal,
+        start: "atRetirement",
+        durationType: "untilEnd",
+        inflationAdjusted: true,
+      },
+    ],
+  };
+  const r = runParametricRetirement(withWithdrawal);
+  return {
+    successProb: r.successProbability,
+    legacyMedian: r.medianFinalValueReal,
+  };
+}
+
+/** Modo A: cuánto podrá gastar al mes según la estrategia elegida. */
+function computeMaxSpending(
+  inputs: GuidedInputs,
+  strategy: WithdrawalStrategy
+): {
   maxMonthly: number;
-  capitalAtRetirement: number;
+  successProb: number;
+  legacyMedian: number;
   config: ParametricConfig;
 } {
   const config = buildGuidedConfig(inputs);
   const r = runParametricRetirement(config);
-  return {
-    maxMonthly: getBengenSwr(r),
-    capitalAtRetirement: r.withdrawalRates.capitalAtRetirementReal,
+  const maxMonthly = getWithdrawalValue(r, strategy);
+  const { successProb, legacyMedian } = computeSuccessProbability(
     config,
-  };
+    maxMonthly
+  );
+  return { maxMonthly, successProb, legacyMedian, config };
 }
 
 /** Modo B: cuánto necesita aportar al mes para asegurar un gasto objetivo.
- *  Búsqueda binaria sobre la aportación (el SWR Bengen crece monótonamente
- *  con la aportación). */
+ *  Búsqueda binaria sobre la aportación (el retiro sostenible crece
+ *  monótonamente con la aportación). */
 function computeRequiredContribution(
   base: Omit<GuidedInputs, "monthlyContribution">,
-  targetMonthly: number
+  targetMonthly: number,
+  strategy: WithdrawalStrategy
 ): {
   contribution: number;
   achievable: boolean;
+  successProb: number;
   config: ParametricConfig;
 } {
-  const run = (contribution: number) =>
-    runParametricRetirement(
-      buildGuidedConfig({ ...base, monthlyContribution: contribution })
+  const valueFor = (contribution: number) =>
+    getWithdrawalValue(
+      runParametricRetirement(
+        buildGuidedConfig({ ...base, monthlyContribution: contribution })
+      ),
+      strategy
     );
 
   // ¿El capital inicial ya basta sin aportar nada?
-  const r0 = run(0);
-  if (getBengenSwr(r0) >= targetMonthly) {
-    return {
-      contribution: 0,
-      achievable: true,
-      config: buildGuidedConfig({ ...base, monthlyContribution: 0 }),
-    };
+  if (valueFor(0) >= targetMonthly) {
+    const config = buildGuidedConfig({ ...base, monthlyContribution: 0 });
+    const { successProb } = computeSuccessProbability(config, targetMonthly);
+    return { contribution: 0, achievable: true, successProb, config };
   }
 
   // Techo de búsqueda
   const HI = 15000;
-  const rHi = run(HI);
-  if (getBengenSwr(rHi) < targetMonthly) {
-    // Ni aportando el máximo se llega
-    return {
-      contribution: HI,
-      achievable: false,
-      config: buildGuidedConfig({ ...base, monthlyContribution: HI }),
-    };
+  if (valueFor(HI) < targetMonthly) {
+    const config = buildGuidedConfig({ ...base, monthlyContribution: HI });
+    return { contribution: HI, achievable: false, successProb: 0, config };
   }
 
   let lo = 0;
   let hi = HI;
   for (let i = 0; i < 16; i++) {
     const mid = (lo + hi) / 2;
-    if (getBengenSwr(run(mid)) < targetMonthly) lo = mid;
+    if (valueFor(mid) < targetMonthly) lo = mid;
     else hi = mid;
   }
-  return {
-    contribution: Math.ceil(hi / 10) * 10, // redondear a 10€
-    achievable: true,
-    config: buildGuidedConfig({ ...base, monthlyContribution: hi }),
-  };
+  const contribution = Math.ceil(hi / 10) * 10;
+  const config = buildGuidedConfig({ ...base, monthlyContribution: hi });
+  const { successProb } = computeSuccessProbability(config, targetMonthly);
+  return { contribution, achievable: true, successProb, config };
 }
 
 // -----------------------------------------------------------------------------
@@ -447,12 +502,15 @@ type GuidedGoal = "spend" | "contribute"; // A = spend, B = contribute
 
 interface GuidedResult {
   goal: GuidedGoal;
+  strategy: WithdrawalStrategy;
   // Modo A
   maxMonthly?: number;
+  legacyMedian?: number;
   // Modo B
   requiredContribution?: number;
   achievable?: boolean;
   // Común
+  successProb: number;
   config: ParametricConfig;
   inputs: GuidedInputs;
   targetMonthly?: number;
@@ -470,6 +528,7 @@ function GuidedWizard({
   const [initialCapital, setInitialCapital] = useState("30000");
   const [monthlyAmount, setMonthlyAmount] = useState(""); // aportación (A) u objetivo (B)
   const [profileLevel, setProfileLevel] = useState<number | null>(null);
+  const [strategy, setStrategy] = useState<WithdrawalStrategy | null>(null);
   const [calculating, setCalculating] = useState(false);
   const [result, setResult] = useState<GuidedResult | null>(null);
 
@@ -478,13 +537,16 @@ function GuidedWizard({
     setStep(0);
     setMonthlyAmount("");
     setProfileLevel(null);
+    setStrategy(null);
     setResult(null);
   };
 
-  // Pasos: 0=objetivo, 1=edad, 2=jubilación, 3=capital, 4=cantidad, 5=perfil
-  const STEPS = 6;
+  // Pasos: 0=objetivo, 1=edad, 2=jubilación, 3=capital, 4=cantidad,
+  //        5=perfil, 6=estrategia (vivirlo todo / dejar herencia)
+  const STEPS = 7;
 
   const runCalc = () => {
+    const strat: WithdrawalStrategy = strategy ?? "spend-all";
     const inputs: GuidedInputs = {
       currentAge: Math.round(Number(currentAge) || 0),
       retirementAge: Math.round(Number(retirementAge) || 0),
@@ -496,16 +558,27 @@ function GuidedWizard({
     setTimeout(() => {
       try {
         if (goal === "spend") {
-          const { maxMonthly, config } = computeMaxSpending(inputs);
-          setResult({ goal: "spend", maxMonthly, config, inputs });
+          const { maxMonthly, successProb, legacyMedian, config } =
+            computeMaxSpending(inputs, strat);
+          setResult({
+            goal: "spend",
+            strategy: strat,
+            maxMonthly,
+            legacyMedian,
+            successProb,
+            config,
+            inputs,
+          });
         } else {
           const target = Number(monthlyAmount) || 0;
-          const { contribution, achievable, config } =
-            computeRequiredContribution(inputs, target);
+          const { contribution, achievable, successProb, config } =
+            computeRequiredContribution(inputs, target, strat);
           setResult({
             goal: "contribute",
+            strategy: strat,
             requiredContribution: contribution,
             achievable,
+            successProb,
             config,
             inputs,
             targetMonthly: target,
@@ -559,6 +632,7 @@ function GuidedWizard({
     if (step === 3) return Number(initialCapital) >= 0 && initialCapital !== "";
     if (step === 4) return Number(monthlyAmount) > 0;
     if (step === 5) return profileLevel !== null;
+    if (step === 6) return strategy !== null;
     return false;
   };
 
@@ -643,6 +717,9 @@ function GuidedWizard({
             level={profileLevel}
             onSelect={setProfileLevel}
           />
+        )}
+        {step === 6 && (
+          <GuidedStepStrategy strategy={strategy} onSelect={setStrategy} />
         )}
       </div>
 
@@ -831,6 +908,65 @@ function GuidedStepProfile({
   );
 }
 
+// ---- Paso: estrategia de retiro (vivirlo todo / dejar herencia) ----
+function GuidedStepStrategy({
+  strategy,
+  onSelect,
+}: {
+  strategy: WithdrawalStrategy | null;
+  onSelect: (s: WithdrawalStrategy) => void;
+}) {
+  return (
+    <div className="flex-1">
+      <div className="text-3xl mb-2">🤔</div>
+      <h2 className="text-lg sm:text-2xl font-bold text-slate-900 font-serif mb-1">
+        Cuando te jubiles, ¿qué prefieres?
+      </h2>
+      <p className="text-sm text-slate-500 mb-4">
+        Esto cambia cuánto puedes retirar: exprimir tu dinero da más margen;
+        conservarlo deja un legado pero pide más.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <button
+          onClick={() => onSelect("spend-all")}
+          className={`text-left p-4 rounded-xl border-2 transition-colors ${
+            strategy === "spend-all"
+              ? "border-rose-400 bg-rose-50"
+              : "border-slate-200 hover:border-rose-200"
+          }`}
+        >
+          <div className="text-2xl mb-1">🏖️</div>
+          <div className="font-semibold text-slate-900">Vivirlo todo</div>
+          <div className="text-xs text-slate-500 mt-1">
+            Aprovechas tu dinero al máximo. Puede agotarse justo al final de tu
+            vida — &quot;morir con cero&quot;.
+          </div>
+        </button>
+        <button
+          onClick={() => onSelect("preserve")}
+          className={`text-left p-4 rounded-xl border-2 transition-colors ${
+            strategy === "preserve"
+              ? "border-indigo-400 bg-indigo-50"
+              : "border-slate-200 hover:border-indigo-200"
+          }`}
+        >
+          <div className="text-2xl mb-1">🎁</div>
+          <div className="font-semibold text-slate-900">Dejar herencia</div>
+          <div className="text-xs text-slate-500 mt-1">
+            No tocas el capital: vives de los rendimientos y lo conservas
+            intacto para tus herederos.
+          </div>
+        </button>
+      </div>
+      <p className="text-[11px] text-slate-400 mt-4 leading-relaxed">
+        &quot;Vivirlo todo&quot; usa la regla de Bengen (retiro seguro sin
+        agotarte antes de los {GUIDED_END_AGE}). &quot;Dejar herencia&quot; usa
+        la tasa perpetua que mantiene tu capital en términos reales.
+      </p>
+    </div>
+  );
+}
+
 // ---- Pantalla de resultado ----
 function GuidedResultScreen({
   result,
@@ -850,7 +986,9 @@ function GuidedResultScreen({
       {result.goal === "spend" ? (
         <div className="text-center">
           <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2">
-            En el peor escenario (peor 1% de mercados)
+            {result.strategy === "spend-all"
+              ? "Vivirlo todo (morir con cero)"
+              : "Dejar herencia (conservar el capital)"}
           </p>
           <p className="text-sm text-slate-600 mb-1">Podrás gastar hasta</p>
           <p className="text-4xl sm:text-6xl font-bold text-emerald-700 font-serif">
@@ -861,9 +999,9 @@ function GuidedResultScreen({
             </span>
           </p>
           <p className="text-sm text-slate-600 mt-3 max-w-lg mx-auto leading-relaxed">
-            Durante toda tu jubilación (hasta los {GUIDED_END_AGE} años), en
-            dinero de hoy y sin que se te agote el capital — incluso si te toca
-            uno de los peores arranques de mercado.
+            {result.strategy === "spend-all"
+              ? `Durante toda tu jubilación (hasta los ${GUIDED_END_AGE} años), en dinero de hoy, exprimiendo tu capital hasta el final — incluso si te toca uno de los peores arranques de mercado.`
+              : `Viviendo solo de los rendimientos, sin tocar tu capital, que se mantiene intacto en términos reales para dejarlo en herencia. En dinero de hoy.`}
           </p>
         </div>
       ) : (
@@ -915,6 +1053,48 @@ function GuidedResultScreen({
         </div>
       )}
 
+      {/* Probabilidad de éxito */}
+      {!(result.goal === "contribute" && !result.achievable) && (
+        <div className="mt-6 max-w-md mx-auto">
+          <div className="flex items-center justify-between text-xs mb-1.5">
+            <span className="font-semibold text-slate-600">
+              Probabilidad de que el plan aguante
+            </span>
+            <span
+              className={`font-bold ${
+                result.successProb >= 90
+                  ? "text-emerald-700"
+                  : result.successProb >= 75
+                  ? "text-amber-600"
+                  : "text-red-600"
+              }`}
+            >
+              {result.successProb.toFixed(0)}%
+            </span>
+          </div>
+          <div className="h-2.5 bg-slate-200 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full ${
+                result.successProb >= 90
+                  ? "bg-emerald-500"
+                  : result.successProb >= 75
+                  ? "bg-amber-500"
+                  : "bg-red-500"
+              }`}
+              style={{ width: `${Math.min(100, result.successProb)}%` }}
+            />
+          </div>
+          <p className="text-[11px] text-slate-400 mt-1.5 text-center">
+            En {result.successProb.toFixed(0)} de cada 100 escenarios de mercado
+            simulados, tu dinero llega hasta los {GUIDED_END_AGE} años
+            {result.strategy === "preserve"
+              ? " conservando tu capital"
+              : ""}
+            .
+          </p>
+        </div>
+      )}
+
       {/* Resumen del plan */}
       <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
         <div className="bg-white/70 rounded-lg p-2.5 border border-slate-100">
@@ -951,8 +1131,41 @@ function GuidedResultScreen({
         </div>
       </div>
 
-      {/* Acciones */}
-      <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
+      {/* CTA — cierre del funnel hacia el taller / Carteras K */}
+      <div className="mt-7 bg-slate-900 rounded-xl p-5 sm:p-6 text-center">
+        <h3 className="text-lg sm:text-xl font-bold text-white font-serif">
+          {result.goal === "contribute" && !result.achievable
+            ? "Hablemos de tu plan"
+            : "¿Y ahora cómo lo hago realidad?"}
+        </h3>
+        <p className="text-sm text-slate-300 mt-2 max-w-xl mx-auto leading-relaxed">
+          Tener el número es el primer paso. El siguiente es construir la
+          cartera, mantener la disciplina y no pagar comisiones que se coman tu
+          rentabilidad. En El Proyecto K te enseñamos a hacerlo — o lo hacemos
+          contigo.
+        </p>
+        <div className="mt-4 flex flex-col sm:flex-row gap-3 justify-center">
+          <a
+            href={TALLER_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-6 py-3 text-sm font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors"
+          >
+            🎓 Apúntate al taller
+          </a>
+          <a
+            href={CARTERAS_K_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-6 py-3 text-sm font-bold text-slate-900 bg-white hover:bg-slate-100 rounded-lg transition-colors"
+          >
+            Descubre las Carteras K →
+          </a>
+        </div>
+      </div>
+
+      {/* Acciones secundarias */}
+      <div className="mt-5 flex flex-col sm:flex-row gap-3 justify-center">
         <button
           onClick={onRestart}
           className="px-5 py-2.5 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
