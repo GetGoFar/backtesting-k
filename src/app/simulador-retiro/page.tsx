@@ -1661,6 +1661,23 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
   );
   const swrAtLevel = activeScenario?.swr.eurPerMonth ?? 0;
   const swrPctAtLevel = activeScenario?.swr.pctAnnual ?? 0;
+
+  // PWR (tasa perpetua para preservar capital) al MISMO nivel de seguridad.
+  // El percentil del PWR mapea al nivel: conservar capital en el X% de
+  // escenarios = percentil (100-X) del CAGR real.
+  const pwr = withdrawalRates.pwrPerpetual;
+  const pwrAtLevel = (() => {
+    switch (securityLevel) {
+      case 99:
+        return { eur: pwr.eurPerMonthP1, pct: pwr.pctAnnualP1 };
+      case 95:
+        return { eur: pwr.eurPerMonthP5, pct: pwr.pctAnnualP5 };
+      case 75:
+        return { eur: pwr.eurPerMonthP25, pct: pwr.pctAnnualP25 };
+      default: // 50
+        return { eur: pwr.eurPerMonthMedian, pct: pwr.pctAnnualMedian };
+    }
+  })();
   // El aviso de "supera lo sostenible" compara la retirada FIJA con el SWR
   // del nivel de seguridad elegido.
   const overdraw =
@@ -2065,64 +2082,33 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
-            <div className="bg-white/70 rounded-lg p-3 border border-indigo-100">
-              <div className="text-[10px] uppercase tracking-wider text-indigo-500 font-semibold">
-                Conservador (p25)
-              </div>
-              <div className="text-xl font-bold text-indigo-700 font-mono mt-1">
-                {fmtEUR(withdrawalRates.pwrPerpetual.eurPerMonthP25)}
-                <span className="text-xs font-normal text-indigo-500">
-                  {" "}
-                  /mes
-                </span>
-              </div>
-              <div className="text-xs text-indigo-600 mt-0.5">
-                {fmtPct(withdrawalRates.pwrPerpetual.pctAnnualP25)} real anual
-              </div>
-            </div>
-            <div className="bg-indigo-100 rounded-lg p-3 border-2 border-indigo-300 shadow-sm">
-              <div className="text-[10px] uppercase tracking-wider text-indigo-700 font-bold">
-                Mediana (p50) ⭐
-              </div>
-              <div className="text-2xl font-bold text-indigo-800 font-mono mt-1">
-                {fmtEUR(withdrawalRates.pwrPerpetual.eurPerMonthMedian)}
-                <span className="text-xs font-normal text-indigo-600">
-                  {" "}
-                  /mes
-                </span>
-              </div>
-              <div className="text-xs text-indigo-700 mt-0.5 font-semibold">
-                {fmtPct(withdrawalRates.pwrPerpetual.pctAnnualMedian)} real
-                anual
-              </div>
-            </div>
-            <div className="bg-white/70 rounded-lg p-3 border border-indigo-100">
-              <div className="text-[10px] uppercase tracking-wider text-indigo-500 font-semibold">
-                Optimista (p75)
-              </div>
-              <div className="text-xl font-bold text-indigo-700 font-mono mt-1">
-                {fmtEUR(withdrawalRates.pwrPerpetual.eurPerMonthP75)}
-                <span className="text-xs font-normal text-indigo-500">
-                  {" "}
-                  /mes
-                </span>
-              </div>
-              <div className="text-xs text-indigo-600 mt-0.5">
-                {fmtPct(withdrawalRates.pwrPerpetual.pctAnnualP75)} real anual
-              </div>
-            </div>
+          {/* Cifra PWR al MISMO nivel de seguridad elegido arriba */}
+          <div className="mt-3 bg-white/70 rounded-xl border border-indigo-200 p-5 text-center">
+            <p className="text-[10px] uppercase tracking-wider text-indigo-500 font-semibold">
+              Con {securityLevel}% de seguridad, para no tocar tu capital
+            </p>
+            <p className="text-3xl sm:text-5xl font-bold text-indigo-700 font-serif mt-1">
+              {fmtEUR(pwrAtLevel.eur)}
+              <span className="text-lg sm:text-2xl text-indigo-300 font-normal">
+                {" "}
+                /mes
+              </span>
+            </p>
+            <p className="text-sm text-indigo-500 mt-1">
+              {fmtPct(pwrAtLevel.pct)} real anual · conservas el capital intacto
+            </p>
+            <p className="text-[11px] text-indigo-600/80 mt-2 max-w-lg mx-auto leading-relaxed">
+              {pwrAtLevel.eur <= 0
+                ? `Al ${securityLevel}% de seguridad, esta cartera no logra preservar el capital real (en el peor de esos escenarios pierde poder adquisitivo). Para dejar herencia con esta seguridad necesitarías una cartera más rentable o gastar menos.`
+                : `Retirando esto, en el ${securityLevel}% de los escenarios tu capital se mantiene intacto en términos reales para dejarlo en herencia. Es menos que el "vivirlo todo" de arriba porque conservar es más exigente que solo no agotar.`}
+            </p>
           </div>
 
           <p className="text-[11px] text-indigo-600/80 mt-3 leading-relaxed">
-            ℹ️ Cálculo: PWR = K × CAGR_real_geométrico / 12, donde K es tu
-            capital al jubilarte y CAGR_real es el rendimiento real anualizado
-            de la cartera de distribución sobre el horizonte de la simulación.
-            La mediana representa &quot;si tu cartera rinde como se espera&quot;;
-            el rango p25-p75 cubre la mitad central de escenarios. Para
-            escenarios MÁS adversos (p1, p5) la cartera puede no preservar
-            capital — eso es información que la columna SWR ya captura (tasa
-            que aguanta sin agotar).
+            ℹ️ PWR = K × CAGR real geométrico / 12. Depende solo de la cartera
+            de distribución, no del capital ni de las aportaciones. Se calcula
+            al mismo nivel de seguridad que el SWR de arriba, para que puedas
+            comparar las dos estrategias con un único criterio.
           </p>
         </div>
         )}

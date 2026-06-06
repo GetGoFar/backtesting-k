@@ -107,6 +107,10 @@ export interface ParametricResult {
        *  Agorero (p5), para poder comparar ambas estrategias al 95%. */
       eurPerMonthP5: number;
       pctAnnualP5: number;
+      /** PWR en el percentil 1 (€/mes) — conserva el capital en el 99% de
+       *  los escenarios. Equivalente al SWR Bengen (p1). */
+      eurPerMonthP1: number;
+      pctAnnualP1: number;
     };
   };
 
@@ -619,6 +623,7 @@ export function runParametricRetirement(config: ParametricConfig): ParametricRes
   const cagrP25 = percentile(cagrsRealPerPath, 25);
   const cagrP75 = percentile(cagrsRealPerPath, 75);
   const cagrP5 = percentile(cagrsRealPerPath, 5);
+  const cagrP1 = percentile(cagrsRealPerPath, 1);
   const pwrPerpEur = (cagrPct: number): number =>
     Math.max(0, (capitalAtRetirementReal * cagrPct) / 12);
   const pwrPerpetual = {
@@ -630,6 +635,8 @@ export function runParametricRetirement(config: ParametricConfig): ParametricRes
     pctAnnualP75: cagrP75 * 100,
     eurPerMonthP5: pwrPerpEur(cagrP5),
     pctAnnualP5: cagrP5 * 100,
+    eurPerMonthP1: pwrPerpEur(cagrP1),
+    pctAnnualP1: cagrP1 * 100,
   };
 
   const SCENARIO_DEFS = [
