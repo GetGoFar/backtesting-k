@@ -1,0 +1,98 @@
+﻿#;nombre;gestora;tipo;TER%;beta;alfa10%;dq3€;dq5€;dq10€;años;proj10
+1;Santander GO RV Norteamerica A;Santander;Bancario;2.11;1.6;-20.99;50686;69218;90525;5.0;True
+2;BBVA Megatendencia Demografía;BBVA;Bancario;1.98;1.13;-14.53;37569;54396;79203;10.0;False
+3;Unicaja Renta Variable USA A;Unicaja;Bancario;2.35;1.18;-10.14;27448;41420;65684;4.9;True
+4;Santander Future Wealth A;Santander;Bancario;2.18;1.14;-9.75;26496;40133;64160;5.0;True
+5;True Value FI;True Value;Independiente;1.46;1.05;-8.81;24182;36960;60259;10.0;False
+6;Mediolanum BB Global Leaders Fund LA;Mediolanum;Bancario;3.02;1.04;-8.67;23815;36451;59615;5.0;True
+7;B&H Acciones C FI;Buy&Hold;Independiente;1.04;1.12;-8.31;22918;35198;58006;10.0;False
+8;Sabadell Europa Bolsa Futuro Base;Sabadell;Bancario;2.21;1.0;-8.05;22252;34262;56785;10.0;False
+9;Bankinter Pequeñas Compañías Europa R;Bankinter;Bancario;1.71;1.1;-7.6;21115;32652;54643;10.0;False
+10;Santander Acciones Latinoamericanas A;Santander;Bancario;2.67;0.85;-6.77;18957;29553;50373;10.0;False
+11;Kutxabank Bolsa Small & Mid Caps Estándar;Kutxabank;Bancario;1.5;0.88;-6.62;18580;29007;49600;10.0;False
+12;CaixaBank Bolsa Selección Europa Estándar;CaixaBank;Bancario;3;0.94;-6.43;18072;28266;48542;10.0;False
+13;Mediolanum BB European Collection L;Mediolanum;Bancario;2.81;0.87;-6.4;17992;28151;48377;10.0;False
+14;CaixaBank Bolsa Gestión Europa Estándar;CaixaBank;Bancario;2.49;0.91;-6.34;17838;27925;48051;10.0;False
+15;Ibercaja Bolsa Europa A;Ibercaja;Bancario;1.74;0.81;-6.07;17116;26866;46515;10.0;False
+16;Abanca Renta Variable Crecimiento Minorista;Abanca;Bancario;1.73;0.92;-6.01;16975;26659;46210;10.0;False
+17;BBVA Megatendencia Planeta Tierra ISR A;BBVA;Bancario;1.92;0.85;-5.98;16900;26548;46049;10.0;False
+18;Santander Sostenible Acciones A;Santander;Bancario;1.7;0.83;-5.96;16848;26472;45936;5.0;True
+19;Kutxabank Bolsa Eurozona Estándar;Kutxabank;Bancario;2;0.93;-5.83;16480;25928;45134;10.0;False
+20;BBVA Bolsa Europa A;BBVA;Bancario;2.42;0.92;-5.25;14940;23638;41689;10.0;False
+21;Kutxabank Bolsa Sectorial Estándar;Kutxabank;Bancario;2.4;0.95;-5.25;14931;23625;41668;10.0;False
+22;Bestinver Internacional FI;Bestinver;Independiente;1.8;1.05;-5.17;14731;23325;41210;10.0;False
+23;Sabadell España Bolsa Futuro Base;Sabadell;Bancario;2.21;0.96;-5.16;14708;23291;41157;10.0;False
+24;Bankinter Finanzas Globales R;Bankinter;Bancario;1.61;1.0;-5.15;14678;23246;41088;10.0;False
+25;Kutxabank Bolsa Internacional Estándar;Kutxabank;Bancario;2.4;0.98;-5.11;14558;23066;40811;10.0;False
+26;CaixaBank Bolsa Selección Global Estándar;CaixaBank;Bancario;2.66;1.03;-5.03;14337;22734;40299;10.0;False
+27;Abanca Renta Variable Dividendo Minorista;Abanca;Bancario;1.71;0.77;-4.95;14116;22402;39786;10.0;False
+28;Kutxabank Bolsa EEUU Estándar;Kutxabank;Bancario;2;1.06;-4.73;13520;21502;38381;10.0;False
+29;Santander Acciones Euro A;Santander;Bancario;2.3;0.89;-4.71;13467;21422;38256;10.0;False
+30;Bankinter Índice Global R;Bankinter;Bancario;1.15;1.07;-4.66;13327;21210;37922;5.0;True
+31;CaixaBank Bolsa Gestión Euro Estándar;CaixaBank;Bancario;2.45;0.94;-4.63;13260;21108;37761;10.0;False
+32;BBVA Bolsa FI;BBVA;Bancario;2.41;0.82;-4.45;12761;20351;36560;10.0;False
+33;Mediolanum BB Dynamic Collection L A;Mediolanum;Bancario;2.76;0.76;-4.42;12672;20215;36344;10.0;False
+34;Mediolanum Challenge International Equity L;Mediolanum;Bancario;2.78;0.99;-4.37;12551;20030;36048;10.0;False
+35;Mediolanum BB New Opportunities Collection LA;Mediolanum;Bancario;2.92;0.58;-4.23;12156;19427;35080;10.0;False
+36;Mediolanum BB Emerging Markets Collection L A;Mediolanum;Bancario;3.21;0.84;-4.16;11958;19125;34592;10.0;False
+37;Numantia Patrimonio Global FI;Numantia;Independiente;1.39;1.24;-3.92;11306;18124;32963;10.0;False
+38;Unicaja RV Europa Selección A;Unicaja;Bancario;1.91;0.79;-3.89;11235;18014;32784;10.0;False
+39;Santander Future Us Tech A;Santander;Bancario;1.63;0.83;-3.87;11180;17930;32645;10.0;False
+40;Mediolanum BB Socially Responsible Collection LA;Mediolanum;Bancario;2.89;0.77;-3.83;11049;17728;32313;10.0;False
+41;CaixaBank Bolsa Dividendo Europa Estándar;CaixaBank;Bancario;2.56;0.74;-3.81;11005;17661;32202;10.0;False
+42;CaixaBank Selección Tendencias Estándar;CaixaBank;Bancario;2.64;1.07;-3.76;10872;17455;31863;10.0;False
+43;Bankinter Dividendo Europa R;Bankinter;Bancario;1.7;0.89;-3.73;10784;17319;31638;10.0;False
+44;Compromiso Mediolanum L;Mediolanum;Bancario;1.6;0.43;-3.67;10605;17043;31181;9.9;False
+45;CaixaBank Bolsa Selección USA Estándar;CaixaBank;Bancario;2.79;1.1;-3.67;10598;17031;31162;10.0;False
+46;Quality Mejores Ideas;BBVA;Bancario;2;0.95;-3.6;10424;16763;30716;10.0;False
+47;Bankinter Indice Salud R;Bankinter;Bancario;1.03;0.56;-3.51;10166;16363;30048;5.0;True
+48;Ibercaja Bolsa Internacional A;Ibercaja;Bancario;2.02;1.0;-3.45;10004;16111;29626;10.0;False
+49;CaixaBank Multisalud Estándar;CaixaBank;Bancario;1.94;0.68;-3.4;9865;15894;29262;10.0;False
+50;Kutxabank Bolsa Emergentes Estándar;Kutxabank;Bancario;2.6;0.79;-3.4;9858;15884;29245;10.0;False
+51;CaixaBank Bolsa Improvers Estándar;CaixaBank;Bancario;1.87;0.61;-3.07;8943;14456;26823;10.0;False
+52;Kutxabank Bolsa Estándar;Kutxabank;Bancario;2;0.83;-3.01;8751;14155;26307;10.0;False
+53;Mediolanum BB US Collection L;Mediolanum;Bancario;2.66;1.06;-2.99;8708;14088;26191;10.0;False
+54;Bankinter Índice Europeo R;Bankinter;Bancario;1.18;0.94;-2.98;8683;14048;26123;10.0;False
+55;Bestinver Grandes Compañías FI;Bestinver;Independiente;1.6;0.79;-2.95;8585;13894;25858;10.0;False
+56;BBVA Bolsa Índice Euro;BBVA;Bancario;1.23;0.96;-2.86;8346;13520;25212;10.0;False
+57;Quality Inversión Decidida;BBVA;Bancario;2.14;0.71;-2.81;8183;13263;24767;10.0;False
+58;Mediolanum BB Pacific Collection L;Mediolanum;Bancario;2.96;0.83;-2.75;8022;13009;24326;10.0;False
+59;CaixaBank Bolsa Selección Emergente Estándar;CaixaBank;Bancario;2.94;0.87;-2.74;7990;12959;24239;10.0;False
+60;Bankinter Bolsa España R;Bankinter;Bancario;1.7;0.8;-2.72;7932;12868;24080;10.0;False
+61;Bankinter Emergentes R;Bankinter;Bancario;1.28;0.77;-2.7;7870;12769;23908;5.0;True
+62;BBVA Bolsa Emergentes MF;BBVA;Bancario;2.31;0.8;-2.66;7759;12594;23602;10.0;False
+63;BBVA Bolsa Plan Dividendo Europa;BBVA;Bancario;1.82;0.75;-2.6;7603;12348;23171;10.0;False
+64;Santander Acciones USA A;Santander;Bancario;2.69;1.1;-2.48;7262;11808;22222;10.0;False
+65;Gestión Boutique VIII Adarve Altea FI;Adarve;Independiente;1.15;0.76;-2.46;7198;11707;22043;5.0;True
+66;Valentum E FI;Valentum;Independiente;1.36;1.0;-2.41;7053;11476;21635;10.0;False
+67;Bankinter Sostenibilidad R;Bankinter;Bancario;1.7;0.94;-2.39;7006;11401;21503;10.0;False
+68;Equam Global Value B FI;Equam;Independiente;2.2;0.66;-2.3;6739;10977;20749;5.0;True
+69;CaixaBank Bolsa Índice Euro Estándar;CaixaBank;Bancario;1.16;0.96;-2.22;6505;10605;20086;10.0;False
+70;Santander Acciones Españolas A;Santander;Bancario;2.27;0.78;-2.16;6340;10341;19613;10.0;False
+71;Kutxabank Bolsa Nueva Economía Estándar;Kutxabank;Bancario;2;1.14;-2.06;6042;9866;18759;10.0;False
+72;CaixaBank Bolsa España 150 Estándar;CaixaBank;Bancario;1.7;1.26;-2.04;6006;9808;18653;10.0;False
+73;Ibercaja Bolsa USA A;Ibercaja;Bancario;2.22;1.06;-1.82;5366;8782;16792;10.0;False
+74;Magallanes European Equity M FI;Magallanes;Independiente;1.8;1.0;-1.65;4870;7984;15331;10.0;False
+75;Abanca Indice Renta Variable Global;Abanca;Bancario;0.31;1.05;-1.55;4587;7527;14487;5.0;True
+76;Bankinter Índice América R;Bankinter;Bancario;1.1;1.06;-1.53;4511;7405;14262;10.0;False
+77;BBVA Bolsa Asia MF;BBVA;Bancario;2.45;0.75;-1.33;3925;6456;12496;10.0;False
+78;Kutxabank Bolsa Japón Estándar;Kutxabank;Bancario;2;1.01;-1.3;3860;6350;12296;10.0;False
+79;Sabadell Estados Unidos Bolsa Base;Sabadell;Bancario;2.35;1.17;-1.03;3065;5056;9856;10.0;False
+80;Ibercaja Tecnológico A;Ibercaja;Bancario;2.11;1.25;-1.01;3006;4959;9673;10.0;False
+81;CaixaBank Bolsa USA Estándar;CaixaBank;Bancario;1.04;1.11;-0.86;2547;4208;8239;10.0;False
+82;Ibercaja Bolsa España A;Ibercaja;Bancario;1.75;0.73;-0.79;2358;3899;7647;10.0;False
+83;Santander Go RV Asia A;Santander;Bancario;2.2;0.86;-0.77;2280;3771;7400;10.0;False
+84;Bankinter Indice Ibex R;Bankinter;Bancario;1.13;0.83;-0.52;1566;2596;5125;10.0;False
+85;BBVA Bolsa Índice;BBVA;Bancario;1.4;0.83;-0.29;860;1429;2838;10.0;False
+86;CaixaBank Bolsa Índice España Estándar;CaixaBank;Bancario;1.46;0.83;-0.19;568;945;1881;10.0;False
+87;Sabadell Bolsas Emergentes Base;Sabadell;Bancario;2.4;0.77;-0.02;62;104;207;10.0;False
+88;CaixaBank Bolsa Gestión España Estándar;CaixaBank;Bancario;2.62;0.83;0.85;-2583;-4343;-8874;10.0;False
+89;Azvalor Internacional FI;AzValor;Independiente;1.89;0.87;1.81;-5521;-9369;-19617;10.0;False
+90;BBVA Megatendencia Tecnología A;BBVA;Bancario;2.57;1.19;2.32;-7116;-12139;-25751;10.0;False
+91;Bankinter EE.UU. Nasdaq 100 R;Bankinter;Bancario;1.3;1.21;2.53;-7772;-13285;-28336;10.0;False
+92;BBVA Bolsa Índice Japón (Cubierto);BBVA;Bancario;1.2;0.87;2.69;-8299;-14211;-30442;10.0;False
+93;Bankinter Índice Japón R;Bankinter;Bancario;1.13;0.75;2.93;-9049;-15532;-33476;10.0;False
+94;CaixaBank Comunicación Mundial Estándar;CaixaBank;Bancario;1.88;1.2;3.95;-12310;-21348;-47254;10.0;False
+95;Horos Value Internacional FI;Horos;Independiente;1.8;0.58;6.27;-20000;-35508;-83625;5.0;True
+96;Cobas Grandes Compañías D FI;Cobas;Independiente;1.29;0.64;9.24;-30361;-55564;-142003;5.0;True
+97;Cobas Internacional C FI;Cobas;Independiente;1.62;0.64;10.04;-33257;-61367;-160393;5.0;True

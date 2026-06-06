@@ -1064,26 +1064,47 @@ function GuidedResultScreen({
   return (
     <section className="bg-gradient-to-br from-emerald-50 via-white to-rose-50 rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-10">
       {result.goal === "spend" ? (
-        <div className="text-center">
-          <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2">
-            {result.strategy === "spend-all"
-              ? "Vivirlo todo (morir con cero)"
-              : "Dejar herencia (conservar el capital)"}
-          </p>
-          <p className="text-sm text-slate-600 mb-1">Podrás gastar hasta</p>
-          <p className="text-4xl sm:text-6xl font-bold text-emerald-700 font-serif">
-            {fmtEUR(result.maxMonthly ?? 0)}
-            <span className="text-xl sm:text-2xl text-slate-400 font-normal">
-              {" "}
-              /mes
-            </span>
-          </p>
-          <p className="text-sm text-slate-600 mt-3 max-w-lg mx-auto leading-relaxed">
-            {result.strategy === "spend-all"
-              ? `Durante toda tu jubilación (hasta los ${GUIDED_END_AGE} años), en dinero de hoy, exprimiendo tu capital hasta el final.`
-              : `Viviendo solo de los rendimientos, sin tocar tu capital, que se mantiene intacto en términos reales para dejarlo en herencia. En dinero de hoy.`}
-          </p>
-        </div>
+        result.strategy === "preserve" && (result.maxMonthly ?? 0) <= 0 ? (
+          // Dejar herencia pero la cartera no preserva capital real a ese
+          // nivel de seguridad: NO mostramos "0 €/mes" seco.
+          <div className="text-center">
+            <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2">
+              Dejar herencia (conservar el capital)
+            </p>
+            <div className="text-4xl mb-2">😬</div>
+            <p className="text-2xl sm:text-3xl font-bold text-rose-700 font-serif">
+              Con esta seguridad no puedes vivir solo de los rendimientos
+            </p>
+            <p className="text-sm text-slate-600 mt-3 max-w-lg mx-auto leading-relaxed">
+              Al {result.securityLevel}% de seguridad, en los peores
+              escenarios tu cartera no gana lo suficiente como para retirar
+              sin ir consumiendo capital. Para dejar herencia con esta
+              seguridad necesitarías un perfil más rentable, bajar el nivel
+              de seguridad, o elegir «vivirlo todo».
+            </p>
+          </div>
+        ) : (
+          <div className="text-center">
+            <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2">
+              {result.strategy === "spend-all"
+                ? "Vivirlo todo (morir con cero)"
+                : "Dejar herencia (conservar el capital)"}
+            </p>
+            <p className="text-sm text-slate-600 mb-1">Podrás gastar hasta</p>
+            <p className="text-4xl sm:text-6xl font-bold text-emerald-700 font-serif">
+              {fmtEUR(result.maxMonthly ?? 0)}
+              <span className="text-xl sm:text-2xl text-slate-400 font-normal">
+                {" "}
+                /mes
+              </span>
+            </p>
+            <p className="text-sm text-slate-600 mt-3 max-w-lg mx-auto leading-relaxed">
+              {result.strategy === "spend-all"
+                ? `Durante toda tu jubilación (hasta los ${GUIDED_END_AGE} años), en dinero de hoy, exprimiendo tu capital hasta el final.`
+                : `Viviendo solo de los rendimientos, sin tocar tu capital, que se mantiene intacto en términos reales para dejarlo en herencia. En dinero de hoy.`}
+            </p>
+          </div>
+        )
       ) : (
         <div className="text-center">
           {result.achievable ? (
@@ -2170,27 +2191,53 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
             </div>
           </div>
 
-          {/* Cifra PWR al MISMO nivel de seguridad elegido arriba */}
-          <div className="mt-3 bg-white/70 rounded-xl border border-indigo-200 p-5 text-center">
-            <p className="text-[10px] uppercase tracking-wider text-indigo-500 font-semibold">
-              Con {securityLevel}% de seguridad, para no tocar tu capital
-            </p>
-            <p className="text-3xl sm:text-5xl font-bold text-indigo-700 font-serif mt-1">
-              {fmtEUR(pwrAtLevel.eur)}
-              <span className="text-lg sm:text-2xl text-indigo-300 font-normal">
-                {" "}
-                /mes
-              </span>
-            </p>
-            <p className="text-sm text-indigo-500 mt-1">
-              {fmtPct(pwrAtLevel.pct)} real anual · conservas el capital intacto
-            </p>
-            <p className="text-[11px] text-indigo-600/80 mt-2 max-w-lg mx-auto leading-relaxed">
-              {pwrAtLevel.eur <= 0
-                ? `Al ${securityLevel}% de seguridad, esta cartera no logra preservar el capital real (en el peor de esos escenarios pierde poder adquisitivo). Para dejar herencia con esta seguridad necesitarías una cartera más rentable o gastar menos.`
-                : `Retirando esto, en el ${securityLevel}% de los escenarios tu capital se mantiene intacto en términos reales para dejarlo en herencia. Es menos que el "vivirlo todo" de arriba porque conservar es más exigente que solo no agotar.`}
-            </p>
-          </div>
+          {/* Cifra PWR al MISMO nivel de seguridad elegido arriba.
+              Si la cifra es 0 (la cartera no preserva capital real a ese
+              nivel), NO mostramos un "0 €" seco que parece un bug: lo
+              reemplazamos por una explicación clara. */}
+          {pwrAtLevel.eur <= 0 ? (
+            <div className="mt-3 bg-white/70 rounded-xl border border-indigo-200 p-5 text-center">
+              <p className="text-[10px] uppercase tracking-wider text-indigo-500 font-semibold">
+                Con {securityLevel}% de seguridad, para no tocar tu capital
+              </p>
+              <p className="text-lg sm:text-2xl font-bold text-indigo-700 font-serif mt-2 leading-snug">
+                Esta cartera no permite retirar nada sin ir
+                consumiendo capital
+              </p>
+              <p className="text-[12px] text-indigo-600/80 mt-2 max-w-lg mx-auto leading-relaxed">
+                Al {securityLevel}% de seguridad, en el peor de esos
+                escenarios tu cartera de distribución pierde poder
+                adquisitivo, así que cualquier retirada iría mermando la
+                herencia. Para preservar el capital con esta seguridad
+                tienes tres salidas: una cartera más rentable, bajar el
+                nivel de seguridad (arriba), o quedarte con el
+                «vivirlo todo».
+              </p>
+            </div>
+          ) : (
+            <div className="mt-3 bg-white/70 rounded-xl border border-indigo-200 p-5 text-center">
+              <p className="text-[10px] uppercase tracking-wider text-indigo-500 font-semibold">
+                Con {securityLevel}% de seguridad, para no tocar tu capital
+              </p>
+              <p className="text-3xl sm:text-5xl font-bold text-indigo-700 font-serif mt-1">
+                {fmtEUR(pwrAtLevel.eur)}
+                <span className="text-lg sm:text-2xl text-indigo-300 font-normal">
+                  {" "}
+                  /mes
+                </span>
+              </p>
+              <p className="text-sm text-indigo-500 mt-1">
+                {fmtPct(pwrAtLevel.pct)} real anual · conservas el capital
+                intacto
+              </p>
+              <p className="text-[11px] text-indigo-600/80 mt-2 max-w-lg mx-auto leading-relaxed">
+                Retirando esto, en el {securityLevel}% de los escenarios tu
+                capital se mantiene intacto en términos reales para dejarlo
+                en herencia. Es menos que el &quot;vivirlo todo&quot; de
+                arriba porque conservar es más exigente que solo no agotar.
+              </p>
+            </div>
+          )}
 
           <p className="text-[11px] text-indigo-600/80 mt-3 leading-relaxed">
             ℹ️ PWR = K × CAGR real geométrico / 12. Depende solo de la cartera
