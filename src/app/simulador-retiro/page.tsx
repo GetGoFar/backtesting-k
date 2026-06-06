@@ -71,6 +71,46 @@ const PRESETS: Preset[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// Perfiles de riesgo K1-K10 (Carteras K)
+// -----------------------------------------------------------------------------
+// Rentabilidades NOMINALES esperadas (el simulador descuenta la inflación del
+// 2.5% por separado). Curva calculada con supuestos RV 9% / RF 3.5% / Oro 5%
+// por composición de cada perfil. Volatilidad estimada según exposición a RV.
+// El perfil 4 (5.5%/7%) y el 10 (8.2%/13.5%) son coherentes con los presets
+// "Cartera K4" y "Cartera K10".
+
+interface KProfile {
+  level: number; // 1-10
+  name: string;
+  ret: number; // % nominal anual
+  vol: number; // % anual
+}
+
+const K_PROFILES: KProfile[] = [
+  { level: 1, name: "Muy Conservador", ret: 4.3, vol: 5 },
+  { level: 2, name: "Conservador", ret: 4.6, vol: 5.5 },
+  { level: 3, name: "Moderado-Conservador", ret: 5.1, vol: 6 },
+  { level: 4, name: "Moderado", ret: 5.5, vol: 7 },
+  { level: 5, name: "Moderado-Dinámico", ret: 6.3, vol: 8 },
+  { level: 6, name: "Dinámico", ret: 7.1, vol: 10 },
+  { level: 7, name: "Dinámico-Agresivo", ret: 7.4, vol: 10.5 },
+  { level: 8, name: "Agresivo", ret: 7.7, vol: 11.5 },
+  { level: 9, name: "Muy Agresivo", ret: 7.9, vol: 12.5 },
+  { level: 10, name: "Máximo Riesgo", ret: 8.2, vol: 13.5 },
+];
+
+// Perfil que se usa SIEMPRE en la fase de distribución (jubilación): K4.
+const RETIREMENT_PROFILE: KProfile = K_PROFILES[3]!; // Moderado (5.5% / 7%)
+// Inflación fija asumida en el modo guiado.
+const GUIDED_INFLATION = 2.5;
+// Horizonte del plan en el modo guiado (esperanza de vida prudente).
+const GUIDED_END_AGE = 95;
+// Años de transición (glide path) del perfil actual al K4 antes de jubilarse.
+const GUIDED_GLIDE_YEARS = 5;
+// URL del test de perfil de riesgo de El Proyecto K.
+const TEST_PERFIL_URL = "https://elproyectok.com/test-perfil/";
+
+// -----------------------------------------------------------------------------
 // Configuración por defecto
 // -----------------------------------------------------------------------------
 
@@ -118,6 +158,7 @@ function defaultConfig(): ParametricConfig {
 // -----------------------------------------------------------------------------
 
 export default function SimuladorRetiroPage() {
+  const [mode, setMode] = useState<"guided" | "advanced">("guided");
   const [config, setConfig] = useState<ParametricConfig>(defaultConfig());
   const [results, setResults] = useState<ParametricResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -204,21 +245,735 @@ export default function SimuladorRetiroPage() {
     <div ref={rootRef} className="bg-slate-50 min-h-screen">
       <div className="max-w-[1200px] mx-auto p-4 sm:p-6 space-y-6">
         <Header />
-        <ConfigPanel
-          config={config}
-          onChange={setConfig}
-          onRun={handleRun}
-          isLoading={isLoading}
-        />
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-900 text-sm">
-            ⚠ {error}
-          </div>
+        <ModeToggle mode={mode} onChange={setMode} />
+        {mode === "guided" ? (
+          <GuidedWizard
+            onSwitchToAdvanced={(c) => {
+              if (c) setConfig(c);
+              setMode("advanced");
+            }}
+          />
+        ) : (
+          <>
+            <ConfigPanel
+              config={config}
+              onChange={setConfig}
+              onRun={handleRun}
+              isLoading={isLoading}
+            />
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-900 text-sm">
+                ⚠ {error}
+              </div>
+            )}
+            {results && <ResultsPanel results={results} />}
+          </>
         )}
-        {results && <ResultsPanel results={results} />}
         <Footer />
       </div>
     </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Toggle modo guiado / avanzado
+// -----------------------------------------------------------------------------
+
+function ModeToggle({
+  mode,
+  onChange,
+}: {
+  mode: "guided" | "advanced";
+  onChange: (m: "guided" | "advanced") => void;
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-1.5 flex gap-1.5">
+      <button
+        onClick={() => onChange("guided")}
+        className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-colors ${
+          mode === "guided"
+            ? "bg-rose-600 text-white shadow-sm"
+            : "text-slate-600 hover:bg-slate-50"
+        }`}
+      >
+        🧭 Guiado
+        <span className="hidden sm:inline font-normal opacity-80">
+          {" "}
+          — respondo unas preguntas
+        </span>
+      </button>
+      <button
+        onClick={() => onChange("advanced")}
+        className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-colors ${
+          mode === "advanced"
+            ? "bg-slate-900 text-white shadow-sm"
+            : "text-slate-600 hover:bg-slate-50"
+        }`}
+      >
+        ⚙️ Avanzado
+        <span className="hidden sm:inline font-normal opacity-80">
+          {" "}
+          — controlo todos los parámetros
+        </span>
+      </button>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Lógica de cálculo del modo guiado
+// -----------------------------------------------------------------------------
+
+interface GuidedInputs {
+  currentAge: number;
+  retirementAge: number;
+  initialCapital: number;
+  monthlyContribution: number;
+  profile: KProfile;
+}
+
+/** Construye una ParametricConfig completa a partir de las respuestas del
+ *  wizard. Toda la complejidad (cartera de jubilación K4, glide path,
+ *  inflación, horizonte) queda oculta y fijada aquí. */
+function buildGuidedConfig(args: GuidedInputs): ParametricConfig {
+  const goals: FinancialGoal[] =
+    args.monthlyContribution > 0
+      ? [
+          {
+            id: "guided-contrib",
+            type: "contribution",
+            amount: args.monthlyContribution,
+            start: "immediately",
+            durationType: "untilRetirement",
+            inflationAdjusted: true,
+          },
+        ]
+      : [];
+  return {
+    currentAge: args.currentAge,
+    retirementAge: args.retirementAge,
+    endAge: GUIDED_END_AGE,
+    initialCapital: args.initialCapital,
+    goals,
+    accumulationReturn: args.profile.ret,
+    accumulationVol: args.profile.vol,
+    distributionReturn: RETIREMENT_PROFILE.ret,
+    distributionVol: RETIREMENT_PROFILE.vol,
+    glidePathYears: GUIDED_GLIDE_YEARS,
+    inflationAnnualPct: GUIDED_INFLATION,
+    taxMode: "none",
+    numPaths: 1000,
+  };
+}
+
+/** SWR del escenario Bengen (p1, "peor caso plausible") en €/mes reales. */
+function getBengenSwr(result: ParametricResult): number {
+  const s = result.withdrawalRates.scenarios.find((x) => x.key === "bengen");
+  return s ? s.swr.eurPerMonth : 0;
+}
+
+/** Modo A: cuánto podrá gastar al mes en el peor escenario. */
+function computeMaxSpending(inputs: GuidedInputs): {
+  maxMonthly: number;
+  capitalAtRetirement: number;
+  config: ParametricConfig;
+} {
+  const config = buildGuidedConfig(inputs);
+  const r = runParametricRetirement(config);
+  return {
+    maxMonthly: getBengenSwr(r),
+    capitalAtRetirement: r.withdrawalRates.capitalAtRetirementReal,
+    config,
+  };
+}
+
+/** Modo B: cuánto necesita aportar al mes para asegurar un gasto objetivo.
+ *  Búsqueda binaria sobre la aportación (el SWR Bengen crece monótonamente
+ *  con la aportación). */
+function computeRequiredContribution(
+  base: Omit<GuidedInputs, "monthlyContribution">,
+  targetMonthly: number
+): {
+  contribution: number;
+  achievable: boolean;
+  config: ParametricConfig;
+} {
+  const run = (contribution: number) =>
+    runParametricRetirement(
+      buildGuidedConfig({ ...base, monthlyContribution: contribution })
+    );
+
+  // ¿El capital inicial ya basta sin aportar nada?
+  const r0 = run(0);
+  if (getBengenSwr(r0) >= targetMonthly) {
+    return {
+      contribution: 0,
+      achievable: true,
+      config: buildGuidedConfig({ ...base, monthlyContribution: 0 }),
+    };
+  }
+
+  // Techo de búsqueda
+  const HI = 15000;
+  const rHi = run(HI);
+  if (getBengenSwr(rHi) < targetMonthly) {
+    // Ni aportando el máximo se llega
+    return {
+      contribution: HI,
+      achievable: false,
+      config: buildGuidedConfig({ ...base, monthlyContribution: HI }),
+    };
+  }
+
+  let lo = 0;
+  let hi = HI;
+  for (let i = 0; i < 16; i++) {
+    const mid = (lo + hi) / 2;
+    if (getBengenSwr(run(mid)) < targetMonthly) lo = mid;
+    else hi = mid;
+  }
+  return {
+    contribution: Math.ceil(hi / 10) * 10, // redondear a 10€
+    achievable: true,
+    config: buildGuidedConfig({ ...base, monthlyContribution: hi }),
+  };
+}
+
+// -----------------------------------------------------------------------------
+// Wizard guiado
+// -----------------------------------------------------------------------------
+
+type GuidedGoal = "spend" | "contribute"; // A = spend, B = contribute
+
+interface GuidedResult {
+  goal: GuidedGoal;
+  // Modo A
+  maxMonthly?: number;
+  // Modo B
+  requiredContribution?: number;
+  achievable?: boolean;
+  // Común
+  config: ParametricConfig;
+  inputs: GuidedInputs;
+  targetMonthly?: number;
+}
+
+function GuidedWizard({
+  onSwitchToAdvanced,
+}: {
+  onSwitchToAdvanced: (config?: ParametricConfig) => void;
+}) {
+  const [goal, setGoal] = useState<GuidedGoal | null>(null);
+  const [step, setStep] = useState(0); // 0..N
+  const [currentAge, setCurrentAge] = useState("40");
+  const [retirementAge, setRetirementAge] = useState("67");
+  const [initialCapital, setInitialCapital] = useState("30000");
+  const [monthlyAmount, setMonthlyAmount] = useState(""); // aportación (A) u objetivo (B)
+  const [profileLevel, setProfileLevel] = useState<number | null>(null);
+  const [calculating, setCalculating] = useState(false);
+  const [result, setResult] = useState<GuidedResult | null>(null);
+
+  const reset = () => {
+    setGoal(null);
+    setStep(0);
+    setMonthlyAmount("");
+    setProfileLevel(null);
+    setResult(null);
+  };
+
+  // Pasos: 0=objetivo, 1=edad, 2=jubilación, 3=capital, 4=cantidad, 5=perfil
+  const STEPS = 6;
+
+  const runCalc = () => {
+    const inputs: GuidedInputs = {
+      currentAge: Math.round(Number(currentAge) || 0),
+      retirementAge: Math.round(Number(retirementAge) || 0),
+      initialCapital: Math.max(0, Number(initialCapital) || 0),
+      monthlyContribution: goal === "contribute" ? 0 : Number(monthlyAmount) || 0,
+      profile: K_PROFILES[(profileLevel ?? 4) - 1] ?? RETIREMENT_PROFILE,
+    };
+    setCalculating(true);
+    setTimeout(() => {
+      try {
+        if (goal === "spend") {
+          const { maxMonthly, config } = computeMaxSpending(inputs);
+          setResult({ goal: "spend", maxMonthly, config, inputs });
+        } else {
+          const target = Number(monthlyAmount) || 0;
+          const { contribution, achievable, config } =
+            computeRequiredContribution(inputs, target);
+          setResult({
+            goal: "contribute",
+            requiredContribution: contribution,
+            achievable,
+            config,
+            inputs,
+            targetMonthly: target,
+          });
+        }
+      } finally {
+        setCalculating(false);
+      }
+    }, 30);
+  };
+
+  // ---- Pantalla de resultado ----
+  if (result) {
+    return (
+      <GuidedResultScreen
+        result={result}
+        onRestart={reset}
+        onAdvanced={() => onSwitchToAdvanced(result.config)}
+      />
+    );
+  }
+
+  // ---- Pantalla de cálculo ----
+  if (calculating) {
+    return (
+      <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-10 text-center">
+        <div className="animate-spin text-4xl mb-4">⏳</div>
+        <p className="text-slate-700 font-semibold">
+          Calculando 1.000 escenarios de mercado…
+        </p>
+        <p className="text-xs text-slate-500 mt-1">
+          {goal === "contribute"
+            ? "Buscando la aportación exacta que necesitas."
+            : "Estimando tu retiro seguro."}
+        </p>
+      </section>
+    );
+  }
+
+  // ---- Wizard de preguntas ----
+  const canNext = (): boolean => {
+    if (step === 0) return goal !== null;
+    if (step === 1) {
+      const a = Number(currentAge);
+      return a >= 18 && a <= 75;
+    }
+    if (step === 2) {
+      const r = Number(retirementAge);
+      return r > Number(currentAge) && r <= 80;
+    }
+    if (step === 3) return Number(initialCapital) >= 0 && initialCapital !== "";
+    if (step === 4) return Number(monthlyAmount) > 0;
+    if (step === 5) return profileLevel !== null;
+    return false;
+  };
+
+  const next = () => {
+    if (step === STEPS - 1) {
+      runCalc();
+    } else {
+      setStep((s) => s + 1);
+    }
+  };
+
+  return (
+    <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 sm:p-8">
+      {/* Barra de progreso */}
+      <div className="flex items-center gap-1.5 mb-6">
+        {Array.from({ length: STEPS }).map((_, i) => (
+          <div
+            key={i}
+            className={`h-1.5 flex-1 rounded-full transition-colors ${
+              i <= step ? "bg-rose-500" : "bg-slate-200"
+            }`}
+          />
+        ))}
+      </div>
+
+      <div className="min-h-[260px] flex flex-col">
+        {step === 0 && (
+          <GuidedStepGoal goal={goal} onSelect={setGoal} />
+        )}
+        {step === 1 && (
+          <GuidedStepNumber
+            emoji="🎂"
+            question="¿Qué edad tienes?"
+            value={currentAge}
+            onChange={setCurrentAge}
+            suffix="años"
+            hint="Tu edad actual."
+          />
+        )}
+        {step === 2 && (
+          <GuidedStepNumber
+            emoji="🏖️"
+            question="¿A qué edad esperas jubilarte?"
+            value={retirementAge}
+            onChange={setRetirementAge}
+            suffix="años"
+            hint="La edad en la que dejarás de aportar y empezarás a vivir de la cartera."
+          />
+        )}
+        {step === 3 && (
+          <GuidedStepNumber
+            emoji="💰"
+            question="¿Con qué capital inicial cuentas?"
+            value={initialCapital}
+            onChange={setInitialCapital}
+            suffix="€"
+            hint="Lo que ya tienes invertido o listo para invertir hoy. Pon 0 si empiezas de cero."
+          />
+        )}
+        {step === 4 && goal === "spend" && (
+          <GuidedStepNumber
+            emoji="📥"
+            question="¿Cuánto quieres aportar al mes?"
+            value={monthlyAmount}
+            onChange={setMonthlyAmount}
+            suffix="€/mes"
+            hint="Tu aportación mensual a la inversión. La ajustamos automáticamente con la inflación (2,5%) cada año."
+          />
+        )}
+        {step === 4 && goal === "contribute" && (
+          <GuidedStepNumber
+            emoji="🎯"
+            question="¿Cuánto quieres poder gastar al mes cuando te jubiles?"
+            value={monthlyAmount}
+            onChange={setMonthlyAmount}
+            suffix="€/mes"
+            hint="Tu objetivo de gasto mensual en la jubilación, en dinero de hoy. Calcularemos cuánto necesitas aportar para lograrlo."
+          />
+        )}
+        {step === 5 && (
+          <GuidedStepProfile
+            level={profileLevel}
+            onSelect={setProfileLevel}
+          />
+        )}
+      </div>
+
+      {/* Navegación */}
+      <div className="flex items-center justify-between mt-6 pt-5 border-t border-slate-100">
+        <button
+          onClick={() => (step === 0 ? undefined : setStep((s) => s - 1))}
+          disabled={step === 0}
+          className={`text-sm font-medium px-4 py-2 rounded-lg ${
+            step === 0
+              ? "text-slate-300 cursor-not-allowed"
+              : "text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          ← Atrás
+        </button>
+        <span className="text-xs text-slate-400">
+          {step + 1} / {STEPS}
+        </span>
+        <button
+          onClick={next}
+          disabled={!canNext()}
+          className={`text-sm font-semibold px-6 py-2.5 rounded-lg transition-colors ${
+            canNext()
+              ? "bg-rose-600 hover:bg-rose-700 text-white shadow-sm"
+              : "bg-slate-200 text-slate-400 cursor-not-allowed"
+          }`}
+        >
+          {step === STEPS - 1 ? "Ver resultado →" : "Siguiente →"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+// ---- Paso: elegir objetivo ----
+function GuidedStepGoal({
+  goal,
+  onSelect,
+}: {
+  goal: GuidedGoal | null;
+  onSelect: (g: GuidedGoal) => void;
+}) {
+  return (
+    <div>
+      <h2 className="text-lg sm:text-xl font-bold text-slate-900 font-serif mb-1">
+        ¿Qué quieres averiguar?
+      </h2>
+      <p className="text-sm text-slate-500 mb-5">
+        Elige por dónde empezar. Luego te haré unas pocas preguntas.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <button
+          onClick={() => onSelect("spend")}
+          className={`text-left p-4 rounded-xl border-2 transition-colors ${
+            goal === "spend"
+              ? "border-rose-400 bg-rose-50"
+              : "border-slate-200 hover:border-rose-200"
+          }`}
+        >
+          <div className="text-2xl mb-1">🏖️</div>
+          <div className="font-semibold text-slate-900">
+            ¿Cuánto podré gastar al mes?
+          </div>
+          <div className="text-xs text-slate-500 mt-1">
+            Me dices lo que aportas y te digo el gasto mensual que podrás
+            permitirte en la jubilación.
+          </div>
+        </button>
+        <button
+          onClick={() => onSelect("contribute")}
+          className={`text-left p-4 rounded-xl border-2 transition-colors ${
+            goal === "contribute"
+              ? "border-rose-400 bg-rose-50"
+              : "border-slate-200 hover:border-rose-200"
+          }`}
+        >
+          <div className="text-2xl mb-1">🎯</div>
+          <div className="font-semibold text-slate-900">
+            ¿Cuánto necesito aportar?
+          </div>
+          <div className="text-xs text-slate-500 mt-1">
+            Me dices cuánto quieres gastar al mes en la jubilación y te digo lo
+            que tienes que aportar para lograrlo.
+          </div>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---- Paso: pregunta numérica genérica ----
+function GuidedStepNumber({
+  emoji,
+  question,
+  value,
+  onChange,
+  suffix,
+  hint,
+}: {
+  emoji: string;
+  question: string;
+  value: string;
+  onChange: (v: string) => void;
+  suffix: string;
+  hint: string;
+}) {
+  return (
+    <div className="flex-1 flex flex-col justify-center">
+      <div className="text-3xl mb-2">{emoji}</div>
+      <h2 className="text-lg sm:text-2xl font-bold text-slate-900 font-serif mb-4">
+        {question}
+      </h2>
+      <div className="relative max-w-xs">
+        <input
+          type="number"
+          inputMode="decimal"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          autoFocus
+          className="w-full text-2xl font-bold text-slate-900 px-4 py-3 pr-16 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-rose-400"
+        />
+        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-slate-400 font-medium">
+          {suffix}
+        </span>
+      </div>
+      <p className="text-xs text-slate-500 mt-3 max-w-md leading-relaxed">
+        {hint}
+      </p>
+    </div>
+  );
+}
+
+// ---- Paso: perfil de riesgo ----
+function GuidedStepProfile({
+  level,
+  onSelect,
+}: {
+  level: number | null;
+  onSelect: (l: number) => void;
+}) {
+  return (
+    <div className="flex-1">
+      <div className="text-3xl mb-2">📊</div>
+      <h2 className="text-lg sm:text-2xl font-bold text-slate-900 font-serif mb-1">
+        ¿Cuál es tu perfil de riesgo?
+      </h2>
+      <p className="text-sm text-slate-500 mb-4">
+        Define cómo invertirás durante los años de acumulación.{" "}
+        <a
+          href={TEST_PERFIL_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-rose-600 font-medium hover:underline"
+        >
+          ¿No lo sabes? Haz el test primero →
+        </a>
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-[220px] overflow-y-auto pr-1">
+        {K_PROFILES.map((p) => (
+          <button
+            key={p.level}
+            onClick={() => onSelect(p.level)}
+            className={`text-left px-3 py-2 rounded-lg border transition-colors flex items-center justify-between ${
+              level === p.level
+                ? "border-rose-400 bg-rose-50"
+                : "border-slate-200 hover:border-rose-200"
+            }`}
+          >
+            <span className="text-sm">
+              <span className="font-bold text-slate-700">{p.level}</span>
+              <span className="text-slate-600"> · {p.name}</span>
+            </span>
+            <span className="text-xs text-slate-400 font-mono">
+              {p.ret.toFixed(1).replace(".", ",")}%
+            </span>
+          </button>
+        ))}
+      </div>
+      <p className="text-[11px] text-slate-400 mt-3 leading-relaxed">
+        Al jubilarte pasaremos automáticamente tu cartera al perfil 4
+        (Moderado), bajando de forma gradual durante los 5 años previos para
+        proteger lo acumulado.
+      </p>
+    </div>
+  );
+}
+
+// ---- Pantalla de resultado ----
+function GuidedResultScreen({
+  result,
+  onRestart,
+  onAdvanced,
+}: {
+  result: GuidedResult;
+  onRestart: () => void;
+  onAdvanced: () => void;
+}) {
+  const { inputs } = result;
+  const profile = inputs.profile;
+  const yearsToRet = inputs.retirementAge - inputs.currentAge;
+
+  return (
+    <section className="bg-gradient-to-br from-emerald-50 via-white to-rose-50 rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-10">
+      {result.goal === "spend" ? (
+        <div className="text-center">
+          <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2">
+            En el peor escenario (peor 1% de mercados)
+          </p>
+          <p className="text-sm text-slate-600 mb-1">Podrás gastar hasta</p>
+          <p className="text-4xl sm:text-6xl font-bold text-emerald-700 font-serif">
+            {fmtEUR(result.maxMonthly ?? 0)}
+            <span className="text-xl sm:text-2xl text-slate-400 font-normal">
+              {" "}
+              /mes
+            </span>
+          </p>
+          <p className="text-sm text-slate-600 mt-3 max-w-lg mx-auto leading-relaxed">
+            Durante toda tu jubilación (hasta los {GUIDED_END_AGE} años), en
+            dinero de hoy y sin que se te agote el capital — incluso si te toca
+            uno de los peores arranques de mercado.
+          </p>
+        </div>
+      ) : (
+        <div className="text-center">
+          {result.achievable ? (
+            <>
+              <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2">
+                Para gastar {fmtEUR(result.targetMonthly ?? 0)}/mes en tu
+                jubilación
+              </p>
+              <p className="text-sm text-slate-600 mb-1">
+                {result.requiredContribution === 0
+                  ? "Con tu capital actual ya te llega"
+                  : "Necesitas aportar"}
+              </p>
+              {result.requiredContribution === 0 ? (
+                <p className="text-4xl sm:text-5xl font-bold text-emerald-700 font-serif">
+                  ¡Ya lo tienes! 🎉
+                </p>
+              ) : (
+                <p className="text-4xl sm:text-6xl font-bold text-rose-600 font-serif">
+                  {fmtEUR(result.requiredContribution ?? 0)}
+                  <span className="text-xl sm:text-2xl text-slate-400 font-normal">
+                    {" "}
+                    /mes
+                  </span>
+                </p>
+              )}
+              <p className="text-sm text-slate-600 mt-3 max-w-lg mx-auto leading-relaxed">
+                {result.requiredContribution === 0
+                  ? `Tu capital inicial de ${fmtEUR(inputs.initialCapital)} es suficiente para ese nivel de gasto, incluso en el peor escenario. No necesitas aportar más (aunque hacerlo te daría margen extra).`
+                  : `Aportando esa cantidad al mes (ajustada con la inflación) durante ${yearsToRet} años, podrás gastar ${fmtEUR(result.targetMonthly ?? 0)}/mes en tu jubilación incluso en el peor 1% de escenarios de mercado.`}
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="text-4xl mb-2">😬</div>
+              <p className="text-2xl sm:text-3xl font-bold text-rose-700 font-serif">
+                Objetivo muy ambicioso
+              </p>
+              <p className="text-sm text-slate-600 mt-3 max-w-lg mx-auto leading-relaxed">
+                Para gastar {fmtEUR(result.targetMonthly ?? 0)}/mes harían falta
+                aportaciones por encima de 15.000 €/mes con tus datos actuales.
+                Prueba a retrasar la jubilación, reducir el objetivo de gasto, o
+                empezar con más capital.
+              </p>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Resumen del plan */}
+      <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+        <div className="bg-white/70 rounded-lg p-2.5 border border-slate-100">
+          <div className="text-[10px] uppercase text-slate-400 font-semibold">
+            Edad / Jubilación
+          </div>
+          <div className="text-sm font-bold text-slate-700 mt-0.5">
+            {inputs.currentAge} → {inputs.retirementAge}
+          </div>
+        </div>
+        <div className="bg-white/70 rounded-lg p-2.5 border border-slate-100">
+          <div className="text-[10px] uppercase text-slate-400 font-semibold">
+            Capital inicial
+          </div>
+          <div className="text-sm font-bold text-slate-700 mt-0.5">
+            {fmtEUR(inputs.initialCapital)}
+          </div>
+        </div>
+        <div className="bg-white/70 rounded-lg p-2.5 border border-slate-100">
+          <div className="text-[10px] uppercase text-slate-400 font-semibold">
+            Tu perfil
+          </div>
+          <div className="text-sm font-bold text-slate-700 mt-0.5">
+            {profile.level} · {profile.ret.toFixed(1).replace(".", ",")}%
+          </div>
+        </div>
+        <div className="bg-white/70 rounded-lg p-2.5 border border-slate-100">
+          <div className="text-[10px] uppercase text-slate-400 font-semibold">
+            En jubilación
+          </div>
+          <div className="text-sm font-bold text-slate-700 mt-0.5">
+            Perfil 4
+          </div>
+        </div>
+      </div>
+
+      {/* Acciones */}
+      <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
+        <button
+          onClick={onRestart}
+          className="px-5 py-2.5 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+        >
+          ↺ Probar otros números
+        </button>
+        <button
+          onClick={onAdvanced}
+          className="px-5 py-2.5 text-sm font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800"
+        >
+          Ver el análisis completo →
+        </button>
+      </div>
+
+      <p className="text-[11px] text-slate-400 mt-5 text-center max-w-2xl mx-auto leading-relaxed">
+        Cálculo sobre 1.000 simulaciones de mercado (Monte Carlo), inflación
+        2,5%, horizonte hasta los {GUIDED_END_AGE} años. &quot;Peor
+        escenario&quot; = peor 1% de las simulaciones. Esto es una estimación
+        educativa, no asesoramiento financiero personalizado.
+      </p>
+    </section>
   );
 }
 
