@@ -113,6 +113,22 @@ const TEST_PERFIL_URL = "https://elproyectok.com/test-perfil/";
 const TALLER_URL = "https://elproyectok.com/inscripcion/";
 const CARTERAS_K_URL = "https://elproyectok.com/carteras-k/";
 
+// Niveles de seguridad para la sección de retiro del modo avanzado. Cada uno
+// mapea a un escenario que el motor ya calcula. Cuanto MAYOR la seguridad
+// exigida, MENOR el retiro permitido (más prudente).
+interface SecurityLevel {
+  pct: number; // % de escenarios en que el plan aguanta
+  label: string; // etiqueta con gancho
+  scenarioKey: string; // clave del escenario en el motor
+  emoji: string;
+}
+const SECURITY_LEVELS: SecurityLevel[] = [
+  { pct: 99, label: "No me fío un pelo", scenarioKey: "bengen", emoji: "🛡️" },
+  { pct: 95, label: "Soy optimista", scenarioKey: "agorero", emoji: "🙂" },
+  { pct: 75, label: "Soy muy optimista", scenarioKey: "conservador", emoji: "😎" },
+  { pct: 50, label: "A lo loco", scenarioKey: "medio", emoji: "🎲" },
+];
+
 // -----------------------------------------------------------------------------
 // Configuración por defecto
 // -----------------------------------------------------------------------------
@@ -1551,6 +1567,9 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
     config,
   } = results;
 
+  // Nivel de seguridad elegido para la sección de retiro (default 95%).
+  const [securityLevel, setSecurityLevel] = useState(95);
+
   // Fan data (con punto inicial)
   const initialPoint = {
     age: config.currentAge,
@@ -1634,12 +1653,18 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
   const pctInitialEurMes =
     (withdrawalRates.capitalAtRetirementReal * totalPctAnnual) / 100 / 12;
 
-  const swrBengen =
-    withdrawalRates.scenarios.find((s) => s.key === "bengen")?.swr
-      .eurPerMonth ?? 0;
-  // El aviso de "supera lo sostenible" SOLO aplica a la parte fija.
+  // Escenario y SWR del nivel de seguridad elegido por el usuario.
+  const activeLevel =
+    SECURITY_LEVELS.find((l) => l.pct === securityLevel) ?? SECURITY_LEVELS[1]!;
+  const activeScenario = withdrawalRates.scenarios.find(
+    (s) => s.key === activeLevel.scenarioKey
+  );
+  const swrAtLevel = activeScenario?.swr.eurPerMonth ?? 0;
+  const swrPctAtLevel = activeScenario?.swr.pctAnnual ?? 0;
+  // El aviso de "supera lo sostenible" compara la retirada FIJA con el SWR
+  // del nivel de seguridad elegido.
   const overdraw =
-    retiroFijoEurMes > 0 && swrBengen > 0 && retiroFijoEurMes > swrBengen;
+    retiroFijoEurMes > 0 && swrAtLevel > 0 && retiroFijoEurMes > swrAtLevel;
 
   return (
     <div className="space-y-6">
@@ -1863,12 +1888,10 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
         </h3>
         <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
           Capital REAL mediano al jubilarte:{" "}
-          <strong>{fmtEUR(withdrawalRates.capitalAtRetirementReal)}</strong>.
-          Tasas calculadas path-por-path sobre{" "}
-          {withdrawalRates.pathsAnalyzed} simulaciones.{" "}
-          <strong className="text-emerald-700">SWR</strong> = retiro máximo que
-          tu cartera puede sostener sin agotarse antes de los {config.endAge}{" "}
-          años. <em>No es lo que vas a retirar — es lo máximo seguro.</em>
+          <strong>{fmtEUR(withdrawalRates.capitalAtRetirementReal)}</strong>,
+          sobre {withdrawalRates.pathsAnalyzed} simulaciones. Elige cuánto te
+          quieres fiar y te decimos el retiro máximo que tu cartera sostiene
+          sin agotarse. <em>No es lo que vas a retirar — es lo máximo seguro.</em>
         </p>
 
         {/* Comparación: retiro FIJO planificado vs SWR Bengen.
@@ -1900,14 +1923,14 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
                       <strong className="text-red-700">
                         {fmtEUR(retiroFijoEurMes)}/mes fijos
                       </strong>{" "}
-                      pero tu cartera solo sostiene con seguridad (Bengen 99%)
-                      hasta{" "}
+                      pero al nivel de seguridad del {securityLevel}% tu cartera
+                      solo sostiene hasta{" "}
                       <strong className="text-emerald-700">
-                        {fmtEUR(swrBengen)}/mes
+                        {fmtEUR(swrAtLevel)}/mes
                       </strong>
-                      . Por eso ves esa probabilidad de éxito. Para que
-                      aguante: <strong>bájalo</strong>, <strong>aporta más</strong>,{" "}
-                      o <strong>retrasa la jubilación</strong>.
+                      . Para que aguante: <strong>bájalo</strong>,{" "}
+                      <strong>aporta más</strong>, o{" "}
+                      <strong>retrasa la jubilación</strong>.
                     </>
                   ) : (
                     <>
@@ -1915,9 +1938,10 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
                       <strong className="text-emerald-700">
                         {fmtEUR(retiroFijoEurMes)}/mes fijos
                       </strong>{" "}
-                      y tu cartera sostiene con seguridad (Bengen 99%) hasta{" "}
+                      y al nivel de seguridad del {securityLevel}% tu cartera
+                      sostiene hasta{" "}
                       <strong className="text-emerald-700">
-                        {fmtEUR(swrBengen)}/mes
+                        {fmtEUR(swrAtLevel)}/mes
                       </strong>
                       . Tienes margen.
                     </>
@@ -1930,7 +1954,7 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
                     Exceso
                   </p>
                   <p className="text-lg font-bold text-red-700 font-mono">
-                    {((retiroFijoEurMes / swrBengen - 1) * 100).toFixed(0)}%
+                    {((retiroFijoEurMes / swrAtLevel - 1) * 100).toFixed(0)}%
                   </p>
                 </div>
               )}
@@ -1962,123 +1986,61 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
             </p>
           </div>
         )}
-        {/* Tabla SWR — tabla en desktop, cards en móvil */}
-        {(() => {
-          const getPalette = (key: string) => {
-            if (key === "bengen")
-              return { bg: "bg-emerald-100/60", dot: "🛡️", label: "text-emerald-800" };
-            if (key === "agorero")
-              return { bg: "bg-emerald-50/60", dot: "🟢", label: "text-emerald-700" };
-            if (key === "conservador")
-              return { bg: "bg-emerald-50/30", dot: "🟢", label: "text-emerald-600" };
-            if (key === "medio")
-              return { bg: "bg-amber-50/40", dot: "🟡", label: "text-amber-700" };
-            return { bg: "bg-red-50/30", dot: "🔴", label: "text-red-600" };
-          };
-          return (
-            <>
-              {/* Versión tabla — md+ */}
-              <div className="hidden md:block overflow-x-auto mt-4">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b-2 border-slate-200">
-                      <th className="text-left py-2 pr-3 font-semibold text-slate-500 uppercase text-xs tracking-wider">
-                        Escenario
-                      </th>
-                      <th className="text-left py-2 px-3 font-semibold text-slate-500 uppercase text-xs tracking-wider">
-                        Prob. éxito
-                      </th>
-                      <th className="text-right py-2 px-3 font-semibold text-emerald-700 uppercase text-xs tracking-wider border-l border-slate-200">
-                        SWR €/mes
-                      </th>
-                      <th className="text-right py-2 pl-3 font-semibold text-emerald-700 uppercase text-xs tracking-wider">
-                        SWR % anual
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {withdrawalRates.scenarios.map((s) => {
-                      const palette = getPalette(s.key);
-                      return (
-                        <tr
-                          key={s.key}
-                          className={`${palette.bg} border-b border-slate-100`}
-                        >
-                          <td className="py-3 pr-3">
-                            <div className="flex items-center gap-2">
-                              <span className="text-lg">{palette.dot}</span>
-                              <span className={`font-semibold ${palette.label}`}>
-                                {s.label}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-3 text-slate-600">
-                            <strong>{s.successRatePct}%</strong>{" "}
-                            <span className="text-[10px] text-slate-500">
-                              (p{s.percentile})
-                            </span>
-                          </td>
-                          <td className="py-3 px-3 text-right border-l border-slate-200 font-mono font-bold text-emerald-700">
-                            {fmtEUR(s.swr.eurPerMonth)}
-                          </td>
-                          <td className="py-3 pl-3 text-right text-emerald-700">
-                            {fmtPct(s.swr.pctAnnual)}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              {/* Versión cards — móvil */}
-              <div className="md:hidden mt-4 space-y-2">
-                {withdrawalRates.scenarios.map((s) => {
-                  const palette = getPalette(s.key);
-                  return (
-                    <div
-                      key={s.key}
-                      className={`${palette.bg} rounded-lg border border-slate-200 p-3`}
-                    >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-base">{palette.dot}</span>
-                          <span className={`font-semibold ${palette.label}`}>
-                            {s.label}
-                          </span>
-                        </div>
-                        <span className="text-xs text-slate-600 whitespace-nowrap">
-                          <strong>{s.successRatePct}%</strong>{" "}
-                          <span className="text-[10px] text-slate-500">
-                            (p{s.percentile})
-                          </span>
-                        </span>
-                      </div>
-                      <div className="flex items-baseline justify-between border-t border-slate-200/60 pt-2">
-                        <span className="text-[10px] uppercase tracking-wider text-emerald-700 font-semibold">
-                          SWR
-                        </span>
-                        <div className="text-right">
-                          <span className="font-mono font-bold text-emerald-700 text-base">
-                            {fmtEUR(s.swr.eurPerMonth)}
-                          </span>
-                          <span className="text-xs text-emerald-700 ml-1">
-                            /mes · {fmtPct(s.swr.pctAnnual)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          );
-        })()}
-        <p className="text-xs text-slate-500 mt-3 leading-relaxed">
-          💡 <strong>Bengen</strong> sobrevive en el 99% de los escenarios
-          simulados. <strong>Optimista</strong> sólo si te toca el 25% mejor.
-          Si el plan que ves &quot;aguanta&quot; pero quieres dormir tranquilo,
-          fija tus retiros en la cifra Bengen.
-        </p>
+        {/* Selector de nivel de seguridad + cifra del nivel elegido */}
+        <div className="mt-5">
+          <p className="text-xs font-semibold text-slate-600 mb-2">
+            ¿Con qué seguridad quieres saberlo?
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {SECURITY_LEVELS.map((lvl) => {
+              const active = lvl.pct === securityLevel;
+              return (
+                <button
+                  key={lvl.pct}
+                  onClick={() => setSecurityLevel(lvl.pct)}
+                  className={`text-left p-3 rounded-xl border-2 transition-colors ${
+                    active
+                      ? "border-rose-400 bg-rose-50"
+                      : "border-slate-200 hover:border-rose-200"
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-base">{lvl.emoji}</span>
+                    <span className="text-lg font-bold text-slate-900">
+                      {lvl.pct}%
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5 leading-tight">
+                    {lvl.label}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Cifra del nivel elegido */}
+          <div className="mt-4 bg-gradient-to-br from-emerald-50 to-white rounded-xl border border-emerald-200 p-5 text-center">
+            <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold">
+              Con {securityLevel}% de seguridad, puedes retirar hasta
+            </p>
+            <p className="text-3xl sm:text-5xl font-bold text-emerald-700 font-serif mt-1">
+              {fmtEUR(swrAtLevel)}
+              <span className="text-lg sm:text-2xl text-slate-400 font-normal">
+                {" "}
+                /mes
+              </span>
+            </p>
+            <p className="text-sm text-slate-500 mt-1">
+              {fmtPct(swrPctAtLevel)} anual de tu capital · en dinero de hoy
+            </p>
+            <p className="text-xs text-slate-500 mt-3 max-w-lg mx-auto leading-relaxed">
+              En {securityLevel} de cada 100 escenarios de mercado, retirando
+              esa cantidad tu dinero llega hasta los {config.endAge} años sin
+              agotarse. Cuanto menos te fíes, menos puedes retirar — pero más
+              tranquilo duermes.
+            </p>
+          </div>
+        </div>
 
         {/* PWR perpetua — sección dedicada
             Solo se muestra si el plan tiene posibilidades reales de durar
