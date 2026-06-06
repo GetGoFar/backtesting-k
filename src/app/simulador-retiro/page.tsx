@@ -1000,7 +1000,7 @@ function GuidedResultScreen({
           </p>
           <p className="text-sm text-slate-600 mt-3 max-w-lg mx-auto leading-relaxed">
             {result.strategy === "spend-all"
-              ? `Durante toda tu jubilación (hasta los ${GUIDED_END_AGE} años), en dinero de hoy, exprimiendo tu capital hasta el final — incluso si te toca uno de los peores arranques de mercado.`
+              ? `Durante toda tu jubilación (hasta los ${GUIDED_END_AGE} años), en dinero de hoy, exprimiendo tu capital hasta el final. Abajo te decimos con qué probabilidad.`
               : `Viviendo solo de los rendimientos, sin tocar tu capital, que se mantiene intacto en términos reales para dejarlo en herencia. En dinero de hoy.`}
           </p>
         </div>
@@ -1032,8 +1032,12 @@ function GuidedResultScreen({
               )}
               <p className="text-sm text-slate-600 mt-3 max-w-lg mx-auto leading-relaxed">
                 {result.requiredContribution === 0
-                  ? `Tu capital inicial de ${fmtEUR(inputs.initialCapital)} es suficiente para ese nivel de gasto, incluso en el peor escenario. No necesitas aportar más (aunque hacerlo te daría margen extra).`
-                  : `Aportando esa cantidad al mes (ajustada con la inflación) durante ${yearsToRet} años, podrás gastar ${fmtEUR(result.targetMonthly ?? 0)}/mes en tu jubilación incluso en el peor 1% de escenarios de mercado.`}
+                  ? `Tu capital inicial de ${fmtEUR(inputs.initialCapital)} ya da para ese nivel de gasto. No necesitas aportar más (aunque hacerlo te daría margen extra).`
+                  : `Aportando esa cantidad al mes (ajustada con la inflación) durante ${yearsToRet} años, alcanzas tu objetivo de gastar ${fmtEUR(result.targetMonthly ?? 0)}/mes en la jubilación${
+                      result.strategy === "preserve"
+                        ? " viviendo de los rendimientos y conservando tu capital"
+                        : " exprimiendo tu capital hasta el final"
+                    }. Abajo te decimos con qué probabilidad.`}
               </p>
             </>
           ) : (
@@ -1086,9 +1090,10 @@ function GuidedResultScreen({
           </div>
           <p className="text-[11px] text-slate-400 mt-1.5 text-center">
             En {result.successProb.toFixed(0)} de cada 100 escenarios de mercado
-            simulados, tu dinero llega hasta los {GUIDED_END_AGE} años
+            simulados, tu dinero llega hasta los {GUIDED_END_AGE} años sin
+            agotarse
             {result.strategy === "preserve"
-              ? " conservando tu capital"
+              ? " (y en la mayoría conservas tu capital para herencia)"
               : ""}
             .
           </p>
@@ -1182,9 +1187,13 @@ function GuidedResultScreen({
 
       <p className="text-[11px] text-slate-400 mt-5 text-center max-w-2xl mx-auto leading-relaxed">
         Cálculo sobre 1.000 simulaciones de mercado (Monte Carlo), inflación
-        2,5%, horizonte hasta los {GUIDED_END_AGE} años. &quot;Peor
-        escenario&quot; = peor 1% de las simulaciones. Esto es una estimación
-        educativa, no asesoramiento financiero personalizado.
+        2,5%, horizonte hasta los {GUIDED_END_AGE} años.{" "}
+        {result.strategy === "spend-all"
+          ? "Vivirlo todo usa la regla de Bengen (retiro seguro sin agotar el capital)."
+          : "Dejar herencia usa la tasa perpetua que preserva el capital en términos reales."}{" "}
+        La probabilidad que ves arriba es el % de escenarios en que tu dinero
+        llega al final sin agotarse. Esto es una estimación educativa, no
+        asesoramiento financiero personalizado.
       </p>
     </section>
   );
