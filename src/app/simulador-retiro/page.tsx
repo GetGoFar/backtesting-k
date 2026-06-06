@@ -1618,16 +1618,21 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
       : "red";
 
   // -----------------------------------------------------------------
-  // Cálculo del retiro real planificado (suma de goals de retirada
-  // activos al jubilarse). Se usa para comparar con el SWR Bengen y
-  // dar contexto: "estás retirando X vs lo sostenible (SWR Bengen)".
+  // Cálculo del retiro planificado. IMPORTANTE: separamos retiradas
+  // FIJAS de PORCENTUALES porque su riesgo es distinto:
+  //   - Retirada FIJA (€/mes): importe constante en términos reales.
+  //     Si el capital baja, sigues sacando lo mismo → riesgo real de
+  //     agotamiento. Aquí SÍ tiene sentido compararla con el SWR.
+  //   - Retirada PORCENTUAL (% del patrimonio): se auto-ajusta. Si el
+  //     capital baja, retiras menos. Matemáticamente NUNCA agota el
+  //     capital, pero tu renta mensual fluctúa. NO se compara con el SWR
+  //     (que asume importe fijo); el aviso "supera lo sostenible" no
+  //     aplica. Solo informamos de su naturaleza variable.
   // -----------------------------------------------------------------
-  const retiroPlanificadoEurMes = (() => {
-    const K = withdrawalRates.capitalAtRetirementReal;
+  const retiroFijoEurMes = (() => {
     let total = 0;
     for (const g of config.goals) {
-      if (g.type === "contribution") continue;
-      // Solo contamos goals que estén activos en jubilación
+      if (g.type !== "fixedWithdrawal") continue;
       const empezaEnJub =
         g.start === "atRetirement" ||
         g.start === "immediately" ||
@@ -1635,22 +1640,36 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
           (g.startYearsFromNow ?? 0) <=
             config.retirementAge - config.currentAge);
       if (!empezaEnJub) continue;
-      if (g.type === "fixedWithdrawal") {
-        total += g.amount ?? 0;
-      } else if (g.type === "percentageWithdrawal") {
-        total += (K * (g.percentagePct ?? 0)) / 100 / 12;
-      }
+      total += g.amount ?? 0;
     }
     return total;
   })();
 
+  // Retiradas porcentuales activas en jubilación (su importe inicial es
+  // solo orientativo; varía con el patrimonio).
+  const pctWithdrawals = config.goals.filter((g) => {
+    if (g.type !== "percentageWithdrawal") return false;
+    return (
+      g.start === "atRetirement" ||
+      g.start === "immediately" ||
+      (g.start === "yearsFromNow" &&
+        (g.startYearsFromNow ?? 0) <=
+          config.retirementAge - config.currentAge)
+    );
+  });
+  const totalPctAnnual = pctWithdrawals.reduce(
+    (s, g) => s + (g.percentagePct ?? 0),
+    0
+  );
+  const pctInitialEurMes =
+    (withdrawalRates.capitalAtRetirementReal * totalPctAnnual) / 100 / 12;
+
   const swrBengen =
     withdrawalRates.scenarios.find((s) => s.key === "bengen")?.swr
       .eurPerMonth ?? 0;
+  // El aviso de "supera lo sostenible" SOLO aplica a la parte fija.
   const overdraw =
-    retiroPlanificadoEurMes > 0 &&
-    swrBengen > 0 &&
-    retiroPlanificadoEurMes > swrBengen;
+    retiroFijoEurMes > 0 && swrBengen > 0 && retiroFijoEurMes > swrBengen;
 
   return (
     <div className="space-y-6">
@@ -1882,8 +1901,10 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
           años. <em>No es lo que vas a retirar — es lo máximo seguro.</em>
         </p>
 
-        {/* Comparación: tu retiro real vs SWR Bengen */}
-        {retiroPlanificadoEurMes > 0 && (
+        {/* Comparación: retiro FIJO planificado vs SWR Bengen.
+            Solo aplica a retiradas fijas (importe constante) — las
+            porcentuales se tratan aparte porque no se agotan. */}
+        {retiroFijoEurMes > 0 && (
           <div
             className={`mt-4 rounded-xl border p-3 sm:p-4 ${
               overdraw
@@ -1899,15 +1920,15 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
                   }`}
                 >
                   {overdraw
-                    ? "Tu retiro planificado supera lo sostenible"
-                    : "Tu retiro planificado está dentro de lo sostenible"}
+                    ? "Tu retiro fijo supera lo sostenible"
+                    : "Tu retiro fijo está dentro de lo sostenible"}
                 </p>
                 <p className="text-sm text-slate-700 mt-1 leading-relaxed">
                   {overdraw ? (
                     <>
                       Estás planeando retirar{" "}
                       <strong className="text-red-700">
-                        {fmtEUR(retiroPlanificadoEurMes)}/mes
+                        {fmtEUR(retiroFijoEurMes)}/mes fijos
                       </strong>{" "}
                       pero tu cartera solo sostiene con seguridad (Bengen 99%)
                       hasta{" "}
@@ -1922,7 +1943,7 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
                     <>
                       Estás planeando retirar{" "}
                       <strong className="text-emerald-700">
-                        {fmtEUR(retiroPlanificadoEurMes)}/mes
+                        {fmtEUR(retiroFijoEurMes)}/mes fijos
                       </strong>{" "}
                       y tu cartera sostiene con seguridad (Bengen 99%) hasta{" "}
                       <strong className="text-emerald-700">
@@ -1939,15 +1960,36 @@ function ResultsPanel({ results }: { results: ParametricResult }) {
                     Exceso
                   </p>
                   <p className="text-lg font-bold text-red-700 font-mono">
-                    {(
-                      (retiroPlanificadoEurMes / swrBengen - 1) *
-                      100
-                    ).toFixed(0)}
-                    %
+                    {((retiroFijoEurMes / swrBengen - 1) * 100).toFixed(0)}%
                   </p>
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Nota para retiradas PORCENTUALES (no se comparan con el SWR) */}
+        {pctWithdrawals.length > 0 && (
+          <div className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50 p-3 sm:p-4">
+            <p className="text-xs uppercase tracking-wider font-semibold text-indigo-700">
+              Retirada porcentual ({totalPctAnnual.toFixed(1).replace(".", ",")}
+              % anual)
+            </p>
+            <p className="text-sm text-slate-700 mt-1 leading-relaxed">
+              Empezarías retirando{" "}
+              <strong className="text-indigo-700">
+                ~{fmtEUR(pctInitialEurMes)}/mes
+              </strong>{" "}
+              (el {totalPctAnnual.toFixed(1).replace(".", ",")}% de tu capital al
+              jubilarte), pero esta cifra <strong>no es fija</strong>: cada año
+              retiras ese porcentaje del patrimonio que tengas en ese momento.
+              Si la bolsa cae, tu renta baja; si sube, aumenta.{" "}
+              <strong>
+                Por eso el capital nunca se agota del todo
+              </strong>{" "}
+              — pero tu ingreso mensual fluctúa. No se compara con el SWR fijo de
+              la tabla.
+            </p>
           </div>
         )}
         {/* Tabla SWR — tabla en desktop, cards en móvil */}
