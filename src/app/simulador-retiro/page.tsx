@@ -374,81 +374,60 @@ function buildGuidedConfig(args: GuidedInputs): ParametricConfig {
  *  - "preserve":  dejar herencia / conservar el capital (PWR perpetua) */
 type WithdrawalStrategy = "spend-all" | "preserve";
 
-/** €/mes que puede retirar según la estrategia.
- *  - SWR: escenario Bengen (p1, "peor caso plausible"). El criterio es no
- *    agotar el capital antes del final — aceptando acabar cerca de 0.
- *  - PWR: tasa perpetua mediana (CAGR real esperado). Preservar capital ya
- *    lleva un margen de seguridad incorporado, por eso usamos la mediana y
- *    no el peor 1% (la literatura de PWR lo respalda). */
+/** Nivel de confianza UNIFICADO para ambas estrategias del modo guiado.
+ *  Usamos el 95% (no el 99%) porque:
+ *    1. El mismo criterio para "morir con cero" y "dejar herencia" evita la
+ *       paradoja de que preservar el capital salga más barato que agotarlo.
+ *    2. El 99% (Bengen p1) pide aportaciones desalentadoras; el 95% es
+ *       igual de prudente pero más realista y motivador.
+ *  Al 95%:
+ *    - Morir con cero  = retiro que NO agota el capital en el 95% de
+ *      escenarios (escenario Agorero, p5).
+ *    - Dejar herencia  = retiro que CONSERVA el capital en el 95% de
+ *      escenarios (tasa perpetua al p5).
+ *  Como preservar es más exigente que no agotar, herencia siempre pide
+ *  aportar más que morir-con-cero — que es lo lógico. */
+const GUIDED_CONFIDENCE = 95;
+
+/** €/mes que puede retirar según la estrategia, AMBOS al 95% de confianza. */
 function getWithdrawalValue(
   result: ParametricResult,
   strategy: WithdrawalStrategy
 ): number {
   if (strategy === "spend-all") {
-    const s = result.withdrawalRates.scenarios.find((x) => x.key === "bengen");
+    // SWR Agorero (p5) = no agotar en el 95% de escenarios.
+    const s = result.withdrawalRates.scenarios.find((x) => x.key === "agorero");
     return s ? s.swr.eurPerMonth : 0;
   }
-  return result.withdrawalRates.pwrPerpetual?.eurPerMonthMedian ?? 0;
+  // PWR al p5 = conservar capital en el 95% de escenarios.
+  return result.withdrawalRates.pwrPerpetual?.eurPerMonthP5 ?? 0;
 }
 
-/** Probabilidad de que el plan aguante (capital > 0 al final) si se retira
- *  `monthlyWithdrawal` €/mes. Corre una simulación adicional con la retirada
- *  como objetivo fijo. */
-function computeSuccessProbability(
-  config: ParametricConfig,
-  monthlyWithdrawal: number
-): { successProb: number; legacyMedian: number } {
-  if (monthlyWithdrawal <= 0) {
-    const r = runParametricRetirement(config);
-    return {
-      successProb: r.successProbability,
-      legacyMedian: r.medianFinalValueReal,
-    };
-  }
-  const withWithdrawal: ParametricConfig = {
-    ...config,
-    goals: [
-      ...config.goals,
-      {
-        id: "guided-withdrawal",
-        type: "fixedWithdrawal",
-        amount: monthlyWithdrawal,
-        start: "atRetirement",
-        durationType: "untilEnd",
-        inflationAdjusted: true,
-      },
-    ],
-  };
-  const r = runParametricRetirement(withWithdrawal);
-  return {
-    successProb: r.successProbability,
-    legacyMedian: r.medianFinalValueReal,
-  };
-}
-
-/** Modo A: cuánto podrá gastar al mes según la estrategia elegida. */
+/** Modo A: cuánto podrá gastar al mes según la estrategia elegida.
+ *  El retiro se calcula al 95% de confianza (ver getWithdrawalValue), así
+ *  que la probabilidad de éxito es 95% por construcción — no hace falta
+ *  recalcularla con una simulación extra. */
 function computeMaxSpending(
   inputs: GuidedInputs,
   strategy: WithdrawalStrategy
 ): {
   maxMonthly: number;
-  successProb: number;
   legacyMedian: number;
   config: ParametricConfig;
 } {
   const config = buildGuidedConfig(inputs);
   const r = runParametricRetirement(config);
   const maxMonthly = getWithdrawalValue(r, strategy);
-  const { successProb, legacyMedian } = computeSuccessProbability(
+  return {
+    maxMonthly,
+    legacyMedian: r.medianFinalValueReal,
     config,
-    maxMonthly
-  );
-  return { maxMonthly, successProb, legacyMedian, config };
+  };
 }
 
-/** Modo B: cuánto necesita aportar al mes para asegurar un gasto objetivo.
- *  Búsqueda binaria sobre la aportación (el retiro sostenible crece
- *  monótonamente con la aportación). */
+/** Modo B: cuánto necesita aportar al mes para asegurar un gasto objetivo
+ *  al 95% de confianza. Búsqueda binaria sobre la aportación (el retiro al
+ *  95% crece monótonamente con la aportación). */
 function computeRequiredContribution(
   base: Omit<GuidedInputs, "monthlyContribution">,
   targetMonthly: number,
@@ -456,7 +435,6 @@ function computeRequiredContribution(
 ): {
   contribution: number;
   achievable: boolean;
-  successProb: number;
   config: ParametricConfig;
 } {
   const valueFor = (contribution: number) =>
@@ -470,15 +448,14 @@ function computeRequiredContribution(
   // ¿El capital inicial ya basta sin aportar nada?
   if (valueFor(0) >= targetMonthly) {
     const config = buildGuidedConfig({ ...base, monthlyContribution: 0 });
-    const { successProb } = computeSuccessProbability(config, targetMonthly);
-    return { contribution: 0, achievable: true, successProb, config };
+    return { contribution: 0, achievable: true, config };
   }
 
   // Techo de búsqueda
   const HI = 15000;
   if (valueFor(HI) < targetMonthly) {
     const config = buildGuidedConfig({ ...base, monthlyContribution: HI });
-    return { contribution: HI, achievable: false, successProb: 0, config };
+    return { contribution: HI, achievable: false, config };
   }
 
   let lo = 0;
@@ -490,8 +467,7 @@ function computeRequiredContribution(
   }
   const contribution = Math.ceil(hi / 10) * 10;
   const config = buildGuidedConfig({ ...base, monthlyContribution: hi });
-  const { successProb } = computeSuccessProbability(config, targetMonthly);
-  return { contribution, achievable: true, successProb, config };
+  return { contribution, achievable: true, config };
 }
 
 // -----------------------------------------------------------------------------
@@ -510,7 +486,6 @@ interface GuidedResult {
   requiredContribution?: number;
   achievable?: boolean;
   // Común
-  successProb: number;
   config: ParametricConfig;
   inputs: GuidedInputs;
   targetMonthly?: number;
@@ -558,27 +533,27 @@ function GuidedWizard({
     setTimeout(() => {
       try {
         if (goal === "spend") {
-          const { maxMonthly, successProb, legacyMedian, config } =
-            computeMaxSpending(inputs, strat);
+          const { maxMonthly, legacyMedian, config } = computeMaxSpending(
+            inputs,
+            strat
+          );
           setResult({
             goal: "spend",
             strategy: strat,
             maxMonthly,
             legacyMedian,
-            successProb,
             config,
             inputs,
           });
         } else {
           const target = Number(monthlyAmount) || 0;
-          const { contribution, achievable, successProb, config } =
+          const { contribution, achievable, config } =
             computeRequiredContribution(inputs, target, strat);
           setResult({
             goal: "contribute",
             strategy: strat,
             requiredContribution: contribution,
             achievable,
-            successProb,
             config,
             inputs,
             targetMonthly: target,
@@ -959,9 +934,10 @@ function GuidedStepStrategy({
         </button>
       </div>
       <p className="text-[11px] text-slate-400 mt-4 leading-relaxed">
-        &quot;Vivirlo todo&quot; usa la regla de Bengen (retiro seguro sin
-        agotarte antes de los {GUIDED_END_AGE}). &quot;Dejar herencia&quot; usa
-        la tasa perpetua que mantiene tu capital en términos reales.
+        Ambas se calculan al mismo nivel de seguridad ({GUIDED_CONFIDENCE}%):
+        &quot;vivirlo todo&quot; es el retiro que no agota tu capital en el 95%
+        de escenarios; &quot;dejar herencia&quot; el que lo conserva intacto en
+        el 95%. Conservar es más exigente, así que pedirá aportar algo más.
       </p>
     </div>
   );
@@ -1000,7 +976,7 @@ function GuidedResultScreen({
           </p>
           <p className="text-sm text-slate-600 mt-3 max-w-lg mx-auto leading-relaxed">
             {result.strategy === "spend-all"
-              ? `Durante toda tu jubilación (hasta los ${GUIDED_END_AGE} años), en dinero de hoy, exprimiendo tu capital hasta el final. Abajo te decimos con qué probabilidad.`
+              ? `Durante toda tu jubilación (hasta los ${GUIDED_END_AGE} años), en dinero de hoy, exprimiendo tu capital hasta el final.`
               : `Viviendo solo de los rendimientos, sin tocar tu capital, que se mantiene intacto en términos reales para dejarlo en herencia. En dinero de hoy.`}
           </p>
         </div>
@@ -1037,7 +1013,7 @@ function GuidedResultScreen({
                       result.strategy === "preserve"
                         ? " viviendo de los rendimientos y conservando tu capital"
                         : " exprimiendo tu capital hasta el final"
-                    }. Abajo te decimos con qué probabilidad.`}
+                    }.`}
               </p>
             </>
           ) : (
@@ -1057,45 +1033,30 @@ function GuidedResultScreen({
         </div>
       )}
 
-      {/* Probabilidad de éxito */}
+      {/* Nivel de confianza — fijo al 95% por construcción del cálculo */}
       {!(result.goal === "contribute" && !result.achievable) && (
         <div className="mt-6 max-w-md mx-auto">
           <div className="flex items-center justify-between text-xs mb-1.5">
             <span className="font-semibold text-slate-600">
-              Probabilidad de que el plan aguante
+              Nivel de seguridad del plan
             </span>
-            <span
-              className={`font-bold ${
-                result.successProb >= 90
-                  ? "text-emerald-700"
-                  : result.successProb >= 75
-                  ? "text-amber-600"
-                  : "text-red-600"
-              }`}
-            >
-              {result.successProb.toFixed(0)}%
+            <span className="font-bold text-emerald-700">
+              {GUIDED_CONFIDENCE}%
             </span>
           </div>
           <div className="h-2.5 bg-slate-200 rounded-full overflow-hidden">
             <div
-              className={`h-full rounded-full ${
-                result.successProb >= 90
-                  ? "bg-emerald-500"
-                  : result.successProb >= 75
-                  ? "bg-amber-500"
-                  : "bg-red-500"
-              }`}
-              style={{ width: `${Math.min(100, result.successProb)}%` }}
+              className="h-full rounded-full bg-emerald-500"
+              style={{ width: `${GUIDED_CONFIDENCE}%` }}
             />
           </div>
           <p className="text-[11px] text-slate-400 mt-1.5 text-center">
-            En {result.successProb.toFixed(0)} de cada 100 escenarios de mercado
-            simulados, tu dinero llega hasta los {GUIDED_END_AGE} años sin
-            agotarse
+            Calculado para que funcione en el {GUIDED_CONFIDENCE}% de los
+            escenarios de mercado simulados:{" "}
             {result.strategy === "preserve"
-              ? " (y en la mayoría conservas tu capital para herencia)"
-              : ""}
-            .
+              ? `en 95 de cada 100, conservas tu capital intacto hasta los ${GUIDED_END_AGE} años para dejarlo en herencia`
+              : `en 95 de cada 100, tu dinero llega hasta los ${GUIDED_END_AGE} años sin agotarse`}
+            . Solo el 5% peor de escenarios se quedaría corto.
           </p>
         </div>
       )}
@@ -1187,13 +1148,13 @@ function GuidedResultScreen({
 
       <p className="text-[11px] text-slate-400 mt-5 text-center max-w-2xl mx-auto leading-relaxed">
         Cálculo sobre 1.000 simulaciones de mercado (Monte Carlo), inflación
-        2,5%, horizonte hasta los {GUIDED_END_AGE} años.{" "}
+        2,5%, horizonte hasta los {GUIDED_END_AGE} años. Ambas estrategias se
+        calculan al mismo nivel de seguridad ({GUIDED_CONFIDENCE}%):{" "}
         {result.strategy === "spend-all"
-          ? "Vivirlo todo usa la regla de Bengen (retiro seguro sin agotar el capital)."
-          : "Dejar herencia usa la tasa perpetua que preserva el capital en términos reales."}{" "}
-        La probabilidad que ves arriba es el % de escenarios en que tu dinero
-        llega al final sin agotarse. Esto es una estimación educativa, no
-        asesoramiento financiero personalizado.
+          ? "el retiro que no agota el capital en el 95% de los escenarios (regla de Bengen)."
+          : "el retiro que conserva el capital en el 95% de los escenarios (tasa perpetua)."}{" "}
+        Por eso dejar herencia siempre pide aportar más que vivirlo todo. Esto
+        es una estimación educativa, no asesoramiento financiero personalizado.
       </p>
     </section>
   );
