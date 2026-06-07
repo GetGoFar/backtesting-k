@@ -35,6 +35,7 @@ import {
   type GoalStart,
   type GoalDuration,
 } from "@/lib/retirement-parametric";
+import { track, trackToolStart } from "@/lib/analytics";
 
 // -----------------------------------------------------------------------------
 // Formateadores
@@ -186,11 +187,13 @@ export default function SimuladorRetiroPage() {
   const handleRun = useCallback(() => {
     setIsLoading(true);
     setError(null);
+    trackToolStart({ modo: "avanzado" });
     // setTimeout para no bloquear el thread del UI durante el cálculo
     setTimeout(() => {
       try {
         const r = runParametricRetirement(config);
         setResults(r);
+        track("tool_completado", { modo: "avanzado" });
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
         setResults(null);
@@ -606,6 +609,12 @@ function GuidedWizard({
             targetMonthly: target,
           });
         }
+        track("tool_completado", {
+          modo: "guiado",
+          objetivo: goal,
+          estrategia: strat,
+          nivel_seguridad: secLevel,
+        });
       } finally {
         setCalculating(false);
       }
@@ -660,6 +669,7 @@ function GuidedWizard({
   };
 
   const next = () => {
+    trackToolStart({ modo: "guiado" });
     if (step === STEPS - 1) {
       runCalc();
     } else {
@@ -899,6 +909,7 @@ function GuidedStepProfile({
           href={TEST_PERFIL_URL}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={() => track("cta_click", { destino: "test_perfil" })}
           className="text-rose-600 font-medium hover:underline"
         >
           ¿No lo sabes? Haz el test primero →
@@ -1240,6 +1251,7 @@ function GuidedResultScreen({
             href={TALLER_URL}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => track("cta_click", { destino: "taller" })}
             className="px-6 py-3 text-sm font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors"
           >
             🎓 Apúntate al taller
@@ -1248,6 +1260,7 @@ function GuidedResultScreen({
             href={CARTERAS_K_URL}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => track("cta_click", { destino: "carteras_k" })}
             className="px-6 py-3 text-sm font-bold text-slate-900 bg-white hover:bg-slate-100 rounded-lg transition-colors"
           >
             Descubre las Carteras K →
@@ -2439,6 +2452,7 @@ function DownloadReportSection({
         };
         throw new Error(data.error ?? `HTTP ${res.status}`);
       }
+      track("lead_capturado", { modo: "informe" });
       // 2) Generar PDF en cliente y forzar descarga
       const { generateInformePdf } = await import(
         "@/lib/pdf-informe-retiro-client"
