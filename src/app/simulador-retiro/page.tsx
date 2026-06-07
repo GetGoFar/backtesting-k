@@ -1271,13 +1271,19 @@ function GuidedResultScreen({
       {/* Acciones secundarias */}
       <div className="mt-5 flex flex-col sm:flex-row gap-3 justify-center">
         <button
-          onClick={onRestart}
+          onClick={() => {
+            track("cta_click", { destino: "probar_otros_numeros" });
+            onRestart();
+          }}
           className="px-5 py-2.5 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
         >
           ↺ Probar otros números
         </button>
         <button
-          onClick={onAdvanced}
+          onClick={() => {
+            track("cta_click", { destino: "analisis_completo" });
+            onAdvanced();
+          }}
           className="px-5 py-2.5 text-sm font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800"
         >
           Ver el análisis completo →
