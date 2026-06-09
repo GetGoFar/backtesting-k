@@ -1380,9 +1380,9 @@ const BBVA_ACUMULACION_PRESETS: PortfolioPreset[] = [
 const PABLO_CASTRO_PRESETS: PortfolioPreset[] = [
   {
     id: "pablo-castro-cartera",
-    name: "Cartera Pablo Castro",
+    name: "Cartera PC",
     description:
-      "Cartera real del cliente Pablo de Castro (consultoría K) — 15 holdings líquidos: ETFs (SPDR ACWI IMI, Bitcoin ETP, oro físico), Plan Pensiones CaixaBank RV Internacional (proxy SXR8), acciones IBEX (Colonial, Iberdrola, Repsol, Viscofan, Merlin) y 6 fondos UCITS activos (Fidelity Tech, MSS Global Brands, Bestinfond, Capital Group, DWS, Pictet). Capital líquido ~2.34M€.",
+      "Cartera real del cliente PC (consultoría K) — 15 holdings líquidos: ETFs (SPDR ACWI IMI, Bitcoin ETP, oro físico), Plan Pensiones CaixaBank RV Internacional (proxy SXR8), acciones IBEX (Colonial, Iberdrola, Repsol, Viscofan, Merlin) y 6 fondos UCITS activos (Fidelity Tech, MSS Global Brands, Bestinfond, Capital Group, DWS, Pictet). Capital líquido ~2.34M€.",
     type: "active",
     holdings: [
       // Pasivo / ETFs (37.95%)
