@@ -20,6 +20,7 @@ import { getDisambiguatedPortfolioNames } from "@/lib/chart-naming";
 const COLORS = {
   a: "#2563eb", // Azul
   b: "#e11d48", // Rojo/Rosa
+  benchmark: "#9333ea", // Púrpura (benchmark)
 };
 
 interface AnnualReturnsChartProps {
@@ -113,6 +114,15 @@ export function AnnualReturnsChart({ results, isLoading }: AnnualReturnsChartPro
   // que Recharts colapse las dos barras en una sola.
   const { nameA, nameB } = getDisambiguatedPortfolioNames(resultA, resultB);
 
+  // El benchmark es global: A y B comparten el mismo benchmark.
+  const bm = resultA?.benchmark ?? resultB?.benchmark;
+  // `||` (no `??`) para cubrir también cadena vacía; y desambiguar si el
+  // nombre del benchmark colisiona con el de A/B (evita pisar el dataKey).
+  let nameBench = bm?.benchmarkName || "Benchmark";
+  if (nameBench === nameA || nameBench === nameB) {
+    nameBench = `${nameBench} (benchmark)`;
+  }
+
   // Combinar datos de las carteras disponibles por año
   const dataMap = new Map<number, Record<string, number>>();
 
@@ -139,6 +149,21 @@ export function AnnualReturnsChart({ results, isLoading }: AnnualReturnsChartPro
     }
   }
 
+  // Mergear las rentabilidades anuales del benchmark (3ª serie condicional)
+  if (bm?.benchmarkAnnualReturns) {
+    for (const annual of bm.benchmarkAnnualReturns) {
+      const entry = dataMap.get(annual.year);
+      if (entry) {
+        entry[nameBench] = annual.returnPct;
+      } else {
+        dataMap.set(annual.year, {
+          year: annual.year,
+          [nameBench]: annual.returnPct,
+        });
+      }
+    }
+  }
+
   const chartData = Array.from(dataMap.values()).sort(
     (a, b) => (a.year ?? 0) - (b.year ?? 0)
   );
@@ -147,6 +172,9 @@ export function AnnualReturnsChart({ results, isLoading }: AnnualReturnsChartPro
   const allReturns = [
     ...(resultA ? resultA.annualReturns.map((r) => r.returnPct) : []),
     ...(resultB ? resultB.annualReturns.map((r) => r.returnPct) : []),
+    ...(bm?.benchmarkAnnualReturns
+      ? bm.benchmarkAnnualReturns.map((r) => r.returnPct)
+      : []),
   ];
   const minReturn = Math.min(...allReturns, 0);
   const maxReturn = Math.max(...allReturns, 0);
@@ -221,6 +249,26 @@ export function AnnualReturnsChart({ results, isLoading }: AnnualReturnsChartPro
                       (entry[nameB] ?? 0) >= 0
                         ? COLORS.b
                         : "#fda4af"
+                    }
+                  />
+                ))}
+              </Bar>
+            )}
+            {bm?.benchmarkAnnualReturns &&
+              bm.benchmarkAnnualReturns.length > 0 && (
+              <Bar
+                dataKey={nameBench}
+                name={nameBench}
+                fill={COLORS.benchmark}
+                radius={[4, 4, 0, 0]}
+              >
+                {chartData.map((entry, index) => (
+                  <Cell
+                    key={`cell-bench-${index}`}
+                    fill={
+                      (entry[nameBench] ?? 0) >= 0
+                        ? COLORS.benchmark
+                        : "#c4b5fd"
                     }
                   />
                 ))}

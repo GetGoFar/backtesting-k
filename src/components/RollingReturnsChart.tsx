@@ -20,6 +20,7 @@ import { getDisambiguatedPortfolioNames } from "@/lib/chart-naming";
 const COLORS = {
   a: "#2563eb", // Azul
   b: "#e11d48", // Rojo/Rosa
+  benchmark: "#9333ea", // Púrpura (benchmark)
 };
 
 // Opciones de ventana temporal
@@ -131,6 +132,16 @@ export function RollingReturnsChart({ results, isLoading }: RollingReturnsChartP
   // Desambiguación de nombres si A y B comparten portfolioName.
   const { nameA, nameB } = getDisambiguatedPortfolioNames(resultA, resultB);
 
+  // Benchmark global: A y B comparten el mismo benchmark.
+  const bm = resultA?.benchmark ?? resultB?.benchmark;
+  // `||` (no `??`) para cubrir cadena vacía; y desambiguar si colisiona con A/B.
+  let benchmarkName = bm?.benchmarkName || "Benchmark";
+  if (benchmarkName === nameA || benchmarkName === nameB) {
+    benchmarkName = `${benchmarkName} (benchmark)`;
+  }
+  // Rolling returns del benchmark (ya calculados en servidor). Solo se usan si existen.
+  const benchmarkRolling = bm?.benchmarkRollingReturns;
+
   // Obtener los datos según la ventana seleccionada
   const getWindowData = (window: RollingWindow) => {
     switch (window) {
@@ -138,16 +149,19 @@ export function RollingReturnsChart({ results, isLoading }: RollingReturnsChartP
         return {
           a: resultA?.rollingReturns.oneYear ?? [],
           b: resultB?.rollingReturns.oneYear ?? [],
+          benchmark: benchmarkRolling?.oneYear ?? [],
         };
       case "3":
         return {
           a: resultA?.rollingReturns.threeYear ?? [],
           b: resultB?.rollingReturns.threeYear ?? [],
+          benchmark: benchmarkRolling?.threeYear ?? [],
         };
       case "5":
         return {
           a: resultA?.rollingReturns.fiveYear ?? [],
           b: resultB?.rollingReturns.fiveYear ?? [],
+          benchmark: benchmarkRolling?.fiveYear ?? [],
         };
     }
   };
@@ -182,6 +196,22 @@ export function RollingReturnsChart({ results, isLoading }: RollingReturnsChartP
     }
   }
 
+  // Mergear la serie del benchmark (3ª serie condicional).
+  if (benchmarkRolling) {
+    for (const point of windowData.benchmark) {
+      const entry = dataMap.get(point.date);
+      if (entry) {
+        entry[benchmarkName] = point.value * 100;
+      } else {
+        dataMap.set(point.date, {
+          date: point.date,
+          exactDate: point.exactDate || point.date,
+          [benchmarkName]: point.value * 100,
+        });
+      }
+    }
+  }
+
   const chartData = Array.from(dataMap.values()).sort((a, b) =>
     (a.date as string).localeCompare(b.date as string)
   );
@@ -190,6 +220,7 @@ export function RollingReturnsChart({ results, isLoading }: RollingReturnsChartP
   const allValues = [
     ...windowData.a.map((p) => p.value * 100),
     ...windowData.b.map((p) => p.value * 100),
+    ...windowData.benchmark.map((p) => p.value * 100),
   ];
   const minValue = Math.min(...allValues, 0);
   const maxValue = Math.max(...allValues, 0);
@@ -329,6 +360,18 @@ export function RollingReturnsChart({ results, isLoading }: RollingReturnsChartP
                 strokeWidth={2}
                 dot={false}
                 activeDot={{ r: 4, fill: COLORS.b }}
+              />
+            )}
+            {benchmarkRolling && (
+              <Line
+                type="monotone"
+                dataKey={benchmarkName}
+                name={benchmarkName}
+                stroke={COLORS.benchmark}
+                strokeWidth={2}
+                strokeDasharray="6 4"
+                dot={false}
+                activeDot={{ r: 4, fill: COLORS.benchmark }}
               />
             )}
           </LineChart>

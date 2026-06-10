@@ -1162,6 +1162,15 @@ export default function Home() {
                     accentClass: "text-rose-600",
                   });
                 }
+                // Columna del benchmark (condicional: solo si hay datos anuales propagados)
+                const bm = results.resultA?.benchmark ?? results.resultB?.benchmark;
+                if (bm?.benchmarkAnnualReturns && bm.benchmarkAnnualReturns.length > 0) {
+                  cols.push({
+                    label: bm.benchmarkName ?? "Benchmark",
+                    values: new Map(bm.benchmarkAnnualReturns.map((r) => [r.year, r.returnPct])),
+                    accentClass: "text-purple-600",
+                  });
+                }
                 if (cols.length === 0) return null;
                 return (
                   <div className="scroll-mt-24">
@@ -1195,6 +1204,19 @@ export default function Home() {
                     accentClass: "text-rose-600",
                     initialValue: initialAmount,
                     monthlyValues: results.resultB.timeSeries.map((p) => ({
+                      monthKey: p.date,
+                      value: p.value,
+                    })),
+                  });
+                }
+                // Serie del benchmark (condicional: solo si hay serie temporal propagada)
+                const bm = results.resultA?.benchmark ?? results.resultB?.benchmark;
+                if (bm?.benchmarkTimeSeries && bm.benchmarkTimeSeries.length > 0) {
+                  monthSeries.push({
+                    label: bm.benchmarkName ?? "Benchmark",
+                    accentClass: "text-purple-600",
+                    initialValue: initialAmount,
+                    monthlyValues: bm.benchmarkTimeSeries.map((p) => ({
                       monthKey: p.date,
                       value: p.value,
                     })),

@@ -8,7 +8,17 @@
 //
 // =============================================================================
 
-import type { BacktestResult } from "./types";
+import type { BacktestResult, BenchmarkComparison, Metrics, FeesSummary, PortfolioAllocation } from "./types";
+
+// Forma mínima que necesitan las funciones de scoring. Tanto una cartera
+// (BacktestResult) como el benchmark (BenchmarkComparison) pueden adaptarse
+// a esta estructura, lo que permite reutilizar la misma lógica para la 3ª
+// columna/barra del informe sin duplicar nada.
+interface ScoringInput {
+  metrics: Metrics;
+  fees: FeesSummary;
+  allocation?: PortfolioAllocation;
+}
 
 // -----------------------------------------------------------------------------
 // Tipos
@@ -88,7 +98,7 @@ function globalToAdjective(score: number): { adjective: string; color: string } 
  *   < 0%   → 0 (perdiendo dinero)
  *   ≥ 12%  → 10 (excelente histórico)
  */
-function scoreRentabilidad(result: BacktestResult): ScoreDetail {
+function scoreRentabilidad(result: ScoringInput): ScoreDetail {
   // El CAGR del result ya es TWRR puro (sin contribuciones)
   const cagr = result.metrics.cagr * 100;
   const value = linearScore(cagr, 0, 12);
@@ -107,7 +117,7 @@ function scoreRentabilidad(result: BacktestResult): ScoreDetail {
  *   Sharpe: rentabilidad por unidad de volatilidad
  *   Calmar: rentabilidad por unidad de drawdown máximo
  */
-function scoreEficiencia(result: BacktestResult): ScoreDetail {
+function scoreEficiencia(result: ScoringInput): ScoreDetail {
   const sharpe = result.metrics.sharpe;
   const calmar = result.metrics.calmar;
   // Sharpe: <0=0, 1.2+=10
@@ -129,7 +139,7 @@ function scoreEficiencia(result: BacktestResult): ScoreDetail {
  * RESISTENCIA — basada en Max Drawdown y peor mes/trimestre.
  *   Max DD pre-impuestos: peor caída desde un máximo
  */
-function scoreResistencia(result: BacktestResult): ScoreDetail {
+function scoreResistencia(result: ScoringInput): ScoreDetail {
   const maxDD = result.metrics.maxDrawdown * 100; // negativo
   const worstMonth = result.metrics.worstMonth * 100; // negativo
   // Max DD: 0% = 10, -45% = 0
@@ -150,7 +160,7 @@ function scoreResistencia(result: BacktestResult): ScoreDetail {
 /**
  * ESTABILIDAD — basada en volatilidad y % periodos positivos.
  */
-function scoreEstabilidad(result: BacktestResult): ScoreDetail {
+function scoreEstabilidad(result: ScoringInput): ScoreDetail {
   const vol = result.metrics.volatility * 100;
   const posRatio = result.metrics.positiveMonthsRatio * 100; // %
   // Vol: 8% = 10, 22% = 0
@@ -172,7 +182,7 @@ function scoreEstabilidad(result: BacktestResult): ScoreDetail {
  * COSTE — basado en TER ponderado + comisión de gestión.
  *   NO incluye impuestos (esos son contextuales del inversor).
  */
-function scoreCoste(result: BacktestResult): ScoreDetail {
+function scoreCoste(result: ScoringInput): ScoreDetail {
   const ter = result.fees.weightedTer;
   const mgmt = result.fees.managementFee ?? 0;
   const total = ter + mgmt;
@@ -194,7 +204,7 @@ function scoreCoste(result: BacktestResult): ScoreDetail {
  * DIVERSIFICACIÓN — basada en composición de la cartera.
  *   Más activos + más clases + más regiones = mejor nota.
  */
-function scoreDiversificacion(result: BacktestResult): ScoreDetail {
+function scoreDiversificacion(result: ScoringInput): ScoreDetail {
   const byClass = result.allocation?.byAssetClass ?? [];
   const byCategory = result.allocation?.byCategory ?? [];
   const numClasses = byClass.length;
@@ -221,16 +231,14 @@ function scoreDiversificacion(result: BacktestResult): ScoreDetail {
 // API pública
 // -----------------------------------------------------------------------------
 
-/**
- * Calcula todas las notas de una cartera (pre-impuestos).
- */
-export function computePortfolioScore(result: BacktestResult): PortfolioScore {
-  const rentabilidad = scoreRentabilidad(result);
-  const eficiencia = scoreEficiencia(result);
-  const resistencia = scoreResistencia(result);
-  const estabilidad = scoreEstabilidad(result);
-  const coste = scoreCoste(result);
-  const diversificacion = scoreDiversificacion(result);
+/** Núcleo de scoring compartido por carteras y benchmark. */
+function computeScore(input: ScoringInput): PortfolioScore {
+  const rentabilidad = scoreRentabilidad(input);
+  const eficiencia = scoreEficiencia(input);
+  const resistencia = scoreResistencia(input);
+  const estabilidad = scoreEstabilidad(input);
+  const coste = scoreCoste(input);
+  const diversificacion = scoreDiversificacion(input);
 
   const global =
     rentabilidad.value * WEIGHTS.rentabilidad +
@@ -253,4 +261,26 @@ export function computePortfolioScore(result: BacktestResult): PortfolioScore {
     coste,
     diversificacion,
   };
+}
+
+/**
+ * Calcula todas las notas de una cartera (pre-impuestos).
+ */
+export function computePortfolioScore(result: BacktestResult): PortfolioScore {
+  return computeScore(result);
+}
+
+/**
+ * Calcula la nota global del benchmark con la MISMA escala que las carteras,
+ * para poder mostrarlo como 3ª barra/columna en el informe. Devuelve null si
+ * el benchmark no trae las métricas/comisiones necesarias (entonces el informe
+ * simplemente no pinta la columna del benchmark).
+ */
+export function computeBenchmarkScore(bm: BenchmarkComparison | undefined): PortfolioScore | null {
+  if (!bm?.benchmarkMetrics || !bm.benchmarkFees) return null;
+  return computeScore({
+    metrics: bm.benchmarkMetrics,
+    fees: bm.benchmarkFees,
+    allocation: bm.benchmarkAllocation,
+  });
 }

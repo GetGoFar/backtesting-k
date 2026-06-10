@@ -19,6 +19,7 @@ import { getDisambiguatedPortfolioNames } from "@/lib/chart-naming";
 const COLORS = {
   a: { stroke: "#2563eb", fill: "#3b82f6" }, // Azul
   b: { stroke: "#e11d48", fill: "#f43f5e" }, // Rojo/Rosa
+  benchmark: { stroke: "#9333ea", fill: "#a855f7" }, // Púrpura (benchmark)
 };
 
 interface DrawdownChartProps {
@@ -118,6 +119,17 @@ export function DrawdownChart({ results, isLoading }: DrawdownChartProps) {
   // que Recharts colapse las dos áreas en una sola.
   const { nameA, nameB } = getDisambiguatedPortfolioNames(resultA, resultB);
 
+  // Benchmark global: A y B comparten benchmark. Lo extraemos del primero disponible.
+  const bm = resultA?.benchmark ?? resultB?.benchmark;
+  const benchmarkDrawdowns = bm?.benchmarkDrawdowns;
+  let nameBench = bm?.benchmarkName || "Benchmark";
+  // Desambiguar si el nombre del benchmark colisiona con el de A/B
+  // (mismo dataKey pisaría la serie en el dataMap).
+  if (nameBench === nameA || nameBench === nameB) {
+    nameBench = `${nameBench} (benchmark)`;
+  }
+  const hasBenchmark = !!benchmarkDrawdowns && benchmarkDrawdowns.length > 0;
+
   // Combinar datos de las carteras disponibles por fecha
   const dataMap = new Map<string, Record<string, number | string>>();
 
@@ -146,6 +158,21 @@ export function DrawdownChart({ results, isLoading }: DrawdownChartProps) {
     }
   }
 
+  if (hasBenchmark && benchmarkDrawdowns) {
+    for (const point of benchmarkDrawdowns) {
+      const entry = dataMap.get(point.date);
+      if (entry) {
+        entry[nameBench] = point.drawdown;
+      } else {
+        dataMap.set(point.date, {
+          date: point.date,
+          exactDate: point.exactDate || point.date,
+          [nameBench]: point.drawdown,
+        });
+      }
+    }
+  }
+
   const chartData = Array.from(dataMap.values()).sort((a, b) =>
     (a.date as string).localeCompare(b.date as string)
   );
@@ -154,6 +181,9 @@ export function DrawdownChart({ results, isLoading }: DrawdownChartProps) {
   const allDrawdowns = [
     ...(resultA ? resultA.drawdowns.map((d) => d.drawdown) : []),
     ...(resultB ? resultB.drawdowns.map((d) => d.drawdown) : []),
+    ...(hasBenchmark && benchmarkDrawdowns
+      ? benchmarkDrawdowns.map((d) => d.drawdown)
+      : []),
   ];
   const minDrawdown = Math.min(...allDrawdowns, 0);
 
@@ -187,6 +217,18 @@ export function DrawdownChart({ results, isLoading }: DrawdownChartProps) {
               <linearGradient id="gradientB" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor={COLORS.b.fill} stopOpacity={0.3} />
                 <stop offset="95%" stopColor={COLORS.b.fill} stopOpacity={0.05} />
+              </linearGradient>
+              <linearGradient id="gradientBench" x1="0" y1="0" x2="0" y2="1">
+                <stop
+                  offset="5%"
+                  stopColor={COLORS.benchmark.fill}
+                  stopOpacity={0.3}
+                />
+                <stop
+                  offset="95%"
+                  stopColor={COLORS.benchmark.fill}
+                  stopOpacity={0.05}
+                />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -233,6 +275,17 @@ export function DrawdownChart({ results, isLoading }: DrawdownChartProps) {
                 stroke={COLORS.b.stroke}
                 fill="url(#gradientB)"
                 strokeWidth={2}
+              />
+            )}
+            {hasBenchmark && (
+              <Area
+                type="monotone"
+                dataKey={nameBench}
+                name={nameBench}
+                stroke={COLORS.benchmark.stroke}
+                fill="url(#gradientBench)"
+                strokeWidth={2}
+                strokeDasharray="6 4"
               />
             )}
           </AreaChart>

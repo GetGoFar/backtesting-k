@@ -35,13 +35,20 @@ function PortfolioDrawdownsTable({
   result,
   colorClass,
 }: {
-  result: BacktestResult;
-  colorClass: "blue" | "rose";
+  // Solo se leen estos dos campos; se acepta el BacktestResult completo o un
+  // objeto virtual del benchmark con la misma forma para reutilizar la card.
+  result: Pick<BacktestResult, "topDrawdowns" | "portfolioName">;
+  colorClass: "blue" | "rose" | "purple";
 }) {
   const episodes: DrawdownEpisode[] = result.topDrawdowns ?? [];
   if (episodes.length === 0) return null;
 
-  const headerColor = colorClass === "blue" ? "text-blue-600" : "text-rose-600";
+  const headerColor =
+    colorClass === "blue"
+      ? "text-blue-600"
+      : colorClass === "rose"
+        ? "text-rose-600"
+        : "text-purple-600";
 
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -116,10 +123,24 @@ export function TopDrawdownsTable({ results, isLoading }: TopDrawdownsTableProps
   const { resultA, resultB } = results;
   if (!resultA && !resultB) return null;
 
+  // El benchmark es global (compartido por A y B); se toma del primero disponible.
+  const bm = resultA?.benchmark ?? resultB?.benchmark;
+  const benchmarkEpisodes = bm?.benchmarkTopDrawdowns;
+  const hasBenchmark = !!benchmarkEpisodes && benchmarkEpisodes.length > 0;
+
   return (
     <div className="space-y-4">
       {resultA && <PortfolioDrawdownsTable result={resultA} colorClass="blue" />}
       {resultB && <PortfolioDrawdownsTable result={resultB} colorClass="rose" />}
+      {hasBenchmark && (
+        <PortfolioDrawdownsTable
+          result={{
+            topDrawdowns: benchmarkEpisodes,
+            portfolioName: bm?.benchmarkName ?? "Benchmark",
+          }}
+          colorClass="purple"
+        />
+      )}
     </div>
   );
 }

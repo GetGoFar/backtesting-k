@@ -1,6 +1,6 @@
 "use client";
 
-import type { BacktestResponse, BacktestResult, RollingStatsBucket } from "@/lib/types";
+import type { BacktestResponse, RollingStats, RollingStatsBucket } from "@/lib/types";
 import { formatPct } from "@/lib/formatters";
 import { Tooltip } from "./Tooltip";
 
@@ -25,23 +25,29 @@ function classifyCagr(value: number): string {
 }
 
 function PortfolioRollingTable({
-  result,
+  name,
+  stats,
   colorClass,
 }: {
-  result: BacktestResult;
-  colorClass: "blue" | "rose";
+  name: string;
+  stats: RollingStats | undefined;
+  colorClass: "blue" | "rose" | "purple";
 }) {
-  const stats = result.rollingStats;
   if (!stats) return null;
 
   const buckets: RollingStatsBucket[] = [stats.oneYear, stats.threeYear, stats.fiveYear, stats.tenYear];
-  const headerColor = colorClass === "blue" ? "text-blue-600" : "text-rose-600";
+  const headerColor =
+    colorClass === "blue"
+      ? "text-blue-600"
+      : colorClass === "rose"
+      ? "text-rose-600"
+      : "text-purple-600";
 
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
       <div className="px-6 py-4 border-b border-slate-100">
         <h4 className={`text-base font-semibold ${headerColor} font-serif`}>
-          Rangos de rentabilidad rolling — {result.portfolioName}
+          Rangos de rentabilidad rolling — {name}
         </h4>
         <p className="text-xs text-brand-tertiary mt-0.5">
           Estadísticos sobre todas las ventanas posibles del periodo backtested:
@@ -157,10 +163,32 @@ export function RollingStatsTable({ results, isLoading }: RollingStatsTableProps
   const { resultA, resultB } = results;
   if (!resultA && !resultB) return null;
 
+  // El benchmark es global: A y B comparten el mismo. Lo tomamos del que exista.
+  const bm = resultA?.benchmark ?? resultB?.benchmark;
+
   return (
     <div className="space-y-4">
-      {resultA && <PortfolioRollingTable result={resultA} colorClass="blue" />}
-      {resultB && <PortfolioRollingTable result={resultB} colorClass="rose" />}
+      {resultA && (
+        <PortfolioRollingTable
+          name={resultA.portfolioName}
+          stats={resultA.rollingStats}
+          colorClass="blue"
+        />
+      )}
+      {resultB && (
+        <PortfolioRollingTable
+          name={resultB.portfolioName}
+          stats={resultB.rollingStats}
+          colorClass="rose"
+        />
+      )}
+      {bm?.benchmarkRollingStats && (
+        <PortfolioRollingTable
+          name={bm.benchmarkName ?? "Benchmark"}
+          stats={bm.benchmarkRollingStats}
+          colorClass="purple"
+        />
+      )}
     </div>
   );
 }

@@ -209,6 +209,15 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
   const costsB = breakdownB.costes;
   const costsDifference = Math.abs(costsA - costsB);
   const cheaperCostsName = costsA < costsB ? resultA!.portfolioName : resultB!.portfolioName;
+
+  // --- Benchmark (3ª serie de costes). Global: A y B comparten benchmark. ---
+  // Reutilizamos el mismo desglose de coste que las carteras: TER pagado +
+  // comisión de gestión pagada (FeesSummary). Solo se renderiza si existe.
+  const bm = resultA?.benchmark ?? resultB?.benchmark;
+  const bmFees = bm?.benchmarkFees;
+  const bmCosts = bmFees
+    ? (bmFees.totalFees ?? 0) + (bmFees.managementFeePaid ?? 0)
+    : 0;
   // Impuestos totales (adelantados + pendientes) por separado
   const taxesA = breakdownA.adelantados + breakdownA.pendientes;
   const taxesB = breakdownB.adelantados + breakdownB.pendientes;
@@ -287,7 +296,7 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
               comparable directamente — más bajo = mejor
             </span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <div className={`grid grid-cols-1 ${bm ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3"} gap-4 mb-6`}>
             <div className="rounded-xl bg-blue-50/50 border border-blue-100/50 p-5">
               <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-2">
                 {resultA!.portfolioName}
@@ -333,6 +342,33 @@ export function FeeImpactCard({ results, isLoading }: FeeImpactCardProps) {
                 {yearsB > 0 && <>{yearsB.toFixed(1)} años · {(costsB / yearsB).toFixed(0)} €/año</>}
               </p>
             </div>
+
+            {/* 3ª tarjeta de coste: BENCHMARK (púrpura, discontinuo en identidad
+                visual). Solo se renderiza si hay benchmark con sus comisiones. */}
+            {bm && (
+              <div className="rounded-xl bg-purple-50/50 border border-purple-300 border-dashed p-5">
+                <p className="text-xs font-semibold text-purple-600 uppercase tracking-wider mb-2">
+                  {bm.benchmarkName || "Benchmark"}
+                </p>
+                <p className="text-3xl sm:text-4xl font-bold tracking-tight font-serif text-purple-700">
+                  {formatEUR(bmCosts)}
+                </p>
+                <div className="flex items-center gap-1 mt-1">
+                  <p className="text-[11px] text-brand-tertiary">
+                    TER {(bmFees?.weightedTer ?? 0).toFixed(3)}%
+                    {bmFees?.managementFee ? ` + Gestión ${bmFees.managementFee.toFixed(2)}%` : ""}
+                  </p>
+                  <Tooltip content={TER_TOOLTIP} wide>
+                    <svg className="w-3 h-3 text-slate-300 hover:text-brand-coral transition-colors" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
+                    </svg>
+                  </Tooltip>
+                </div>
+                <p className="text-[10px] text-brand-tertiary mt-2 pt-2 border-t border-purple-200/60">
+                  Referencia de mercado
+                </p>
+              </div>
+            )}
 
             <div className="rounded-xl bg-brand-navy p-5 text-white">
               <p className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-2">

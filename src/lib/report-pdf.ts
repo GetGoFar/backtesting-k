@@ -14,9 +14,9 @@
 
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { BacktestResponse, BacktestResult } from "./types";
+import type { BacktestResponse, BacktestResult, BenchmarkComparison } from "./types";
 import type { ReportConfig, ReportSectionId } from "./report-types";
-import { computePortfolioScore, type PortfolioScore, type ScoreDetail } from "./report-scoring";
+import { computePortfolioScore, computeBenchmarkScore, type PortfolioScore, type ScoreDetail } from "./report-scoring";
 import { computeTaxOnGain, type TaxMode } from "./tax-utils";
 
 // -----------------------------------------------------------------------------
@@ -36,6 +36,10 @@ const RGB = {
   redNeg: [198, 40, 40] as [number, number, number],
   darkBg: [44, 62, 80] as [number, number, number],
   gold: [212, 160, 23] as [number, number, number],
+  // Identidad visual del benchmark (coherente con la app): púrpura #9333ea
+  purple: [147, 51, 234] as [number, number, number],
+  // Púrpura claro para rellenos/áreas del benchmark (#a855f7)
+  purpleLight: [168, 85, 247] as [number, number, number],
 };
 
 // -----------------------------------------------------------------------------
@@ -291,8 +295,9 @@ function renderCover(pdf: jsPDF, result: BacktestResult, config: ReportConfig, o
   pdf.text(today, ML, PAGE_H - 19);
 }
 
-function renderScore(ctx: RenderCtx, score: PortfolioScore) {
+function renderScore(ctx: RenderCtx, score: PortfolioScore, benchScore?: PortfolioScore | null, benchName?: string) {
   drawSectionHeader(ctx, "01", "Tu cartera de 0 a 10");
+  const bmName = benchName ?? "Benchmark";
 
   drawBody(ctx,
     "Esta es la valoración global de tu cartera. La nota se calcula sobre las " +
@@ -321,19 +326,37 @@ function renderScore(ctx: RenderCtx, score: PortfolioScore) {
   ctx.pdf.setTextColor(r, g, b);
   ctx.pdf.text(score.adjective, PAGE_W / 2, ctx.y + 33, { align: "center" });
 
+  // Nota global del benchmark (referencia), en púrpura dentro de la misma caja.
+  if (benchScore) {
+    ctx.pdf.setFont("helvetica", "bold");
+    ctx.pdf.setFontSize(8);
+    ctx.pdf.setTextColor(...RGB.purple);
+    ctx.pdf.text(
+      `${bmName} (referencia): ${benchScore.global.toFixed(1).replace(".", ",")}`,
+      PAGE_W / 2,
+      ctx.y + 38,
+      { align: "center" }
+    );
+  }
+
   ctx.y += 46;
 
-  // Sub-notas con barras
-  const bars: Array<[string, ScoreDetail]> = [
-    ["Rentabilidad", score.rentabilidad],
-    ["Eficiencia", score.eficiencia],
-    ["Resistencia", score.resistencia],
-    ["Estabilidad", score.estabilidad],
-    ["Coste", score.coste],
-    ["Diversificación", score.diversificacion],
+  // Sub-notas con barras. La 3ª columna (nota del benchmark) solo aparece si
+  // benchScore existe; se pinta como marcador púrpura sobre la misma barra.
+  const bars: Array<[string, ScoreDetail, ScoreDetail | undefined]> = [
+    ["Rentabilidad", score.rentabilidad, benchScore?.rentabilidad],
+    ["Eficiencia", score.eficiencia, benchScore?.eficiencia],
+    ["Resistencia", score.resistencia, benchScore?.resistencia],
+    ["Estabilidad", score.estabilidad, benchScore?.estabilidad],
+    ["Coste", score.coste, benchScore?.coste],
+    ["Diversificación", score.diversificacion, benchScore?.diversificacion],
   ];
 
-  for (const [name, detail] of bars) {
+  // Si hay benchmark, reservamos un hueco a la derecha para su nota púrpura.
+  const valueCol = PAGE_W - MR;
+  const bmValueCol = benchScore ? valueCol - 12 : valueCol;
+
+  for (const [name, detail, bmDetail] of bars) {
     ensureSpace(ctx, 14);
     const [cr, cg, cb] = scoreRGB(detail.value);
 
@@ -345,7 +368,7 @@ function renderScore(ctx: RenderCtx, score: PortfolioScore) {
 
     // Barra fondo (gris)
     const barX = ML + 35;
-    const barW = CW - 35 - 16;
+    const barW = CW - 35 - (benchScore ? 28 : 16);
     ctx.pdf.setFillColor(...RGB.rowAlt);
     ctx.pdf.rect(barX, ctx.y, barW, 4, "F");
     // Barra valor (color)
@@ -353,11 +376,29 @@ function renderScore(ctx: RenderCtx, score: PortfolioScore) {
     ctx.pdf.setFillColor(cr, cg, cb);
     ctx.pdf.rect(barX, ctx.y, fillW, 4, "F");
 
-    // Valor numérico
+    // Marcador del benchmark sobre la barra (línea vertical púrpura discontinua)
+    if (bmDetail) {
+      const bmX = barX + (bmDetail.value / 10) * barW;
+      ctx.pdf.setDrawColor(...RGB.purple);
+      ctx.pdf.setLineWidth(0.7);
+      ctx.pdf.setLineDashPattern([0.8, 0.6], 0);
+      ctx.pdf.line(bmX, ctx.y - 1, bmX, ctx.y + 5);
+      ctx.pdf.setLineDashPattern([], 0);
+    }
+
+    // Valor numérico de la cartera
     ctx.pdf.setFont("helvetica", "bold");
     ctx.pdf.setFontSize(11);
     ctx.pdf.setTextColor(cr, cg, cb);
-    ctx.pdf.text(detail.value.toFixed(1).replace(".", ","), PAGE_W - MR, ctx.y + 3, { align: "right" });
+    ctx.pdf.text(detail.value.toFixed(1).replace(".", ","), bmValueCol, ctx.y + 3, { align: "right" });
+
+    // Valor numérico del benchmark (púrpura), a la derecha del de la cartera
+    if (bmDetail) {
+      ctx.pdf.setFont("helvetica", "bold");
+      ctx.pdf.setFontSize(11);
+      ctx.pdf.setTextColor(...RGB.purple);
+      ctx.pdf.text(bmDetail.value.toFixed(1).replace(".", ","), valueCol, ctx.y + 3, { align: "right" });
+    }
 
     // Métrica explicativa pequeña debajo
     ctx.pdf.setFont("helvetica", "normal");
@@ -366,6 +407,15 @@ function renderScore(ctx: RenderCtx, score: PortfolioScore) {
     ctx.pdf.text(detail.metric, barX, ctx.y + 8);
 
     ctx.y += 11;
+  }
+
+  // Leyenda de la columna del benchmark
+  if (benchScore) {
+    ctx.pdf.setFont("helvetica", "bold");
+    ctx.pdf.setFontSize(7);
+    ctx.pdf.setTextColor(...RGB.purple);
+    ctx.pdf.text(`Cifra púrpura / marca = nota de ${bmName} (referencia)`, ML, ctx.y + 2);
+    ctx.y += 4;
   }
 
   ctx.y += 4;
@@ -447,12 +497,17 @@ function renderSummary(ctx: RenderCtx, result: BacktestResult, score: PortfolioS
   drawCTABox(ctx, "Lo que esto significa", ctaText);
 }
 
-function renderEvolution(ctx: RenderCtx, result: BacktestResult) {
+function renderEvolution(ctx: RenderCtx, result: BacktestResult, benchmark?: BenchmarkComparison) {
   drawSectionHeader(ctx, "03", "Cómo crece tu dinero");
   drawBody(ctx,
     "Así ha evolucionado el valor de tu cartera durante el periodo analizado. " +
     "Las subidas y bajadas son normales — lo importante es la tendencia a largo plazo.",
   );
+
+  // Serie del benchmark (3ª línea púrpura discontinua), solo si existe.
+  const bmTs = benchmark?.benchmarkTimeSeries;
+  const hasBm = !!bmTs && bmTs.length >= 2;
+  const bmName = benchmark?.benchmarkName ?? "Benchmark";
 
   // Gráfico de líneas
   const ts = result.timeSeries;
@@ -464,8 +519,10 @@ function renderEvolution(ctx: RenderCtx, result: BacktestResult) {
     const chartH = 60;
 
     const values = ts.map((p) => p.value);
-    const minV = Math.min(...values);
-    const maxV = Math.max(...values);
+    // El rango del eje incluye también la serie del benchmark para no recortarla.
+    const allValues = hasBm ? values.concat(bmTs!.map((p) => p.value)) : values;
+    const minV = Math.min(...allValues);
+    const maxV = Math.max(...allValues);
     const rangeV = maxV - minV || 1;
 
     // Eje Y - 4 labels
@@ -487,6 +544,26 @@ function renderEvolution(ctx: RenderCtx, result: BacktestResult) {
     ctx.pdf.line(chartX, chartY, chartX, chartY + chartH);
     ctx.pdf.line(chartX, chartY + chartH, chartX + chartW, chartY + chartH);
 
+    // Línea del benchmark (púrpura discontinua), debajo de la de la cartera.
+    if (hasBm) {
+      ctx.pdf.setDrawColor(...RGB.purple);
+      ctx.pdf.setLineWidth(0.5);
+      ctx.pdf.setLineDashPattern([1.5, 1], 0);
+      let bPrevX: number | null = null;
+      let bPrevY: number | null = null;
+      for (let i = 0; i < bmTs!.length; i++) {
+        const v = bmTs![i]!.value;
+        const x = chartX + (i / (bmTs!.length - 1)) * chartW;
+        const y = chartY + chartH - ((v - minV) / rangeV) * chartH;
+        if (bPrevX !== null && bPrevY !== null) {
+          ctx.pdf.line(bPrevX, bPrevY, x, y);
+        }
+        bPrevX = x;
+        bPrevY = y;
+      }
+      ctx.pdf.setLineDashPattern([], 0); // restaurar línea sólida
+    }
+
     // Línea de datos
     ctx.pdf.setDrawColor(...RGB.red);
     ctx.pdf.setLineWidth(0.6);
@@ -501,6 +578,30 @@ function renderEvolution(ctx: RenderCtx, result: BacktestResult) {
       }
       prevX = x;
       prevY = y;
+    }
+
+    // Leyenda (cartera + benchmark) solo cuando hay benchmark
+    if (hasBm) {
+      const legendY = chartY + chartH + 8;
+      // Cartera (rojo, línea sólida)
+      ctx.pdf.setDrawColor(...RGB.red);
+      ctx.pdf.setLineWidth(0.6);
+      ctx.pdf.line(chartX, legendY, chartX + 8, legendY);
+      ctx.pdf.setFont("helvetica", "normal");
+      ctx.pdf.setFontSize(7);
+      ctx.pdf.setTextColor(...RGB.dark);
+      ctx.pdf.text(result.portfolioName, chartX + 10, legendY + 1);
+      const portfolioLabelW = ctx.pdf.getTextWidth(result.portfolioName);
+      // Benchmark (púrpura, discontinua)
+      const bmLegendX = chartX + 10 + portfolioLabelW + 8;
+      ctx.pdf.setDrawColor(...RGB.purple);
+      ctx.pdf.setLineWidth(0.5);
+      ctx.pdf.setLineDashPattern([1.5, 1], 0);
+      ctx.pdf.line(bmLegendX, legendY, bmLegendX + 8, legendY);
+      ctx.pdf.setLineDashPattern([], 0);
+      ctx.pdf.setTextColor(...RGB.purple);
+      ctx.pdf.text(`${bmName} (referencia)`, bmLegendX + 10, legendY + 1);
+      ctx.y += 6; // espacio extra para la leyenda
     }
 
     // Etiquetas X (años)
@@ -521,26 +622,40 @@ function renderEvolution(ctx: RenderCtx, result: BacktestResult) {
 
   // Tabla
   const profit = result.finalValue - result.totalContributions;
+  const tableBody: string[][] = [
+    ["Capital inicial aportado", fmtEUR(ts[0]?.value ?? 0)],
+    ["Total aportado en el periodo", fmtEUR(result.totalContributions)],
+    ["Valor final", fmtEUR(result.finalValue)],
+    ["Ganancia bruta", fmtEUR(profit)],
+  ];
+  // Fila del benchmark (valor final de referencia), solo si está disponible.
+  const bmFinal = benchmark?.benchmarkFinalValue;
+  if (bmFinal != null) {
+    tableBody.push([`Valor final ${bmName} (referencia)`, fmtEUR(bmFinal)]);
+  }
+  const bmRowIdx = bmFinal != null ? tableBody.length - 1 : -1;
   autoTable(ctx.pdf, {
     startY: ctx.y,
     margin: { left: ML, right: MR },
     head: [["Concepto", "Importe"]],
-    body: [
-      ["Capital inicial aportado", fmtEUR(ts[0]?.value ?? 0)],
-      ["Total aportado en el periodo", fmtEUR(result.totalContributions)],
-      ["Valor final", fmtEUR(result.finalValue)],
-      ["Ganancia bruta", fmtEUR(profit)],
-    ],
+    body: tableBody,
     headStyles: { fillColor: RGB.red, textColor: RGB.white, fontStyle: "bold", fontSize: 9 },
     bodyStyles: { fontSize: 9, textColor: RGB.dark },
     alternateRowStyles: { fillColor: RGB.rowAlt },
     styles: { cellPadding: 2.5, lineColor: RGB.lightGray, lineWidth: 0.1 },
     columnStyles: { 1: { halign: "right", fontStyle: "bold" } },
+    didParseCell: (data) => {
+      // Pintar la fila del benchmark en púrpura para mantener la identidad visual.
+      if (data.section === "body" && bmRowIdx >= 0 && data.row.index === bmRowIdx) {
+        data.cell.styles.textColor = RGB.purple;
+        data.cell.styles.fontStyle = "bold";
+      }
+    },
   });
   ctx.y = (ctx.pdf as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 4;
 }
 
-function renderCrisis(ctx: RenderCtx, result: BacktestResult) {
+function renderCrisis(ctx: RenderCtx, result: BacktestResult, benchmark?: BenchmarkComparison) {
   drawSectionHeader(ctx, "04", "¿Cuánto sufrirías en una crisis?");
   drawBody(ctx,
     "Las inversiones no van siempre hacia arriba. Conviene saber a qué te enfrentas " +
@@ -590,6 +705,38 @@ function renderCrisis(ctx: RenderCtx, result: BacktestResult) {
     `típico tiene entre un 15% y un 22%; uno "conservador" entre un 5% y un 8%.`
   );
 
+  // Tabla comparativa de riesgo vs benchmark (3ª columna), solo si hay métricas.
+  const bmMetrics = benchmark?.benchmarkMetrics;
+  if (bmMetrics) {
+    const bmName = benchmark?.benchmarkName ?? "Benchmark";
+    ctx.y += 2;
+    autoTable(ctx.pdf, {
+      startY: ctx.y,
+      margin: { left: ML, right: MR },
+      head: [["Indicador de riesgo", result.portfolioName, bmName]],
+      body: [
+        ["Peor caída (max drawdown)", fmtPct(maxDD), fmtPct(bmMetrics.maxDrawdown * 100)],
+        ["Peor mes", fmtPct(worstMonth), fmtPct(bmMetrics.worstMonth * 100)],
+        ["Cuán movida (volatilidad anual)", fmtPct(vol), fmtPct(bmMetrics.volatility * 100)],
+      ],
+      headStyles: { fillColor: RGB.red, textColor: RGB.white, fontStyle: "bold", fontSize: 9 },
+      bodyStyles: { fontSize: 9, textColor: RGB.dark },
+      alternateRowStyles: { fillColor: RGB.rowAlt },
+      styles: { cellPadding: 2.5, lineColor: RGB.lightGray, lineWidth: 0.1 },
+      columnStyles: {
+        1: { halign: "right", fontStyle: "bold" },
+        2: { halign: "right", fontStyle: "bold", textColor: RGB.purple },
+      },
+      didParseCell: (data) => {
+        // Cabecera de la columna del benchmark en púrpura.
+        if (data.section === "head" && data.column.index === 2) {
+          data.cell.styles.textColor = RGB.purple;
+        }
+      },
+    });
+    ctx.y = (ctx.pdf as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 4;
+  }
+
   drawCTABox(ctx, "La regla de oro",
     "Las caídas son parte del juego — el inversor que aguanta sin vender en pánico recupera " +
     "lo perdido y sigue compuesto. Los datos de tu cartera muestran que en los peores momentos " +
@@ -598,7 +745,7 @@ function renderCrisis(ctx: RenderCtx, result: BacktestResult) {
   );
 }
 
-function renderTaxes(ctx: RenderCtx, result: BacktestResult, otherResult?: BacktestResult) {
+function renderTaxes(ctx: RenderCtx, result: BacktestResult, otherResult?: BacktestResult, benchmark?: BenchmarkComparison) {
   drawSectionHeader(ctx, "05", "Cómo afectan los impuestos");
   drawBody(ctx,
     "Hay tres rentabilidades que conviene distinguir. Cada una responde a una pregunta " +
@@ -620,26 +767,68 @@ function renderTaxes(ctx: RenderCtx, result: BacktestResult, otherResult?: Backt
   const valCamino = result.finalValue;
   const valLiquidar = result.finalValue - pending;
 
+  // Columna del benchmark (3ª columna) si tiene comisiones y valor final.
+  const bmFees = benchmark?.benchmarkFees;
+  const bmFinal = benchmark?.benchmarkFinalValue;
+  const hasBmTax = !!bmFees && bmFinal != null;
+  const bmName = benchmark?.benchmarkName ?? "Benchmark";
+  let bmBruto = 0;
+  let bmCamino = 0;
+  let bmLiquidar = 0;
+  if (hasBmTax) {
+    const bmPaid = bmFees!.totalTaxesPaid ?? 0;
+    const bmPending = bmFees!.pendingTaxes ?? 0;
+    bmBruto = bmFinal! + bmPaid;
+    bmCamino = bmFinal!;
+    bmLiquidar = bmFinal! - bmPending;
+  }
+
+  const head = hasBmTax
+    ? [["Escenario", "Tu cartera", `${bmName} (referencia)`]]
+    : [["Escenario", "Valor final"]];
+  const body = hasBmTax
+    ? [
+        [`1. Bruta (en el papel)\nAntes de cualquier impuesto`, fmtEUR(valBruto), fmtEUR(bmBruto)],
+        [`2. Neta del camino\nLo que ves hoy en tu cuenta`, fmtEUR(valCamino), fmtEUR(bmCamino)],
+        [`3. Neta al liquidar\nLo que de verdad te llevas al bolsillo`, fmtEUR(valLiquidar), fmtEUR(bmLiquidar)],
+      ]
+    : [
+        [`1. Bruta (en el papel)\nAntes de cualquier impuesto`, fmtEUR(valBruto)],
+        [`2. Neta del camino\nLo que ves hoy en tu cuenta`, fmtEUR(valCamino)],
+        [`3. Neta al liquidar\nLo que de verdad te llevas al bolsillo`, fmtEUR(valLiquidar)],
+      ];
+
   autoTable(ctx.pdf, {
     startY: ctx.y,
     margin: { left: ML, right: MR },
-    head: [["Escenario", "Valor final"]],
-    body: [
-      [`1. Bruta (en el papel)\nAntes de cualquier impuesto`, fmtEUR(valBruto)],
-      [`2. Neta del camino\nLo que ves hoy en tu cuenta`, fmtEUR(valCamino)],
-      [`3. Neta al liquidar\nLo que de verdad te llevas al bolsillo`, fmtEUR(valLiquidar)],
-    ],
+    head,
+    body,
     headStyles: { fillColor: RGB.red, textColor: RGB.white, fontStyle: "bold", fontSize: 9 },
     bodyStyles: { fontSize: 9, textColor: RGB.dark, valign: "middle" },
     alternateRowStyles: { fillColor: RGB.rowAlt },
     styles: { cellPadding: 3, lineColor: RGB.lightGray, lineWidth: 0.1 },
-    columnStyles: { 1: { halign: "right", fontStyle: "bold" } },
+    columnStyles: hasBmTax
+      ? {
+          1: { halign: "right", fontStyle: "bold" },
+          2: { halign: "right", fontStyle: "bold", textColor: RGB.purple },
+        }
+      : { 1: { halign: "right", fontStyle: "bold" } },
     didParseCell: (data) => {
-      // Destacar fila 3 (liquidar) en rojo
+      // Destacar fila 3 (liquidar) en rojo, pero respetar el púrpura del benchmark.
       if (data.section === "body" && data.row.index === 2) {
-        data.cell.styles.fillColor = RGB.red;
-        data.cell.styles.textColor = RGB.white;
-        data.cell.styles.fontStyle = "bold";
+        if (hasBmTax && data.column.index === 2) {
+          data.cell.styles.fillColor = RGB.purple;
+          data.cell.styles.textColor = RGB.white;
+          data.cell.styles.fontStyle = "bold";
+        } else {
+          data.cell.styles.fillColor = RGB.red;
+          data.cell.styles.textColor = RGB.white;
+          data.cell.styles.fontStyle = "bold";
+        }
+      }
+      // Cabecera de la columna del benchmark en púrpura.
+      if (data.section === "head" && hasBmTax && data.column.index === 2) {
+        data.cell.styles.textColor = RGB.purple;
       }
     },
   });
@@ -778,6 +967,9 @@ export function generateReportPDF(
   if (!result) throw new Error("No hay datos para generar el informe");
 
   const score = computePortfolioScore(result);
+  // El benchmark es global (A y B comparten benchmark). Se obtiene del que lo tenga.
+  const benchmark = result.benchmark ?? other?.benchmark;
+  const benchScore = computeBenchmarkScore(benchmark);
   const subtitle = `${result.portfolioName} · Informe de cartera`;
 
   const pdf = new jsPDF({
@@ -798,7 +990,7 @@ export function generateReportPDF(
   let coverDone = false;
   const ctx: RenderCtx = { pdf, pageNum: 0, totalPages: 0, y: MT + 8, subtitle };
 
-  const benchName = results.resultA?.benchmark?.benchmarkName ?? results.resultB?.benchmark?.benchmarkName;
+  const benchName = benchmark?.benchmarkName;
   const otherName = other?.portfolioName;
 
   for (const id of selected) {
@@ -822,11 +1014,11 @@ export function generateReportPDF(
       drawFooter(pdf, ctx.pageNum);
       ctx.y = MT + 8;
 
-      if (id === "score") renderScore(ctx, score);
+      if (id === "score") renderScore(ctx, score, benchScore, benchName);
       else if (id === "summary") renderSummary(ctx, result, score);
-      else if (id === "evolution") renderEvolution(ctx, result);
-      else if (id === "crisis") renderCrisis(ctx, result);
-      else if (id === "taxes") renderTaxes(ctx, result, other ?? undefined);
+      else if (id === "evolution") renderEvolution(ctx, result, benchmark);
+      else if (id === "crisis") renderCrisis(ctx, result, benchmark);
+      else if (id === "taxes") renderTaxes(ctx, result, other ?? undefined, benchmark);
       else if (id === "recommendation") renderRecommendation(ctx, score);
       else if (id === "disclaimer") renderDisclaimer(ctx);
     }

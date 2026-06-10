@@ -301,6 +301,23 @@ export interface BenchmarkComparison {
   benchmarkTotalContributions?: number;
   /** Resumen de comisiones del benchmark (TER del ETF que lo replica) */
   benchmarkFees?: FeesSummary;
+  // --- Series completas del benchmark para pintarlo como 3ª columna/serie
+  //     en toda la comparativa (gráficos y tablas). Opcionales: si no hay
+  //     benchmark activo, los consumidores no renderizan su rama. ---
+  /** Retornos anuales del benchmark (AnnualReturnsChart / AnnualReturnsHeatmap) */
+  benchmarkAnnualReturns?: AnnualReturn[];
+  /** Serie temporal de drawdowns del benchmark (DrawdownChart) */
+  benchmarkDrawdowns?: DrawdownPoint[];
+  /** Peores episodios de drawdown del benchmark (TopDrawdownsTable) */
+  benchmarkTopDrawdowns?: DrawdownEpisode[];
+  /** Rolling returns del benchmark a 1/3/5 años (RollingReturnsChart) */
+  benchmarkRollingReturns?: RollingReturns;
+  /** Estadísticos rolling del benchmark (RollingStatsTable) */
+  benchmarkRollingStats?: RollingStats;
+  /** Histograma de retornos del benchmark (ReturnsHistogramChart) */
+  benchmarkReturnsHistogram?: ReturnsHistogram;
+  /** Allocation del benchmark (opcional, AllocationPieChart) */
+  benchmarkAllocation?: PortfolioAllocation;
 }
 
 /** Resultado de la cartera durante un periodo histórico de estrés */

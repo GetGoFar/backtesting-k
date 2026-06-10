@@ -1553,6 +1553,18 @@ function computeBenchmarkComparison(
       benchmarkCagr: benchmarkResult.metrics.cagr,
       benchmarkVolatility: benchmarkResult.metrics.volatility,
       benchmarkTimeSeries: benchmarkResult.timeSeries,
+      benchmarkStressPeriods: benchmarkResult.stressPeriods,
+      benchmarkMetrics: benchmarkResult.metrics,
+      benchmarkFinalValue: benchmarkResult.finalValue,
+      benchmarkTotalContributions: benchmarkResult.totalContributions,
+      benchmarkFees: benchmarkResult.fees,
+      benchmarkAnnualReturns: benchmarkResult.annualReturns,
+      benchmarkDrawdowns: benchmarkResult.drawdowns,
+      benchmarkTopDrawdowns: benchmarkResult.topDrawdowns,
+      benchmarkRollingReturns: benchmarkResult.rollingReturns,
+      benchmarkRollingStats: benchmarkResult.rollingStats,
+      benchmarkReturnsHistogram: benchmarkResult.returnsHistogram,
+      benchmarkAllocation: benchmarkResult.allocation,
     };
   }
 
@@ -1643,6 +1655,15 @@ function computeBenchmarkComparison(
     benchmarkFinalValue: benchmarkResult.finalValue,
     benchmarkTotalContributions: benchmarkResult.totalContributions,
     benchmarkFees: benchmarkResult.fees,
+    // Series completas para pintar el benchmark como 3ª columna/serie en
+    // toda la comparativa (ya están calculadas; aquí solo se reenvían).
+    benchmarkAnnualReturns: benchmarkResult.annualReturns,
+    benchmarkDrawdowns: benchmarkResult.drawdowns,
+    benchmarkTopDrawdowns: benchmarkResult.topDrawdowns,
+    benchmarkRollingReturns: benchmarkResult.rollingReturns,
+    benchmarkRollingStats: benchmarkResult.rollingStats,
+    benchmarkReturnsHistogram: benchmarkResult.returnsHistogram,
+    benchmarkAllocation: benchmarkResult.allocation,
   };
 }
 

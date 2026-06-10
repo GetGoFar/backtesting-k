@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import type { BacktestResponse, BacktestResult } from "@/lib/types";
+import type { BacktestResponse, ReturnsHistogram, Metrics } from "@/lib/types";
 import { formatPct } from "@/lib/formatters";
 
 interface ReturnsHistogramChartProps {
@@ -20,17 +20,30 @@ interface ReturnsHistogramChartProps {
 }
 
 function PortfolioHistogram({
-  result,
+  hist,
+  metrics,
+  portfolioName,
   colorClass,
 }: {
-  result: BacktestResult;
-  colorClass: "blue" | "rose";
+  hist: ReturnsHistogram;
+  metrics: Metrics;
+  portfolioName: string;
+  colorClass: "blue" | "rose" | "purple";
 }) {
-  const hist = result.returnsHistogram;
   if (!hist || hist.bins.length === 0) return null;
 
-  const headerColor = colorClass === "blue" ? "text-blue-600" : "text-rose-600";
-  const barColor = colorClass === "blue" ? "#1d4ed8" : "#e11d48";
+  const headerColor =
+    colorClass === "blue"
+      ? "text-blue-600"
+      : colorClass === "rose"
+      ? "text-rose-600"
+      : "text-purple-600";
+  const barColor =
+    colorClass === "blue"
+      ? "#1d4ed8"
+      : colorClass === "rose"
+      ? "#e11d48"
+      : "#a855f7";
 
   // Preparar datos para Recharts
   const data = hist.bins.map((bin) => ({
@@ -42,7 +55,7 @@ function PortfolioHistogram({
 
   // Calcular skew y kurtosis interpretativos para el subtítulo.
   // Umbrales de Bulmer (1979): <0.5 simétrica, 0.5-1 moderada, >=1 fuerte.
-  const { skewness, excessKurtosis } = result.metrics;
+  const { skewness, excessKurtosis } = metrics;
   const absSkew = Math.abs(skewness);
   const skewText = absSkew < 0.5
     ? `aproximadamente simétrica (skew ${skewness.toFixed(2)}, |·| < 0.5): comportamiento cercano al de una distribución normal`
@@ -72,7 +85,7 @@ function PortfolioHistogram({
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
       <div className="px-6 py-4 border-b border-slate-100">
         <h4 className={`text-base font-semibold ${headerColor} font-serif`}>
-          Distribución de retornos por {hist.periodLabel} — {result.portfolioName}
+          Distribución de retornos por {hist.periodLabel} — {portfolioName}
         </h4>
         <p className="text-xs text-brand-tertiary mt-0.5 leading-relaxed">
           Barras = frecuencia observada; línea negra = lo que predeciría una distribución
@@ -174,10 +187,39 @@ export function ReturnsHistogramChart({ results, isLoading }: ReturnsHistogramCh
   const { resultA, resultB } = results;
   if (!resultA && !resultB) return null;
 
+  // Benchmark global (compartido por A y B). Solo se pinta la 3ª columna si el
+  // benchmark trae histograma Y sus métricas (necesarias para skew/curtosis).
+  const bm = resultA?.benchmark ?? resultB?.benchmark;
+  const benchmarkHist = bm?.benchmarkReturnsHistogram;
+  const benchmarkMetrics = bm?.benchmarkMetrics;
+  const showBenchmark = !!benchmarkHist && !!benchmarkMetrics;
+
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      {resultA && <PortfolioHistogram result={resultA} colorClass="blue" />}
-      {resultB && <PortfolioHistogram result={resultB} colorClass="rose" />}
+    <div className={`grid gap-4 ${showBenchmark ? "lg:grid-cols-3" : "lg:grid-cols-2"}`}>
+      {resultA && (
+        <PortfolioHistogram
+          hist={resultA.returnsHistogram}
+          metrics={resultA.metrics}
+          portfolioName={resultA.portfolioName}
+          colorClass="blue"
+        />
+      )}
+      {resultB && (
+        <PortfolioHistogram
+          hist={resultB.returnsHistogram}
+          metrics={resultB.metrics}
+          portfolioName={resultB.portfolioName}
+          colorClass="rose"
+        />
+      )}
+      {showBenchmark && (
+        <PortfolioHistogram
+          hist={benchmarkHist}
+          metrics={benchmarkMetrics}
+          portfolioName={bm?.benchmarkName ?? "Benchmark"}
+          colorClass="purple"
+        />
+      )}
     </div>
   );
 }
