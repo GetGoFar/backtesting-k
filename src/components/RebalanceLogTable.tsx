@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import type { BacktestResponse, BacktestResult, RebalanceEvent } from "@/lib/types";
 import { formatEUR, formatPct } from "@/lib/formatters";
 
@@ -75,9 +75,8 @@ function PortfolioRebalanceLog({
               const sellsCount = event.trades.filter((t) => t.action === "sell").length;
               const buysCount = event.trades.filter((t) => t.action === "buy").length;
               return (
-                <>
+                <Fragment key={`${event.date}-${idx}`}>
                   <tr
-                    key={idx}
                     className="hover:bg-slate-50/50 transition-colors cursor-pointer"
                     onClick={() => toggle(idx)}
                   >
@@ -113,7 +112,7 @@ function PortfolioRebalanceLog({
                     </td>
                   </tr>
                   {isExpanded && (
-                    <tr key={`${idx}-detail`} className="bg-slate-50/30">
+                    <tr className="bg-slate-50/30">
                       <td colSpan={7} className="py-3 px-3">
                         <div className="ml-8 pl-2 border-l-2 border-slate-200">
                           <div className="text-xs text-brand-tertiary mb-2">
@@ -202,7 +201,7 @@ function PortfolioRebalanceLog({
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               );
             })}
           </tbody>
