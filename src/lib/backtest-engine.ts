@@ -256,6 +256,7 @@ export async function runBacktest(
         [] // no acumulamos warnings del benchmark
       );
       if (benchmarkResult) {
+        const benchmarkFundIds = benchmarkHoldings.map((h) => h.fundId);
         if (resultA) {
           resultA.benchmark = computeBenchmarkComparison(
             resultA,
@@ -264,6 +265,7 @@ export async function runBacktest(
             benchmarkName,
             displayGranularity
           );
+          resultA.benchmark.benchmarkFundIds = benchmarkFundIds;
         }
         if (resultB) {
           resultB.benchmark = computeBenchmarkComparison(
@@ -273,6 +275,7 @@ export async function runBacktest(
             benchmarkName,
             displayGranularity
           );
+          resultB.benchmark.benchmarkFundIds = benchmarkFundIds;
         }
       }
     } catch (err) {
@@ -282,9 +285,12 @@ export async function runBacktest(
 
   // Métricas individuales de activos y matriz de correlaciones
   // Usar el rango de fechas REAL del backtest (no el del config, que puede ser más amplio)
+  // Incluimos también los fondos del benchmark (si lo hay) para poder agrupar
+  // por "Benchmark" en Métricas por activo y Correlaciones.
   const allHoldings = [
     ...(config.portfolioA?.holdings ?? []),
     ...(config.portfolioB?.holdings ?? []),
+    ...(benchmarkCompositionForRange ?? []),
   ];
 
   // Extraer rango real de la serie temporal del backtest

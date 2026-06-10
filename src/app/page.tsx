@@ -1118,7 +1118,16 @@ export default function Home() {
               {/* 4. Métricas individuales de cada activo */}
               {results.assetMetrics && results.assetMetrics.length > 0 && (
                 <div id="section-assets" className="scroll-mt-24">
-                  <AssetMetricsTable results={results} isLoading={false} />
+                  <AssetMetricsTable
+                    results={results}
+                    isLoading={false}
+                    portfolioAFundIds={portfolioA.holdings.map((h) => h.fundId)}
+                    portfolioBFundIds={portfolioB.holdings.map((h) => h.fundId)}
+                    benchmarkFundIds={(results.resultA?.benchmark ?? results.resultB?.benchmark)?.benchmarkFundIds}
+                    portfolioAName={portfolioA.name}
+                    portfolioBName={portfolioB.name}
+                    benchmarkName={(results.resultA?.benchmark ?? results.resultB?.benchmark)?.benchmarkName}
+                  />
                 </div>
               )}
 
@@ -1135,6 +1144,8 @@ export default function Home() {
                     portfolioBHoldings={portfolioB.holdings}
                     portfolioAName={portfolioA.name}
                     portfolioBName={portfolioB.name}
+                    benchmarkFundIds={(results.resultA?.benchmark ?? results.resultB?.benchmark)?.benchmarkFundIds}
+                    benchmarkName={(results.resultA?.benchmark ?? results.resultB?.benchmark)?.benchmarkName}
                   />
                 </div>
               )}

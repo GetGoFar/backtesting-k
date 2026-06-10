@@ -23,9 +23,13 @@ interface CorrelationMatrixProps {
   portfolioAName?: string;
   /** Name of portfolio B */
   portfolioBName?: string;
+  /** Fund IDs del benchmark (para agrupar por "Benchmark") */
+  benchmarkFundIds?: string[];
+  /** Name of the benchmark */
+  benchmarkName?: string;
 }
 
-type ViewMode = "all" | "portfolioA" | "portfolioB";
+type ViewMode = "all" | "portfolioA" | "portfolioB" | "benchmark";
 
 // -----------------------------------------------------------------------------
 // Cálculo del Intraportfolio Correlation (IPC)
@@ -303,6 +307,9 @@ function IPCDisplay({
   if (!ipcA && !ipcB) return null;
   if (viewMode === "portfolioA" && !ipcA) return null;
   if (viewMode === "portfolioB" && !ipcB) return null;
+  // El benchmark no tiene IPC propio (no pasamos sus holdings); en su vista
+  // solo mostramos la submatriz de correlaciones.
+  if (viewMode === "benchmark") return null;
 
   const getRiskColor = (riskRemoved: number) => {
     if (riskRemoved >= 30) return "text-emerald-600";
@@ -497,6 +504,8 @@ export function CorrelationMatrix({
   portfolioBHoldings = [],
   portfolioAName = "Cartera A",
   portfolioBName = "Cartera B",
+  benchmarkFundIds = [],
+  benchmarkName = "Benchmark",
 }: CorrelationMatrixProps) {
   const fullMatrix = correlationMatrix;
   const [viewMode, setViewMode] = useState<ViewMode>("all");
@@ -505,6 +514,9 @@ export function CorrelationMatrix({
   const hasTwoPortfolios = portfolioAFundIds.length >= 2 && portfolioBFundIds.length >= 2;
   const hasPortfolioA = portfolioAFundIds.length >= 2;
   const hasPortfolioB = portfolioBFundIds.length >= 2;
+  // El benchmark solo tiene matriz propia si lo componen ≥2 fondos (uno solo
+  // no tiene correlaciones internas). Aun así, sus fondos aparecen en "Todas".
+  const hasBenchmark = benchmarkFundIds.length >= 2;
 
   // Filtrar warnings de activos excluidos
   const excludedWarnings = useMemo(() => {
@@ -524,6 +536,11 @@ export function CorrelationMatrix({
     return filterMatrix(fullMatrix, portfolioBFundIds);
   }, [fullMatrix, portfolioBFundIds, hasPortfolioB]);
 
+  const matrixBenchmark = useMemo(() => {
+    if (!fullMatrix || !hasBenchmark) return null;
+    return filterMatrix(fullMatrix, benchmarkFundIds);
+  }, [fullMatrix, benchmarkFundIds, hasBenchmark]);
+
   // Calcular IPC para cada cartera
   const ipcA = useMemo(() => {
     if (!fullMatrix || portfolioAHoldings.length < 2) return null;
@@ -539,8 +556,9 @@ export function CorrelationMatrix({
   const activeMatrix = useMemo(() => {
     if (viewMode === "portfolioA" && matrixA) return matrixA;
     if (viewMode === "portfolioB" && matrixB) return matrixB;
+    if (viewMode === "benchmark" && matrixBenchmark) return matrixBenchmark;
     return fullMatrix;
-  }, [viewMode, matrixA, matrixB, fullMatrix]);
+  }, [viewMode, matrixA, matrixB, matrixBenchmark, fullMatrix]);
 
   // Loading state
   if (isLoading) {
@@ -557,7 +575,7 @@ export function CorrelationMatrix({
   if (!fullMatrix || fullMatrix.fundIds.length < 2) return null;
   if (!activeMatrix) return null;
 
-  const showTabs = hasPortfolioA || hasPortfolioB;
+  const showTabs = hasPortfolioA || hasPortfolioB || hasBenchmark;
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -635,6 +653,18 @@ export function CorrelationMatrix({
                 }`}
               >
                 {portfolioBName.length > 20 ? portfolioBName.substring(0, 18) + "..." : portfolioBName}
+              </button>
+            )}
+            {hasBenchmark && (
+              <button
+                onClick={() => setViewMode("benchmark")}
+                className={`flex-1 px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
+                  viewMode === "benchmark"
+                    ? "bg-white text-purple-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                {benchmarkName.length > 20 ? benchmarkName.substring(0, 18) + "..." : benchmarkName}
               </button>
             )}
           </div>

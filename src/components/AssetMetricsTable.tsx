@@ -1,12 +1,25 @@
 "use client";
 
+import { useState } from "react";
 import type { BacktestResponse, AssetMetrics } from "@/lib/types";
 import { Tooltip } from "./Tooltip";
 
 interface AssetMetricsTableProps {
   results: BacktestResponse;
   isLoading?: boolean;
+  /** Fund IDs de la cartera A (para agrupar por cartera) */
+  portfolioAFundIds?: string[];
+  /** Fund IDs de la cartera B */
+  portfolioBFundIds?: string[];
+  /** Fund IDs del benchmark */
+  benchmarkFundIds?: string[];
+  portfolioAName?: string;
+  portfolioBName?: string;
+  benchmarkName?: string;
 }
+
+/** Grupos por los que se puede filtrar la tabla de métricas por activo. */
+type AssetViewMode = "all" | "portfolioA" | "portfolioB" | "benchmark";
 
 /**
  * Formatea un porcentaje con color según el valor
@@ -146,8 +159,18 @@ function getMorningstarSearchUrl(asset: AssetMetrics): string {
   return `https://www.morningstar.com/search?query=${encodeURIComponent(query)}`;
 }
 
-export function AssetMetricsTable({ results, isLoading }: AssetMetricsTableProps) {
-  const metrics = results.assetMetrics;
+export function AssetMetricsTable({
+  results,
+  isLoading,
+  portfolioAFundIds = [],
+  portfolioBFundIds = [],
+  benchmarkFundIds = [],
+  portfolioAName = "Cartera A",
+  portfolioBName = "Cartera B",
+  benchmarkName = "Benchmark",
+}: AssetMetricsTableProps) {
+  const allMetrics = results.assetMetrics;
+  const [viewMode, setViewMode] = useState<AssetViewMode>("all");
 
   // Loading state
   if (isLoading) {
@@ -162,9 +185,33 @@ export function AssetMetricsTable({ results, isLoading }: AssetMetricsTableProps
   }
 
   // No mostrar si no hay métricas
-  if (!metrics || metrics.length === 0) {
+  if (!allMetrics || allMetrics.length === 0) {
     return null;
   }
+
+  // Agrupación por cartera/benchmark. Un mismo fondo puede estar en varios
+  // grupos; el filtro muestra los activos que pertenecen al grupo elegido.
+  const setA = new Set(portfolioAFundIds);
+  const setB = new Set(portfolioBFundIds);
+  const setBench = new Set(benchmarkFundIds);
+  const hasA = portfolioAFundIds.length > 0;
+  const hasB = portfolioBFundIds.length > 0;
+  const hasBench = benchmarkFundIds.length > 0;
+  // El filtro solo aporta si hay más de un grupo que distinguir.
+  const showFilter = hasBench || (hasA && hasB);
+
+  const metrics = allMetrics.filter((m) => {
+    if (viewMode === "portfolioA") return setA.has(m.fundId);
+    if (viewMode === "portfolioB") return setB.has(m.fundId);
+    if (viewMode === "benchmark") return setBench.has(m.fundId);
+    return true; // "all"
+  });
+
+  const trunc = (s: string) => (s.length > 16 ? s.substring(0, 15) + "…" : s);
+  const segBtn = (active: boolean, color: string) =>
+    `px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap ${
+      active ? `bg-white shadow-sm ${color}` : "text-slate-500 hover:text-slate-700"
+    }`;
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -202,9 +249,45 @@ export function AssetMetricsTable({ results, isLoading }: AssetMetricsTableProps
               </svg>
             </Tooltip>
           </div>
-          <span className="text-sm text-slate-500">
-            {metrics.length} activos
-          </span>
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            {showFilter && (
+              <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5 text-xs">
+                <button
+                  onClick={() => setViewMode("all")}
+                  className={segBtn(viewMode === "all", "text-slate-900")}
+                >
+                  Todos
+                </button>
+                {hasA && (
+                  <button
+                    onClick={() => setViewMode("portfolioA")}
+                    className={segBtn(viewMode === "portfolioA", "text-blue-600")}
+                  >
+                    {trunc(portfolioAName)}
+                  </button>
+                )}
+                {hasB && (
+                  <button
+                    onClick={() => setViewMode("portfolioB")}
+                    className={segBtn(viewMode === "portfolioB", "text-rose-600")}
+                  >
+                    {trunc(portfolioBName)}
+                  </button>
+                )}
+                {hasBench && (
+                  <button
+                    onClick={() => setViewMode("benchmark")}
+                    className={segBtn(viewMode === "benchmark", "text-purple-600")}
+                  >
+                    {trunc(benchmarkName)}
+                  </button>
+                )}
+              </div>
+            )}
+            <span className="text-sm text-slate-500 whitespace-nowrap">
+              {metrics.length} activos
+            </span>
+          </div>
         </div>
       </div>
 

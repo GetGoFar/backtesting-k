@@ -318,6 +318,9 @@ export interface BenchmarkComparison {
   benchmarkReturnsHistogram?: ReturnsHistogram;
   /** Allocation del benchmark (opcional, AllocationPieChart) */
   benchmarkAllocation?: PortfolioAllocation;
+  /** Fund IDs que componen el benchmark — para poder agrupar/filtrar por
+   *  "Benchmark" en Métricas por activo y Correlaciones. */
+  benchmarkFundIds?: string[];
 }
 
 /** Resultado de la cartera durante un periodo histórico de estrés */
