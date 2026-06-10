@@ -470,58 +470,57 @@ function HeroStatCard({
 
       {/* Valores */}
       {hasTwo && hasBenchmark ? (
-        // Layout en rejilla coordinada: A, B y benchmark en 3 columnas. El badge
-        // "MEJOR" (✓ de ganador) SOLO compite entre A y B; el benchmark es
-        // referencia y nunca gana. Fuentes algo más pequeñas para que quepan 3.
-        <div>
-          <div className="grid grid-cols-3 gap-2">
-            {/* Cartera A (azul) */}
-            <div>
-              <div className="flex items-baseline gap-1">
-                <span className={`text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight font-serif ${
-                  winner === "a" ? "text-brand-navy" : "text-slate-400"
-                }`} style={{ fontVariantNumeric: "tabular-nums" }}>
-                  {format(valueA!)}
-                </span>
-                {winner === "a" && (
-                  <span className="text-[9px] font-semibold text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded-full whitespace-nowrap">MEJOR</span>
-                )}
-              </div>
-              {subTextA && (
-                <p className="text-[10px] text-brand-tertiary italic mt-0.5">{subTextA}</p>
+        // A, B y benchmark APILADOS verticalmente: cada valor en su propia fila
+        // a ancho completo, con el nombre a la derecha (truncado). Antes era una
+        // rejilla de 3 columnas, pero con tres cifras grandes (p.ej. "89.753 €")
+        // los números se solapaban en tarjetas estrechas. El badge "MEJOR" SOLO
+        // compite entre A y B; el benchmark es referencia y nunca gana.
+        <div className="space-y-2">
+          {/* Cartera A (azul) */}
+          <div>
+            <div className="flex items-baseline gap-2">
+              <span className={`text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight font-serif ${
+                winner === "a" ? "text-brand-navy" : "text-slate-400"
+              }`} style={{ fontVariantNumeric: "tabular-nums" }}>
+                {format(valueA!)}
+              </span>
+              {winner === "a" && (
+                <span className="text-[9px] font-semibold text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded-full whitespace-nowrap">MEJOR</span>
               )}
+              <span className="flex-1 min-w-0 text-right text-xs text-blue-600 font-medium truncate">{nameA}</span>
             </div>
-            {/* Cartera B (rojo) */}
-            <div>
-              <div className="flex items-baseline gap-1">
-                <span className={`text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight font-serif ${
-                  winner === "b" ? "text-brand-navy" : "text-slate-400"
-                }`} style={{ fontVariantNumeric: "tabular-nums" }}>
-                  {format(valueB!)}
-                </span>
-                {winner === "b" && (
-                  <span className="text-[9px] font-semibold text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded-full whitespace-nowrap">MEJOR</span>
-                )}
-              </div>
-              {subTextB && (
-                <p className="text-[10px] text-brand-tertiary italic mt-0.5">{subTextB}</p>
+            {subTextA && (
+              <p className="text-[10px] text-brand-tertiary italic mt-0.5">{subTextA}</p>
+            )}
+          </div>
+          {/* Cartera B (rojo) */}
+          <div>
+            <div className="flex items-baseline gap-2">
+              <span className={`text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight font-serif ${
+                winner === "b" ? "text-brand-navy" : "text-slate-400"
+              }`} style={{ fontVariantNumeric: "tabular-nums" }}>
+                {format(valueB!)}
+              </span>
+              {winner === "b" && (
+                <span className="text-[9px] font-semibold text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded-full whitespace-nowrap">MEJOR</span>
               )}
+              <span className="flex-1 min-w-0 text-right text-xs text-rose-600 font-medium truncate">{nameB}</span>
             </div>
-            {/* Benchmark (púrpura, referencia, no compite) */}
-            <div>
-              <span className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight font-serif text-purple-600/80 italic" style={{ fontVariantNumeric: "tabular-nums" }}>
+            {subTextB && (
+              <p className="text-[10px] text-brand-tertiary italic mt-0.5">{subTextB}</p>
+            )}
+          </div>
+          {/* Benchmark (púrpura, referencia, no compite) */}
+          <div className="pt-2 border-t border-slate-100">
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight font-serif text-purple-600/80 italic" style={{ fontVariantNumeric: "tabular-nums" }}>
                 {format(valueBenchmark)}
               </span>
-              {subTextBenchmark && (
-                <p className="text-[10px] text-purple-600/60 italic mt-0.5">{subTextBenchmark}</p>
-              )}
+              <span className="flex-1 min-w-0 text-right text-xs text-purple-600 font-medium truncate">{nameBenchmark}</span>
             </div>
-          </div>
-          {/* Fila de etiquetas alineada con las 3 columnas */}
-          <div className="grid grid-cols-3 gap-2 pt-2 mt-2 border-t border-slate-100">
-            <span className="text-xs text-blue-600 font-medium truncate">{nameA}</span>
-            <span className="text-xs text-rose-600 font-medium truncate">{nameB}</span>
-            <span className="text-xs text-purple-600 font-medium truncate">{nameBenchmark}</span>
+            {subTextBenchmark && (
+              <p className="text-[10px] text-purple-600/60 italic mt-0.5">{subTextBenchmark}</p>
+            )}
           </div>
         </div>
       ) : hasTwo ? (
