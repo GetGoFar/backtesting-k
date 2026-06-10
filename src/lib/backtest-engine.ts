@@ -104,12 +104,25 @@ export async function runBacktest(
         ? getBenchmarkById(config.benchmarkId)?.composition
         : undefined;
 
-  // Si useCommonDateRange está activo, encontrar el rango común
-  if (config.useCommonDateRange && config.portfolioA && config.portfolioB) {
-    console.log("[BacktestEngine] Buscando rango de fechas común entre carteras...");
+  // Calcular el rango común cuando useCommonDateRange está activo y:
+  //   - hay DOS carteras (intersección A∩B), o
+  //   - hay UNA cartera + benchmark (intersección cartera∩benchmark).
+  // Este segundo caso es clave: aunque solo se compare una cartera contra el
+  // benchmark, "usar rango común" debe alinear ambos a la fecha donde los dos
+  // tienen datos (si el benchmark cotiza desde más tarde, la cartera se recorta).
+  const hasBenchmarkForRange =
+    !!benchmarkCompositionForRange && benchmarkCompositionForRange.length > 0;
+  const hasAnyPortfolio = !!config.portfolioA || !!config.portfolioB;
+  const hasBothPortfolios = !!config.portfolioA && !!config.portfolioB;
+  if (
+    config.useCommonDateRange &&
+    hasAnyPortfolio &&
+    (hasBothPortfolios || hasBenchmarkForRange)
+  ) {
+    console.log("[BacktestEngine] Buscando rango de fechas común...");
     const rangeResult = await findCommonDateRangeForPortfolios(
-      config.portfolioA,
-      config.portfolioB,
+      config.portfolioA ?? null,
+      config.portfolioB ?? null,
       config.startDate,
       config.endDate,
       benchmarkCompositionForRange
@@ -2263,19 +2276,20 @@ function findCommonDailyDateRange(
 }
 
 async function findCommonDateRangeForPortfolios(
-  portfolioA: Portfolio,
-  portfolioB: Portfolio,
+  portfolioA: Portfolio | null,
+  portfolioB: Portfolio | null,
   requestedStart: string,
   requestedEnd: string,
   benchmarkHoldings?: PortfolioHolding[]
 ): Promise<{ startDate: string; endDate: string } | null> {
-  console.log("[BacktestEngine] Buscando rango común entre carteras...");
+  console.log("[BacktestEngine] Buscando rango común...");
 
   // Incluimos los holdings del benchmark (si se ha seleccionado) en la
   // intersección, para que el rango común también respete su histórico.
+  // Las carteras son opcionales: puede haber una sola cartera + benchmark.
   const allHoldings = [
-    ...portfolioA.holdings,
-    ...portfolioB.holdings,
+    ...(portfolioA?.holdings ?? []),
+    ...(portfolioB?.holdings ?? []),
     ...(benchmarkHoldings ?? []),
   ];
   const allDateSets: Set<string>[] = [];
