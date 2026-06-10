@@ -93,6 +93,17 @@ export async function runBacktest(
   let effectiveEndDate = config.endDate;
   let commonDateRange: { start: string; end: string } | undefined;
 
+  // Composición del benchmark seleccionado (si lo hay). Se incluye en el
+  // cálculo del rango común para que "usar rango común" también lo abarque:
+  // si el histórico del benchmark es más corto (p.ej. un ETF que cotiza desde
+  // 2009), las tres series arrancan en la misma fecha y la comparación es justa.
+  const benchmarkCompositionForRange: PortfolioHolding[] | undefined =
+    config.customBenchmark && config.customBenchmark.composition.length > 0
+      ? config.customBenchmark.composition
+      : config.benchmarkId
+        ? getBenchmarkById(config.benchmarkId)?.composition
+        : undefined;
+
   // Si useCommonDateRange está activo, encontrar el rango común
   if (config.useCommonDateRange && config.portfolioA && config.portfolioB) {
     console.log("[BacktestEngine] Buscando rango de fechas común entre carteras...");
@@ -100,7 +111,8 @@ export async function runBacktest(
       config.portfolioA,
       config.portfolioB,
       config.startDate,
-      config.endDate
+      config.endDate,
+      benchmarkCompositionForRange
     );
     if (rangeResult) {
       effectiveStartDate = rangeResult.startDate;
@@ -2254,11 +2266,18 @@ async function findCommonDateRangeForPortfolios(
   portfolioA: Portfolio,
   portfolioB: Portfolio,
   requestedStart: string,
-  requestedEnd: string
+  requestedEnd: string,
+  benchmarkHoldings?: PortfolioHolding[]
 ): Promise<{ startDate: string; endDate: string } | null> {
   console.log("[BacktestEngine] Buscando rango común entre carteras...");
 
-  const allHoldings = [...portfolioA.holdings, ...portfolioB.holdings];
+  // Incluimos los holdings del benchmark (si se ha seleccionado) en la
+  // intersección, para que el rango común también respete su histórico.
+  const allHoldings = [
+    ...portfolioA.holdings,
+    ...portfolioB.holdings,
+    ...(benchmarkHoldings ?? []),
+  ];
   const allDateSets: Set<string>[] = [];
   // Fechas mínimas DERIVADAS — para holdings que no son fondos reales sino
   // estrategias dinámicas (momentum), no podemos pedir sus precios (no existen
