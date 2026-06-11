@@ -86,7 +86,7 @@ function buildTooltips(granularity: DisplayGranularity) {
   const { singular, plural } = GRANULARITY_LABELS[granularity];
   return {
     finalValue:
-      "Valor según el modo elegido en el selector de arriba:\n\n• Bruto: antes de descontar ningún impuesto (la cifra que aparece en los folletos comerciales). Siempre descuenta TER y comisión de gestión.\n\n• Neta del camino: lo que ves hoy en la app de tu broker. Descuenta los impuestos ya pagados en cada rebalanceo (si configuraste un régimen fiscal en tu cartera).\n\n• Al liquidar: lo que de verdad te llevas al bolsillo si vendieras todo hoy. Descuenta también los impuestos pendientes sobre la plusvalía latente.\n\nIMPORTANTE: con fiscalidad en 'Sin impuestos' (fondos con traspasos exentos), Bruto y Neta del camino coinciden SIEMPRE — no hay fricción durante el camino. Pero los traspasos exentos DIFIEREN el impuesto, no lo eliminan: en 'Al liquidar', si la comparas con una cartera que sí tributa, se estima el impuesto diferido de tu plusvalía latente con ese mismo régimen (marcado con *). Así la comparación al liquidar es justa: nadie 'gana' solo por no haber pasado aún por Hacienda.",
+      "Valor según el modo elegido en el selector de arriba:\n\n• Bruto: lo que tendrías si los impuestos no existieran — la simulación se repite sin salidas fiscales, así que incluye también el interés compuesto que los impuestos pagados habrían generado de seguir invertidos. Siempre descuenta TER y comisión de gestión. Dos carteras idénticas con distinta fiscalidad muestran el MISMO bruto.\n\n• Neta del camino: lo que ves hoy en la app de tu broker. Descuenta los impuestos ya pagados en cada rebalanceo (si configuraste un régimen fiscal en tu cartera).\n\n• Al liquidar: lo que de verdad te llevas al bolsillo si vendieras todo hoy. Descuenta también los impuestos pendientes sobre la plusvalía latente.\n\nIMPORTANTE: con fiscalidad en 'Sin impuestos' (fondos con traspasos exentos), Bruto y Neta del camino coinciden SIEMPRE — no hay fricción durante el camino. Pero los traspasos exentos DIFIEREN el impuesto, no lo eliminan: en 'Al liquidar', si la comparas con una cartera que sí tributa, se estima el impuesto diferido de tu plusvalía latente con ese mismo régimen (marcado con *). Así la comparación al liquidar es justa: nadie 'gana' solo por no haber pasado aún por Hacienda.",
     totalReturn:
       "Rentabilidad total acumulada (TWRR). Encadena los retornos diarios eliminando el efecto de las aportaciones, así que mide únicamente lo que ha rentado la cartera — no el dinero que tú has metido. Es la métrica estándar de los fondos y la única comparable con un benchmark.",
     cagr:
@@ -156,7 +156,10 @@ function buildMetricsConfig(
   const valueByMode = (r: BacktestResult, mode: ValueMode): number => {
     const paid = r.fees.totalTaxesPaid ?? 0;
     const pending = effectivePending(r);
-    if (mode === "bruto") return r.finalValue + paid;
+    // Bruto EXACTO: contrafactual del motor sin salidas fiscales (incluye el
+    // compuesto que los impuestos pagados habrían generado). Fallback al
+    // nominal (final + pagados) para resultados antiguos sin el campo.
+    if (mode === "bruto") return r.grossFinalValue ?? (r.finalValue + paid);
     if (mode === "camino") return r.finalValue;
     return r.finalValue - pending; // "liquidar"
   };
@@ -177,7 +180,7 @@ function buildMetricsConfig(
     const paid = r.fees.totalTaxesPaid ?? 0;
     const pending = effectivePending(r);
     return mode === "bruto"
-      ? (finalVal + paid) / finalVal
+      ? (r.grossFinalValue ?? (finalVal + paid)) / finalVal
       : (finalVal - pending) / finalVal;
   };
 

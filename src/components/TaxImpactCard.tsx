@@ -66,10 +66,10 @@ function buildBreakdown(
     ? computeTaxOnGain(unrealizedGain, effectiveMode, effectiveRate)
     : (result.fees.pendingTaxes ?? 0);
 
-  // Valor "bruto" — finalValue tal como está + impuestos ya pagados durante
-  // el camino. Esto representa la rentabilidad "de folleto" antes de ningún
-  // impacto fiscal real.
-  const brutoFinalValue = result.finalValue + totalTaxesPaid;
+  // Valor "bruto" — contrafactual EXACTO del motor sin salidas fiscales
+  // (incluye el interés compuesto que los impuestos pagados habrían generado).
+  // Fallback al nominal (final + pagados) si el motor no lo expone.
+  const brutoFinalValue = result.grossFinalValue ?? (result.finalValue + totalTaxesPaid);
 
   // Valor "neto del camino" — finalValue tal como está (ya descontó los
   // impuestos pagados en rebalanceos).

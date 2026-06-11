@@ -192,6 +192,15 @@ function buildScaledSeries(
   }
 
   if (mode === "bruto") {
+    // Serie bruta EXACTA del motor (contrafactual sin salidas fiscales, con
+    // el interés compuesto de los impuestos incluido). Coincide punto a punto
+    // con el grossFinalValue de las métricas.
+    if (result.grossTimeSeries && result.grossTimeSeries.length > 0) {
+      for (const p of result.grossTimeSeries) series.set(p.date, p.value);
+      return series;
+    }
+    // Fallback (resultados antiguos sin la serie bruta): acumular los
+    // impuestos nominales pagados hasta cada fecha.
     const events = (result.rebalanceLog ?? [])
       .slice()
       .sort((a, b) => a.date.localeCompare(b.date));

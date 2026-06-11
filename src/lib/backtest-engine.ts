@@ -599,6 +599,24 @@ async function runPortfolioBacktest(
 
   if (timeSeries.length === 0) return null;
 
+  // 4b. Contrafactual BRUTO: agregar su serie a la misma granularidad y
+  // exponerla SOLO si la cartera pagó impuestos (si no, bruto == neto y no
+  // aporta nada — los consumidores hacen fallback a finalValue + paid).
+  let grossFinalValue: number | undefined;
+  let grossTimeSeries: TimeSeriesPoint[] | undefined;
+  if (simulation.grossDailyTimeSeries && simulation.totalTaxesPaid > 0) {
+    const grossMap = new Map(simulation.grossDailyTimeSeries.map((p) => [p.date, p.value]));
+    grossTimeSeries = outputDates
+      .filter((d) => grossMap.has(d))
+      .map((d) => ({
+        date: displayGranularity === "daily" ? d : d.substring(0, 7),
+        value: grossMap.get(d)!,
+        exactDate: d,
+      }));
+    grossFinalValue =
+      simulation.grossDailyTimeSeries[simulation.grossDailyTimeSeries.length - 1]?.value;
+  }
+
   // 5. Calcular métricas — dependen de la granularidad seleccionada
   // "Cuanto menos mires la cartera, menos sufrirás": en mensual/trimestral
   // se suavizan la volatilidad y los drawdowns intra-periodo.
@@ -719,6 +737,8 @@ async function runPortfolioBacktest(
     fees,
     totalContributions: simulation.totalContributions,
     finalValue,
+    grossFinalValue,
+    grossTimeSeries,
   };
 }
 
@@ -737,6 +757,11 @@ interface DailySimulationResult {
   finalCostBasis: number;
   /** Log de cada evento de rebalanceo */
   rebalanceLog: RebalanceEvent[];
+  /** Serie diaria del contrafactual BRUTO: la misma cartera, mismos flujos y
+   *  mismos días de rebalanceo, pero SIN pagar impuestos. Captura el interés
+   *  compuesto que los impuestos pagados habrían generado. Solo se construye
+   *  cuando taxMode != "none". */
+  grossDailyTimeSeries?: Array<{ date: string; value: number }>;
 }
 
 // Tax utilities (centralizado en lib/tax-utils.ts para que UI los pueda usar también)
@@ -814,9 +839,22 @@ function simulatePortfolioDaily(
   // Tasas diarias
   const dailyMgmtRate = managementFee / TRADING_DAYS_PER_YEAR / 100;
 
+  // --- Contrafactual BRUTO (solo si hay régimen fiscal) ---
+  // Réplica exacta de las posiciones que vive la MISMA simulación (mismos
+  // retornos, misma comisión de gestión, mismas aportaciones y mismos días de
+  // rebalanceo) pero sin pagar impuestos. Así el "bruto" incluye el interés
+  // compuesto que los impuestos pagados habrían generado — sumar de vuelta el
+  // impuesto nominal infravaloraba el coste fiscal real.
+  const trackGross = taxMode !== "none";
+  const grossPositions = trackGross ? new Map(positionValues) : null;
+  const grossCostBasis = trackGross ? new Map(fundCostBasis) : null;
+  const grossDailyTimeSeries: Array<{ date: string; value: number }> | undefined =
+    trackGross ? [] : undefined;
+
   // Registrar valor inicial
   const initialValue = sumPositions(positionValues);
   dailyTimeSeries.push({ date: dates[0]!, value: initialValue });
+  if (grossDailyTimeSeries) grossDailyTimeSeries.push({ date: dates[0]!, value: initialValue });
 
   // Simular cada día a partir del segundo
   for (let i = 1; i < dates.length; i++) {
@@ -845,6 +883,11 @@ function simulatePortfolioDaily(
 
       // Aplicar retorno
       positionValues.set(holding.fundId, currentPositionValue * (1 + dailyReturn));
+      // Espejo bruto: mismo retorno sobre la posición contrafactual
+      if (grossPositions) {
+        const gv = grossPositions.get(holding.fundId) ?? 0;
+        if (gv > 0) grossPositions.set(holding.fundId, gv * (1 + dailyReturn));
+      }
     }
 
     // Comisión de gestión diaria
@@ -854,6 +897,12 @@ function simulatePortfolioDaily(
         const mgmtFeeAmount = currentValue * dailyMgmtRate;
         totalManagementFeePaid += mgmtFeeAmount;
         positionValues.set(holding.fundId, currentValue - mgmtFeeAmount);
+        // El bruto es "antes de IMPUESTOS", no antes de comisiones: la
+        // comisión de gestión también se descuenta del contrafactual.
+        if (grossPositions) {
+          const gv = grossPositions.get(holding.fundId) ?? 0;
+          grossPositions.set(holding.fundId, gv - gv * dailyMgmtRate);
+        }
       }
     }
 
@@ -868,6 +917,12 @@ function simulatePortfolioDaily(
         applyContributionRebalance(
           positionValues, fundCostBasis, holdings, monthlyContribution
         );
+        // Espejo bruto: mismo algoritmo de aportación sobre el contrafactual
+        if (grossPositions && grossCostBasis) {
+          applyContributionRebalance(
+            grossPositions, grossCostBasis, holdings, monthlyContribution
+          );
+        }
       } else {
         // Reparto clásico proporcional a los pesos objetivo
         for (const holding of holdings) {
@@ -875,6 +930,10 @@ function simulatePortfolioDaily(
           const contributionToPosition = (monthlyContribution * holding.weight) / 100;
           positionValues.set(holding.fundId, currentValue + contributionToPosition);
           fundCostBasis.set(holding.fundId, (fundCostBasis.get(holding.fundId) ?? 0) + contributionToPosition);
+          if (grossPositions) {
+            const gv = grossPositions.get(holding.fundId) ?? 0;
+            grossPositions.set(holding.fundId, gv + contributionToPosition);
+          }
         }
       }
     }
@@ -919,11 +978,22 @@ function simulatePortfolioDaily(
       if (taxResult.event) {
         rebalanceLog.push({ ...taxResult.event, date: currentDate });
       }
+      // Espejo bruto: rebalancear a pesos objetivo SIN impuesto (el valor
+      // total se conserva — solo cambia la distribución).
+      if (grossPositions) {
+        const gTotal = sumPositions(grossPositions);
+        for (const holding of holdings) {
+          grossPositions.set(holding.fundId, (gTotal * holding.weight) / 100);
+        }
+      }
     }
 
     // Registrar valor total
     const portfolioValue = sumPositions(positionValues);
     dailyTimeSeries.push({ date: currentDate, value: portfolioValue });
+    if (grossDailyTimeSeries && grossPositions) {
+      grossDailyTimeSeries.push({ date: currentDate, value: sumPositions(grossPositions) });
+    }
 
     // Calcular retorno diario de la cartera (ajustado por aportaciones)
     const previousTotalValue = dailyTimeSeries[dailyTimeSeries.length - 2]?.value ?? 0;
@@ -947,6 +1017,7 @@ function simulatePortfolioDaily(
     totalTaxesPaid,
     finalCostBasis,
     rebalanceLog,
+    grossDailyTimeSeries,
   };
 }
 

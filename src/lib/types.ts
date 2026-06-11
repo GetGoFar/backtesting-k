@@ -580,6 +580,14 @@ export interface BacktestResult {
   totalContributions: number;
   /** Valor final del patrimonio */
   finalValue: number;
+  /** Valor final BRUTO exacto: contrafactual de la misma cartera sin pagar
+   *  impuestos en los rebalanceos (incluye el interés compuesto que esos
+   *  impuestos habrían generado de seguir invertidos). Solo presente si la
+   *  cartera pagó impuestos durante el camino. */
+  grossFinalValue?: number;
+  /** Serie temporal del contrafactual bruto (misma granularidad que
+   *  timeSeries). Solo presente si la cartera pagó impuestos. */
+  grossTimeSeries?: TimeSeriesPoint[];
 }
 
 /** Aviso sobre datos o configuración */

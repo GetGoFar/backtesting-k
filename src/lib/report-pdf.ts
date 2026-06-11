@@ -769,7 +769,9 @@ function renderTaxes(ctx: RenderCtx, result: BacktestResult, otherResult?: Backt
     }
   }
 
-  const valBruto = result.finalValue + paid;
+  // Bruto exacto del motor (contrafactual sin salidas fiscales, con el
+  // compuesto incluido); fallback al nominal final+pagados.
+  const valBruto = result.grossFinalValue ?? (result.finalValue + paid);
   const valCamino = result.finalValue;
   const valLiquidar = result.finalValue - pending;
 
