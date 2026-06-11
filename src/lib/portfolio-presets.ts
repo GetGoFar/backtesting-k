@@ -1439,6 +1439,42 @@ const CAIXABANK_SMART_PRESETS: PortfolioPreset[] = [
 // Todos los presets combinados
 // -----------------------------------------------------------------------------
 
+// -----------------------------------------------------------------------------
+// Cartera PINAES — perfil de riesgo 4. Del Excel del cliente (1M€):
+// RV 35% (S&P500 24,5 / Europa 6,65 / Japón 1,75 / Pacífico exJP 1,05 / EM 1,05),
+// RF 50% (Treasury 20+y 1,5 / US Gov Hdg 4 / Global ST Bond 37 / TIPS 2,5 / EM Bond 5),
+// Oro 15%. El Global Short-Term Bond aparece DOS veces en el Excel origen
+// (54% del bloque gubernamental + 20% del corporativo); aquí va fusionado en
+// una sola posición del 37% porque la app no admite fundIds duplicados.
+// El monetario AXA (FR0010693689) del Excel es liquidez fuera de cartera: no se incluye.
+// -----------------------------------------------------------------------------
+
+const PINAES_PRESETS: PortfolioPreset[] = [
+  {
+    id: "cartera-pinaes",
+    name: "Cartera PINAES",
+    description:
+      "Cartera indexada perfil 4 — 35% RV (S&P 500, Europa, Japón, Pacífico exJapón, Emergentes), 50% RF (Treasury 20+y, US Gov hedged, Global Short-Term Bond 37%, TIPS eurozona, bonos emergentes hedged) y 15% oro físico. 11 fondos UCITS de acumulación. Histórico común limitado por el EM Bond (desde 2019-12).",
+    type: "index",
+    holdings: [
+      // Renta Variable (35%)
+      { fundId: "fidelity-sp500-index-p-eur", weight: 24.5 },
+      { fundId: "vanguard-european-stock-inv", weight: 6.65 },
+      { fundId: "vanguard-japan-stock-inv", weight: 1.75 },
+      { fundId: "vanguard-pacific-exjapan-inv", weight: 1.05 },
+      { fundId: "vanguard-em-stock-inv", weight: 1.05 },
+      // Renta Fija (50%)
+      { fundId: "vanguard-20y-euro-treasury", weight: 1.5 },
+      { fundId: "vanguard-us-gov-bond-inv-hedged", weight: 4.0 },
+      { fundId: "vanguard-global-short-term-bond-eurh", weight: 37.0 },
+      { fundId: "vanguard-eurozone-inflation-linked", weight: 2.5 },
+      { fundId: "vanguard-em-bond-eurh", weight: 5.0 },
+      // Oro (15%)
+      { fundId: "ishares-gold", weight: 15.0 },
+    ],
+  },
+];
+
 const ALL_PRESETS: PortfolioPreset[] = [
   ...K_INBESTME_PRESETS,
   ...K_SECTORIAL_USA_PRESETS,
@@ -1455,6 +1491,7 @@ const ALL_PRESETS: PortfolioPreset[] = [
   ...BBVA_ACUMULACION_PRESETS,
   ...CAIXABANK_SMART_PRESETS,
   ...PABLO_CASTRO_PRESETS,
+  ...PINAES_PRESETS,
   ...MOMENTUM_CARTERA_PRESETS,
 ];
 

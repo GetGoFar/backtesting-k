@@ -2545,6 +2545,127 @@ const PABLO_CASTRO_FUNDS: Fund[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// Cartera PINAES — fondos indexados UCITS (clases Investor/P, EUR Acc).
+// Todos sin ticker: el data-fetcher los resuelve vía {ISIN}.EUFUND en EODHD
+// (disponibilidad verificada 2026-06: ver fechas de inicio en cada entrada).
+// TERs de las clases retail según folletos (curated).
+// -----------------------------------------------------------------------------
+
+const PINAES_FUNDS: Fund[] = [
+  {
+    id: "fidelity-sp500-index-p-eur",
+    name: "Fidelity S&P 500 Index Fund P-ACC-EUR",
+    shortName: "Fidelity S&P 500 Idx",
+    isin: "IE00BYX5MX67", // EUFUND desde 2018-03
+    ter: 0.06,
+    category: "RV EEUU",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+    terConfirmed: true,
+  },
+  {
+    id: "vanguard-european-stock-inv",
+    name: "Vanguard European Stock Index Fund Investor EUR Acc",
+    shortName: "Vanguard Europa Idx",
+    isin: "IE0007987690", // EUFUND desde 1999-10
+    ter: 0.12,
+    category: "RV Europa",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "vanguard-japan-stock-inv",
+    name: "Vanguard Japan Stock Index Fund Investor EUR Acc",
+    shortName: "Vanguard Japón Idx",
+    isin: "IE0007281425", // EUFUND desde 2008-08
+    ter: 0.16,
+    category: "RV Japón",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "vanguard-pacific-exjapan-inv",
+    name: "Vanguard Pacific ex-Japan Stock Index Fund EUR Acc",
+    shortName: "Vanguard Pacífico exJP",
+    isin: "IE0007201266", // EUFUND desde 2014-02
+    ter: 0.16,
+    category: "RV Global",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "vanguard-em-stock-inv",
+    name: "Vanguard Emerging Markets Stock Index Fund Investor EUR Acc",
+    shortName: "Vanguard Emergentes Idx",
+    isin: "IE0031786696", // EUFUND desde 2014-02
+    ter: 0.23,
+    category: "RV Emergentes",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "vanguard-20y-euro-treasury",
+    name: "Vanguard 20+ Year Euro Treasury Index Fund EUR Acc",
+    shortName: "Vanguard Treasury 20+y",
+    isin: "IE00B246KL88", // EUFUND desde 2007-08
+    ter: 0.12,
+    category: "RF EUR Gov Largo",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "vanguard-us-gov-bond-inv-hedged",
+    name: "Vanguard US Government Bond Index Fund Investor EUR Hedged Acc",
+    shortName: "Vanguard US Gov Hdg Inv",
+    isin: "IE0007471471", // EUFUND desde 2016-03 (clase Investor; la institucional IE00BF6T7R10 ya existe aparte)
+    ter: 0.12,
+    category: "RF USD Gov",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "vanguard-global-short-term-bond-eurh",
+    name: "Vanguard Global Short-Term Bond Index Fund Investor EUR Hedged Acc",
+    shortName: "Vanguard Global ST Bond",
+    isin: "IE00BH65QK91", // EUFUND desde 2014-03
+    ter: 0.15,
+    category: "RF EUR Gov Corto",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "vanguard-eurozone-inflation-linked",
+    name: "Vanguard Eurozone Inflation-Linked Bond Index Fund EUR Acc",
+    shortName: "Vanguard TIPS EUR",
+    isin: "IE00B04GQQ17", // EUFUND desde 2009-04
+    ter: 0.12,
+    category: "RF Inflation EUR",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "vanguard-em-bond-eurh",
+    name: "Vanguard Emerging Markets Bond Fund Investor EUR Hedged Accumulation",
+    shortName: "Vanguard EM Bond Hdg",
+    isin: "IE00BKLWXS37", // EUFUND desde 2019-12 — es el fondo que limita el histórico común de la cartera
+    ter: 0.31,
+    category: "RF Flexible",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+];
+
+// -----------------------------------------------------------------------------
 // Todos los fondos combinados
 // -----------------------------------------------------------------------------
 
@@ -2559,6 +2680,7 @@ const ALL_FUNDS: Fund[] = [
   ...PABLO_FUNDS,
   ...CAIXABANK_SMART_FUNDS,
   ...PABLO_CASTRO_FUNDS,
+  ...PINAES_FUNDS,
 ];
 
 // Mapa para búsqueda rápida por ID
