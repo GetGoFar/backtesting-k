@@ -109,12 +109,13 @@ describe("calculateDownsideDeviation", () => {
 
     // Retornos negativos: -0.05, -0.02, -0.03
     // Cuadrados: 0.0025, 0.0004, 0.0009
-    // Media de cuadrados = (0.0025 + 0.0004 + 0.0009 + 0 + 0 + 0) / 6 = 0.00063333
-    // sqrt(0.00063333) ≈ 0.02517
-    // Anualizado = 0.02517 * sqrt(12) ≈ 0.0872
+    // Suma de cuadrados / (n-1) = (0.0025 + 0.0004 + 0.0009) / 5 = 0.00076
+    // (Bessel: divisor n-1, consistente con la volatilidad muestral)
+    // sqrt(0.00076) ≈ 0.02757
+    // Anualizado = 0.02757 * sqrt(12) ≈ 0.0955
 
     const result = calculateDownsideDeviation(monthlyReturns);
-    expect(result).toBeCloseTo(0.0872, 2);
+    expect(result).toBeCloseTo(0.0955, 2);
   });
 
   it("retorna 0 cuando no hay retornos negativos", () => {

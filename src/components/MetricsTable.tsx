@@ -648,25 +648,24 @@ export function MetricsTable({ results, isLoading, valueMode, onValueModeChange 
   // ---------------------------------------------------------------------------
   // Helper: impuesto pendiente EFECTIVO de una cartera/benchmark
   // ---------------------------------------------------------------------------
-  // Si la entidad tiene su propio régimen fiscal (taxMode != "none"), usa su
-  // pendingTaxes propio. Si no, hereda el régimen de la OTRA cartera (en
-  // comparaciones) o de la cartera principal (para el benchmark) para calcular
-  // el pendiente hipotético al liquidar. Esta es la misma lógica que usa
-  // TaxImpactCard, y sin ella la card "Valor al liquidar" mostraba el bruto en
-  // la cartera sin tax y en el benchmark.
+  // INVARIANTE: una cartera con taxMode "none" NUNCA hereda el régimen fiscal
+  // de la otra cartera — sin fricción impositiva configurada, bruto, camino y
+  // liquidar deben coincidir EXACTAMENTE (valor, CAGR, Sharpe, coste total).
+  // La comparación "qué pagaría si tributara como la otra" vive SOLO en la
+  // sección de impuestos (TaxImpactCard), donde se marca explícitamente como
+  // hipotética con asterisco.
+  // EXCEPCIÓN deliberada: el BENCHMARK (que no es ni A ni B) sí hereda el
+  // régimen de la cartera principal para que "al liquidar" sea comparable
+  // (decisión de producto confirmada).
   const effectivePending = (result: BacktestResult): number => {
     const ownMode = (result.fees.taxMode ?? "none") as TaxMode;
     if (ownMode !== "none") return result.fees.pendingTaxes ?? 0;
-    // Buscar un modo a heredar: primero la otra cartera, luego el "compañero"
-    // de la cartera principal (para el caso del benchmark virtual).
+    const isBenchmark = result !== resultA && result !== resultB;
+    if (!isBenchmark) return 0; // cartera A/B sin impuestos: pendiente SIEMPRE 0
+    // Benchmark: hereda el régimen de A (o B) para la comparación al liquidar.
     let inheritedMode: TaxMode = "none";
     let inheritedRate = 0;
-    const candidates: (BacktestResult | null)[] = result === resultA
-      ? [resultB ?? null]
-      : result === resultB
-      ? [resultA ?? null]
-      : [resultA ?? null, resultB ?? null]; // benchmark: A primero, luego B
-    for (const c of candidates) {
+    for (const c of [resultA ?? null, resultB ?? null]) {
       if (!c) continue;
       const mode = (c.fees.taxMode ?? "none") as TaxMode;
       if (mode !== "none") {
@@ -804,7 +803,7 @@ export function MetricsTable({ results, isLoading, valueMode, onValueModeChange 
                     {benchmarkResult && (
                       <th className="py-3 px-3 text-right text-xs font-semibold text-purple-600 uppercase tracking-wider">
                         {benchmarkResult.portfolioName}
-                        <Tooltip content="Benchmark de referencia. Las marcas ✓ de 'mejor' solo se calculan entre Cartera A y Cartera B; esta columna se muestra para contexto.">
+                        <Tooltip content="Benchmark de referencia. Las marcas ✓ de 'mejor' solo se calculan entre Cartera A y Cartera B; esta columna se muestra para contexto. Calculado con el mismo capital inicial sobre el periodo del benchmark — con 'usar rango común' activado coincide con la línea del gráfico; si está desactivado y los históricos difieren, el gráfico ancla el benchmark al valor de la cartera en su primera fecha común y puede diferir de esta columna.">
                           <span className="ml-1 text-purple-300 cursor-help">ⓘ</span>
                         </Tooltip>
                       </th>

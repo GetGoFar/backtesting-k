@@ -133,16 +133,14 @@ function filterRebalancesForDisplay(
 //   - En "liquidar" el gap a "camino" CRECE suavemente con la plusvalía
 //     latente, llegando a su máximo al final.
 
-function getEffectivePending(result: BacktestResult, otherResult?: BacktestResult | null): number {
+function getEffectivePending(result: BacktestResult, _otherResult?: BacktestResult | null): number {
+  // INVARIANTE: una cartera con taxMode "none" NUNCA hereda el régimen fiscal
+  // de la otra — su serie debe ser idéntica en bruto/camino/liquidar. La
+  // comparación hipotética "si tributara como la otra" vive solo en
+  // TaxImpactCard (marcada con asterisco). El benchmark tiene su propio
+  // bloque de escalado más abajo y SÍ hereda (decisión de producto).
   const ownMode = (result.fees.taxMode ?? "none") as TaxMode;
   if (ownMode !== "none") return result.fees.pendingTaxes ?? 0;
-  if (otherResult) {
-    const otherMode = (otherResult.fees.taxMode ?? "none") as TaxMode;
-    const otherRate = otherResult.fees.taxRate ?? 0;
-    if (otherMode !== "none") {
-      return computeTaxOnGain(result.fees.unrealizedGain ?? 0, otherMode, otherRate);
-    }
-  }
   return 0;
 }
 

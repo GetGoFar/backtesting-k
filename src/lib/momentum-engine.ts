@@ -255,7 +255,8 @@ function annualizeStdDev(returns: number[], periodsPerYear: number): number {
 function annualizeDownsideDeviation(returns: number[], periodsPerYear: number): number {
   if (returns.length < 2) return 0;
   const downside = returns.map((r) => Math.min(r, 0) ** 2);
-  const meanSq = downside.reduce((s, d) => s + d, 0) / returns.length;
+  // n-1 (Bessel) para consistencia con la volatilidad muestral
+  const meanSq = downside.reduce((s, d) => s + d, 0) / (returns.length - 1);
   return Math.sqrt(meanSq) * Math.sqrt(periodsPerYear);
 }
 

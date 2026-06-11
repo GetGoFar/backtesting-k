@@ -755,11 +755,17 @@ function renderTaxes(ctx: RenderCtx, result: BacktestResult, otherResult?: Backt
   const paid = result.fees.totalTaxesPaid ?? 0;
   const ownMode = (result.fees.taxMode ?? "none") as TaxMode;
   let pending = result.fees.pendingTaxes ?? 0;
+  // Si la cartera no tributa pero la comparada sí, mostramos el pendiente
+  // HIPOTÉTICO (régimen heredado) — igual que TaxImpactCard en la web — y lo
+  // marcamos como tal en la tabla. Las métricas principales del informe NO
+  // usan esta herencia (allí taxMode "none" = cero impuestos siempre).
+  let pendingEsHipotetico = false;
   if (ownMode === "none" && otherResult) {
     const otherMode = (otherResult.fees.taxMode ?? "none") as TaxMode;
     const otherRate = otherResult.fees.taxRate ?? 0;
     if (otherMode !== "none") {
       pending = computeTaxOnGain(result.fees.unrealizedGain ?? 0, otherMode, otherRate);
+      pendingEsHipotetico = pending > 0;
     }
   }
 
@@ -786,16 +792,19 @@ function renderTaxes(ctx: RenderCtx, result: BacktestResult, otherResult?: Backt
   const head = hasBmTax
     ? [["Escenario", "Tu cartera", `${bmName} (referencia)`]]
     : [["Escenario", "Valor final"]];
+  const liquidarLabel = pendingEsHipotetico
+    ? `3. Neta al liquidar (hipotético)\nSi tributaras como la cartera comparada`
+    : `3. Neta al liquidar\nLo que de verdad te llevas al bolsillo`;
   const body = hasBmTax
     ? [
         [`1. Bruta (en el papel)\nAntes de cualquier impuesto`, fmtEUR(valBruto), fmtEUR(bmBruto)],
         [`2. Neta del camino\nLo que ves hoy en tu cuenta`, fmtEUR(valCamino), fmtEUR(bmCamino)],
-        [`3. Neta al liquidar\nLo que de verdad te llevas al bolsillo`, fmtEUR(valLiquidar), fmtEUR(bmLiquidar)],
+        [liquidarLabel, fmtEUR(valLiquidar), fmtEUR(bmLiquidar)],
       ]
     : [
         [`1. Bruta (en el papel)\nAntes de cualquier impuesto`, fmtEUR(valBruto)],
         [`2. Neta del camino\nLo que ves hoy en tu cuenta`, fmtEUR(valCamino)],
-        [`3. Neta al liquidar\nLo que de verdad te llevas al bolsillo`, fmtEUR(valLiquidar)],
+        [liquidarLabel, fmtEUR(valLiquidar)],
       ];
 
   autoTable(ctx.pdf, {

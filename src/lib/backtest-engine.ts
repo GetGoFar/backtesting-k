@@ -1451,7 +1451,9 @@ function calculatePeriodDownsideDeviation(returns: number[], periodsPerYear: num
     .map((r) => Math.min(r - target, 0))
     .map((r) => r * r);
 
-  const meanSquaredDownside = downsideReturns.reduce((sum, d) => sum + d, 0) / returns.length;
+  // n-1 (corrección de Bessel) para ser consistente con la volatilidad,
+  // skewness y kurtosis, que también usan el estimador muestral.
+  const meanSquaredDownside = downsideReturns.reduce((sum, d) => sum + d, 0) / (returns.length - 1);
   const downsideStdDev = Math.sqrt(meanSquaredDownside);
 
   return downsideStdDev * Math.sqrt(periodsPerYear);
@@ -1658,7 +1660,10 @@ function computeBenchmarkComparison(
       downCount++;
     }
   }
-  // Capture ratio = retorno medio cartera / retorno medio benchmark cuando benchmark va en ese sentido
+  // Capture ratio = retorno medio cartera / retorno medio benchmark cuando benchmark va en ese sentido.
+  // Nota: usa media ARITMÉTICA (suma de retornos), no encadenado geométrico — es la
+  // convención más extendida (Morningstar usa geométrica); la diferencia es pequeña
+  // en retornos mensuales y se asume como aproximación deliberada.
   const upCapture = upCount > 0 && upBench !== 0
     ? (upPort / upCount) / (upBench / upCount)
     : 0;
@@ -1706,6 +1711,10 @@ function timeSeriesToReturns(timeSeries: TimeSeriesPoint[]): Array<{ date: strin
   for (let i = 1; i < timeSeries.length; i++) {
     const prev = timeSeries[i - 1]!;
     const curr = timeSeries[i]!;
+    // Guard prev.value > 0: si una cartera colapsara a 0 (caso extremo), el
+    // retorno de ese tramo se omite en vez de dividir por cero. Implica que
+    // las series de cartera y benchmark podrían desalinearse en ese escenario
+    // teórico; aceptado como caso límite no alcanzable con carteras normales.
     if (prev.value > 0) {
       returns.push({ date: curr.date, value: (curr.value - prev.value) / prev.value });
     }
@@ -1784,10 +1793,14 @@ function calculateStressPeriods(timeSeries: TimeSeriesPoint[]): StressPeriodResu
   const seriesEnd = timeSeries[timeSeries.length - 1]!.date;
 
   return STRESS_PERIODS.map((period) => {
-    // Filtrar puntos dentro del periodo de estrés (comparación lexicográfica YYYY-MM)
-    const pointsInPeriod = timeSeries.filter(
-      (p) => p.date >= period.start && p.date <= period.end
-    );
+    // Filtrar puntos dentro del periodo de estrés. Normalizamos a YYYY-MM
+    // antes de comparar: si la serie viniera en diario (YYYY-MM-DD, posible
+    // vía API), la comparación lexicográfica "2009-03-15" <= "2009-03"
+    // excluiría todo el mes final del periodo.
+    const pointsInPeriod = timeSeries.filter((p) => {
+      const month = p.date.substring(0, 7);
+      return month >= period.start && month <= period.end;
+    });
 
     // Verificar cobertura: el inicio del periodo debe estar dentro de la serie
     const startCovered = period.start >= seriesStart;
@@ -1953,7 +1966,15 @@ function calculateRollingReturnSeries(
     const endValue = endPoint.value;
 
     if (startValue > 0) {
-      const annualizedReturn = Math.pow(endValue / startValue, 1 / years) - 1;
+      // Anualizar con la duración REAL de la ventana (días de calendario),
+      // no con los años nominales: si hay huecos de datos, una ventana de
+      // 12 puntos puede abarcar 11 o 13 meses reales y el divisor fijo
+      // sesgaría el retorno anualizado.
+      const startDate = new Date(startPoint.exactDate || `${startPoint.date}-01`);
+      const endDate = new Date(endPoint.exactDate || `${endPoint.date}-01`);
+      const actualDays = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+      const actualYears = actualDays > 0 ? actualDays / 365.25 : years;
+      const annualizedReturn = Math.pow(endValue / startValue, 1 / actualYears) - 1;
       result.push({ date: endPoint.date, value: annualizedReturn, exactDate: endPoint.exactDate });
     }
   }
