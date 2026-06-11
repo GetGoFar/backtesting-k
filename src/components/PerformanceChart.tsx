@@ -133,14 +133,26 @@ function filterRebalancesForDisplay(
 //   - En "liquidar" el gap a "camino" CRECE suavemente con la plusvalía
 //     latente, llegando a su máximo al final.
 
-function getEffectivePending(result: BacktestResult, _otherResult?: BacktestResult | null): number {
-  // INVARIANTE: una cartera con taxMode "none" NUNCA hereda el régimen fiscal
-  // de la otra — su serie debe ser idéntica en bruto/camino/liquidar. La
-  // comparación hipotética "si tributara como la otra" vive solo en
-  // TaxImpactCard (marcada con asterisco). El benchmark tiene su propio
-  // bloque de escalado más abajo y SÍ hereda (decisión de producto).
+function getEffectivePending(result: BacktestResult, otherResult?: BacktestResult | null): number {
+  // Impuesto DIFERIDO al liquidar (solo afecta a la serie en modo "liquidar"):
+  //  - Régimen propio configurado → su pendiente real.
+  //  - "Sin impuestos" (fondos con traspasos exentos): el diferimiento no
+  //    elimina el impuesto. Si la cartera comparada tributa, estimamos el
+  //    diferido de la plusvalía latente con ese régimen (mismo inversor →
+  //    mismo IRPF). Sin esto, la cartera sin régimen "ganaría" al liquidar
+  //    precisamente por no haber tributado aún. Coherente con MetricsTable
+  //    (effectivePending) y marcado como hipotético en los subtextos.
+  //  - Bruto y neta-del-camino NO usan esto: para carteras sin régimen son
+  //    idénticas siempre.
   const ownMode = (result.fees.taxMode ?? "none") as TaxMode;
   if (ownMode !== "none") return result.fees.pendingTaxes ?? 0;
+  if (otherResult) {
+    const otherMode = (otherResult.fees.taxMode ?? "none") as TaxMode;
+    const otherRate = otherResult.fees.taxRate ?? 0;
+    if (otherMode !== "none") {
+      return computeTaxOnGain(result.fees.unrealizedGain ?? 0, otherMode, otherRate);
+    }
+  }
   return 0;
 }
 

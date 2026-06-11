@@ -86,7 +86,7 @@ function buildTooltips(granularity: DisplayGranularity) {
   const { singular, plural } = GRANULARITY_LABELS[granularity];
   return {
     finalValue:
-      "Valor según el modo elegido en el selector de arriba:\n\n• Bruto: antes de descontar ningún impuesto (la cifra que aparece en los folletos comerciales). Siempre descuenta TER y comisión de gestión.\n\n• Neta del camino: lo que ves hoy en la app de tu broker. Descuenta los impuestos ya pagados en cada rebalanceo (si configuraste un régimen fiscal en tu cartera).\n\n• Al liquidar: lo que de verdad te llevas al bolsillo si vendieras todo hoy. Descuenta también los impuestos pendientes sobre la plusvalía latente.\n\nIMPORTANTE: los tres modos solo dan números distintos si en tu cartera configuraste fiscalidad (IRPF España, tasa fija…). Si dejaste la fiscalidad en 'Sin impuestos', los tres valores coinciden porque nunca se han descontado ni se descontarán impuestos en la simulación.",
+      "Valor según el modo elegido en el selector de arriba:\n\n• Bruto: antes de descontar ningún impuesto (la cifra que aparece en los folletos comerciales). Siempre descuenta TER y comisión de gestión.\n\n• Neta del camino: lo que ves hoy en la app de tu broker. Descuenta los impuestos ya pagados en cada rebalanceo (si configuraste un régimen fiscal en tu cartera).\n\n• Al liquidar: lo que de verdad te llevas al bolsillo si vendieras todo hoy. Descuenta también los impuestos pendientes sobre la plusvalía latente.\n\nIMPORTANTE: con fiscalidad en 'Sin impuestos' (fondos con traspasos exentos), Bruto y Neta del camino coinciden SIEMPRE — no hay fricción durante el camino. Pero los traspasos exentos DIFIEREN el impuesto, no lo eliminan: en 'Al liquidar', si la comparas con una cartera que sí tributa, se estima el impuesto diferido de tu plusvalía latente con ese mismo régimen (marcado con *). Así la comparación al liquidar es justa: nadie 'gana' solo por no haber pasado aún por Hacienda.",
     totalReturn:
       "Rentabilidad total acumulada (TWRR). Encadena los retornos diarios eliminando el efecto de las aportaciones, así que mide únicamente lo que ha rentado la cartera — no el dinero que tú has metido. Es la métrica estándar de los fondos y la única comparable con un benchmark.",
     cagr:
@@ -253,18 +253,25 @@ function buildMetricsConfig(
       const liquidar = valueByMode(r, "liquidar");
       const paid = r.fees.totalTaxesPaid ?? 0;
       const pending = effectivePending(r);
+      // Si la cartera no tiene régimen propio, su pendiente al liquidar es un
+      // DIFERIDO ESTIMADO con el régimen de la comparada → se marca con *.
+      const esHipotetico =
+        ((r.fees.taxMode ?? "none") as TaxMode) === "none" && pending > 0;
+      const liqStr = `${formatEUR(liquidar)}${esHipotetico ? "*" : ""}`;
       // Mostrar las DOS variantes que NO son la principal, para dar contexto
       if (valueMode === "liquidar") {
         if (paid === 0 && pending === 0) return null;
-        return `Bruto: ${formatEUR(bruto)} · Camino: ${formatEUR(camino)}`;
+        return `Bruto: ${formatEUR(bruto)} · Camino: ${formatEUR(camino)}${
+          esHipotetico ? " · *diferido estimado" : ""
+        }`;
       }
       if (valueMode === "camino") {
         if (paid === 0 && pending === 0) return null;
-        return `Bruto: ${formatEUR(bruto)} · Liquidar: ${formatEUR(liquidar)}`;
+        return `Bruto: ${formatEUR(bruto)} · Liquidar: ${liqStr}`;
       }
       // bruto
       if (paid === 0 && pending === 0) return null;
-      return `Camino: ${formatEUR(camino)} · Liquidar: ${formatEUR(liquidar)}`;
+      return `Camino: ${formatEUR(camino)} · Liquidar: ${liqStr}`;
     },
   },
   {
@@ -390,11 +397,12 @@ function buildMetricsConfig(
   {
     key: "totalFees",
     label: "Coste total (TER + gestión + impuestos)",
-    // Usa los pendientes EFECTIVOS (propios o hipotéticos heredados), para
-    // que dos carteras con regímenes fiscales distintos se comparen de forma
-    // justa al asumir liquidación al final.
+    // SOLO costes del régimen PROPIO configurado (es "coste real"): TER +
+    // gestión + impuestos pagados + pendientes propios. El diferido estimado
+    // de carteras sin régimen NO entra aquí — vive en el modo "al liquidar",
+    // marcado como hipotético.
     getValue: (r) => r.fees.totalFees + (r.fees.managementFeePaid || 0) +
-                     (r.fees.totalTaxesPaid || 0) + effectivePending(r),
+                     (r.fees.totalTaxesPaid || 0) + (r.fees.pendingTaxes ?? 0),
     format: formatEUR,
     higherIsBetter: false,
     tooltip: tooltips.totalFees,
@@ -646,26 +654,34 @@ export function MetricsTable({ results, isLoading, valueMode, onValueModeChange 
       : null;
 
   // ---------------------------------------------------------------------------
-  // Helper: impuesto pendiente EFECTIVO de una cartera/benchmark
+  // Helper: impuesto DIFERIDO al liquidar de una cartera/benchmark
   // ---------------------------------------------------------------------------
-  // INVARIANTE: una cartera con taxMode "none" NUNCA hereda el régimen fiscal
-  // de la otra cartera — sin fricción impositiva configurada, bruto, camino y
-  // liquidar deben coincidir EXACTAMENTE (valor, CAGR, Sharpe, coste total).
-  // La comparación "qué pagaría si tributara como la otra" vive SOLO en la
-  // sección de impuestos (TaxImpactCard), donde se marca explícitamente como
-  // hipotética con asterisco.
-  // EXCEPCIÓN deliberada: el BENCHMARK (que no es ni A ni B) sí hereda el
-  // régimen de la cartera principal para que "al liquidar" sea comparable
-  // (decisión de producto confirmada).
+  // MODELO FISCAL (realidad española):
+  //  - "Sin impuestos" (fondos con traspasos exentos) = sin fricción DURANTE el
+  //    camino → bruto y neta-del-camino coinciden EXACTAMENTE siempre.
+  //  - Pero los traspasos exentos DIFIEREN el impuesto, no lo eliminan: al
+  //    LIQUIDAR, la plusvalía latente tributa igualmente. Si la cartera no
+  //    tiene régimen propio pero la comparada sí, estimamos ese diferido con
+  //    el régimen de la comparada (mismo inversor → mismo IRPF). Sin esto, la
+  //    cartera "sin impuestos" ganaría artificialmente en modo liquidar
+  //    precisamente por no haber tributado aún.
+  //  - Esta estimación SOLO alimenta el modo "liquidar" (valor/CAGR/ratios) y
+  //    se marca como hipotética (*) en el subtexto. El "Coste total" usa solo
+  //    los pendientes del régimen PROPIO (ver métrica totalFees).
+  //  - El benchmark hereda el régimen de la cartera principal (A, luego B).
   const effectivePending = (result: BacktestResult): number => {
     const ownMode = (result.fees.taxMode ?? "none") as TaxMode;
     if (ownMode !== "none") return result.fees.pendingTaxes ?? 0;
-    const isBenchmark = result !== resultA && result !== resultB;
-    if (!isBenchmark) return 0; // cartera A/B sin impuestos: pendiente SIEMPRE 0
-    // Benchmark: hereda el régimen de A (o B) para la comparación al liquidar.
+    // Sin régimen propio: estimar el diferido con el régimen de la otra
+    // cartera (o, para el benchmark, el de A y si no el de B).
+    const candidates: (BacktestResult | null)[] = result === resultA
+      ? [resultB ?? null]
+      : result === resultB
+      ? [resultA ?? null]
+      : [resultA ?? null, resultB ?? null]; // benchmark
     let inheritedMode: TaxMode = "none";
     let inheritedRate = 0;
-    for (const c of [resultA ?? null, resultB ?? null]) {
+    for (const c of candidates) {
       if (!c) continue;
       const mode = (c.fees.taxMode ?? "none") as TaxMode;
       if (mode !== "none") {
