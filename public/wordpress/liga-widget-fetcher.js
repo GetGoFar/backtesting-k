@@ -99,9 +99,9 @@
 	}
 
 	/**
-	 * Devuelve el HTML del indicador de tendencia respecto al snapshot anterior:
-	 *   ▲ verde   → dq5 bajó (fondo mejorando)
-	 *   ▼ rojo    → dq5 subió (fondo empeorando)
+	 * Devuelve el HTML del indicador de tendencia (momentum ~30d del fondo vs índice):
+	 *   ▼ verde   → mejora: baja en la Liga de la Basura (batió al índice ~30d)
+	 *   ▲ rojo    → empeora: sube en la Liga de la Basura (peor que el índice ~30d)
 	 *   = gris    → variación dentro del umbral (estable)
 	 *   ★ azul    → fondo nuevo en la liga
 	 *   ·         → no hay snapshot anterior para comparar
@@ -114,8 +114,8 @@
 			? ( delta >= 0 ? '+' : '' ) + Math.round( delta ).toLocaleString( 'es-ES' ) + ' €'
 			: '';
 		var iconos = {
-			mejorando:  { glyph: '▲', color: '#2a9d3f', label: 'Mejorando vs mes anterior' },
-			empeorando: { glyph: '▼', color: '#c62828', label: 'Empeorando vs mes anterior' },
+			mejorando:  { glyph: '▼', color: '#2a9d3f', label: 'Mejorando: baja en la Liga de la Basura' },
+			empeorando: { glyph: '▲', color: '#c62828', label: 'Empeorando: sube en la Liga de la Basura' },
 			estable:    { glyph: '=', color: '#888',    label: 'Estable vs mes anterior' },
 			nuevo:      { glyph: '★', color: '#1d4ed8', label: 'Nuevo en la liga' },
 			sin_ref:    { glyph: '·', color: '#bbb',    label: 'Sin referencia previa' }

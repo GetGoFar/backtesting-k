@@ -132,8 +132,8 @@ const BENCHMARK_GLOBAL = "SPYY.XETRA";
 const USAR_MORNINGSTAR_ALFAS = false;
 
 // Tendencia (columna "Tend."): momentum reciente del fondo frente al ACWI sobre
-// los últimos ~30 días naturales. ▲ si batió al índice el último mes, ▼ si quedó
-// por debajo, = si está dentro de ±1 punto porcentual.
+// los últimos ~30 días naturales. En la tabla: ▼ verde si batió al índice (baja en
+// la liga), ▲ roja si quedó por debajo (sube en la liga), = dentro de ±1 pp.
 const TEND_VENTANA_DIAS = 30;
 const TEND_UMBRAL_PCT = 1;
 
@@ -762,8 +762,8 @@ const UMBRAL_ESTABLE_EUR = 500;
 /**
  * Tendencia de momentum reciente: rendimiento del fondo frente al ACWI en los
  * últimos ~TEND_VENTANA_DIAS días naturales (sobre el rango común).
- *   mejorando  → el fondo batió al índice en el último mes (▲)
- *   empeorando → quedó por debajo del índice (▼)
+ *   mejorando  → el fondo batió al índice en el último mes (▼ verde: baja en la liga)
+ *   empeorando → quedó por debajo del índice (▲ roja: sube en la liga)
  *   estable    → diferencia dentro de ±TEND_UMBRAL_PCT puntos porcentuales
  *   sin_ref    → no hay suficiente histórico reciente común
  */
