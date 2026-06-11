@@ -92,6 +92,14 @@ const AssetMetricsTable = dynamic(
   }
 );
 
+const AllocationPieChart = dynamic(
+  () => import("@/components/AllocationPieChart").then((mod) => mod.AllocationPieChart),
+  {
+    loading: () => <ChartLoadingSkeleton height="h-64" />,
+    ssr: false,
+  }
+);
+
 const TopDrawdownsTable = dynamic(
   () => import("@/components/TopDrawdownsTable").then((mod) => mod.TopDrawdownsTable),
   {
@@ -1130,6 +1138,13 @@ export default function Home() {
                   />
                 </div>
               )}
+
+              {/* 4c. Composición de las carteras: % por clase de activo
+                  (RV / RF / Oro / Alternativos), categoría detallada o tipo
+                  de gestión. Incluye el benchmark si está activo. */}
+              <div id="section-allocation" className="scroll-mt-24">
+                <AllocationPieChart results={results} isLoading={false} />
+              </div>
 
               {/* 5. Matriz de correlaciones entre activos */}
               {results.correlationMatrix && results.correlationMatrix.fundIds.length >= 2 && (

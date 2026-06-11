@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
-import type { BacktestResponse, BacktestResult, AllocationSlice } from "@/lib/types";
+import type { BacktestResponse, AllocationSlice, PortfolioAllocation } from "@/lib/types";
 import { formatPctNoSign } from "@/lib/formatters";
 
 interface AllocationPieChartProps {
@@ -64,18 +64,23 @@ function colorFor(label: string, idx: number): string {
 }
 
 function PortfolioPie({
-  result,
+  name,
+  allocation,
   view,
   colorClass,
 }: {
-  result: BacktestResult;
+  name: string;
+  allocation: PortfolioAllocation | undefined;
   view: AllocationView;
-  colorClass: "blue" | "rose";
+  colorClass: "blue" | "rose" | "purple";
 }) {
-  const slices: AllocationSlice[] = result.allocation?.[view] ?? [];
+  const slices: AllocationSlice[] = allocation?.[view] ?? [];
   if (slices.length === 0) return null;
 
-  const headerColor = colorClass === "blue" ? "text-blue-600" : "text-rose-600";
+  const headerColor =
+    colorClass === "blue" ? "text-blue-600"
+    : colorClass === "rose" ? "text-rose-600"
+    : "text-purple-600";
 
   // Preparar datos para Recharts (valores en %)
   const data = slices.map((s, idx) => ({
@@ -92,7 +97,7 @@ function PortfolioPie({
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
       <div className="px-6 py-4 border-b border-slate-100">
         <h4 className={`text-base font-semibold ${headerColor} font-serif`}>
-          Composición — {result.portfolioName}
+          Composición — {name}
         </h4>
         <p className="text-xs text-brand-tertiary mt-0.5">
           {slices.length} {slices.length === 1 ? "porción" : "porciones"} · Total: {total.toFixed(1)}%
@@ -180,6 +185,13 @@ export function AllocationPieChart({ results, isLoading }: AllocationPieChartPro
   const { resultA, resultB } = results;
   if (!resultA && !resultB) return null;
 
+  // Benchmark (si lo hay): su allocation viene propagada en benchmarkAllocation.
+  // Se pinta como una "cartera más" en púrpura, igual que en el resto de la app.
+  const bm = resultA?.benchmark ?? resultB?.benchmark;
+  const bmAllocation = bm?.benchmarkAllocation;
+  const hasBenchmarkPie = !!bmAllocation &&
+    (bmAllocation.byAssetClass?.length ?? 0) > 0;
+
   return (
     <div className="space-y-4">
       {/* Selector de vista */}
@@ -209,10 +221,32 @@ export function AllocationPieChart({ results, isLoading }: AllocationPieChartPro
         </div>
       </div>
 
-      {/* Pie charts en grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {resultA && <PortfolioPie result={resultA} view={view} colorClass="blue" />}
-        {resultB && <PortfolioPie result={resultB} view={view} colorClass="rose" />}
+      {/* Pie charts en grid (2 cols; 3 si hay benchmark) */}
+      <div className={`grid grid-cols-1 gap-4 ${hasBenchmarkPie ? "lg:grid-cols-3" : "lg:grid-cols-2"}`}>
+        {resultA && (
+          <PortfolioPie
+            name={resultA.portfolioName}
+            allocation={resultA.allocation}
+            view={view}
+            colorClass="blue"
+          />
+        )}
+        {resultB && (
+          <PortfolioPie
+            name={resultB.portfolioName}
+            allocation={resultB.allocation}
+            view={view}
+            colorClass="rose"
+          />
+        )}
+        {hasBenchmarkPie && (
+          <PortfolioPie
+            name={bm!.benchmarkName ?? "Benchmark"}
+            allocation={bmAllocation}
+            view={view}
+            colorClass="purple"
+          />
+        )}
       </div>
     </div>
   );

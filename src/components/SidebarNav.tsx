@@ -24,6 +24,7 @@ const ALL_SECTIONS: NavSection[] = [
   { id: "section-performance", label: "Evolución patrimonio", group: "results", icon: "📈" },
   { id: "section-metrics", label: "Métricas comparativas", group: "results", icon: "📊" },
   { id: "section-assets", label: "Métricas por activo", group: "results", icon: "🎯" },
+  { id: "section-allocation", label: "Composición carteras", group: "results", icon: "🥧" },
   { id: "section-correlations", label: "Correlaciones", group: "results", icon: "🔗" },
   { id: "section-annual", label: "Rentabilidades anuales", group: "results", icon: "📅" },
   { id: "section-monthly", label: "Rentabilidades mensuales", group: "results", icon: "🗓️" },
