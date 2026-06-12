@@ -91,7 +91,18 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
       url.searchParams.set("next", pathname);
       url.searchParams.set("error", "1");
       const res = NextResponse.redirect(url);
-      res.cookies.delete("epk-access");
+      // Borrar las dos variantes posibles de la cookie: la identidad de una
+      // cookie incluye su partición, así que la Partitioned (emitida desde el
+      // iframe del Campus) y la clásica (visitas directas, antigua Lax) se
+      // eliminan con cabeceras separadas.
+      res.headers.append(
+        "Set-Cookie",
+        "epk-access=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=None; Partitioned"
+      );
+      res.headers.append(
+        "Set-Cookie",
+        "epk-access=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax"
+      );
       return res;
     }
     return NextResponse.next();

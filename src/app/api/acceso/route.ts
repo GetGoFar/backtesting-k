@@ -49,15 +49,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // Emite la cookie con el hash. HttpOnly = el JS del cliente no puede leerla
-  // (mitiga XSS). Secure = solo HTTPS. SameSite=Lax = bloqueamos CSRF básicos.
-  // Max-Age = 1 año.
+  // (mitiga XSS). Secure = solo HTTPS. Max-Age = 1 año.
+  // SameSite=None + Partitioned (CHIPS): la herramienta vive embebida en un
+  // iframe del Campus de elproyectok.com — con Lax el navegador no envía la
+  // cookie en contexto cross-site y el gate se convierte en un bucle (el
+  // código valida pero la recarga vuelve a /acceso). Partitioned la aísla
+  // por sitio embebedor, requisito de Chrome/Safari para cookies en iframes.
+  // Header manual porque la opción `partitioned` de cookies.set no está
+  // disponible en todas las versiones de Next.
   const res = NextResponse.json({ ok: true });
-  res.cookies.set("epk-access", candidateHash, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 365,
-    path: "/",
-  });
+  res.headers.append(
+    "Set-Cookie",
+    `epk-access=${candidateHash}; Path=/; Max-Age=${60 * 60 * 24 * 365}; HttpOnly; Secure; SameSite=None; Partitioned`
+  );
   return res;
 }
