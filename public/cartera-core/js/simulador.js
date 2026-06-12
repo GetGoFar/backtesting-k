@@ -153,7 +153,7 @@ const Simulador = {
         labels: labels.map(y => `Año ${y}`),
         datasets: [
           { label: 'Aportado acumulado', data: aportado, borderColor: '#666', backgroundColor: 'rgba(120,120,120,.1)', tension: .25, fill: false, borderDash: [6,4] },
-          { label: 'Valor cartera (nominal)', data: valor, borderColor: '#c53030', backgroundColor: 'rgba(197,48,48,.15)', tension: .25, fill: true },
+          { label: 'Valor cartera (nominal)', data: valor, borderColor: '#C81E2E', backgroundColor: 'rgba(200,30,46,.15)', tension: .25, fill: true },
           { label: 'Valor real (post inflación)', data: real, borderColor: '#2f855a', backgroundColor: 'rgba(47,133,90,.10)', tension: .25, fill: false }
         ]
       },

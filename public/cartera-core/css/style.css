@@ -6,11 +6,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Source+Serif+Pro:wght@400;600;700&display=swap');
 
 :root {
-  --rojo:        #E24E42;            /* acento principal exacto de elproyectok.com */
-  --rojo-osc:    #C73D32;            /* hover/contrast */
-  --rojo-claro:  #FBE5E2;            /* background suave acento */
-  --beige:       #F9F6F3;            /* fondo principal hero/secciones */
-  --beige-osc:   #F0EBE3;            /* zebra/cards intermedio */
+  --rojo:        #C81E2E;            /* acento principal exacto de elproyectok.com */
+  --rojo-osc:    #A81725;            /* hover/contrast */
+  --rojo-claro:  #F7E4E6;            /* background suave acento */
+  --beige:       #F5F0EB;            /* fondo principal hero/secciones */
+  --beige-osc:   #EDE5DB;            /* zebra/cards intermedio */
   --texto:       #202020;            /* texto principal exacto */
   --texto-suave: #6B6B6B;            /* texto secundario */
   --borde:       #E5DED3;            /* bordes sutiles tono beige */
@@ -89,6 +89,7 @@ input:focus, select:focus { outline: 2px solid var(--rojo); outline-offset: 1px;
   margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 2px solid var(--rojo);
 }
 .brand .nombre { font-weight: 800; color: var(--rojo); letter-spacing: .02em; font-size: 1.05rem; }
+.brand img.logo { width: 150px; height: auto; display: block; }
 .brand .sub { color: var(--texto-suave); font-size: .8rem; margin-top: 2px; }
 
 .nav { display: flex; flex-direction: column; gap: 2px; }
@@ -122,6 +123,7 @@ input:focus, select:focus { outline: 2px solid var(--rojo); outline-offset: 1px;
   .sidebar { position: sticky; top: 0; height: auto; max-height: none; padding: .75rem 1rem; border-right: 0; border-bottom: 1px solid var(--borde); z-index: 10; }
   .brand { margin-bottom: .6rem; padding-bottom: .5rem; flex-direction: row; gap: .6rem; align-items: baseline; }
   .brand .nombre { font-size: .9rem; }
+  .brand img.logo { width: 110px; }
   .brand .sub { font-size: .72rem; }
   .nav { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; gap: 4px; padding-bottom: .25rem; }
   .nav button { white-space: nowrap; padding: .35rem .65rem; font-size: .82rem; }
