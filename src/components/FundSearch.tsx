@@ -25,6 +25,23 @@ interface FundSearchProps {
   excludeIds?: string[];
 }
 
+/** Detecta si la app va embebida en el campus (?campus=1). Se persiste en
+ *  sessionStorage para que sobreviva a la navegación SPA. No afecta al uso
+ *  personal directo de la app (otra pestaña = sessionStorage independiente). */
+function isCampusMode(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("campus") === "1" || p.get("campus") === "true") {
+      sessionStorage.setItem("k-campus", "1");
+      return true;
+    }
+    return sessionStorage.getItem("k-campus") === "1";
+  } catch {
+    return false;
+  }
+}
+
 export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
   const [query, setQuery] = useState("");
   const [localResults, setLocalResults] = useState<Fund[]>([]);
@@ -61,10 +78,13 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
     setIsOpen(true);
 
     try {
+      // En modo campus, limitamos ambos endpoints al universo oficial del Excel
+      const campusFlag = isCampusMode() ? "&campus=1" : "";
+
       // Buscar en paralelo: base de datos local + EODHD (búsqueda externa)
       const [localResponse, externalResponse] = await Promise.all([
-        fetch(`/api/funds?search=${encodeURIComponent(value)}`),
-        fetch(`/api/search?q=${encodeURIComponent(value)}`),
+        fetch(`/api/funds?search=${encodeURIComponent(value)}${campusFlag}`),
+        fetch(`/api/search?q=${encodeURIComponent(value)}${campusFlag}`),
       ]);
 
       const localData = await localResponse.json();

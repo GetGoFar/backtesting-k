@@ -60,6 +60,26 @@ const SPDR_SECTORS_ASSETS: MomentumAsset[] = [
   { ticker: "XLC", displayName: "Comunicaciones" },
 ];
 
+// Acciones caídas en desgracia — "ángeles caídos" famosos que siguen cotizando,
+// con caídas brutales desde máximos (verificado contra EODHD 2026-06):
+// PTON -96%, TDOC -97%, PYPL -86%, ZM -80%, ROKU -69%, BABA -61%, BA -49%,
+// DIS -46%, PFE -44%. (Intel se excluyó: recuperó máximos y ya no está "caída".)
+// El momentum rota mensualmente hacia la que mejor se está recuperando.
+// OJO (sesgo retrospectivo): elegimos estas acciones HOY sabiendo que cayeron —
+// un inversor de 2019 no podía conocer esta lista. Valor didáctico, no consejo.
+// El histórico común lo limita Peloton (IPO sep-2019) → primera señal ~oct-2020.
+const ACCIONES_CAIDAS_ASSETS: MomentumAsset[] = [
+  { ticker: "PTON", displayName: "Peloton" },
+  { ticker: "ZM", displayName: "Zoom" },
+  { ticker: "PYPL", displayName: "PayPal" },
+  { ticker: "TDOC", displayName: "Teladoc" },
+  { ticker: "ROKU", displayName: "Roku" },
+  { ticker: "BABA", displayName: "Alibaba" },
+  { ticker: "BA", displayName: "Boeing" },
+  { ticker: "DIS", displayName: "Disney" },
+  { ticker: "PFE", displayName: "Pfizer" },
+];
+
 // Config base compartida por todas: parámetros estilo Portfolio Visualizer
 // por defecto (12-1 momentum, top-1, mensual, nextClose, sin slippage). Las
 // fechas se OVERRIDEAN en el motor con las del backtest, así que aquí dan
@@ -147,6 +167,25 @@ export const MOMENTUM_CARTERA_PRESETS: PortfolioPreset[] = [
           "Momentum Global Tactical"
         ),
         momentumConfig: baseConfig(GLOBAL_TACTICAL_ASSETS),
+      },
+    ],
+  },
+  {
+    id: "momentum-acciones-caidas",
+    name: "Cartera acciones caídas",
+    description:
+      "Rotación mensual top-1 entre 9 'ángeles caídos' (Peloton, Zoom, PayPal, Teladoc, Roku, Alibaba, Boeing, Disney, Pfizer) — acciones famosas con caídas del 44% al 97% desde máximos. El momentum persigue a la que mejor se recupera. Experimento didáctico: la lista se elige sabiendo que cayeron (sesgo retrospectivo). Histórico desde ~2020 (limita Peloton).",
+    type: "active",
+    holdings: [
+      {
+        fundId: "momentum-acciones-caidas",
+        weight: 100,
+        fund: syntheticFund(
+          "momentum-acciones-caidas",
+          "Estrategia Momentum: Acciones caídas en desgracia (9 ángeles caídos)",
+          "Momentum Acciones Caídas"
+        ),
+        momentumConfig: baseConfig(ACCIONES_CAIDAS_ASSETS),
       },
     ],
   },

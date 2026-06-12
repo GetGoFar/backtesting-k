@@ -8,6 +8,7 @@ import {
   getFundsByType,
 } from "@/lib/fund-database";
 import type { Fund, FundType } from "@/lib/types";
+import { isInCampusWhitelist, isCampusRequest } from "@/lib/campus-whitelist";
 
 /**
  * GET /api/funds
@@ -45,6 +46,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       funds = getFundsByType(typeParam as FundType);
     } else {
       funds = getAllFunds();
+    }
+
+    // Modo campus: limitar al universo oficial del Excel (Cartera Core v3)
+    if (isCampusRequest(searchParams)) {
+      funds = funds.filter((fund) => isInCampusWhitelist(fund.isin));
     }
 
     // Aplicar búsqueda si se especifica

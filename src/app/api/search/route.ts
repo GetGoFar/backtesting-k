@@ -11,6 +11,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getFundByIsin } from "@/lib/fund-database";
+import { isInCampusWhitelist, isCampusRequest } from "@/lib/campus-whitelist";
 
 const EODHD_API_TOKEN = process.env.EODHD_API_TOKEN || "";
 const EODHD_BASE_URL = "https://eodhd.com/api";
@@ -198,13 +199,24 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     const query = normalizeSearchQuery(rawQuery);
+    const campus = isCampusRequest(searchParams);
     const eodhResults = await searchEODHD(query);
 
     if (eodhResults.length === 0) {
       return NextResponse.json({ results: [] });
     }
 
-    const mapped = eodhResults.map((r) => {
+    // Modo campus: solo instrumentos del Excel oficial (filtra por ISIN antes
+    // de enriquecer, así no gastamos llamadas de TER en lo que se va a descartar).
+    const visibleResults = campus
+      ? eodhResults.filter((r) => isInCampusWhitelist(r.ISIN))
+      : eodhResults;
+
+    if (visibleResults.length === 0) {
+      return NextResponse.json({ results: [] });
+    }
+
+    const mapped = visibleResults.map((r) => {
       const isStock = r.Type === "Common Stock";
       return {
         symbol: buildTicker(r.Code, r.Exchange),
