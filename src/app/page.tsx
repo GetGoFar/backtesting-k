@@ -430,7 +430,7 @@ export default function Home() {
     <AccessGate>
     <div className="min-h-screen flex flex-col">
       {/* Header — estilo elproyectok.com */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-brand-border">
+      <header className="sticky top-0 z-50 bg-brand-bg/95 backdrop-blur-md border-b border-brand-border">
         <div className="px-4 sm:px-6 py-3">
           <div className="flex items-center justify-between max-w-[1800px] mx-auto">
             <a href="https://elproyectok.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 group ml-14 lg:ml-0">

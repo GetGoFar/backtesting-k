@@ -158,7 +158,7 @@ export default function MomentumPage() {
     <AccessGate>
       <div className="min-h-screen flex flex-col bg-slate-50">
         {/* Header */}
-        <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-brand-border">
+        <header className="sticky top-0 z-50 bg-brand-bg/95 backdrop-blur-md border-b border-brand-border">
           <div className="px-4 sm:px-6 py-3">
             <div className="flex items-center justify-between max-w-[1800px] mx-auto">
               <a

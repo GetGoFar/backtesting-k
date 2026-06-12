@@ -122,12 +122,16 @@ backtesting-k/
 
 ## Diseño UI
 
-- Estilo profesional, limpio, financiero
-- Colores: Azul (#1d4ed8) para carteras indexadas, Rojo/Rosa (#e11d48) para carteras bancarias
+- Estilo profesional, limpio, financiero — TEMA DE MARCA elproyectok.com:
+  fondo beige #F5F0EB, texto #202020, CTA rojo K #C81E2E (píldora),
+  headings Source Serif + body Poppins, grises cálidos (slate remapeado a
+  stone en tailwind.config). La app debe parecer parte de la web.
+- Colores SEMÁNTICOS de datos (no cambiar): Azul (#1d4ed8) cartera indexada/A,
+  Rojo/Rosa (#e11d48) cartera bancaria/B, Púrpura (#9333ea) benchmark
 - Verde (#059669) para métricas positivas, Rojo (#dc2626) para negativas
 - Fondos claros, bordes sutiles, sombras suaves
 - Responsive (funcionar bien en móvil para presentaciones en talleres)
-- Logo: Letra "K" en gradiente azul-índigo como favicon/marca
+- Logo: Letra "K" blanca sobre gradiente rojo K (#C81E2E→#E04250) como favicon/marca
 - Tooltip informativo en cada métrica explicando qué significa
 
 ## Reglas de Código

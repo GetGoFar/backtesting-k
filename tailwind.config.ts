@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import colors from "tailwindcss/colors";
 
 const config: Config = {
   content: [
@@ -13,25 +14,32 @@ const config: Config = {
         serif: ["var(--font-source-serif)", "Source Serif Pro", "Georgia", "serif"],
       },
       colors: {
+        // Paleta extraída en vivo de elproyectok.com (2026-06): fondo beige
+        // #F5F0EB, texto #202020, CTA rojo K #C81E2E (píldora), grises cálidos.
         brand: {
-          // Color principal CTA (coral/rojo del sitio web)
-          coral: "#E24E42",
-          "coral-dark": "#c93d32",
-          "coral-light": "#f06b62",
-          // Navy oscuro para textos y headers
-          navy: "#101828",
-          "navy-light": "#1D2939",
-          // Textos secundarios
-          secondary: "#475467",
-          tertiary: "#98A2B3",
-          // Links
-          link: "#444CE7",
-          // Fondos
-          bg: "#FAFBFC",
-          "bg-warm": "#f4f3ef",
+          // Color principal CTA — rojo K del sitio web
+          coral: "#C81E2E",
+          "coral-dark": "#A3182A",
+          "coral-light": "#E04250",
+          // Texto principal (negro neutro del sitio, antes navy azulado)
+          navy: "#202020",
+          "navy-light": "#3D3D3D",
+          // Textos secundarios (grises cálidos como la nav del sitio)
+          secondary: "#5A5A5A",
+          tertiary: "#8A8580",
+          // Links — el sitio acentúa en rojo K, no en índigo
+          link: "#C81E2E",
+          // Fondos — beige cálido del sitio
+          bg: "#F5F0EB",
+          "bg-warm": "#EFE8DF",
           // Bordes sutiles
-          border: "hsla(0, 0%, 7%, 0.08)",
+          border: "hsla(30, 10%, 7%, 0.08)",
         },
+        // Los componentes usan slate-* por todas partes (bordes, textos
+        // secundarios, fondos de tabla). Remapearlo a la paleta "stone"
+        // (gris cálido) hace que TODA la app entone con el beige del sitio
+        // sin tocar ni una clase en los componentes.
+        slate: colors.stone,
       },
       borderRadius: {
         pill: "35px",

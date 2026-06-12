@@ -7,9 +7,9 @@
    ============================================================================ */
 
 :root {
-  /* Marca */
-  --color-coral: #E24E42;
-  --color-navy: #101828;
+  /* Marca — paleta de elproyectok.com (rojo K + negro neutro) */
+  --color-coral: #C81E2E;
+  --color-navy: #202020;
 
   /* Cartera indexada - Azul */
   --color-indexed: #1d4ed8;
@@ -50,14 +50,14 @@
    COMPONENTS
    ============================================================================ */
 
-/* Gradiente K — púrpura a cian (del sitio web) */
+/* Gradiente K — rojo de marca de elproyectok.com */
 .gradient-k {
-  background: linear-gradient(135deg, hsla(259, 84%, 78%, 1) 0%, hsla(206, 67%, 75%, 1) 100%);
+  background: linear-gradient(135deg, #C81E2E 0%, #E04250 100%);
 }
 
 /* Gradiente texto K */
 .gradient-k-text {
-  background: linear-gradient(135deg, hsla(259, 84%, 78%, 1) 0%, hsla(206, 67%, 75%, 1) 100%);
+  background: linear-gradient(135deg, #C81E2E 0%, #E04250 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -117,12 +117,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #d6d0c6;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #b3aca0;
 }
 
 /* ============================================================================
