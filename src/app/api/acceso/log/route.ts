@@ -2,11 +2,11 @@
 // API /api/acceso/log — Visor del registro de accesos (solo admin)
 // =============================================================================
 //
-// GET /api/acceso/log?key=<CRON_SECRET>           → tabla HTML legible
-// GET /api/acceso/log?key=<CRON_SECRET>&format=json → JSON crudo
+// GET /api/acceso/log?key=<ACCESS_LOG_KEY>           → tabla HTML legible
+// GET /api/acceso/log?key=<ACCESS_LOG_KEY>&format=json → JSON crudo
 //
-// Protegido con el CRON_SECRET ya configurado en Vercel (sin env vars nuevas).
-// La ruta es pública a nivel de middleware (/api/*) pero exige la clave.
+// Protegido con la variable ACCESS_LOG_KEY (configurada en Vercel). La ruta es
+// pública a nivel de middleware (/api/*) pero exige la clave en el query param.
 // =============================================================================
 
 import { NextRequest, NextResponse } from "next/server";
@@ -14,7 +14,8 @@ import { getRecentAccesses, isLogStoreAvailable } from "@/lib/access-log";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const key = request.nextUrl.searchParams.get("key");
-  const secret = process.env.CRON_SECRET;
+  // Clave admin propia (ACCESS_LOG_KEY); CRON_SECRET como fallback si existiera.
+  const secret = process.env.ACCESS_LOG_KEY || process.env.CRON_SECRET;
   if (!secret || key !== secret) {
     return NextResponse.json({ ok: false, error: "No autorizado" }, { status: 401 });
   }
