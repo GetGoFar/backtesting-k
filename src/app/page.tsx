@@ -1,5 +1,7 @@
 "use client";
 
+import { KMark } from "@/components/KMark";
+
 import { useState, useRef, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { PortfolioBuilder } from "@/components/PortfolioBuilder";
@@ -435,7 +437,7 @@ export default function Home() {
           <div className="flex items-center justify-between max-w-[1800px] mx-auto">
             <a href="https://elproyectok.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 group ml-14 lg:ml-0">
               <div className="w-10 h-10 rounded-xl gradient-k flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow">
-                <span className="text-2xl font-bold text-white">K</span>
+                <KMark className="h-6 w-auto text-white" />
               </div>
               <div>
                 <h1 className="text-lg font-semibold text-brand-navy group-hover:text-brand-coral transition-colors font-serif">

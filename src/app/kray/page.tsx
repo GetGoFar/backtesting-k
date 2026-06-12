@@ -1,5 +1,7 @@
 "use client";
 
+import { KMark } from "@/components/KMark";
+
 // =============================================================================
 // PÁGINA K-RAY — Radiografía de cartera (composición agregada)
 // =============================================================================
@@ -169,7 +171,7 @@ export default function KrayPage() {
                 className="flex items-center gap-3 group"
               >
                 <div className="w-10 h-10 rounded-xl gradient-k flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow">
-                  <span className="text-2xl font-bold text-white">K</span>
+                  <KMark className="h-6 w-auto text-white" />
                 </div>
                 <div>
                   <h1 className="text-lg font-semibold text-brand-navy group-hover:text-brand-coral transition-colors font-serif">

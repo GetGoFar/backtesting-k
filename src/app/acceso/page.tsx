@@ -1,5 +1,7 @@
 "use client";
 
+import { KMark } from "@/components/KMark";
+
 // =============================================================================
 // /acceso — Página del formulario de código de suscriptor
 // =============================================================================
@@ -64,7 +66,7 @@ function AccessForm() {
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="w-16 h-16 rounded-xl gradient-k flex items-center justify-center shadow-lg mx-auto mb-4">
-            <span className="text-4xl font-bold text-white">K</span>
+            <KMark className="h-10 w-auto text-white" />
           </div>
           <h1 className="text-2xl font-bold text-brand-navy">Backtesting Tool</h1>
           <p className="text-sm text-brand-tertiary mt-1">
