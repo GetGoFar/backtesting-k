@@ -36,6 +36,15 @@ const App = {
       const grid = c.querySelector('div[style*="display:grid"]');
       if (grid && !grid.querySelector('button')) c.remove();
     });
+    // Renumerar "Tu Plan en N pasos" según las secciones visibles
+    if (this.hidden.size) {
+      document.querySelectorAll('#seccion-inicio h2').forEach(h => {
+        if (h.textContent.trim() === 'Tu Plan en 4 pasos') {
+          const nBtn = h.parentElement.querySelectorAll('button').length;
+          h.textContent = 'Tu Plan en ' + nBtn + ' pasos';
+        }
+      });
+    }
 
     const hash = location.hash.replace('#', '') || 'inicio';
     this.go(this.solo || hash);
