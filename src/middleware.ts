@@ -44,6 +44,10 @@ const RUTAS_GATED = new Set([
   "/jubilacion",
 ]);
 
+/** Prefijos gated: estáticos de /public que también exigen la cookie.
+ *  /cartera-core = app Cartera Core K, embebida en elproyectok.com/campus/cartera/ */
+const PREFIJOS_GATED = ["/cartera-core"];
+
 const REDIRECT_DESTINO = "https://elproyectok.com";
 
 const VALID_CODES = ["proyectok", "proyectok2025", "elproyectok"];
@@ -74,7 +78,7 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   }
 
   // 2. Si es una ruta gated → chequear cookie
-  if (RUTAS_GATED.has(pathname)) {
+  if (RUTAS_GATED.has(pathname) || PREFIJOS_GATED.some((p) => pathname.startsWith(p))) {
     const cookie = req.cookies.get("epk-access");
     if (!cookie?.value) {
       // Sin cookie → al login

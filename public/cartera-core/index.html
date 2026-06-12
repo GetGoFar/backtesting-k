@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Cartera Core · El Proyecto K</title>
+  <meta name="description" content="Herramienta web para gestionar tu cartera indexada según tu perfil de riesgo. Versión web del Excel oficial de El Proyecto K.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="nombre">EL PROYECTO K</span>
+        <span class="sub">Cartera Core · v3</span>
+      </div>
+      <nav class="nav" id="nav"></nav>
+    </aside>
+
+    <main class="main">
+      <section id="seccion-inicio"        class="section"></section>
+      <section id="seccion-perfil"        class="section"></section>
+      <section id="seccion-broker"        class="section"></section>
+      <section id="seccion-cartera"       class="section"></section>
+      <section id="seccion-disciplina"    class="section"></section>
+      <section id="seccion-simulador"     class="section"></section>
+    </main>
+  </div>
+
+  <footer class="pie">
+    <strong>Cartera Core – El Proyecto K</strong>. Esta herramienta está orientada a la educación financiera.
+    No es asesoramiento personalizado. Tus datos se guardan únicamente en tu navegador (localStorage).
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/perfil.js"></script>
+  <script src="js/broker.js"></script>
+  <script src="js/cartera.js"></script>
+  <script src="js/disciplina.js"></script>
+  <script src="js/simulador.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
