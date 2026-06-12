@@ -26,6 +26,7 @@ const App = {
     Cartera.init();
     Disciplina.init();
     Simulador.init();
+    if (typeof Panel !== 'undefined') Panel.init();
     this.bindGlobal();
 
     // Retirar de Inicio los accesos a secciones ocultas (y tarjetas que queden vacías)
