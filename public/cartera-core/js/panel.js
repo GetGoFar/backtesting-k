@@ -107,7 +107,9 @@ const Panel = {
 
     return `
     <style>
-      #seccion-panel .pa-wrap{max-width:1080px;margin:0 auto;padding:8px 4px 40px}
+      body.solo .app{grid-template-columns:1fr!important}
+      body.solo .main{max-width:100%!important;width:auto!important}
+      #seccion-panel .pa-wrap{max-width:1140px;margin:0 auto;padding:8px 4px 40px}
       #seccion-panel .pa-hero{margin:6px 0 22px}
       #seccion-panel .pa-hero h1{font-family:var(--serif);font-size:2rem;margin:0 0 .3rem}
       #seccion-panel .pa-hero p{color:var(--texto-suave);margin:0}
