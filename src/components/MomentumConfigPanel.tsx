@@ -89,11 +89,22 @@ export function MomentumConfigPanel({
       | "spdr-sectors"
       | "mag7"
       | "global-tactical"
+      | "acciones-caidas"
   ) {
+    let assets: MomentumAsset[] = [];
+    // Campos extra que algunos presets necesitan aplicar junto a los activos
+    // (p.ej. el universo evolutivo de "acciones caídas" requiere
+    // allowPartialUniverse y una fecha de inicio temprana para que se vea el
+    // experimento completo). Por defecto se RESETEAN, de modo que al cambiar
+    // de un preset a otro no quede activo el flag de un preset anterior.
+    const extra: Partial<MomentumConfig> = {
+      allowPartialUniverse: false,
+    };
+
     if (preset === "kx-sectorial") {
       // Cartera curada por el usuario — 6 sectores SPDR + Oro como activo
       // defensivo / descorrelacionado. Pensada para Momentum.
-      update("assets", [
+      assets = [
         { ticker: "XLK", displayName: "Tecnología" },
         { ticker: "XLV", displayName: "Salud" },
         { ticker: "XLP", displayName: "Consumo Bás." },
@@ -101,12 +112,12 @@ export function MomentumConfigPanel({
         { ticker: "XLE", displayName: "Energía" },
         { ticker: "VNQ", displayName: "Real Estate" },
         { ticker: "GLD", displayName: "Oro" },
-      ]);
+      ];
     } else if (preset === "play-money-acciones") {
       // Cartera curada por el usuario — mezcla amplia de acciones (tech, large
       // caps US/EU, mid caps especulativas) + algunos ETFs sectoriales/refugio
       // como diversificación.
-      update("assets", [
+      assets = [
         // Tech / software / cloud
         { ticker: "ZS", displayName: "Zscaler" },
         { ticker: "PLTR", displayName: "Palantir" },
@@ -148,9 +159,9 @@ export function MomentumConfigPanel({
         { ticker: "XLP", displayName: "Consumo Bás." },
         { ticker: "XLV", displayName: "Salud" },
         { ticker: "QQQ", displayName: "Nasdaq-100" },
-      ]);
+      ];
     } else if (preset === "spdr-sectors") {
-      update("assets", [
+      assets = [
         { ticker: "XLK", displayName: "Tecnología" },
         { ticker: "XLV", displayName: "Salud" },
         { ticker: "XLF", displayName: "Financiero" },
@@ -161,9 +172,9 @@ export function MomentumConfigPanel({
         { ticker: "XLB", displayName: "Materiales" },
         { ticker: "XLU", displayName: "Utilities" },
         { ticker: "XLRE", displayName: "Real Estate" },
-      ]);
+      ];
     } else if (preset === "mag7") {
-      update("assets", [
+      assets = [
         { ticker: "AAPL", displayName: "Apple" },
         { ticker: "MSFT", displayName: "Microsoft" },
         { ticker: "GOOGL", displayName: "Alphabet" },
@@ -171,17 +182,49 @@ export function MomentumConfigPanel({
         { ticker: "META", displayName: "Meta" },
         { ticker: "NVDA", displayName: "NVIDIA" },
         { ticker: "TSLA", displayName: "Tesla" },
-      ]);
+      ];
     } else if (preset === "global-tactical") {
-      update("assets", [
+      assets = [
         { ticker: "SPY", displayName: "S&P 500" },
         { ticker: "EFA", displayName: "Desarrollados ex-US" },
         { ticker: "EEM", displayName: "Emergentes" },
         { ticker: "AGG", displayName: "RF USA Agregada" },
         { ticker: "GLD", displayName: "Oro" },
         { ticker: "VNQ", displayName: "REITs USA" },
-      ]);
+      ];
+    } else if (preset === "acciones-caidas") {
+      // Experimento de SESGO DE SUPERVIVENCIA — universo evolutivo:
+      // ángeles caídos modernos + caídos históricos vivos + DESAPARECIDAS
+      // (series truncadas al deslistarse). Requiere allowPartialUniverse para
+      // que el momentum opere con activos que nacen y mueren, y una fecha de
+      // inicio temprana (1998) para capturar la muerte de Enron (2004).
+      assets = [
+        // Modernos
+        { ticker: "PTON", displayName: "Peloton" },
+        { ticker: "ZM", displayName: "Zoom" },
+        { ticker: "PYPL", displayName: "PayPal" },
+        { ticker: "TDOC", displayName: "Teladoc" },
+        { ticker: "ROKU", displayName: "Roku" },
+        { ticker: "BABA", displayName: "Alibaba" },
+        // Históricos vivos
+        { ticker: "BA", displayName: "Boeing" },
+        { ticker: "DIS", displayName: "Disney" },
+        { ticker: "PFE", displayName: "Pfizer" },
+        { ticker: "GE", displayName: "General Electric" },
+        { ticker: "C", displayName: "Citigroup" },
+        { ticker: "NOK", displayName: "Nokia" },
+        { ticker: "AIG", displayName: "AIG" },
+        { ticker: "F", displayName: "Ford" },
+        // Desaparecidas (series truncadas)
+        { ticker: "ENRNQ", displayName: "Enron †2004" },
+        { ticker: "SIVB", displayName: "SVB †2023" },
+        { ticker: "FRC", displayName: "First Republic †2023" },
+      ];
+      extra.allowPartialUniverse = true;
+      extra.startDate = "1998-01-01";
     }
+
+    onChange({ ...config, assets, ...extra });
   }
 
   // Color del header: si estamos en modo A/B usamos el color del lado;
@@ -342,6 +385,13 @@ export function MomentumConfigPanel({
                 className="text-[11px] font-medium px-2 py-1 rounded bg-teal-50 text-teal-700 hover:bg-teal-100 transition-colors"
               >
                 Global Tactical
+              </button>
+              <button
+                onClick={() => loadPreset("acciones-caidas")}
+                className="text-[11px] font-medium px-2 py-1 rounded bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors"
+                title="Experimento de sesgo de supervivencia: 17 acciones caídas — ángeles caídos modernos (Peloton, Zoom, PayPal…), caídos históricos vivos (GE, Citigroup, AIG…) y DESAPARECIDAS reales (Enron †2004, SVB †2023, First Republic †2023). Universo evolutivo desde 1998."
+              >
+                Acciones caídas
               </button>
             </div>
           </div>
