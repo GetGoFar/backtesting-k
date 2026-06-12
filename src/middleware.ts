@@ -24,6 +24,7 @@
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { ACCESS_CODES } from "@/lib/access-codes";
 
 const RUTAS_PUBLICAS_PREFIJO = ["/api/", "/informe/", "/_next/", "/wordpress/"];
 const RUTAS_PUBLICAS_EXACTAS = new Set([
@@ -50,7 +51,9 @@ const PREFIJOS_GATED = ["/cartera-core"];
 
 const REDIRECT_DESTINO = "https://elproyectok.com";
 
-const VALID_CODES = ["proyectok", "proyectok2025", "elproyectok"];
+// Códigos válidos centralizados en lib/access-codes.ts (con etiquetas de
+// audiencia para el registro de accesos). Añadir códigos allí, no aquí.
+const VALID_CODES = ACCESS_CODES.map((c) => c.code);
 
 /** Calcula SHA-256 hex usando Web Crypto API (compatible con edge runtime). */
 async function sha256Hex(value: string): Promise<string> {

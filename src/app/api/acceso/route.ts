@@ -8,14 +8,15 @@
 // El gate server-side (middleware.ts) lee esa cookie y la verifica contra los
 // mismos hashes válidos antes de servir cualquier ruta protegida. Sin cookie
 // válida → redirect a /acceso.
+//
+// Además, REGISTRA cada intento (correcto o no) en el log de accesos
+// (lib/access-log.ts → Upstash Redis): etiqueta del código, ciudad/país
+// (headers de Vercel), IP truncada y navegador. Visor: /api/acceso/log.
 // =============================================================================
 
 import { NextRequest, NextResponse } from "next/server";
-
-/** Códigos de acceso aceptados. Cambia esta lista cuando quieras rotar el
- *  código publicado a los suscriptores. Se normalizan (lowercase + trim) y
- *  hashean antes de comparar, así que aquí en plano: */
-const VALID_CODES = ["proyectok", "proyectok2025", "elproyectok"];
+import { ACCESS_CODES } from "@/lib/access-codes";
+import { logAccess, simplifyUserAgent, truncateIp } from "@/lib/access-log";
 
 async function sha256Hex(value: string): Promise<string> {
   const data = new TextEncoder().encode(value.trim().toLowerCase());
@@ -23,6 +24,13 @@ async function sha256Hex(value: string): Promise<string> {
   return Array.from(new Uint8Array(buf))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
+}
+
+/** Pista enmascarada de un código fallido: 2 primeros chars + longitud.
+ *  No guardamos el texto completo (podría ser una contraseña tecleada por
+ *  error), pero la pista permite detectar intentos de fuerza bruta. */
+function maskFailedCode(code: string): string {
+  return `INVALIDO(${code.slice(0, 2)}…${code.length})`;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -38,10 +46,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const candidateHash = await sha256Hex(code);
-  const validHashes = await Promise.all(VALID_CODES.map(sha256Hex));
-  const isValid = validHashes.includes(candidateHash);
+  const entries = await Promise.all(
+    ACCESS_CODES.map(async (c) => ({ label: c.label, hash: await sha256Hex(c.code) }))
+  );
+  const matched = entries.find((e) => e.hash === candidateHash);
 
-  if (!isValid) {
+  // Contexto del visitante para el registro (headers de Vercel)
+  const geoCity = request.headers.get("x-vercel-ip-city");
+  const logEntry = {
+    ts: new Date().toISOString(),
+    result: (matched ? "ok" : "fail") as "ok" | "fail",
+    label: matched ? matched.label : maskFailedCode(code),
+    city: geoCity ? decodeURIComponent(geoCity) : undefined,
+    country: request.headers.get("x-vercel-ip-country") ?? undefined,
+    ip: truncateIp(request.headers.get("x-forwarded-for")),
+    ua: simplifyUserAgent(request.headers.get("user-agent")),
+  };
+  // Fire-and-forget con red de seguridad: el login nunca falla por el log.
+  await logAccess(logEntry);
+
+  if (!matched) {
     return NextResponse.json(
       { ok: false, error: "Código incorrecto" },
       { status: 401 }
