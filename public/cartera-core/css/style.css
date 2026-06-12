@@ -560,3 +560,9 @@ footer.pie a { color: var(--rojo); }
   .section { display: block !important; page-break-after: always; }
   body { background: #fff; }
 }
+
+
+/* ---------- Modo solo (pestaña dedicada del campus) ---------- */
+body.solo .sidebar { display: none; }
+body.solo .app { grid-template-columns: 1fr; }
+body.solo .pie { display: none; }

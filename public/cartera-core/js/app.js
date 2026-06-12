@@ -12,6 +12,13 @@ const App = {
   ],
 
   init() {
+    // Modos de incrustación (campus): ?hide=a,b oculta secciones; ?solo=x muestra solo una
+    const params = new URLSearchParams(location.search);
+    this.hidden = new Set((params.get('hide') || '').split(',').filter(Boolean));
+    this.solo = params.get('solo') || null;
+    if (this.solo) document.body.classList.add('solo');
+    this.rutas = this.rutas.filter(r => !this.hidden.has(r.id));
+
     this.renderNav();
     this.renderInicio();
     Perfil.init();
@@ -21,8 +28,17 @@ const App = {
     Simulador.init();
     this.bindGlobal();
 
+    // Retirar de Inicio los accesos a secciones ocultas (y tarjetas que queden vacías)
+    this.hidden.forEach(id => {
+      document.querySelectorAll('#seccion-inicio [data-go="' + id + '"]').forEach(el => el.remove());
+    });
+    document.querySelectorAll('#seccion-inicio .card').forEach(c => {
+      const grid = c.querySelector('div[style*="display:grid"]');
+      if (grid && !grid.querySelector('button')) c.remove();
+    });
+
     const hash = location.hash.replace('#', '') || 'inicio';
-    this.go(hash);
+    this.go(this.solo || hash);
   },
 
   renderNav() {
@@ -42,6 +58,8 @@ const App = {
   },
 
   go(id) {
+    if (this.solo && id !== this.solo) id = this.solo;
+    if (this.hidden && this.hidden.has(id)) id = 'inicio';
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     const target = document.getElementById('seccion-' + id);
     if (!target) { this.go('inicio'); return; }
