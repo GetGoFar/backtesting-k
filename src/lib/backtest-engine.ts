@@ -2429,17 +2429,23 @@ async function findCommonDateRangeForPortfolios(
         // porque en ese modo el primer punto de equity se data al firstClose
         // del mes siguiente). Sumamos esos meses al "latest first" de los
         // activos para obtener la primera fecha viable del momentum.
-        const latestAssetFirst = assetFirstDates.sort().pop()!;
+        // Con allowPartialUniverse (universo evolutivo), la estrategia arranca
+        // cuando hay ≥2 activos con datos → usamos el SEGUNDO más antiguo,
+        // coherente con el rango que calculará el propio motor momentum.
+        const sortedFirsts = assetFirstDates.sort();
+        const anchorFirst = cfg.allowPartialUniverse
+          ? (sortedFirsts[1] ?? sortedFirsts[0]!)
+          : sortedFirsts[sortedFirsts.length - 1]!;
         const minMonthsNeeded =
           cfg.lookbackMonths +
           (cfg.excludePreviousMonth ? 1 : 0) +
           ((cfg.tradeExecution ?? "lastClose") === "nextClose" ? 1 : 0);
-        const firstViable = new Date(latestAssetFirst);
+        const firstViable = new Date(anchorFirst);
         firstViable.setUTCMonth(firstViable.getUTCMonth() + minMonthsNeeded);
         const firstViableStr = firstViable.toISOString().substring(0, 10);
         derivedFirstDates.push(firstViableStr);
         console.log(
-          `[BacktestEngine] Momentum holding ${holding.fundId}: primer dato viable ≈ ${firstViableStr} (assets desde ${latestAssetFirst} + ${minMonthsNeeded}m lookback)`
+          `[BacktestEngine] Momentum holding ${holding.fundId}: primer dato viable ≈ ${firstViableStr} (assets desde ${anchorFirst} + ${minMonthsNeeded}m lookback${cfg.allowPartialUniverse ? ", universo evolutivo" : ""})`
         );
       } catch (error) {
         console.error(

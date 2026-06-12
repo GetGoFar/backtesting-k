@@ -484,8 +484,22 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
       allLastMonths.push(sortedMonths[sortedMonths.length - 1]!);
     }
   }
-  const dataStartMonth = allFirstMonths.sort().pop()!;
-  const dataEndMonth = allLastMonths.sort()[0]!;
+  // Rango de datos del universo:
+  //  - Modo clásico (PV-compatible): intersección total — arranca cuando el
+  //    activo MÁS JOVEN tiene datos y termina cuando el PRIMERO se queda sin
+  //    ellos. Correcto para universos de ETFs vivos.
+  //  - Modo "universo evolutivo" (allowPartialUniverse): arranca cuando al
+  //    menos DOS activos tienen datos (los demás van entrando al acumular
+  //    histórico) y termina con el ÚLTIMO superviviente. Necesario para
+  //    experimentos con deslistadas/sesgo de supervivencia.
+  const sortedFirstMonths = [...allFirstMonths].sort();
+  const sortedLastMonths = [...allLastMonths].sort();
+  const dataStartMonth = config.allowPartialUniverse
+    ? (sortedFirstMonths[1] ?? sortedFirstMonths[0]!) // 2º más antiguo → ranking con ≥2 candidatos
+    : sortedFirstMonths[sortedFirstMonths.length - 1]!;
+  const dataEndMonth = config.allowPartialUniverse
+    ? sortedLastMonths[sortedLastMonths.length - 1]!
+    : sortedLastMonths[0]!;
   const firstOperationalMonth = addMonths(dataStartMonth, minOffset);
 
   const requestedStartMonth = config.startDate.substring(0, 7);
@@ -540,8 +554,14 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
     return series.exactFirstDay.get(next) ?? `${next}-01`;
   }
 
-  // Para fechas mostradas usamos el primer activo (o el benchmark) como referencia
-  const referenceSeries = seriesPerAsset.values().next().value as AssetSeries;
+  // Para fechas mostradas usamos el primer activo como referencia. En modo
+  // universo evolutivo, usamos el de MAYOR cobertura mensual (el primero del
+  // universo puede nacer tarde o morir pronto y dejaría fechas en fallback).
+  const referenceSeries = config.allowPartialUniverse
+    ? [...seriesPerAsset.values()].reduce((best, s) =>
+        s.monthlyClose.size > best.monthlyClose.size ? s : best
+      )
+    : (seriesPerAsset.values().next().value as AssetSeries);
 
   // 4. Helper: calcula el ranking + holdings que resultarían si rebalanceásemos
   //    en el mes señal `signalMonth`. Encapsula la lógica de candidatos +

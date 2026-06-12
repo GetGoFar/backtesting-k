@@ -60,24 +60,44 @@ const SPDR_SECTORS_ASSETS: MomentumAsset[] = [
   { ticker: "XLC", displayName: "Comunicaciones" },
 ];
 
-// Acciones caídas en desgracia — "ángeles caídos" famosos que siguen cotizando,
-// con caídas brutales desde máximos (verificado contra EODHD 2026-06):
-// PTON -96%, TDOC -97%, PYPL -86%, ZM -80%, ROKU -69%, BABA -61%, BA -49%,
-// DIS -46%, PFE -44%. (Intel se excluyó: recuperó máximos y ya no está "caída".)
-// El momentum rota mensualmente hacia la que mejor se está recuperando.
-// OJO (sesgo retrospectivo): elegimos estas acciones HOY sabiendo que cayeron —
-// un inversor de 2019 no podía conocer esta lista. Valor didáctico, no consejo.
-// El histórico común lo limita Peloton (IPO sep-2019) → primera señal ~oct-2020.
+// Acciones caídas en desgracia — experimento de SESGO DE SUPERVIVENCIA con
+// universo EVOLUTIVO (allowPartialUniverse): mezcla ángeles caídos modernos,
+// caídos históricos que siguen vivos y empresas DESAPARECIDAS de verdad
+// (series truncadas al deslistarse). Verificado contra EODHD 2026-06:
+//  · Modernos: PTON -96%, TDOC -97%, PYPL -86%, ZM -80%, ROKU -69%, BABA -61%,
+//    BA -49%, DIS -46%, PFE -44%.
+//  · Históricos vivos: GE (desde 1962, caída épica 2000-2018 y recuperada),
+//    C -62% (desde 1977), NOK -46% (ADR, desde 1994), AIG -93% (desde 1973),
+//    F -15% (desde 1972).
+//  · Desaparecidas: ENRNQ Enron -100% (muere 2004), SIVB SVB -85% (muere
+//    2023-03), FRC First Republic -98% (muere 2023-05). BBBY y SHLD se
+//    descartaron: sus tickers fueron REUTILIZADOS por otras empresas en EODHD.
+// Comportamiento con muertas: el desplome previo está en la serie; el mes
+// final sin datos contribuye 0% y el siguiente rebalanceo la rota fuera.
+// OJO (sesgo retrospectivo): la lista se elige HOY sabiendo qué pasó.
+// Con universo evolutivo el histórico arranca ~1973 (2º activo más antiguo
+// + lookback) y los demás van entrando según nacen.
 const ACCIONES_CAIDAS_ASSETS: MomentumAsset[] = [
+  // Modernos (entran 2014-2020)
   { ticker: "PTON", displayName: "Peloton" },
   { ticker: "ZM", displayName: "Zoom" },
   { ticker: "PYPL", displayName: "PayPal" },
   { ticker: "TDOC", displayName: "Teladoc" },
   { ticker: "ROKU", displayName: "Roku" },
   { ticker: "BABA", displayName: "Alibaba" },
+  // Históricos vivos (desde 1962-1994)
   { ticker: "BA", displayName: "Boeing" },
   { ticker: "DIS", displayName: "Disney" },
   { ticker: "PFE", displayName: "Pfizer" },
+  { ticker: "GE", displayName: "General Electric" },
+  { ticker: "C", displayName: "Citigroup" },
+  { ticker: "NOK", displayName: "Nokia" },
+  { ticker: "AIG", displayName: "AIG" },
+  { ticker: "F", displayName: "Ford" },
+  // Desaparecidas (series truncadas — sesgo de supervivencia real)
+  { ticker: "ENRNQ", displayName: "Enron †2004" },
+  { ticker: "SIVB", displayName: "SVB †2023" },
+  { ticker: "FRC", displayName: "First Republic †2023" },
 ];
 
 // Config base compartida por todas: parámetros estilo Portfolio Visualizer
@@ -174,7 +194,7 @@ export const MOMENTUM_CARTERA_PRESETS: PortfolioPreset[] = [
     id: "momentum-acciones-caidas",
     name: "Cartera acciones caídas",
     description:
-      "Rotación mensual top-1 entre 9 'ángeles caídos' (Peloton, Zoom, PayPal, Teladoc, Roku, Alibaba, Boeing, Disney, Pfizer) — acciones famosas con caídas del 44% al 97% desde máximos. El momentum persigue a la que mejor se recupera. Experimento didáctico: la lista se elige sabiendo que cayeron (sesgo retrospectivo). Histórico desde ~2020 (limita Peloton).",
+      "Experimento de sesgo de supervivencia: rotación mensual top-1 entre 17 acciones — ángeles caídos modernos (Peloton, Zoom, PayPal, Teladoc, Roku, Alibaba), caídos históricos vivos (Boeing, Disney, Pfizer, GE, Citigroup, Nokia, AIG, Ford) y DESAPARECIDAS de verdad (Enron †2004, SVB †2023, First Republic †2023). Universo evolutivo: cada acción entra cuando nace y sale cuando muere — el momentum tiene que sobrevivir a las quiebras en tiempo real. Histórico desde ~1973. La lista se elige sabiendo qué pasó (sesgo retrospectivo): valor didáctico, no consejo.",
     type: "active",
     holdings: [
       {
@@ -182,10 +202,10 @@ export const MOMENTUM_CARTERA_PRESETS: PortfolioPreset[] = [
         weight: 100,
         fund: syntheticFund(
           "momentum-acciones-caidas",
-          "Estrategia Momentum: Acciones caídas en desgracia (9 ángeles caídos)",
+          "Estrategia Momentum: Acciones caídas en desgracia (17 valores, universo evolutivo)",
           "Momentum Acciones Caídas"
         ),
-        momentumConfig: baseConfig(ACCIONES_CAIDAS_ASSETS),
+        momentumConfig: { ...baseConfig(ACCIONES_CAIDAS_ASSETS), allowPartialUniverse: true },
       },
     ],
   },

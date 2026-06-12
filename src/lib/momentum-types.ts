@@ -99,6 +99,20 @@ export interface MomentumConfig {
 
   /** Benchmark opcional para comparar (ticker individual). */
   benchmarkTicker?: string;
+
+  /**
+   * Universo EVOLUTIVO (para experimentos de sesgo de supervivencia):
+   *  - false/undefined (default, estilo Portfolio Visualizer): el backtest
+   *    arranca cuando TODOS los activos tienen lookback completo y termina
+   *    cuando el PRIMERO se queda sin datos (intersección total).
+   *  - true: arranca cuando al menos DOS activos son rankeables y continúa
+   *    hasta el último superviviente. Los activos entran al universo cuando
+   *    acumulan histórico y salen cuando dejan de cotizar (deslistados):
+   *    el ranking los ignora sin datos, y una posición que muere en cartera
+   *    contribuye 0% ese mes (su desplome previo sí está en la serie) y se
+   *    rota en el siguiente rebalanceo.
+   */
+  allowPartialUniverse?: boolean;
 }
 
 // -----------------------------------------------------------------------------
