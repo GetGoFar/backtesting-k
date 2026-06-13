@@ -133,6 +133,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         // Si viene y resuelve, se backtestea ESTA en vez del modelo del perfil.
         holdings?: Array<{ isin: string; weight: number; categoria?: string }>;
         carteraName?: string;
+        // Estrategia del alumno (para la referencia "Cartera K de tu perfil"):
+        // "geo" -> K Geográfica UCIT, "sector" -> K Inbestme.
+        carteraKStrategy?: "geo" | "sector";
       };
       try {
         body = await request.json();
@@ -148,21 +151,39 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const profile =
         Number.isFinite(profileRaw) && profileRaw >= 1 && profileRaw <= 10 ? profileRaw : null;
 
-      // --- ETF de referencia ---
-      const benchKey = (body.benchmark || "vwce").toLowerCase();
-      const benchFundId = BENCHMARKS[benchKey];
-      if (!benchFundId) {
-        return NextResponse.json(
-          { error: "Benchmark inválido", message: `Referencia no permitida: '${body.benchmark}'.` },
-          { status: 400 }
-        );
-      }
-      const benchFund = getFundById(benchFundId);
-      if (!benchFund) {
-        return NextResponse.json(
-          { error: "Benchmark no encontrado", message: `El ETF '${benchFundId}' no existe en la base de datos.` },
-          { status: 500 }
-        );
+      // --- Referencia de comparación: la Cartera K del perfil del alumno
+      //     (geográfica o sectorial) o un ETF indexado. ---
+      const benchKey = (body.benchmark || "carterak").toLowerCase();
+      let benchHoldings: { fundId: string; weight: number }[];
+      let benchName: string;
+      if (benchKey === "carterak") {
+        const fam = body.carteraKStrategy === "geo" ? "k-geografica-ucit" : "k-inbestme";
+        const kp = profile !== null ? getPresetById(`${fam}-${profile}`) : null;
+        if (!kp) {
+          return NextResponse.json(
+            { error: "Sin Cartera K", message: "No hay Cartera K para ese perfil/estrategia (indica perfil 1-10)." },
+            { status: 400 }
+          );
+        }
+        benchHoldings = kp.holdings.map((h) => ({ fundId: h.fundId, weight: h.weight }));
+        benchName = kp.name;
+      } else {
+        const benchFundId = BENCHMARKS[benchKey];
+        if (!benchFundId) {
+          return NextResponse.json(
+            { error: "Benchmark inválido", message: `Referencia no permitida: '${body.benchmark}'.` },
+            { status: 400 }
+          );
+        }
+        const benchFund = getFundById(benchFundId);
+        if (!benchFund) {
+          return NextResponse.json(
+            { error: "Benchmark no encontrado", message: `El ETF '${benchFundId}' no existe en la base de datos.` },
+            { status: 500 }
+          );
+        }
+        benchHoldings = [{ fundId: benchFundId, weight: 100 }];
+        benchName = benchFund.shortName || benchFund.name;
       }
 
       // --- Cartera A: la del alumno (holdings por ISIN) o el modelo del perfil ---
@@ -274,10 +295,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       const config: BacktestConfig = {
         portfolioA: { name: portfolioAName, holdings: portfolioAHoldings },
-        portfolioB: {
-          name: benchFund.shortName || benchFund.name,
-          holdings: [{ fundId: benchFundId, weight: 100 }],
-        },
+        portfolioB: { name: benchName, holdings: benchHoldings },
         startDate,
         endDate,
         initialAmount: 10000,
@@ -349,7 +367,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         benchmark: result.b,
         presetName,
         presetDescription,
-        benchmarkName: benchFund.shortName || benchFund.name,
+        benchmarkName: benchName,
         benchmarkKey: benchKey,
         droppedIsins,
         droppedWeightPct: Math.round(droppedWeightPct),

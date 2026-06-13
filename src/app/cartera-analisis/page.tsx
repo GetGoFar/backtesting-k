@@ -19,6 +19,7 @@ const SUAVE = "#6B6B6B";
 const VERDE = "#15633F";
 
 const BENCHMARKS = [
+  { key: "carterak", label: "Cartera K de tu perfil" },
   { key: "vwce", label: "MSCI All-World (VWCE)" },
   { key: "world", label: "MSCI World (IWDA)" },
   { key: "sp500", label: "S&P 500 (SXR8)" },
@@ -76,6 +77,12 @@ function readHoldings(): { isin: string; weight: number }[] | null {
     return Array.isArray(h) && h.length > 0 ? h : null;
   } catch { return null; }
 }
+function readEstrategia(): "geo" | "sector" {
+  try {
+    const e = String(JSON.parse(localStorage.getItem("ck-cartera") || "{}")?.estrategia || "");
+    return e.startsWith("geo") ? "geo" : "sector";
+  } catch { return "sector"; }
+}
 
 // Color de celda del heatmap: rojo (<0) → blanco (0) → verde (>0); satura a ±6%.
 function heatColor(r: number | undefined): string {
@@ -94,13 +101,13 @@ function heatText(r: number | undefined): string {
 export default function CarteraAnalisisPage() {
   const [profile, setProfile] = useState(5);
   const [detected, setDetected] = useState(false);
-  const [benchmark, setBenchmark] = useState("vwce");
+  const [benchmark, setBenchmark] = useState("carterak");
   const [period, setPeriod] = useState("max");
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [holdings, setHoldings] = useState<{ isin: string; weight: number }[] | null>(null);
-  const [source, setSource] = useState<"cartera" | "modelo">("modelo");
+  const [carteraKStrategy, setCarteraKStrategy] = useState<"geo" | "sector">("sector");
 
   const reqIdRef = useRef(0);
   const [ready, setReady] = useState(false);
@@ -108,8 +115,10 @@ export default function CarteraAnalisisPage() {
   useEffect(() => {
     const p = readProfile();
     if (p) { setProfile(p); setDetected(true); }
+    setCarteraKStrategy(readEstrategia());
     const h = readHoldings();
-    if (h) { setHoldings(h); setSource("cartera"); }
+    if (h) setHoldings(h);
+    else setBenchmark("vwce"); // sin cartera propia, no comparamos Cartera K vs sí misma
     setReady(true);
   }, []);
 
@@ -117,14 +126,14 @@ export default function CarteraAnalisisPage() {
     const myId = ++reqIdRef.current;
     setLoading(true); setError(null);
     try {
-      const usarCartera = source === "cartera" && holdings && holdings.length > 0;
+      const usarCartera = !!holdings && holdings.length > 0;
       const res = await fetch("/api/campus/cartera-backtest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           usarCartera
-            ? { profile, benchmark, period, holdings, carteraName: "Mi Cartera" }
-            : { profile, benchmark, period }
+            ? { profile, benchmark, carteraKStrategy, period, holdings, carteraName: "Mi Cartera" }
+            : { profile, benchmark, carteraKStrategy, period }
         ),
       });
       const json: ApiResponse = await res.json();
@@ -136,12 +145,11 @@ export default function CarteraAnalisisPage() {
     } finally {
       if (myId === reqIdRef.current) setLoading(false);
     }
-  }, [profile, benchmark, period, source, holdings]);
+  }, [profile, benchmark, carteraKStrategy, period, holdings]);
 
   useEffect(() => { if (ready) run(); }, [ready, run]);
 
-  const tieneCartera = !!holdings && holdings.length > 0;
-  const benchLabel = BENCHMARKS.find((x) => x.key === benchmark)?.label ?? "Referencia";
+  const benchLabel = data?.benchmarkName || BENCHMARKS.find((x) => x.key === benchmark)?.label || "Referencia";
   const carteraLabel = data
     ? data.source === "cartera" ? (data.carteraName || "Tu cartera") : `Cartera K (Perfil ${data.profile})`
     : "Tu cartera";
@@ -191,20 +199,9 @@ export default function CarteraAnalisisPage() {
 
         {/* Controles */}
         <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "flex-end", background: "#fff", border: "1px solid #e7ddcf", borderRadius: 14, padding: "16px 18px", marginBottom: 18 }}>
-          {tieneCartera && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: ".8rem", fontWeight: 600, color: SUAVE }}>
-              Qué analizo
-              <div style={{ display: "flex", gap: 6 }}>
-                {[{ k: "cartera", l: "Tu cartera" }, { k: "modelo", l: "Cartera K modelo" }].map((o) => (
-                  <button key={o.k} onClick={() => setSource(o.k as "cartera" | "modelo")} disabled={loading}
-                    style={{ ...pillStyle, background: source === o.k ? ROJO : "#fff", color: source === o.k ? "#fff" : SUAVE, borderColor: source === o.k ? ROJO : "#e0d7c8" }}>{o.l}</button>
-                ))}
-              </div>
-            </div>
-          )}
           <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: ".8rem", fontWeight: 600, color: SUAVE }}>
             Perfil de riesgo {detected && <span style={{ color: VERDE }}>· detectado</span>}
-            <select value={profile} onChange={(e) => setProfile(Number(e.target.value))} disabled={loading || source === "cartera"} style={selStyle}>
+            <select value={profile} onChange={(e) => setProfile(Number(e.target.value))} disabled={loading} style={selStyle}>
               {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>Perfil {n}</option>)}
             </select>
           </label>

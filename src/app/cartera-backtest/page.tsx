@@ -30,6 +30,7 @@ const SUAVE = "#6B6B6B";
 const VERDE = "#15633F";
 
 const BENCHMARKS = [
+  { key: "carterak", label: "Cartera K de tu perfil" },
   { key: "vwce", label: "MSCI All-World (VWCE)" },
   { key: "world", label: "MSCI World (IWDA)" },
   { key: "sp500", label: "S&P 500 (SXR8)" },
@@ -105,27 +106,40 @@ function readHoldings(): { isin: string; weight: number }[] | null {
   }
 }
 
+// Estrategia del alumno (geográfica/sectorial) para la referencia Cartera K.
+function readEstrategia(): "geo" | "sector" {
+  try {
+    const e = String(JSON.parse(localStorage.getItem("ck-cartera") || "{}")?.estrategia || "");
+    return e.startsWith("geo") ? "geo" : "sector";
+  } catch {
+    return "sector";
+  }
+}
+
 export default function CarteraBacktestPage() {
   const [profile, setProfile] = useState<number>(5);
   const [detected, setDetected] = useState<boolean>(false);
-  const [benchmark, setBenchmark] = useState<string>("vwce");
+  const [benchmark, setBenchmark] = useState<string>("carterak");
   const [period, setPeriod] = useState<string>("max");
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [holdings, setHoldings] = useState<{ isin: string; weight: number }[] | null>(null);
-  const [source, setSource] = useState<"cartera" | "modelo">("modelo");
+  const [carteraKStrategy, setCarteraKStrategy] = useState<"geo" | "sector">("sector");
 
   const reqIdRef = useRef(0);
   const [ready, setReady] = useState(false);
 
-  // Leer perfil + cartera real del alumno al montar, ANTES de lanzar el primer
-  // backtest. Si tiene cartera creada, se backtestea ESA por defecto.
+  // Leer perfil + estrategia + cartera real del alumno al montar, ANTES de
+  // lanzar el primer backtest. La cartera del alumno (libre) se compara por
+  // defecto contra la Cartera K de su perfil.
   useEffect(() => {
     const p = readProfile();
     if (p) { setProfile(p); setDetected(true); }
+    setCarteraKStrategy(readEstrategia());
     const h = readHoldings();
-    if (h) { setHoldings(h); setSource("cartera"); }
+    if (h) setHoldings(h);
+    else setBenchmark("vwce"); // sin cartera propia, no comparamos Cartera K vs sí misma
     setReady(true);
   }, []);
 
@@ -134,14 +148,14 @@ export default function CarteraBacktestPage() {
     setLoading(true);
     setError(null);
     try {
-      const usarCartera = source === "cartera" && holdings && holdings.length > 0;
+      const usarCartera = !!holdings && holdings.length > 0;
       const res = await fetch("/api/campus/cartera-backtest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           usarCartera
-            ? { profile, benchmark, period, holdings, carteraName: "Mi Cartera" }
-            : { profile, benchmark, period }
+            ? { profile, benchmark, carteraKStrategy, period, holdings, carteraName: "Mi Cartera" }
+            : { profile, benchmark, carteraKStrategy, period }
         ),
       });
       const json: ApiResponse = await res.json();
@@ -157,7 +171,7 @@ export default function CarteraBacktestPage() {
     } finally {
       if (myId === reqIdRef.current) setLoading(false);
     }
-  }, [profile, benchmark, period, source, holdings]);
+  }, [profile, benchmark, carteraKStrategy, period, holdings]);
 
   useEffect(() => { if (ready) run(); }, [ready, run]);
 
@@ -179,13 +193,12 @@ export default function CarteraBacktestPage() {
     });
   })();
 
-  const benchLabel = BENCHMARKS.find((x) => x.key === benchmark)?.label ?? "Referencia";
+  const benchLabel = data?.benchmarkName || BENCHMARKS.find((x) => x.key === benchmark)?.label || "Referencia";
   const carteraLabel = data
     ? data.source === "cartera"
       ? data.carteraName || "Tu cartera"
       : `Cartera K (Perfil ${data.profile})`
     : "Tu cartera";
-  const tieneCartera = !!holdings && holdings.length > 0;
 
   return (
     <div style={{ background: BEIGE, minHeight: "100vh", color: TINTA, padding: "22px 18px 48px" }}>
@@ -195,26 +208,15 @@ export default function CarteraBacktestPage() {
           Backtest de tu cartera
         </h1>
         <p style={{ color: SUAVE, margin: "0 0 18px", fontSize: ".95rem" }}>
-          Cómo se habría comportado tu cartera frente a un ETF indexado de referencia.
+          Cómo se habría comportado tu cartera frente a la Cartera K de tu perfil (o a un ETF indexado).
           Comparación de estrategia (inversión única, rentabilidad time-weighted).
         </p>
 
         {/* Controles */}
         <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "flex-end", background: "#fff", border: "1px solid #e7ddcf", borderRadius: 14, padding: "16px 18px", marginBottom: 18 }}>
-          {tieneCartera && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: ".8rem", fontWeight: 600, color: SUAVE }}>
-              Qué backtesteo
-              <div style={{ display: "flex", gap: 6 }}>
-                {[{ k: "cartera", l: "Tu cartera" }, { k: "modelo", l: "Cartera K modelo" }].map((o) => (
-                  <button key={o.k} onClick={() => setSource(o.k as "cartera" | "modelo")} disabled={loading}
-                    style={{ ...pillStyle, background: source === o.k ? ROJO : "#fff", color: source === o.k ? "#fff" : SUAVE, borderColor: source === o.k ? ROJO : "#e0d7c8" }}>{o.l}</button>
-                ))}
-              </div>
-            </div>
-          )}
           <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: ".8rem", fontWeight: 600, color: SUAVE }}>
             Perfil de riesgo {detected && <span style={{ color: VERDE, fontWeight: 600 }}>· detectado</span>}
-            <select value={profile} onChange={(e) => setProfile(Number(e.target.value))} disabled={loading || source === "cartera"}
+            <select value={profile} onChange={(e) => setProfile(Number(e.target.value))} disabled={loading}
               style={selStyle}>
               {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
                 <option key={n} value={n}>Perfil {n}</option>
@@ -223,7 +225,7 @@ export default function CarteraBacktestPage() {
           </label>
 
           <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: ".8rem", fontWeight: 600, color: SUAVE }}>
-            Referencia
+            Comparar con
             <select value={benchmark} onChange={(e) => setBenchmark(e.target.value)} disabled={loading} style={selStyle}>
               {BENCHMARKS.map((b) => <option key={b.key} value={b.key}>{b.label}</option>)}
             </select>
