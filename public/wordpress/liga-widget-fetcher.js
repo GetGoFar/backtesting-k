@@ -635,6 +635,124 @@
 		} );
 	}
 
+	/* ---------------------------------------------------------------------------
+	 * renderDashboard(): regenera KPIs + mobile-hero + tarjetas + scatter + treemap
+	 * desde el snapshot, para que el dashboard NO se desincronice de la tabla.
+	 * Convencion de pantalla: valor mostrado = -dq10 (quemar = negativo).
+	 * ------------------------------------------------------------------------- */
+	function dashEsc( s ) { return String( s ).replace( /&/g, '&amp;' ).replace( /</g, '&lt;' ); }
+	function dashMiles( n ) {
+		var s = Math.round( Math.abs( n ) ).toString();
+		if ( Math.abs( n ) >= 10000 ) s = s.replace( /\B(?=(\d{3})+(?!\d))/g, '.' );
+		return ( n < 0 ? '-' : '' ) + s;
+	}
+	function kEur( v ) { return ( v < 0 ? '\u2212' : '+' ) + Math.round( Math.abs( v ) / 1000 ) + 'K \u20ac'; }
+	function kEurTight( v ) { return ( v < 0 ? '\u2212' : '+' ) + Math.round( Math.abs( v ) / 1000 ) + 'K\u20ac'; }
+	function tmVal( v ) { return ( v < 0 ? '-' : '+' ) + Math.round( Math.abs( v ) / 1000 ) + 'K\u20ac'; }
+	function dashMill( v ) { return ( v / 1e6 ).toFixed( 1 ).replace( '.', ',' ); }
+
+	function setStatVal( label, val, green ) {
+		var stats = document.querySelectorAll( '.stats .stat' );
+		for ( var i = 0; i < stats.length; i++ ) {
+			var lab = stats[ i ].querySelector( '.label' );
+			if ( lab && lab.textContent.trim() === label ) {
+				var v = stats[ i ].querySelector( '.val' );
+				if ( v ) { v.textContent = val; if ( green ) { v.classList.add( 'green' ); } else { v.classList.remove( 'green' ); } }
+				return;
+			}
+		}
+	}
+	function dashSetText( sel, txt ) { var e = document.querySelector( sel ); if ( e ) { e.textContent = txt; } }
+
+	function buildScatterSVG( f ) {
+		var X0 = 70, X1 = 670, Y0 = 30, Y1 = 345, terMax = 3.5, dTop = -90000, dBot = 240000;
+		function cx( t ) { return X0 + Math.min( t, terMax ) / terMax * ( X1 - X0 ); }
+		function cy( d ) { return Math.max( Y0, Math.min( Y1, Y0 + ( d - dTop ) / ( dBot - dTop ) * ( Y1 - Y0 ) ) ); }
+		var s = '<svg viewBox="0 0 700 400" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:700px;height:auto"><rect width="700" height="400" fill="#1a1a2e" rx="8"/><defs><style>text{font-family:-apple-system,sans-serif}</style></defs>';
+		var ylab = [ [ 345, '+240K' ], [ 282, '+174K' ], [ 219, '+108K' ], [ 156, '+42K' ], [ 93, '-24K' ], [ 30, '-90K' ] ];
+		ylab.forEach( function ( p ) { s += '<line x1="70" y1="' + p[0] + '" x2="670" y2="' + p[0] + '" stroke="#2d2d4a" stroke-width="1"/><text x="62" y="' + ( p[0] + 4 ) + '" fill="#888" font-size="10" text-anchor="end">' + p[1] + '</text>'; } );
+		for ( var i = 0; i <= 7; i++ ) { var x = 70 + i * 0.5 / 3.5 * 600; s += '<line x1="' + x + '" y1="30" x2="' + x + '" y2="345" stroke="#2d2d4a" stroke-width="1"/><text x="' + x + '" y="363" fill="#888" font-size="10" text-anchor="middle">' + ( i * 0.5 ).toFixed( 1 ) + '%</text>'; }
+		var yz = cy( 0 ); s += '<line x1="70" y1="' + yz + '" x2="670" y2="' + yz + '" stroke="#555" stroke-width="1" stroke-dasharray="4,4"/><text x="674" y="' + ( yz + 3 ) + '" fill="#888" font-size="9">0</text>';
+		s += '<text x="370" y="392" fill="#a0a0a0" font-size="12" text-anchor="middle">TER (%)</text><text x="15" y="187.5" fill="#a0a0a0" font-size="12" text-anchor="middle" transform="rotate(-90,15,187.5)">Dinero Quemado 10A (\u20ac)</text><text x="370" y="18" fill="#ff8888" font-size="13" font-weight="600" text-anchor="middle">TER vs Dinero Quemado (10 a\u00f1os)</text>';
+		f.forEach( function ( x ) { var b = x.tipo === 'Bancario'; s += '<circle cx="' + cx( x.ter ).toFixed( 1 ) + '" cy="' + cy( -x.dq10 ).toFixed( 1 ) + '" r="5" fill="' + ( b ? '#ff6b6b' : '#81c784' ) + '" opacity="' + ( b ? '0.8' : '0.85' ) + '"><title>' + dashEsc( x.nombre ) + '\nTER: ' + x.ter.toFixed( 2 ) + '% | DQ: ' + dashMiles( x.dq10 ) + '\u20ac</title></circle>'; } );
+		s += '<circle cx="80" cy="42" r="5" fill="#ff6b6b" opacity="0.8"/><text x="90" y="46" fill="#a0a0a0" font-size="10">Bancario</text><circle cx="160" cy="42" r="5" fill="#81c784" opacity="0.85"/><text x="170" y="46" fill="#a0a0a0" font-size="10">Independiente</text></svg>';
+		return s;
+	}
+	function dashSquarify( items, x, y, w, h ) {
+		items = items.slice(); var out = []; var tot = items.reduce( function ( s, i ) { return s + i._a; }, 0 ) || 1; var sc = ( w * h ) / tot;
+		items.forEach( function ( i ) { i._s = i._a * sc; } );
+		function worst( r, l ) { var s = r.reduce( function ( a, b ) { return a + b._s; }, 0 ); var mx = Math.max.apply( null, r.map( function ( z ) { return z._s; } ) ); var mn = Math.min.apply( null, r.map( function ( z ) { return z._s; } ) ); return Math.max( l * l * mx / ( s * s ), s * s / ( l * l * mn ) ); }
+		var X = x, Y = y, W = w, H = h, row = [];
+		while ( items.length ) { var l = Math.min( W, H ); if ( ! row.length ) { row.push( items.shift() ); continue; } var it = items[0]; if ( worst( row, l ) >= worst( row.concat( it ), l ) ) { row.push( items.shift() ); } else { lay( row, X, Y, W, H ); var u = row.reduce( function ( a, b ) { return a + b._s; }, 0 ) / l; if ( W <= H ) { Y += u; H -= u; } else { X += u; W -= u; } row = []; } }
+		if ( row.length ) { lay( row, X, Y, W, H ); }
+		function lay( r, X, Y, W, H ) { var s = r.reduce( function ( a, b ) { return a + b._s; }, 0 ); var l = Math.min( W, H ); var th = s / l; var o = 0; r.forEach( function ( z ) { var le = z._s / th; if ( W <= H ) { out.push( { x: X + o, y: Y, w: le, h: th, item: z } ); o += le; } else { out.push( { x: X, y: Y + o, w: th, h: le, item: z } ); o += le; } } ); }
+		return out;
+	}
+	function buildTreemapSVG( f ) {
+		var byG = {}; f.forEach( function ( x ) { var g = byG[ x.gestora ] || ( byG[ x.gestora ] = { v: 0, n: 0, b: x.tipo === 'Bancario' } ); g.v += -( x.dq10 || 0 ); g.n++; } );
+		var arr = Object.keys( byG ).map( function ( g ) { var o = byG[ g ]; return { g: g, v: o.v, n: o.n, b: o.b, _a: Math.abs( o.v ) || 1 }; } ).sort( function ( a, b ) { return b._a - a._a; } );
+		if ( ! arr.length ) { return ''; }
+		var maxA = arr[0]._a || 1;
+		var rects = dashSquarify( arr, 30, 40, 638, 287 );
+		var s = '<svg viewBox="0 0 700 360" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:700px;height:auto"><rect width="700" height="360" fill="#1a1a2e" rx="8"/><defs><style>text{font-family:-apple-system,sans-serif}</style></defs><text x="350" y="22" fill="#ff8888" font-size="13" font-weight="600" text-anchor="middle">Dinero Quemado por Gestora (10 a\u00f1os)</text>';
+		rects.forEach( function ( r ) { var it = r.item, t = it._a / maxA, fill;
+			if ( it.b ) { var rr = Math.round( 196 + 59 * t ), gb = Math.round( 69 - 39 * t ); fill = 'rgb(' + rr + ',' + gb + ',' + gb + ')'; }
+			else { fill = 'rgba(129,199,132,' + ( 0.3 + 0.6 * t ).toFixed( 2 ) + ')'; }
+			s += '<rect x="' + r.x.toFixed( 1 ) + '" y="' + r.y.toFixed( 1 ) + '" width="' + r.w.toFixed( 1 ) + '" height="' + r.h.toFixed( 1 ) + '" fill="' + fill + '" rx="3" stroke="#1a1a2e" stroke-width="2"><title>' + dashEsc( it.g ) + ': ' + tmVal( it.v ) + ' (' + it.n + ' fondos)</title></rect>';
+			if ( r.w > 40 && r.h > 22 ) { var mx = ( r.x + r.w / 2 ).toFixed( 1 ), my = ( r.y + r.h / 2 ); s += '<text x="' + mx + '" y="' + ( my - 2 ).toFixed( 1 ) + '" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">' + dashEsc( it.g ) + '</text><text x="' + mx + '" y="' + ( my + 12 ).toFixed( 1 ) + '" fill="rgba(255,255,255,0.7)" font-size="9" text-anchor="middle">' + tmVal( it.v ) + '</text>'; } } );
+		s += '</svg>'; return s;
+	}
+	function replaceChart( titleText, svg ) {
+		var svgs = document.querySelectorAll( '.chart-card svg' );
+		for ( var i = 0; i < svgs.length; i++ ) {
+			if ( svgs[ i ].textContent.indexOf( titleText ) >= 0 ) { svgs[ i ].parentNode.innerHTML = svg; return true; }
+		}
+		return false;
+	}
+	function renderDashboard( fondos ) {
+		try {
+			var disp = function ( f ) { return -( f.dq10 || 0 ); };
+			var disps = fondos.map( disp );
+			var peor = Math.min.apply( null, disps ), mejor = Math.max.apply( null, disps );
+			var bancos = fondos.filter( function ( f ) { return f.tipo === 'Bancario'; } );
+			var indeps = fondos.filter( function ( f ) { return f.tipo !== 'Bancario'; } );
+			var avgTer = function ( a ) { return a.length ? a.reduce( function ( s, f ) { return s + ( f.ter || 0 ); }, 0 ) / a.length : 0; };
+			var terB = avgTer( bancos ), terI = avgTer( indeps );
+			var difPct = terI ? Math.round( ( terB / terI - 1 ) * 100 ) : 0;
+			var burned = function ( f ) { return Math.max( f.dq10 || 0, 0 ); };
+			var totalBurn = fondos.reduce( function ( s, f ) { return s + burned( f ); }, 0 );
+			var bankBurn = bancos.reduce( function ( s, f ) { return s + burned( f ); }, 0 );
+			var bankShare = totalBurn ? Math.round( bankBurn / totalBurn * 100 ) : 0;
+
+			setStatVal( 'Fondos Analizados', String( fondos.length ), false );
+			setStatVal( 'Peor Fondo (10A)', kEur( peor ), peor >= 0 );
+			setStatVal( 'Mejor Fondo (10A)', kEur( mejor ), mejor >= 0 );
+
+			dashSetText( '.mobile-hero .mh-big', dashMill( totalBurn ) + ' M\u20ac' );
+			dashSetText( '.mobile-hero .mh-sub', 'El ' + bankShare + '% lo queman los fondos bancarios' );
+			var mhStats = document.querySelectorAll( '.mobile-hero .mh-stat .mh-stat-val' );
+			if ( mhStats[0] ) { mhStats[0].textContent = terB.toFixed( 2 ).replace( '.', ',' ) + '%'; }
+			if ( mhStats[1] ) { mhStats[1].textContent = terI.toFixed( 2 ).replace( '.', ',' ) + '%'; }
+			if ( mhStats[2] ) { mhStats[2].textContent = kEurTight( peor ); }
+
+			dashSetText( '.dashboard .dash-big', '\u20ac' + dashMill( totalBurn ) + ' Millones' );
+			var segBank = document.querySelector( '.dashboard .seg-bank' ); if ( segBank ) { segBank.style.width = bankShare + '%'; }
+			var segIndep = document.querySelector( '.dashboard .seg-indep' ); if ( segIndep ) { segIndep.style.width = ( 100 - bankShare ) + '%'; }
+			var legSpans = document.querySelectorAll( '.progress-legend > span' );
+			if ( legSpans[0] ) { legSpans[0].innerHTML = '<span class="dot dot-bank"></span>Bancarios ' + bankShare + '%'; }
+			if ( legSpans[1] ) { legSpans[1].innerHTML = '<span class="dot dot-indep"></span>Independientes ' + ( 100 - bankShare ) + '%'; }
+			var terVals = document.querySelectorAll( '.ter-compare .ter-val' );
+			if ( terVals[0] ) { terVals[0].textContent = terB.toFixed( 2 ) + '%'; }
+			if ( terVals[1] ) { terVals[1].textContent = terI.toFixed( 2 ) + '%'; }
+			dashSetText( '.ter-diff', 'Los bancarios cobran un ' + difPct + '% m\u00e1s en comisiones' );
+
+			dashSetText( '.tagline', bancos.length + ' fondos bancarios y ' + indeps.length + ' fondos de gestoras independientes analizados' );
+
+			replaceChart( 'TER vs Dinero Quemado', buildScatterSVG( fondos ) );
+			replaceChart( 'Dinero Quemado por Gestora', buildTreemapSVG( fondos ) );
+		} catch ( e ) { console.warn( '[liga-fetcher] renderDashboard fallo:', e ); }
+	}
+
 	function inicializar() {
 		// Liga Media: estilos + toggle gráficos no dependen del snapshot, los
 		// aplicamos cuanto antes para que el render inicial ya sea menos denso.
@@ -654,6 +772,7 @@
 				var ok = rebuildTable( snap.fondos );
 				if ( ! ok ) throw new Error( 'no se encontró #ranking-table tbody' );
 				actualizarLookups( snap.fondos );
+				renderDashboard( snap.fondos );
 				actualizarFecha( snap.generadoEn );
 				inyectarBannerJornada( snap.generadoEn );
 				inyectarTabsZona();
