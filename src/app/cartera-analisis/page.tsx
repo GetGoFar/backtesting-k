@@ -54,6 +54,7 @@ interface ApiResponse {
   droppedWeightPct?: number;
   reliable?: boolean;
   requestedStart?: string;
+  windowLimitedBy?: { name: string; start: string } | null;
   effectiveDateRange?: { startDate?: string; endDate?: string };
   warnings?: { message: string }[];
   error?: string;
@@ -246,7 +247,9 @@ export default function CarteraAnalisisPage() {
               if ((ey - ry) * 12 + (em - rm) <= 6) return null;
               return (
                 <div style={{ background: "#FFF7E6", border: "1px solid #ecdca6", color: "#7a5b10", borderRadius: 12, padding: "12px 16px", marginBottom: 16, fontSize: ".85rem" }}>
-                  ℹ️ El histórico empieza en <strong>{es}</strong>: no llega más atrás porque algún instrumento de tu cartera (normalmente un ETF de renta fija reciente) no tiene datos anteriores. Para ver más años, sustitúyelo por un equivalente con más historia.
+                  ℹ️ El histórico empieza en <strong>{es}</strong>: {data.windowLimitedBy
+                    ? <>no llega más atrás porque <strong>{data.windowLimitedBy.name}</strong> solo tiene datos desde {data.windowLimitedBy.start.slice(0, 7)}. Si lo sustituyes por un equivalente con más historia, verás más años.</>
+                    : "no llega más atrás porque algún instrumento de tu cartera (normalmente un ETF de renta fija reciente) no tiene datos anteriores. Para ver más años, sustitúyelo por un equivalente con más historia."}
                 </div>
               );
             })()}

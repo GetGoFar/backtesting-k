@@ -14,6 +14,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { runBacktest } from "@/lib/backtest-engine";
+import { getDailyPrices } from "@/lib/data-fetcher";
 import { getPresetById } from "@/lib/portfolio-presets";
 import { getFundById, getFundByIsin } from "@/lib/fund-database";
 import { runWithContext } from "@/lib/request-context";
@@ -246,6 +247,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         portfolioAHoldings = portfolioAHoldings.map((h) => ({ ...h, weight: (h.weight / sumW) * 100 }));
       }
 
+      // Metadatos de los instrumentos de la cartera (para luego identificar cuál
+      // limita la ventana histórica y nombrarlo en la UI).
+      const carteraMeta =
+        source === "cartera"
+          ? portfolioAHoldings.map((h) => {
+              const f = h.fund ?? getFundById(h.fundId);
+              return {
+                fundId: h.fundId,
+                name: f?.shortName || f?.name || h.fundId,
+                ticker: f?.ticker,
+                isin: f?.isin,
+              };
+            })
+          : [];
+
       // --- Periodo ---
       const period: Period = (["1y", "3y", "5y", "max", "ytd"] as Period[]).includes(
         body.period as Period
@@ -298,6 +314,32 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           ? { startDate: eff[0]?.exactDate ?? eff[0]?.date, endDate: eff[eff.length - 1]?.exactDate ?? eff[eff.length - 1]?.date }
           : undefined;
 
+      // Identificar el instrumento de la cartera que LIMITA la ventana: aquel
+      // cuyo histórico empieza más tarde y coincide con el inicio efectivo.
+      // (getDailyPrices ya está cacheado tras el backtest → coste marginal.)
+      let windowLimitedBy: { name: string; start: string } | null = null;
+      if (source === "cartera" && carteraMeta.length > 0 && effectiveDateRange?.startDate) {
+        const effYM = effectiveDateRange.startDate.slice(0, 7);
+        const firsts = await Promise.all(
+          carteraMeta.map(async (m) => {
+            try {
+              const { prices } = await getDailyPrices(m.fundId, m.ticker, m.isin);
+              const keys = prices ? [...prices.keys()] : [];
+              const start = keys.length ? keys.reduce((a, b) => (a < b ? a : b)) : undefined;
+              return start ? { name: m.name, start } : null;
+            } catch {
+              return null;
+            }
+          })
+        );
+        const valid = firsts.filter((x): x is { name: string; start: string } => !!x);
+        valid.sort((a, b) => (a.start < b.start ? 1 : -1)); // el de inicio más tardío primero
+        const latest = valid[0];
+        // Solo es "el que ata la ventana" si su inicio coincide con el efectivo
+        // (si todos empiezan antes, manda el ETF de referencia, no la cartera).
+        if (latest && latest.start.slice(0, 7) >= effYM) windowLimitedBy = latest;
+      }
+
       return NextResponse.json({
         profile,
         period,
@@ -313,6 +355,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         droppedWeightPct: Math.round(droppedWeightPct),
         reliable,
         requestedStart: startDate,
+        windowLimitedBy,
         effectiveDateRange,
         warnings: result.warnings,
       });
