@@ -312,6 +312,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         droppedIsins,
         droppedWeightPct: Math.round(droppedWeightPct),
         reliable,
+        requestedStart: startDate,
         effectiveDateRange,
         warnings: result.warnings,
       });

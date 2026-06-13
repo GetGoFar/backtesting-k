@@ -68,6 +68,7 @@ interface ApiResponse {
   droppedIsins?: string[];
   droppedWeightPct?: number;
   reliable?: boolean;
+  requestedStart?: string;
   effectiveDateRange?: { startDate?: string; endDate?: string };
   warnings?: { message: string }[];
   error?: string;
@@ -258,6 +259,18 @@ export default function CarteraBacktestPage() {
                 <strong>⚠ Resultado no representativo.</strong> Nos falta el histórico de precios del {data.droppedWeightPct}% de tu cartera (instrumentos excluidos: {(data.droppedIsins || []).join(", ")}). Lo mostrado reescala el resto, así que no refleja tu cartera real. Estamos añadiendo esos instrumentos.
               </div>
             )}
+            {(() => {
+              const es = data.effectiveDateRange?.startDate; const rs = data.requestedStart;
+              if (!es || !rs) return null;
+              const [ey, em] = es.slice(0, 7).split("-").map(Number);
+              const [ry, rm] = rs.slice(0, 7).split("-").map(Number);
+              if ((ey - ry) * 12 + (em - rm) <= 6) return null;
+              return (
+                <div style={{ background: "#FFF7E6", border: "1px solid #ecdca6", color: "#7a5b10", borderRadius: 12, padding: "12px 16px", marginBottom: 16, fontSize: ".85rem" }}>
+                  ℹ️ El histórico empieza en <strong>{es}</strong>: no llega más atrás porque algún instrumento de tu cartera (normalmente un ETF de renta fija reciente) no tiene datos anteriores. Para ver más años, sustitúyelo por un equivalente con más historia.
+                </div>
+              );
+            })()}
             {/* Gráfico de rentabilidad acumulada */}
             <div style={cardStyle}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
