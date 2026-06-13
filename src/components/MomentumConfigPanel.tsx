@@ -632,6 +632,47 @@ export function MomentumConfigPanel({
           </Field>
 
           <Field
+            label="Impuestos"
+            tooltip="Régimen fiscal sobre las plusvalías. OJO: a diferencia de los fondos traspasables, aquí se opera con ETFs/acciones — cada rotación VENDE y realiza la plusvalía, que tributa en el acto. No hay diferimiento. Es el coste fiscal real de una estrategia de alta rotación.&#10;• Sin impuestos: rentabilidad bruta.&#10;• Tipo fijo: un % plano sobre cada plusvalía.&#10;• IRPF España: tramos del ahorro (19/21/23/27/28%) acumulando por año natural."
+          >
+            <select
+              value={config.taxMode ?? "none"}
+              onChange={(e) => {
+                const mode = e.target.value as MomentumConfig["taxMode"];
+                if (mode === "flat" && !config.taxRate) {
+                  onChange({ ...config, taxMode: mode, taxRate: 0.21 });
+                } else {
+                  update("taxMode", mode);
+                }
+              }}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30 bg-white"
+            >
+              <option value="none">Sin impuestos</option>
+              <option value="flat">Tipo fijo</option>
+              <option value="spain-irpf">IRPF España (tramos)</option>
+            </select>
+          </Field>
+
+          {config.taxMode === "flat" && (
+            <Field
+              label="Tipo impositivo (%)"
+              tooltip="Porcentaje plano aplicado a cada plusvalía realizada. En España el tipo del ahorro va del 19% al 28% por tramos; 21% es una aproximación razonable de tipo medio."
+            >
+              <input
+                type="number"
+                step={1}
+                min={0}
+                max={50}
+                value={Math.round((config.taxRate ?? 0.21) * 100)}
+                onChange={(e) =>
+                  update("taxRate", Math.max(0, parseFloat(e.target.value) || 0) / 100)
+                }
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30"
+              />
+            </Field>
+          )}
+
+          <Field
             label="Benchmark"
             tooltip="Ticker para comparar la estrategia. Por defecto SPY (S&P 500). Dejar vacío para no mostrar benchmark."
           >

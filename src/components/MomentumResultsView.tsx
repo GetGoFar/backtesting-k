@@ -263,6 +263,89 @@ export function MomentumResultsView({ results, idSuffix = "" }: Props) {
           />
         </div>
 
+        {/* Lastre fiscal — solo si se aplicaron impuestos */}
+        {results.metrics.totalTaxesPaid != null &&
+          results.metrics.totalTaxesPaid > 0 &&
+          results.metrics.grossFinalValue != null && (
+            <div className="mt-6 pt-6 border-t border-slate-100">
+              <h4 className="text-sm font-semibold text-brand-tertiary uppercase tracking-wider mb-3 flex items-center gap-2">
+                <span>Lastre fiscal</span>
+                <span className="text-[10px] font-normal normal-case text-brand-tertiary">
+                  ({results.config.taxMode === "spain-irpf"
+                    ? "IRPF España, tramos"
+                    : `${Math.round((results.config.taxRate ?? 0) * 100)}% fijo`}{" "}
+                  · cada rotación realiza y tributa la plusvalía)
+                </span>
+              </h4>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <Metric
+                  label="Valor final bruto"
+                  value={formatEUR(results.metrics.grossFinalValue)}
+                  compact
+                />
+                <Metric
+                  label="Valor final neto"
+                  value={formatEUR(
+                    results.equityCurve[results.equityCurve.length - 1]?.value ?? 0
+                  )}
+                  compact
+                />
+                <Metric
+                  label="Impuestos pagados"
+                  value={formatEUR(results.metrics.totalTaxesPaid)}
+                  color="red"
+                  compact
+                />
+                <Metric
+                  label="Patrimonio perdido"
+                  value={formatPct(
+                    ((results.equityCurve[results.equityCurve.length - 1]?.value ?? 0) -
+                      results.metrics.grossFinalValue) /
+                      results.metrics.grossFinalValue
+                  )}
+                  color="red"
+                  compact
+                />
+              </div>
+              {results.metrics.grossFinalValue -
+                (results.equityCurve[results.equityCurve.length - 1]?.value ?? 0) -
+                results.metrics.totalTaxesPaid >
+                results.metrics.totalTaxesPaid * 0.1 && (
+                <p className="text-xs text-brand-tertiary mt-3">
+                  De esos{" "}
+                  <strong className="text-brand-navy">
+                    {formatEUR(
+                      results.metrics.grossFinalValue -
+                        (results.equityCurve[results.equityCurve.length - 1]?.value ?? 0)
+                    )}
+                  </strong>{" "}
+                  de patrimonio perdido, solo{" "}
+                  {formatEUR(results.metrics.totalTaxesPaid)} se pagó a Hacienda
+                  — el resto (
+                  {formatEUR(
+                    results.metrics.grossFinalValue -
+                      (results.equityCurve[results.equityCurve.length - 1]?.value ?? 0) -
+                      results.metrics.totalTaxesPaid
+                  )}
+                  ) es el interés compuesto que esos impuestos habrían generado
+                  si no los hubieras adelantado año tras año.
+                </p>
+              )}
+              {results.metrics.pendingLiquidationTax != null &&
+                results.metrics.pendingLiquidationTax > 0 && (
+                  <p className="text-xs text-brand-tertiary mt-3">
+                    Además, la posición final acumula plusvalía latente: si la
+                    liquidaras hoy pagarías{" "}
+                    <strong className="text-brand-navy">
+                      {formatEUR(results.metrics.pendingLiquidationTax)}
+                    </strong>{" "}
+                    más. El valor neto mostrado solo incluye lo ya tributado en
+                    el camino.
+                  </p>
+                )}
+            </div>
+          )}
+
         {/* Comparativa con benchmark */}
         {results.benchmarkMetrics && (
           <div className="mt-6 pt-6 border-t border-slate-100">

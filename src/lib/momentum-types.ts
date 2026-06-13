@@ -100,6 +100,22 @@ export interface MomentumConfig {
   /** Benchmark opcional para comparar (ticker individual). */
   benchmarkTicker?: string;
 
+  // === Fiscalidad ===
+  /**
+   * Régimen fiscal aplicado a las plusvalías REALIZADAS en cada rotación.
+   * A diferencia de los fondos traspasables (cartera de backtest), aquí se
+   * opera con ETFs/acciones: NO hay traspaso exento — cada venta al rotar
+   * realiza la plusvalía y tributa en el acto. Es el coste fiscal real de
+   * una estrategia de alta rotación.
+   *  - "none" (default): sin impuestos (rentabilidad bruta).
+   *  - "flat": tipo fijo `taxRate` sobre cada plusvalía realizada.
+   *  - "spain-irpf": tramos progresivos del ahorro (19/21/23/27/28%),
+   *    acumulando la base por año natural.
+   */
+  taxMode?: "none" | "flat" | "spain-irpf";
+  /** Tipo fijo en decimal (ej. 0.21 = 21%). Solo aplica si taxMode = "flat". */
+  taxRate?: number;
+
   /**
    * Universo EVOLUTIVO (para experimentos de sesgo de supervivencia):
    *  - false/undefined (default, estilo Portfolio Visualizer): el backtest
@@ -167,6 +183,18 @@ export interface MomentumMetrics {
   tradesPerYear: number;
   /** Nº total de cambios de holdings durante el periodo. */
   totalRebalances: number;
+
+  // === Fiscalidad (solo presentes si taxMode != "none") ===
+  /** Total de impuestos pagados a lo largo del camino (suma de cada rotación). */
+  totalTaxesPaid?: number;
+  /** Valor final BRUTO — la misma estrategia sin impuestos (contrafactual). */
+  grossFinalValue?: number;
+  /**
+   * Impuesto que tocaría pagar si se liquidara la posición final HOY
+   * (plusvalía latente del tramo aún no rotado). El valor neto del camino NO
+   * lo incluye, así que se reporta aparte como "y si liquidas hoy…".
+   */
+  pendingLiquidationTax?: number;
 }
 
 /** Rendimiento por año natural. */

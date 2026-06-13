@@ -34,6 +34,7 @@
 
 import { getDailyPrices } from "./data-fetcher";
 import { getFundById } from "./fund-database";
+import { spanishIrpfTax } from "./tax-utils";
 import type {
   MomentumConfig,
   MomentumResponse,
@@ -668,6 +669,21 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
   let currentWeights = new Map<string, number>();
   let currentHoldings: string[] = [];
 
+  // --- Estado fiscal ---
+  // Cada rotación vende posiciones y realiza la plusvalía → tributa al instante
+  // (ETFs/acciones NO son traspasables). Trackeamos el coste base absoluto por
+  // ticker, la plusvalía neta acumulada del año natural (para los tramos IRPF)
+  // y un valor BRUTO paralelo (la misma estrategia sin restar impuestos) para
+  // poder mostrar el lastre fiscal.
+  const taxMode = config.taxMode ?? "none";
+  const flatRate = config.taxRate ?? 0;
+  const taxOn = taxMode === "spain-irpf" || (taxMode === "flat" && flatRate > 0);
+  const posCost = new Map<string, number>();
+  let annualRealized = 0;
+  let taxYear = -1;
+  let totalTaxesPaid = 0;
+  let grossValue = config.initialAmount;
+
   const equityCurve: MomentumEquityPoint[] = [];
   const rebalances: MomentumRebalance[] = [];
 
@@ -701,6 +717,7 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
         }
       }
       currentValue *= 1 + weightedReturn;
+      grossValue *= 1 + weightedReturn; // contrafactual sin impuestos
     }
 
     // 4.2. AHORA REBALANCEAR a los nuevos pesos. La señal usa datos hasta T-1
@@ -731,10 +748,97 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
           forcedCash,
         });
 
+        // --- IMPUESTOS: realizar plusvalía en la rotación ---
+        // En la PRIMERA asignación no hay venta (solo se despliega el capital):
+        // inicializamos el coste base. En las siguientes, vendemos las posiciones
+        // que se reducen/eliminan, tributamos la plusvalía y restamos el impuesto
+        // del valor de la cartera (cash que sale para pagar a Hacienda).
+        if (taxOn) {
+          if (equityCurve.length === 0) {
+            // Coste base inicial = capital desplegado en cada activo
+            for (const [ticker, w] of newWeights) {
+              if (ticker === "CASH") continue;
+              posCost.set(ticker, currentValue * w);
+            }
+          } else {
+            const totalBefore = currentValue;
+            const yr = parseInt(month.substring(0, 4), 10);
+            if (yr !== taxYear) {
+              taxYear = yr;
+              annualRealized = 0; // los tramos IRPF se reinician cada año natural
+            }
+
+            // 1. Ventas: tickers cuyo peso baja (incluye los que desaparecen)
+            let totalGainRealized = 0;
+            let cashFromSales = 0;
+            const sells: Array<{ ticker: string; soldAmount: number; cbSold: number }> = [];
+            for (const [ticker, oldW] of currentWeights) {
+              if (ticker === "CASH") continue;
+              const oldVal = totalBefore * oldW;
+              const newW = newWeights.get(ticker) ?? 0;
+              const target = totalBefore * newW;
+              if (oldVal - target > 1e-9) {
+                const soldAmount = oldVal - target;
+                const fraction = soldAmount / oldVal;
+                const cb = posCost.get(ticker) ?? 0;
+                const cbSold = cb * fraction;
+                totalGainRealized += soldAmount - cbSold;
+                cashFromSales += soldAmount;
+                sells.push({ ticker, soldAmount, cbSold });
+              }
+            }
+
+            // 2. Impuesto sobre la plusvalía neta realizada (losses netean)
+            let tax = 0;
+            if (totalGainRealized > 0) {
+              if (taxMode === "spain-irpf") {
+                tax =
+                  spanishIrpfTax(annualRealized + totalGainRealized) -
+                  spanishIrpfTax(Math.max(0, annualRealized));
+              } else {
+                tax = totalGainRealized * flatRate;
+              }
+            }
+            annualRealized += totalGainRealized;
+
+            // 3. Aplicar ventas al coste base
+            for (const s of sells) {
+              posCost.set(s.ticker, (posCost.get(s.ticker) ?? 0) - s.cbSold);
+            }
+            // Limpiar coste base de los tickers que salen por completo
+            for (const ticker of currentWeights.keys()) {
+              if (!newWeights.has(ticker)) posCost.delete(ticker);
+            }
+
+            // 4. Desplegar el cash disponible (ventas − impuesto) en las compras.
+            //    El coste base de lo comprado = importe desplegado (a mercado).
+            const cashAvail = cashFromSales - tax;
+            const buys: Array<{ ticker: string; need: number }> = [];
+            let totalNeed = 0;
+            for (const [ticker, newW] of newWeights) {
+              if (ticker === "CASH") continue;
+              const oldW = currentWeights.get(ticker) ?? 0;
+              const need = totalBefore * newW - totalBefore * oldW;
+              if (need > 1e-9) {
+                buys.push({ ticker, need });
+                totalNeed += need;
+              }
+            }
+            for (const b of buys) {
+              const allocated = totalNeed > 0 ? cashAvail * (b.need / totalNeed) : 0;
+              posCost.set(b.ticker, (posCost.get(b.ticker) ?? 0) + allocated);
+            }
+
+            currentValue -= tax;
+            totalTaxesPaid += tax;
+          }
+        }
+
         // Slippage: se cobra AHORA porque el rebalanceo se ejecuta a partir de aquí
         if (slippage > 0 && equityCurve.length > 0) {
           const turnover = computeTurnover(currentWeights, newWeights);
           currentValue *= 1 - turnover * slippage;
+          grossValue *= 1 - turnover * slippage;
         }
       }
 
@@ -842,6 +946,26 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
   // 5. Métricas
   const metrics = buildMetrics(equityCurve, rebalances.length);
   const annualReturns = buildAnnualReturns(equityCurve, config.initialAmount);
+
+  // 5.b. Fiscalidad — la curva de equity ya es NETA del camino (se restó el
+  //      impuesto en cada rotación). Adjuntamos el total pagado, el valor bruto
+  //      contrafactual y el impuesto pendiente si se liquidara la posición final.
+  if (taxOn && equityCurve.length > 1) {
+    const finalValue = equityCurve[equityCurve.length - 1]!.value;
+    const finalCostBasis = Array.from(posCost.values()).reduce((a, b) => a + b, 0);
+    const finalUnrealized = Math.max(0, finalValue - finalCostBasis);
+    let pendingLiquidationTax = 0;
+    if (finalUnrealized > 0) {
+      pendingLiquidationTax =
+        taxMode === "spain-irpf"
+          ? spanishIrpfTax(annualRealized + finalUnrealized) -
+            spanishIrpfTax(Math.max(0, annualRealized))
+          : finalUnrealized * flatRate;
+    }
+    metrics.totalTaxesPaid = totalTaxesPaid;
+    metrics.grossFinalValue = grossValue;
+    metrics.pendingLiquidationTax = pendingLiquidationTax;
+  }
 
   // 6. Benchmark (mismo esquema mensual)
   let benchmarkCurve: MomentumEquityPoint[] | undefined;
