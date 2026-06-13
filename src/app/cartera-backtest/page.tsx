@@ -9,7 +9,7 @@
 // Comparación de estrategia (TWR, suma global, sin aportaciones).
 // =============================================================================
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -95,13 +95,19 @@ export default function CarteraBacktestPage() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Leer el perfil del alumno una sola vez al montar.
+  const reqIdRef = useRef(0);
+  const [ready, setReady] = useState(false);
+
+  // Leer el perfil del alumno una sola vez al montar, ANTES de lanzar el primer
+  // backtest (evita lanzar uno con el perfil por defecto y otro con el detectado).
   useEffect(() => {
     const p = readProfile();
     if (p) { setProfile(p); setDetected(true); }
+    setReady(true);
   }, []);
 
   const run = useCallback(async () => {
+    const myId = ++reqIdRef.current; // solo la última petición lanzada es válida
     setLoading(true);
     setError(null);
     try {
@@ -111,6 +117,7 @@ export default function CarteraBacktestPage() {
         body: JSON.stringify({ profile, benchmark, period }),
       });
       const json: ApiResponse = await res.json();
+      if (myId !== reqIdRef.current) return; // llegó una respuesta obsoleta: ignorar
       if (!res.ok) {
         setError(json.message || json.error || "No se pudo ejecutar el backtest.");
         setData(null);
@@ -118,14 +125,13 @@ export default function CarteraBacktestPage() {
         setData(json);
       }
     } catch {
-      setError("Error de red. Inténtalo de nuevo.");
-      setData(null);
+      if (myId === reqIdRef.current) { setError("Error de red. Inténtalo de nuevo."); setData(null); }
     } finally {
-      setLoading(false);
+      if (myId === reqIdRef.current) setLoading(false);
     }
   }, [profile, benchmark, period]);
 
-  useEffect(() => { run(); }, [run]);
+  useEffect(() => { if (ready) run(); }, [ready, run]);
 
   // --- Serie combinada rebasada a 0% ---
   const chartData = (() => {
