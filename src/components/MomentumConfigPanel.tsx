@@ -4,10 +4,15 @@
 // MOMENTUM CONFIG PANEL — Replica el panel "Model Configuration" de PV
 // =============================================================================
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tooltip } from "./Tooltip";
 import type { MomentumConfig, MomentumAsset } from "@/lib/momentum-types";
-import { saveMomentumStrategy } from "@/lib/saved-momentum-strategies";
+import {
+  saveMomentumStrategy,
+  getSavedMomentumStrategies,
+  deleteSavedMomentumStrategy,
+  type SavedMomentumStrategy,
+} from "@/lib/saved-momentum-strategies";
 
 interface Props {
   config: MomentumConfig;
@@ -47,6 +52,29 @@ export function MomentumConfigPanel({
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [justSaved, setJustSaved] = useState(false);
+
+  // Estrategias guardadas en localStorage. Se cargan al montar y se mantienen
+  // sincronizadas vía el evento que disparan save/delete (también entre paneles
+  // A/B y entre pestañas del navegador).
+  const [savedList, setSavedList] = useState<SavedMomentumStrategy[]>([]);
+  const [showSavedMenu, setShowSavedMenu] = useState(false);
+
+  useEffect(() => {
+    const refresh = () => setSavedList(getSavedMomentumStrategies());
+    refresh();
+    window.addEventListener("epk-saved-momentum-strategies-changed", refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener("epk-saved-momentum-strategies-changed", refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
+
+  function loadSaved(saved: SavedMomentumStrategy) {
+    onChange(saved.config);
+    onStrategyNameChange?.(saved.name);
+    setShowSavedMenu(false);
+  }
 
   function openSaveDialog() {
     // Pre-rellenamos el nombre con el strategyName del header A/B si lo hay,
@@ -260,14 +288,94 @@ export function MomentumConfigPanel({
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Botón "Guardadas": despliega las estrategias del usuario para
+              cargarlas en este panel. Pareja del botón Guardar. */}
+          <div className="relative">
+            <button
+              onClick={() => setShowSavedMenu((v) => !v)}
+              className="px-3 py-2 bg-white/15 hover:bg-white/25 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5"
+              title="Cargar una estrategia guardada"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+              <span className="hidden sm:inline">Guardadas</span>
+              {savedList.length > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-white/25 text-[10px] font-semibold">
+                  {savedList.length}
+                </span>
+              )}
+            </button>
+
+            {showSavedMenu && (
+              <>
+                {/* Backdrop para cerrar al hacer click fuera */}
+                <div
+                  className="fixed inset-0 z-[60]"
+                  onClick={() => setShowSavedMenu(false)}
+                />
+                <div className="absolute right-0 mt-2 w-72 max-h-80 overflow-y-auto bg-white rounded-xl border border-slate-200 shadow-xl z-[61] py-1">
+                  {savedList.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-xs text-brand-tertiary">
+                      No tienes estrategias guardadas todavía.
+                      <br />
+                      Configura una y pulsa <strong>Guardar</strong>.
+                    </div>
+                  ) : (
+                    savedList
+                      .slice()
+                      .sort((a, b) => b.createdAt - a.createdAt)
+                      .map((s) => (
+                        <div
+                          key={s.id}
+                          className="group flex items-center gap-2 px-3 py-2 hover:bg-slate-50 transition-colors"
+                        >
+                          <button
+                            onClick={() => loadSaved(s)}
+                            className="flex-1 min-w-0 text-left"
+                            title="Cargar esta estrategia en el panel"
+                          >
+                            <div className="text-sm font-medium text-brand-navy truncate">
+                              {s.name}
+                            </div>
+                            <div className="text-[11px] text-brand-tertiary truncate">
+                              {s.config.assets.length} activos · Top-
+                              {s.config.assetsToHold} ·{" "}
+                              {s.config.lookbackMonths}m ·{" "}
+                              {s.config.frequency === "monthly" ? "Mensual" : "Trimestral"}
+                              {s.config.taxMode && s.config.taxMode !== "none"
+                                ? s.config.taxMode === "spain-irpf"
+                                  ? " · IRPF"
+                                  : ` · ${Math.round((s.config.taxRate ?? 0) * 100)}%`
+                                : ""}
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => deleteSavedMomentumStrategy(s.id)}
+                            className="flex-shrink-0 text-slate-300 hover:text-red-500 transition-colors p-1 opacity-0 group-hover:opacity-100"
+                            title="Eliminar esta estrategia"
+                            aria-label={`Eliminar ${s.name}`}
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
           {/* Botón "Guardar estrategia": persiste el config en localStorage
-              para que el usuario pueda seleccionarlo luego en el dropdown
-              del PortfolioBuilder (página de backtest) como satélite. */}
+              para cargarlo luego aquí (botón "Guardadas") o usarlo como
+              satélite en el dropdown del PortfolioBuilder (página de backtest). */}
           <button
             onClick={openSaveDialog}
             disabled={config.assets.length < 2}
             className="px-3 py-2 bg-white/15 hover:bg-white/25 text-white text-xs font-medium rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
-            title="Guardar para usar como satélite en el backtest"
+            title="Guardar esta estrategia para reutilizarla"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
@@ -299,7 +407,8 @@ export function MomentumConfigPanel({
               Guardar estrategia momentum
             </h3>
             <p className="text-sm text-brand-tertiary mb-4">
-              Se guardará localmente en este navegador. Aparecerá luego en el
+              Se guardará localmente en este navegador. Podrás recuperarla aquí
+              con el botón <strong>Guardadas</strong>, y también aparecerá en el
               dropdown del backtest bajo "Momentum guardadas" para usarla como
               satélite de cualquier cartera.
             </p>
