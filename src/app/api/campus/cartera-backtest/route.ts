@@ -123,6 +123,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         initialAmount: 10000,
         rebalanceFrequency,
         displayGranularity: "monthly",
+        // Comparación JUSTA: ambas series se recortan a la ventana común donde
+        // cartera y benchmark tienen datos. Sin esto, el ETF de referencia
+        // (más joven) cubriría menos años y la rentabilidad total no sería
+        // comparable con la de la Cartera K.
+        useCommonDateRange: true,
       };
 
       const result = await Promise.race([
