@@ -262,8 +262,10 @@ export default function CarteraBacktestPage() {
             {(() => {
               const es = data.effectiveDateRange?.startDate; const rs = data.requestedStart;
               if (!es || !rs) return null;
-              const [ey, em] = es.slice(0, 7).split("-").map(Number);
-              const [ry, rm] = rs.slice(0, 7).split("-").map(Number);
+              const ep = es.slice(0, 7).split("-"); const rp = rs.slice(0, 7).split("-");
+              const ey = Number(ep[0]); const em = Number(ep[1]);
+              const ry = Number(rp[0]); const rm = Number(rp[1]);
+              if (![ey, em, ry, rm].every(Number.isFinite)) return null;
               if ((ey - ry) * 12 + (em - rm) <= 6) return null;
               return (
                 <div style={{ background: "#FFF7E6", border: "1px solid #ecdca6", color: "#7a5b10", borderRadius: 12, padding: "12px 16px", marginBottom: 16, fontSize: ".85rem" }}>
