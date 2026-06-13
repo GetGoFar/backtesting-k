@@ -43,6 +43,7 @@ const RUTAS_GATED = new Set([
   "/kray",
   "/equivalente",
   "/jubilacion",
+  "/cartera-backtest",
 ]);
 
 /** Prefijos gated: estáticos de /public que también exigen la cookie.
