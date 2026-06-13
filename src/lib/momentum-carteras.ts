@@ -100,6 +100,54 @@ const ACCIONES_CAIDAS_ASSETS: MomentumAsset[] = [
   { ticker: "FRC", displayName: "First Republic †2023" },
 ];
 
+// Caídas del S&P 500 — versión PURA del experimento de sesgo de supervivencia:
+// 20 empresas que SÍ estuvieron en el S&P 500 y salieron del índice NO por ser
+// compradas, sino por QUIEBRA (10) o por PERDER TAMAÑO (10). Verificado 2026-06
+// doblemente: (1) membresía real en el S&P 500 + motivo de salida (≠ adquisición)
+// vía búsqueda web; (2) ticker EODHD correcto + serie de precios real (cuidado con
+// los tickers reutilizados: aquí el código histórico lleva sufijo `_old`/`Q`).
+//
+//  · Salieron por QUIEBRA (la acción se fue a ~0, serie truncada):
+//    Lehman †08, Washington Mutual †08, General Motors †09, Enron †01,
+//    WorldCom †02, Adelphia †02, Conseco †02, Kmart †02, Delphi †05,
+//    Circuit City †08. Drawdowns verificados: todos −98% a −100%.
+//  · Salieron por TAMAÑO (el índice las expulsó por bajo valor; varias
+//    quebraron AÑOS DESPUÉS): Bethlehem Steel †01, AMR/American Airlines †11,
+//    RadioShack †15, Eastman Kodak †12, Sears †18, J.C. Penney †20,
+//    Frontier †20, Unisys ↓ (sigue viva, marchita), Office Depot ↓,
+//    Genworth ↓. Drawdowns −75% a −100%.
+//
+// Códigos EODHD con sufijo histórico para evitar tickers reutilizados:
+// GM_old (no la GM nueva), AMR_old, SHLD_old, EK (no la KODK post-quiebra),
+// DPHIQ, ADELQ, CNCEQ, WAMUQ, MCWEQ, ENRNQ, CCTYQ, RSH...
+// Universo evolutivo (allowPartialUniverse): el histórico arranca ~1973 (Unisys)
+// y cada acción entra al nacer / sale al morir; el momentum afronta las quiebras
+// en tiempo real. OJO sesgo retrospectivo: la lista se elige HOY sabiendo el final.
+const CAIDAS_SP500_ASSETS: MomentumAsset[] = [
+  // --- Salieron por QUIEBRA (acción a ~0) ---
+  { ticker: "LEH", displayName: "Lehman Brothers †08" },
+  { ticker: "WAMUQ", displayName: "Washington Mutual †08" },
+  { ticker: "GM_old", displayName: "General Motors †09" },
+  { ticker: "ENRNQ", displayName: "Enron †01" },
+  { ticker: "MCWEQ", displayName: "WorldCom †02" },
+  { ticker: "ADELQ", displayName: "Adelphia †02" },
+  { ticker: "CNCEQ", displayName: "Conseco †02" },
+  { ticker: "KM", displayName: "Kmart †02" },
+  { ticker: "DPHIQ", displayName: "Delphi †05" },
+  { ticker: "CCTYQ", displayName: "Circuit City †08" },
+  // --- Salieron por TAMAÑO (el índice las expulsó por bajo valor) ---
+  { ticker: "BS", displayName: "Bethlehem Steel †01" },
+  { ticker: "AMR_old", displayName: "AMR / American Airlines †11" },
+  { ticker: "RSH", displayName: "RadioShack †15" },
+  { ticker: "EK", displayName: "Eastman Kodak †12" },
+  { ticker: "SHLD_old", displayName: "Sears †18" },
+  { ticker: "JCP", displayName: "J.C. Penney †20" },
+  { ticker: "FTR", displayName: "Frontier †20" },
+  { ticker: "UIS", displayName: "Unisys ↓" },
+  { ticker: "ODP", displayName: "Office Depot ↓" },
+  { ticker: "GNW", displayName: "Genworth ↓" },
+];
+
 // Config base compartida por todas: parámetros estilo Portfolio Visualizer
 // por defecto (12-1 momentum, top-1, mensual, nextClose, sin slippage). Las
 // fechas se OVERRIDEAN en el motor con las del backtest, así que aquí dan
@@ -206,6 +254,25 @@ export const MOMENTUM_CARTERA_PRESETS: PortfolioPreset[] = [
           "Momentum Acciones Caídas"
         ),
         momentumConfig: { ...baseConfig(ACCIONES_CAIDAS_ASSETS), allowPartialUniverse: true },
+      },
+    ],
+  },
+  {
+    id: "momentum-caidas-sp500",
+    name: "Cartera caídas del S&P 500",
+    description:
+      "Sesgo de supervivencia en estado puro: 20 empresas que estuvieron en el S&P 500 y salieron del índice NO por ser compradas, sino por QUIEBRA (Lehman, General Motors, Enron, WorldCom, Adelphia, Conseco, Kmart, Delphi, Circuit City, Washington Mutual) o por PERDER TAMAÑO y quedar expulsadas (Bethlehem Steel, AMR/American Airlines, RadioShack, Kodak, Sears, J.C. Penney, Frontier, Unisys, Office Depot, Genworth). 10 quiebras + 10 expulsadas por tamaño; caídas verificadas del −75 % al −100 %. Universo evolutivo: cada acción entra cuando cotiza y sale cuando muere, así que el momentum tiene que sobrevivir a las quiebras en tiempo real. Demuestra que el S&P 500 que ves hoy ya ha expulsado a todos estos perdedores: su rentabilidad histórica exagera lo que habría ganado quien comprara «las 500 de entonces». La lista se elige sabiendo el final (sesgo retrospectivo): valor didáctico, no consejo.",
+    type: "active",
+    holdings: [
+      {
+        fundId: "momentum-caidas-sp500",
+        weight: 100,
+        fund: syntheticFund(
+          "momentum-caidas-sp500",
+          "Estrategia Momentum: Caídas del S&P 500 (20 ex-miembros por quiebra o tamaño)",
+          "Momentum Caídas S&P 500"
+        ),
+        momentumConfig: { ...baseConfig(CAIDAS_SP500_ASSETS), allowPartialUniverse: true },
       },
     ],
   },
