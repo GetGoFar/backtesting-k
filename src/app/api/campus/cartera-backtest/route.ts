@@ -17,7 +17,7 @@ import { runBacktest } from "@/lib/backtest-engine";
 import { getPresetById } from "@/lib/portfolio-presets";
 import { getFundById, getFundByIsin } from "@/lib/fund-database";
 import { runWithContext } from "@/lib/request-context";
-import type { BacktestConfig } from "@/lib/types";
+import type { BacktestConfig, Fund, FundCategory } from "@/lib/types";
 
 const BACKTEST_TIMEOUT_MS = 60000;
 
@@ -27,6 +27,75 @@ const BENCHMARKS: Record<string, string> = {
   world: "ishares-msci-world", // iShares Core MSCI World Acc
   sp500: "vanguard-sp500", // iShares Core S&P 500 Acc (SXR8)
 };
+
+// -----------------------------------------------------------------------------
+// Resolución de ISIN NO catalogados (p.ej. ETFs de renta fija) a su símbolo
+// EODHD, para incluirlos como fondo dinámico en vez de descartarlos. Esto evita
+// que una cartera conservadora pierda su renta fija y se infle al reescalar.
+// -----------------------------------------------------------------------------
+const EODHD_API_TOKEN = process.env.EODHD_API_TOKEN || "";
+const EX_SUFFIX: Record<string, string> = {
+  AS: ".AS", PA: ".PA", XETRA: ".DE", F: ".F", LSE: ".L", L: ".L",
+  MI: ".MI", MC: ".MC", BR: ".BR", ST: ".ST", US: "", EUFUND: ".EUFUND",
+};
+// Preferencia de bolsa: primero las de datos más largos/fiables.
+const EX_PREF = ["XETRA", "AS", "MI", "PA", "LSE", "L", "MC", "BR", "ST", "F", "US"];
+
+type EodhdHit = { Code?: string; Exchange?: string; Name?: string; ISIN?: string; Currency?: string };
+
+function buildTicker(code: string, exchange: string): string {
+  return `${code}${EX_SUFFIX[exchange] ?? "." + exchange}`;
+}
+
+function mapCategoria(c?: string): FundCategory {
+  switch (c) {
+    case "Global": return "RV Global";
+    case "Emergente": return "RV Emergentes";
+    case "Largo Plazo": return "RF EUR Gov Largo";
+    case "Medio Plazo": return "RF EUR Gov Medio";
+    case "Corto Plazo": return "RF EUR Gov Corto";
+    case "Corporativa": return "RF EUR Corp";
+    case "High Yield": return "RF EUR Corp";
+    case "Oro": return "Oro";
+    default:
+      if (c && c.startsWith("MSCI")) return "RV Sectorial";
+      if (c === "Global Real Estate") return "RV REITs";
+      return "RF EUR";
+  }
+}
+
+async function resolveEodhdFund(isin: string, categoria?: string): Promise<Fund | null> {
+  if (!EODHD_API_TOKEN || EODHD_API_TOKEN === "demo") return null;
+  try {
+    const url = `https://eodhd.com/api/search/${encodeURIComponent(isin)}?api_token=${EODHD_API_TOKEN}&limit=30`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    const data = (await res.json()) as EodhdHit[];
+    if (!Array.isArray(data) || data.length === 0) return null;
+    const exact = data.filter((r) => r?.ISIN === isin);
+    const pool = exact.length ? exact : data;
+    pool.sort((a, b) => {
+      const ia = EX_PREF.indexOf(a?.Exchange ?? ""); const ib = EX_PREF.indexOf(b?.Exchange ?? "");
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+    const best = pool[0];
+    if (!best?.Code || !best?.Exchange) return null;
+    const name = best.Name || isin;
+    return {
+      id: `eodhd-${isin}`,
+      name,
+      shortName: name.length > 40 ? name.slice(0, 37) + "…" : name,
+      isin,
+      ticker: buildTicker(best.Code, best.Exchange),
+      ter: 0,
+      category: mapCategoria(categoria),
+      type: "index",
+      currency: best.Currency || "EUR",
+    };
+  } catch {
+    return null;
+  }
+}
 
 type Period = "1y" | "3y" | "5y" | "max" | "ytd";
 
@@ -61,7 +130,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         rebalanceFrequency?: BacktestConfig["rebalanceFrequency"];
         // Cartera real del alumno (instrumentos por ISIN + pesos objetivo).
         // Si viene y resuelve, se backtestea ESTA en vez del modelo del perfil.
-        holdings?: Array<{ isin: string; weight: number }>;
+        holdings?: Array<{ isin: string; weight: number; categoria?: string }>;
         carteraName?: string;
       };
       try {
@@ -97,28 +166,50 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       // --- Cartera A: la del alumno (holdings por ISIN) o el modelo del perfil ---
       let portfolioAName: string;
-      let portfolioAHoldings: { fundId: string; weight: number }[];
+      let portfolioAHoldings: { fundId: string; weight: number; fund?: Fund }[];
       let source: "cartera" | "modelo";
       let presetName: string | null = null;
       let presetDescription: string | null = null;
       const droppedIsins: string[] = [];
+      let droppedWeight = 0;
 
-      // Resolver los holdings del alumno (ISIN -> fundId del motor).
-      const resolved: { fundId: string; weight: number }[] = [];
-      for (const h of Array.isArray(body.holdings) ? body.holdings : []) {
-        const isin = String(h?.isin || "").trim();
-        const w = Number(h?.weight);
-        if (!isin || !Number.isFinite(w) || w <= 0) continue;
-        const fund = getFundByIsin(isin);
-        if (fund) resolved.push({ fundId: fund.id, weight: w });
-        else droppedIsins.push(isin); // sin datos en el motor: se excluye y se avisa
+      const userHoldings = (Array.isArray(body.holdings) ? body.holdings : []).filter(
+        (h) => h && String(h.isin || "").trim() && Number(h.weight) > 0
+      );
+      const totalReqWeight = userHoldings.reduce((s, h) => s + Number(h.weight), 0);
+
+      // Resolver cada ISIN: 1) BD del motor; 2) EODHD (fondo dinámico por su
+      // símbolo de bolsa); 3) descartar. El paso 2 es lo que rescata la renta
+      // fija (ETFs reales que EODHD sí tiene pero no están catalogados).
+      const resolvedParts = await Promise.all(
+        userHoldings.map(async (h) => {
+          const isin = String(h.isin).trim();
+          const w = Number(h.weight);
+          const local = getFundByIsin(isin);
+          if (local) return { fundId: local.id, weight: w } as { fundId: string; weight: number; fund?: Fund };
+          const dyn = await resolveEodhdFund(isin, h.categoria);
+          if (dyn) return { fundId: dyn.id, weight: w, fund: dyn };
+          return { dropped: isin, weight: w };
+        })
+      );
+
+      const okParts = resolvedParts.filter(
+        (p): p is { fundId: string; weight: number; fund?: Fund } => "fundId" in p
+      );
+      for (const p of resolvedParts) {
+        if ("dropped" in p) { droppedIsins.push(p.dropped); droppedWeight += p.weight; }
       }
 
-      if (resolved.length > 0) {
-        // Combinar pesos de fondos duplicados (mismo fundId en varias líneas).
-        const byFund = new Map<string, number>();
-        for (const r of resolved) byFund.set(r.fundId, (byFund.get(r.fundId) || 0) + r.weight);
-        portfolioAHoldings = [...byFund.entries()].map(([fundId, weight]) => ({ fundId, weight }));
+      if (okParts.length > 0) {
+        // Combinar pesos por fundId, conservando el fondo dinámico si lo lleva.
+        const byFund = new Map<string, { weight: number; fund?: Fund }>();
+        for (const p of okParts) {
+          const ex = byFund.get(p.fundId);
+          byFund.set(p.fundId, { weight: (ex?.weight || 0) + p.weight, fund: p.fund ?? ex?.fund });
+        }
+        portfolioAHoldings = [...byFund.entries()].map(([fundId, v]) =>
+          v.fund ? { fundId, weight: v.weight, fund: v.fund } : { fundId, weight: v.weight }
+        );
         portfolioAName = body.carteraName || "Mi Cartera";
         source = "cartera";
       } else {
@@ -142,6 +233,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         presetDescription = preset.description;
         source = "modelo";
       }
+
+      // Fiabilidad: si se descarta peso material de la cartera del alumno, el
+      // resultado reescalado NO es representativo (caso típico: renta fija sin
+      // datos). Lo marcamos para que la UI no muestre cifras engañosas.
+      const droppedWeightPct = totalReqWeight > 0 ? (droppedWeight / totalReqWeight) * 100 : 0;
+      const reliable = source !== "cartera" || droppedWeightPct < 5;
 
       // Normalizar pesos a 100% (cubre instrumentos descartados y redondeos).
       const sumW = portfolioAHoldings.reduce((s, h) => s + h.weight, 0);
@@ -213,6 +310,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         benchmarkName: benchFund.shortName || benchFund.name,
         benchmarkKey: benchKey,
         droppedIsins,
+        droppedWeightPct: Math.round(droppedWeightPct),
+        reliable,
         effectiveDateRange,
         warnings: result.warnings,
       });

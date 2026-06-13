@@ -66,6 +66,8 @@ interface ApiResponse {
   presetDescription?: string | null;
   benchmarkName: string;
   droppedIsins?: string[];
+  droppedWeightPct?: number;
+  reliable?: boolean;
   effectiveDateRange?: { startDate?: string; endDate?: string };
   warnings?: { message: string }[];
   error?: string;
@@ -251,6 +253,11 @@ export default function CarteraBacktestPage() {
 
         {data && !error && (
           <>
+            {data.reliable === false && (
+              <div style={{ background: "#FBE9E7", border: "1px solid #e9a59a", color: "#8a2c22", borderRadius: 12, padding: "14px 16px", marginBottom: 16, fontSize: ".9rem" }}>
+                <strong>⚠ Resultado no representativo.</strong> Nos falta el histórico de precios del {data.droppedWeightPct}% de tu cartera (instrumentos excluidos: {(data.droppedIsins || []).join(", ")}). Lo mostrado reescala el resto, así que no refleja tu cartera real. Estamos añadiendo esos instrumentos.
+              </div>
+            )}
             {/* Gráfico de rentabilidad acumulada */}
             <div style={cardStyle}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
