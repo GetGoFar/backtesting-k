@@ -8,7 +8,11 @@ import {
   getFundsByType,
 } from "@/lib/fund-database";
 import type { Fund, FundType } from "@/lib/types";
-import { isInCampusWhitelist, isCampusRequest } from "@/lib/campus-whitelist";
+import {
+  isInCampusWhitelist,
+  isInCampusFundIds,
+  isCampusRequest,
+} from "@/lib/campus-whitelist";
 
 /**
  * GET /api/funds
@@ -48,9 +52,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       funds = getAllFunds();
     }
 
-    // Modo campus: limitar al universo oficial del Excel (Cartera Core v3)
+    // Modo campus: limitar al universo permitido (Core v3 + Inbestme + las 6
+    // familias de carteras). Por ISIN o por fundId (para los que no tienen ISIN
+    // estándar, p.ej. oro spot).
     if (isCampusRequest(searchParams)) {
-      funds = funds.filter((fund) => isInCampusWhitelist(fund.isin));
+      funds = funds.filter(
+        (fund) => isInCampusWhitelist(fund.isin) || isInCampusFundIds(fund.id)
+      );
     }
 
     // Aplicar búsqueda si se especifica
