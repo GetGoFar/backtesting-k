@@ -54,10 +54,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // Modo campus: limitar al universo permitido (Core v3 + Inbestme + las 6
     // familias de carteras). Por ISIN o por fundId (para los que no tienen ISIN
-    // estándar, p.ej. oro spot).
+    // estándar, p.ej. oro spot). Excluimos productos de banca/pensiones: algunos
+    // (p.ej. planes CaixaBank) reutilizan el ISIN de un índice permitido en la BD
+    // y colarían por colisión de ISIN; `bank` solo lo llevan esos productos.
     if (isCampusRequest(searchParams)) {
       funds = funds.filter(
-        (fund) => isInCampusWhitelist(fund.isin) || isInCampusFundIds(fund.id)
+        (fund) =>
+          !fund.bank &&
+          (isInCampusWhitelist(fund.isin) || isInCampusFundIds(fund.id))
       );
     }
 
