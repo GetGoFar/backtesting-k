@@ -54,6 +54,22 @@ export function MomentumResultsView({ results, idSuffix = "" }: Props) {
   // Escala Y del gráfico de patrimonio: lineal o logarítmica.
   const [yScale, setYScale] = useState<"linear" | "log">("linear");
 
+  // Mapa ticker → nombre legible (para las tablas de asignación y atribución).
+  const nameByTicker = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of results.config.assets) m.set(a.ticker, a.displayName ?? a.ticker);
+    m.set("CASH", "Liquidez");
+    return m;
+  }, [results.config.assets]);
+
+  // Atribución por activo — total y máximo (para la barra proporcional).
+  const attributionView = useMemo(() => {
+    const items = results.attribution ?? [];
+    const totalEur = items.reduce((s, a) => s + a.contributionEur, 0);
+    const maxAbs = Math.max(1, ...items.map((a) => Math.abs(a.contributionEur)));
+    return { items, totalEur, maxAbs };
+  }, [results.attribution]);
+
   // Combinamos equity curve de la estrategia y del benchmark para Recharts
   const chartData = useMemo(() => {
     const benchMap = new Map(
@@ -609,6 +625,40 @@ export function MomentumResultsView({ results, idSuffix = "" }: Props) {
             </div>
           </div>
 
+          {/* Asignación objetivo de HOY — qué % comprar de cada activo */}
+          {results.liveRanking.targetWeights.length > 0 && (
+            <div className="mt-4 p-4 rounded-xl bg-emerald-50/60 border border-emerald-200">
+              <p className="text-[11px] font-semibold text-emerald-800 uppercase tracking-wider mb-2">
+                Qué comprar hoy · asignación objetivo
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {results.liveRanking.targetWeights.map((tw) => {
+                  const name = nameByTicker.get(tw.ticker);
+                  return (
+                    <span
+                      key={tw.ticker}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-emerald-200 text-sm shadow-sm"
+                    >
+                      <span className="font-mono font-semibold text-brand-navy">{tw.ticker}</span>
+                      {name && name !== tw.ticker && (
+                        <span className="text-brand-tertiary text-xs">{name}</span>
+                      )}
+                      <span className="font-bold text-emerald-700">
+                        {formatPct(tw.weightPercent / 100, tw.weightPercent % 1 === 0 ? 0 : 1)}
+                      </span>
+                    </span>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-brand-tertiary mt-2">
+                Ponderación <strong>{results.config.weighting === "equal" ? "equiponderada" : results.config.weighting === "rank" ? "por puesto en el ranking" : "inversa a la volatilidad"}</strong>.
+                {results.config.assetsToHold === 1
+                  ? " La estrategia mantiene solo el líder del ranking (100 %)."
+                  : ` La estrategia mantiene el top ${results.config.assetsToHold} del ranking.`}
+              </p>
+            </div>
+          )}
+
           {/* Comparación con las posiciones REALES de la última rotación */}
           {operations.length > 0 && (() => {
             const lastOp = operations[operations.length - 1]!;
@@ -737,6 +787,91 @@ export function MomentumResultsView({ results, idSuffix = "" }: Props) {
               </tbody>
             </table>
           </div>
+        </section>
+      )}
+
+      {/* Atribución de rentabilidad — qué aporta cada activo al resultado total */}
+      {attributionView.items.length > 0 && (
+        <section id={sid("attribution")} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 scroll-mt-24">
+          <h3 className="text-lg font-semibold text-brand-navy font-serif mb-1">
+            Atribución de rentabilidad por activo
+          </h3>
+          <p className="text-xs text-brand-tertiary mb-4">
+            Cuánto del resultado total aporta cada activo del universo. La estrategia
+            solo gana (o pierde) cuando tiene un activo en cartera, así que esto reparte
+            el beneficio entre los valores que de verdad lo generaron. La suma de las
+            aportaciones reconstruye la ganancia total{" "}
+            ({formatEUR(attributionView.totalEur)} sobre {formatEUR(results.config.initialAmount)} de capital inicial).
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-slate-200">
+                <tr>
+                  <th className="text-left text-[10px] font-semibold text-brand-tertiary uppercase py-2 px-3">Activo</th>
+                  <th className="text-right text-[10px] font-semibold text-brand-tertiary uppercase py-2 px-3">Meses en cartera</th>
+                  <th className="text-right text-[10px] font-semibold text-brand-tertiary uppercase py-2 px-3">Aportación (€)</th>
+                  <th className="text-right text-[10px] font-semibold text-brand-tertiary uppercase py-2 px-3">Aportación (pp)</th>
+                  <th className="text-right text-[10px] font-semibold text-brand-tertiary uppercase py-2 px-3">% gan./pérd.</th>
+                  <th className="text-left text-[10px] font-semibold text-brand-tertiary uppercase py-2 px-3 hidden md:table-cell w-1/4">Peso visual</th>
+                </tr>
+              </thead>
+              <tbody>
+                {attributionView.items.map((a) => {
+                  const name = nameByTicker.get(a.ticker);
+                  const positive = a.contributionEur >= 0;
+                  const barPct = (Math.abs(a.contributionEur) / attributionView.maxAbs) * 100;
+                  return (
+                    <tr key={a.ticker} className="border-b border-slate-50 hover:bg-slate-50/50">
+                      <td className="py-2 px-3">
+                        <span className="font-mono font-semibold text-brand-navy">{a.ticker}</span>
+                        {name && name !== a.ticker && (
+                          <span className="text-brand-tertiary text-xs ml-2">{name}</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-3 text-right tabular-nums text-brand-tertiary">{a.monthsHeld}</td>
+                      <td className={`py-2 px-3 text-right tabular-nums font-semibold ${positive ? "text-emerald-700" : "text-red-600"}`}>
+                        {positive ? "+" : ""}{formatEUR(a.contributionEur)}
+                      </td>
+                      <td className={`py-2 px-3 text-right tabular-nums ${positive ? "text-emerald-700" : "text-red-600"}`}>
+                        {positive ? "+" : ""}{formatNumber(a.contributionPercent, 1)} pp
+                      </td>
+                      <td className={`py-2 px-3 text-right tabular-nums ${positive ? "text-emerald-700" : "text-red-600"}`}>
+                        {positive ? "" : "−"}{formatNumber(Math.abs(a.shareOfTotal), 1)} %
+                      </td>
+                      <td className="py-2 px-3 hidden md:table-cell">
+                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${positive ? "bg-emerald-500" : "bg-red-500"}`}
+                            style={{ width: `${barPct}%` }}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-slate-200 font-semibold">
+                  <td className="py-2 px-3 text-brand-navy">Total estrategia</td>
+                  <td className="py-2 px-3" />
+                  <td className={`py-2 px-3 text-right tabular-nums ${attributionView.totalEur >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                    {attributionView.totalEur >= 0 ? "+" : ""}{formatEUR(attributionView.totalEur)}
+                  </td>
+                  <td className={`py-2 px-3 text-right tabular-nums ${attributionView.totalEur >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                    {attributionView.totalEur >= 0 ? "+" : ""}{formatNumber((attributionView.totalEur / results.config.initialAmount) * 100, 1)} pp
+                  </td>
+                  <td className="py-2 px-3 text-right tabular-nums text-brand-tertiary">—</td>
+                  <td className="py-2 px-3 hidden md:table-cell" />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <p className="text-[11px] text-brand-tertiary mt-3">
+            <strong>Aportación (€)</strong>: euros que sumó o restó el activo, medidos en el momento (suman la ganancia total).
+            <strong> pp</strong>: esos euros como puntos porcentuales del capital inicial (suman el retorno total) — pueden superar el 100 % si la cartera creció y luego cayó mucho.
+            <strong> % gan./pérd.</strong>: cuota del activo sobre <em>todo lo ganado</em> (verde) o sobre <em>todo lo perdido</em> (rojo).
+            Una aportación negativa = el activo restó (se mantuvo mientras caía).
+          </p>
         </section>
       )}
 

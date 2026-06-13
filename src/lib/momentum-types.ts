@@ -221,6 +221,12 @@ export interface MomentumLiveRanking {
   startDate: string;
   /** Qué tickers se sostendrían si rebalanceáramos HOY. */
   holdings: string[];
+  /**
+   * Asignación OBJETIVO de hoy: qué % comprar de cada activo sostenido,
+   * según el esquema de ponderación (equal/rank/volatility). Suma 100 %.
+   * Es la respuesta a "¿qué compro y en qué proporción ahora mismo?".
+   */
+  targetWeights: Array<{ ticker: string; weightPercent: number }>;
   /** True si todos los candidatos top-K están por debajo de la MA. */
   forcedCash: boolean;
   /** Ranking completo, mismo formato que `MomentumRebalance.ranking`. */
@@ -233,12 +239,38 @@ export interface MomentumLiveRanking {
   }>;
 }
 
+/**
+ * Atribución de rentabilidad por activo: cuánto del resultado total aporta
+ * cada activo del universo. Cada mes el valor crece por
+ * `valor × Σ(pesoᵢ × retornoᵢ)`, así que la aportación en euros del activo i
+ * ese mes es `valor_antes × pesoᵢ × retornoᵢ`. Sumadas a lo largo de todo el
+ * backtest, las aportaciones de todos los activos reconstruyen la ganancia
+ * total (descontados impuestos/slippage/liquidez, que van aparte).
+ */
+export interface MomentumAttribution {
+  ticker: string;
+  /** Euros que ha aportado este activo al resultado (positivo o negativo). */
+  contributionEur: number;
+  /** Puntos porcentuales del retorno total que aporta (= contribEur / capital inicial). */
+  contributionPercent: number;
+  /**
+   * Cuota ESTABLE ante pérdidas: si aporta (+), % de las GANANCIAS brutas que
+   * representa; si resta (−), % de las PÉRDIDAS brutas (con signo negativo).
+   * Los ganadores suman +100 %; los perdedores −100 %.
+   */
+  shareOfTotal: number;
+  /** Meses que el activo estuvo en cartera generando retorno. */
+  monthsHeld: number;
+}
+
 export interface MomentumResponse {
   config: MomentumConfig;
   equityCurve: MomentumEquityPoint[];
   rebalances: MomentumRebalance[];
   metrics: MomentumMetrics;
   annualReturns: MomentumAnnualReturn[];
+  /** Atribución por activo (ordenada desc por aportación en €). */
+  attribution: MomentumAttribution[];
   /** Benchmark equity curve si benchmarkTicker está definido. */
   benchmarkCurve?: MomentumEquityPoint[];
   benchmarkMetrics?: MomentumMetrics;

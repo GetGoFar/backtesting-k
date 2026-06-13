@@ -44,6 +44,8 @@ import type {
   MomentumAnnualReturn,
   MomentumAsset,
   MomentumLiveRanking,
+  MomentumAttribution,
+  MomentumWeighting,
 } from "./momentum-types";
 
 // -----------------------------------------------------------------------------
@@ -385,6 +387,49 @@ function computeTurnover(
   return sum / 2;
 }
 
+/**
+ * Calcula los pesos de las posiciones top-K seleccionadas según el esquema de
+ * ponderación. Fuente ÚNICA usada tanto por el bucle del backtest como por el
+ * cálculo del ranking "vivo", para que la asignación objetivo de hoy coincida
+ * exactamente con cómo habría rebalanceado el motor.
+ *  - forcedCash: 100 % a CASH.
+ *  - "rank": peso proporcional al puesto (1º pesa más).
+ *  - "volatility": inverse-volatility normalizado.
+ *  - "equal" (default): equiponderado.
+ */
+function computeWeights(
+  passing: Array<{ ticker: string; vol: number | null }>,
+  weighting: MomentumWeighting,
+  forcedCash: boolean
+): Map<string, number> {
+  const weights = new Map<string, number>();
+  if (forcedCash) {
+    weights.set("CASH", 1);
+    return weights;
+  }
+  if (weighting === "rank") {
+    const N = passing.length;
+    const totalRank = (N * (N + 1)) / 2;
+    passing.forEach((c, i) => weights.set(c.ticker, (N - i) / totalRank));
+  } else if (weighting === "volatility") {
+    const vols = passing.map((c) => ({
+      ticker: c.ticker,
+      inv: c.vol && c.vol > 0 ? 1 / c.vol : 0,
+    }));
+    const sumInv = vols.reduce((s, v) => s + v.inv, 0);
+    if (sumInv > 0) {
+      for (const v of vols) weights.set(v.ticker, v.inv / sumInv);
+    } else {
+      const w = 1 / Math.max(1, passing.length);
+      for (const c of passing) weights.set(c.ticker, w);
+    }
+  } else {
+    const w = 1 / Math.max(1, passing.length);
+    for (const c of passing) weights.set(c.ticker, w);
+  }
+  return weights;
+}
+
 // -----------------------------------------------------------------------------
 // Motor principal
 // -----------------------------------------------------------------------------
@@ -635,31 +680,7 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
       config.movingAverageMonths != null && passing.length === 0;
 
     const newHoldings = forcedCash ? ["CASH"] : passing.map((c) => c.ticker);
-    const newWeights = new Map<string, number>();
-    if (forcedCash) {
-      newWeights.set("CASH", 1);
-    } else if (config.weighting === "rank") {
-      const N = passing.length;
-      const totalRank = (N * (N + 1)) / 2;
-      passing.forEach((c, i) => {
-        newWeights.set(c.ticker, (N - i) / totalRank);
-      });
-    } else if (config.weighting === "volatility") {
-      const vols = passing.map((c) => ({
-        ticker: c.ticker,
-        inv: c.vol && c.vol > 0 ? 1 / c.vol : 0,
-      }));
-      const sumInv = vols.reduce((s, v) => s + v.inv, 0);
-      if (sumInv > 0) {
-        for (const v of vols) newWeights.set(v.ticker, v.inv / sumInv);
-      } else {
-        const w = 1 / passing.length;
-        for (const c of passing) newWeights.set(c.ticker, w);
-      }
-    } else {
-      const w = 1 / Math.max(1, passing.length);
-      for (const c of passing) newWeights.set(c.ticker, w);
-    }
+    const newWeights = computeWeights(passing, config.weighting, forcedCash);
 
     return { candidates, newHoldings, newWeights, forcedCash };
   }
@@ -687,6 +708,13 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
   const equityCurve: MomentumEquityPoint[] = [];
   const rebalances: MomentumRebalance[] = [];
 
+  // --- Atribución de rentabilidad por activo ---
+  // Cada mes, la aportación en euros del activo i = valor_antes × pesoᵢ × rᵢ.
+  // Acumuladas reconstruyen la ganancia total (descontando impuestos/slippage,
+  // que reducen el valor en el rebalanceo y no se imputan a ningún activo).
+  const attributionMap = new Map<string, { contributionEur: number; monthsHeld: number }>();
+  let cashContributionEur = 0;
+
   let monthIdx = 0;
   for (
     let month = effectiveStartMonth;
@@ -702,10 +730,13 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
     //      no ganan nada todavía).
     if (equityCurve.length > 0 && currentWeights.size > 0) {
       const prevMonth = addMonths(month, -1);
+      const valueBefore = currentValue; // base para imputar la aportación €
       let weightedReturn = 0;
       for (const [ticker, w] of currentWeights) {
         if (ticker === "CASH") {
-          weightedReturn += w * (RISK_FREE_RATE / 12);
+          const r = RISK_FREE_RATE / 12;
+          weightedReturn += w * r;
+          cashContributionEur += valueBefore * w * r;
           continue;
         }
         const series = seriesPerAsset.get(ticker);
@@ -713,7 +744,13 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
         const prev = periodPriceFor(series, prevMonth);
         const curr = periodPriceFor(series, month);
         if (prev && curr && prev > 0) {
-          weightedReturn += w * (curr / prev - 1);
+          const r = curr / prev - 1;
+          weightedReturn += w * r;
+          // Aportación del activo a la ganancia de este mes (suman a la del mes)
+          const a = attributionMap.get(ticker) ?? { contributionEur: 0, monthsHeld: 0 };
+          a.contributionEur += valueBefore * w * r;
+          a.monthsHeld += 1;
+          attributionMap.set(ticker, a);
         }
       }
       currentValue *= 1 + weightedReturn;
@@ -947,6 +984,48 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
   const metrics = buildMetrics(equityCurve, rebalances.length);
   const annualReturns = buildAnnualReturns(equityCurve, config.initialAmount);
 
+  // 5.1. Atribución por activo: cuánto aporta cada uno al resultado total.
+  //      shareOfTotal es ESTABLE ante pérdidas: cuota sobre las GANANCIAS
+  //      brutas si el activo aporta (+), o sobre las PÉRDIDAS brutas si resta
+  //      (−). Así un ganador en una estrategia que en neto pierde no se
+  //      convierte en un porcentaje negativo absurdo. Los positivos suman
+  //      +100 % (de lo ganado) y los negativos −100 % (de lo perdido).
+  const initialAmount = config.initialAmount;
+  const allContribs = [
+    ...Array.from(attributionMap.values()).map((v) => v.contributionEur),
+    ...(Math.abs(cashContributionEur) > 1e-6 ? [cashContributionEur] : []),
+  ];
+  const grossGain = allContribs.filter((c) => c > 0).reduce((s, c) => s + c, 0);
+  const grossLoss = allContribs.filter((c) => c < 0).reduce((s, c) => s - c, 0); // positivo
+  const shareOf = (eur: number): number =>
+    eur >= 0
+      ? grossGain > 0
+        ? (eur / grossGain) * 100
+        : 0
+      : grossLoss > 0
+        ? (eur / grossLoss) * 100 // negativo: % de las pérdidas
+        : 0;
+  const attribution: MomentumAttribution[] = [];
+  for (const [ticker, v] of attributionMap) {
+    attribution.push({
+      ticker,
+      contributionEur: v.contributionEur,
+      contributionPercent: (v.contributionEur / initialAmount) * 100,
+      shareOfTotal: shareOf(v.contributionEur),
+      monthsHeld: v.monthsHeld,
+    });
+  }
+  if (Math.abs(cashContributionEur) > 1e-6) {
+    attribution.push({
+      ticker: "CASH",
+      contributionEur: cashContributionEur,
+      contributionPercent: (cashContributionEur / initialAmount) * 100,
+      shareOfTotal: shareOf(cashContributionEur),
+      monthsHeld: 0,
+    });
+  }
+  attribution.sort((a, b) => b.contributionEur - a.contributionEur);
+
   // 5.b. Fiscalidad — la curva de equity ya es NETA del camino (se restó el
   //      impuesto en cada rotación). Adjuntamos el total pagado, el valor bruto
   //      contrafactual y el impuesto pendiente si se liquidara la posición final.
@@ -1005,8 +1084,14 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
   //    el alineamiento mensual ni la exclusión del mes en curso.
   let liveRanking: MomentumLiveRanking | undefined;
   try {
-    // 7.1. Encontrar la fecha de señal: la EARLIEST de las "últimas fechas"
-    //      de cada activo, para que todos tengan dato a esa fecha.
+    // 7.1. Encontrar la fecha de señal.
+    //  - Universo ESTÁNDAR: la EARLIEST de las "últimas fechas" de cada activo,
+    //    para que todos tengan dato a esa fecha (señal de hoy con datos comunes).
+    //  - Universo EVOLUTIVO (allowPartialUniverse): usar la fecha MÁS RECIENTE.
+    //    Si tomáramos la earliest, la señal se quedaría clavada en el primer
+    //    activo que muere (p.ej. 2002 en la cartera de caídas). Con la latest,
+    //    el ranking refleja "qué comprar HOY" entre los SUPERVIVIENTES — los
+    //    activos muertos no tienen datos recientes y el bucle los descarta solo.
     const latestPerAsset: string[] = [];
     for (const series of seriesPerAsset.values()) {
       const dates = Array.from(series.daily.keys()).sort();
@@ -1014,7 +1099,9 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
     }
     if (latestPerAsset.length > 0) {
       latestPerAsset.sort();
-      const signalDate = latestPerAsset[0]!;
+      const signalDate = config.allowPartialUniverse
+        ? latestPerAsset[latestPerAsset.length - 1]!
+        : latestPerAsset[0]!;
 
       // 7.2. Determinar la fecha de cierre del cálculo según excludePreviousMonth:
       //
@@ -1076,7 +1163,6 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
         }
         if (endIdx < 0) continue;
         const endPrice = series.daily.get(sortedDates[endIdx]!)!;
-        if (firstFoundEnd === null) firstFoundEnd = sortedDates[endIdx]!;
 
         // Precio inicial: primer dato >= startDateTarget
         let startPrice: number | undefined;
@@ -1089,7 +1175,12 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
           }
         }
         if (!startPrice || startPrice <= 0 || !startDateFound) continue;
+        // Solo registramos las fechas de señal con activos que REALMENTE
+        // puntúan (tienen precio al inicio y al final del lookback). Así un
+        // activo muerto cuya última fecha cae antes del lookback no fija la
+        // signalDate en su fecha de defunción (era el bug del universo evolutivo).
         if (firstFoundStart === null) firstFoundStart = startDateFound;
+        if (firstFoundEnd === null) firstFoundEnd = sortedDates[endIdx]!;
 
         const mom = endPrice / startPrice - 1;
 
@@ -1148,6 +1239,16 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
         ? ["CASH"]
         : livePassing.map((c) => c.ticker);
 
+      // Pesos objetivo de hoy — misma ponderación que usaría el rebalanceo.
+      const liveWeights = computeWeights(
+        livePassing,
+        config.weighting,
+        liveForcedCash
+      );
+      const targetWeights = Array.from(liveWeights.entries()).map(
+        ([ticker, w]) => ({ ticker, weightPercent: w * 100 })
+      );
+
       if (liveCandidates.length > 0) {
         liveRanking = {
           // signalDate = fecha FINAL real usada por el cálculo (con o sin
@@ -1156,6 +1257,7 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
           signalDate: firstFoundEnd ?? endDateTarget,
           startDate: firstFoundStart ?? startDateTarget,
           holdings: liveHoldings,
+          targetWeights,
           forcedCash: liveForcedCash,
           ranking: liveCandidates.map((c) => ({
             ticker: c.ticker,
@@ -1178,6 +1280,7 @@ export async function runMomentum(config: MomentumConfig): Promise<MomentumRespo
     rebalances,
     metrics,
     annualReturns,
+    attribution,
     benchmarkCurve,
     benchmarkMetrics,
     liveRanking,

@@ -48,6 +48,7 @@ const STRATEGY_SUBSECTIONS: NavItem[] = [
   { baseId: "annual", label: "Rentabilidades anuales", icon: "📅", nested: true },
   { baseId: "monthly", label: "Calor mensual", icon: "🗓️", nested: true },
   { baseId: "live", label: "Ranking actual (vivo)", icon: "🔴", nested: true },
+  { baseId: "attribution", label: "Atribución por activo", icon: "🧮", nested: true },
   { baseId: "stats", label: "Estadísticas", icon: "🎲", nested: true },
   { baseId: "history", label: "Historial de operaciones", icon: "🔁", nested: true },
 ];
