@@ -6,6 +6,7 @@ import { FundDataRange } from "./FundDataRange";
 import type { Fund, PortfolioPreset, PortfolioHolding, RebalanceFrequency } from "@/lib/types";
 import { getAllPresets } from "@/lib/portfolio-presets";
 import { getFundById } from "@/lib/fund-database";
+import { isCampusMode, isCampusPreset } from "@/lib/campus-client";
 
 // Tipo interno para manejar allocaciones con datos completos del fondo
 export interface FundAllocation {
@@ -142,7 +143,14 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
     });
   }, []);
 
-  const presets = getAllPresets();
+  // En el campus (embebido con ?campus=1) solo se muestran las carteras K e
+  // Indexa: se ocultan las de clientes de consultoría (p.ej. "Cartera PC"),
+  // banca privada, BBVA, etc., que un alumno no debe ver. El uso personal
+  // directo de la app (sin ?campus=1) sigue viendo todos los presets.
+  const allPresets = getAllPresets();
+  const presets = isCampusMode()
+    ? allPresets.filter((p) => isCampusPreset(p.id))
+    : allPresets;
   const colors = SIDE_COLORS[side];
 
   // Calcular peso total

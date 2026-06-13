@@ -25,6 +25,7 @@ import type {
 import { getAllBenchmarks } from "@/lib/benchmarks";
 import { getFundById } from "@/lib/fund-database";
 import { getAllPresets } from "@/lib/portfolio-presets";
+import { isCampusMode, isCampusPreset } from "@/lib/campus-client";
 import { fetchWithSource } from "@/lib/data-source";
 import { setLastBacktestPortfolios } from "@/lib/last-backtest-portfolios";
 
@@ -733,7 +734,9 @@ export default function Home() {
                   ))}
                 </optgroup>
                 <optgroup label="📁 Carteras preconfiguradas (como benchmark)">
-                  {getAllPresets().map((p) => (
+                  {getAllPresets()
+                    .filter((p) => !isCampusMode() || isCampusPreset(p.id))
+                    .map((p) => (
                     <option key={p.id} value={`preset:${p.id}`}>
                       {p.name}
                     </option>
