@@ -58,11 +58,14 @@ interface Result {
 }
 interface ApiResponse {
   profile: number;
+  source?: "cartera" | "modelo";
+  carteraName?: string;
   cartera: Result;
   benchmark?: Result;
-  presetName: string;
-  presetDescription: string;
+  presetName?: string | null;
+  presetDescription?: string | null;
   benchmarkName: string;
+  droppedIsins?: string[];
   effectiveDateRange?: { startDate?: string; endDate?: string };
   warnings?: { message: string }[];
   error?: string;
@@ -86,6 +89,18 @@ function readProfile(): number | null {
   }
 }
 
+// Lee la cartera REAL del alumno (exportada por Cartera Core a ck-cartera-holdings).
+function readHoldings(): { isin: string; weight: number }[] | null {
+  try {
+    const raw = localStorage.getItem("ck-cartera-holdings");
+    if (!raw) return null;
+    const h = JSON.parse(raw)?.holdings;
+    return Array.isArray(h) && h.length > 0 ? h : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function CarteraBacktestPage() {
   const [profile, setProfile] = useState<number>(5);
   const [detected, setDetected] = useState<boolean>(false);
@@ -94,15 +109,19 @@ export default function CarteraBacktestPage() {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [holdings, setHoldings] = useState<{ isin: string; weight: number }[] | null>(null);
+  const [source, setSource] = useState<"cartera" | "modelo">("modelo");
 
   const reqIdRef = useRef(0);
   const [ready, setReady] = useState(false);
 
-  // Leer el perfil del alumno una sola vez al montar, ANTES de lanzar el primer
-  // backtest (evita lanzar uno con el perfil por defecto y otro con el detectado).
+  // Leer perfil + cartera real del alumno al montar, ANTES de lanzar el primer
+  // backtest. Si tiene cartera creada, se backtestea ESA por defecto.
   useEffect(() => {
     const p = readProfile();
     if (p) { setProfile(p); setDetected(true); }
+    const h = readHoldings();
+    if (h) { setHoldings(h); setSource("cartera"); }
     setReady(true);
   }, []);
 
@@ -111,10 +130,15 @@ export default function CarteraBacktestPage() {
     setLoading(true);
     setError(null);
     try {
+      const usarCartera = source === "cartera" && holdings && holdings.length > 0;
       const res = await fetch("/api/campus/cartera-backtest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile, benchmark, period }),
+        body: JSON.stringify(
+          usarCartera
+            ? { profile, benchmark, period, holdings, carteraName: "Mi Cartera" }
+            : { profile, benchmark, period }
+        ),
       });
       const json: ApiResponse = await res.json();
       if (myId !== reqIdRef.current) return; // llegó una respuesta obsoleta: ignorar
@@ -129,7 +153,7 @@ export default function CarteraBacktestPage() {
     } finally {
       if (myId === reqIdRef.current) setLoading(false);
     }
-  }, [profile, benchmark, period]);
+  }, [profile, benchmark, period, source, holdings]);
 
   useEffect(() => { if (ready) run(); }, [ready, run]);
 
@@ -152,24 +176,41 @@ export default function CarteraBacktestPage() {
   })();
 
   const benchLabel = BENCHMARKS.find((x) => x.key === benchmark)?.label ?? "Referencia";
+  const carteraLabel = data
+    ? data.source === "cartera"
+      ? data.carteraName || "Tu cartera"
+      : `Cartera K (Perfil ${data.profile})`
+    : "Tu cartera";
+  const tieneCartera = !!holdings && holdings.length > 0;
 
   return (
     <div style={{ background: BEIGE, minHeight: "100vh", color: TINTA, padding: "22px 18px 48px" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
         {/* Cabecera */}
         <h1 style={{ fontFamily: "var(--font-source-serif), Georgia, serif", fontSize: "1.9rem", margin: "0 0 4px", color: ROJO }}>
-          Backtest de tu Cartera K
+          Backtest de tu cartera
         </h1>
         <p style={{ color: SUAVE, margin: "0 0 18px", fontSize: ".95rem" }}>
-          Cómo se habría comportado la cartera de tu perfil frente a un índice indexado de referencia.
+          Cómo se habría comportado tu cartera frente a un ETF indexado de referencia.
           Comparación de estrategia (inversión única, rentabilidad time-weighted).
         </p>
 
         {/* Controles */}
         <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "flex-end", background: "#fff", border: "1px solid #e7ddcf", borderRadius: 14, padding: "16px 18px", marginBottom: 18 }}>
+          {tieneCartera && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: ".8rem", fontWeight: 600, color: SUAVE }}>
+              Qué backtesteo
+              <div style={{ display: "flex", gap: 6 }}>
+                {[{ k: "cartera", l: "Tu cartera" }, { k: "modelo", l: "Cartera K modelo" }].map((o) => (
+                  <button key={o.k} onClick={() => setSource(o.k as "cartera" | "modelo")} disabled={loading}
+                    style={{ ...pillStyle, background: source === o.k ? ROJO : "#fff", color: source === o.k ? "#fff" : SUAVE, borderColor: source === o.k ? ROJO : "#e0d7c8" }}>{o.l}</button>
+                ))}
+              </div>
+            </div>
+          )}
           <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: ".8rem", fontWeight: 600, color: SUAVE }}>
             Perfil de riesgo {detected && <span style={{ color: VERDE, fontWeight: 600 }}>· detectado</span>}
-            <select value={profile} onChange={(e) => setProfile(Number(e.target.value))} disabled={loading}
+            <select value={profile} onChange={(e) => setProfile(Number(e.target.value))} disabled={loading || source === "cartera"}
               style={selStyle}>
               {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
                 <option key={n} value={n}>Perfil {n}</option>
@@ -225,11 +266,11 @@ export default function CarteraBacktestPage() {
                     <XAxis dataKey="date" tick={{ fontSize: 11, fill: SUAVE }} minTickGap={36} />
                     <YAxis tick={{ fontSize: 11, fill: SUAVE }} tickFormatter={(v) => `${v.toFixed(0)}%`} width={48} />
                     <Tooltip
-                      formatter={(v: number, name: string) => [`${v >= 0 ? "+" : ""}${v.toFixed(1)}%`, name === "cartera" ? `Tu Cartera K (Perfil ${data.profile})` : benchLabel]}
+                      formatter={(v: number, name: string) => [`${v >= 0 ? "+" : ""}${v.toFixed(1)}%`, name === "cartera" ? carteraLabel : benchLabel]}
                       labelStyle={{ color: TINTA }}
                       contentStyle={{ borderRadius: 10, border: "1px solid #e7ddcf", fontSize: ".82rem" }}
                     />
-                    <Legend formatter={(v) => v === "cartera" ? `Tu Cartera K (Perfil ${data.profile})` : benchLabel} />
+                    <Legend formatter={(v) => v === "cartera" ? carteraLabel : benchLabel} />
                     <Line type="monotone" dataKey="cartera" stroke={ROJO} strokeWidth={2.4} dot={false} name="cartera" />
                     {data.benchmark && (
                       <Line type="monotone" dataKey="benchmark" stroke={GRIS} strokeWidth={2} dot={false} strokeDasharray="5 4" name="benchmark" connectNulls />
@@ -247,7 +288,7 @@ export default function CarteraBacktestPage() {
                   <thead>
                     <tr>
                       <th style={thLeft}></th>
-                      <th style={thCell}><span style={{ color: ROJO }}>●</span> Tu Cartera K<br /><span style={{ fontWeight: 400, color: SUAVE, fontSize: ".78rem" }}>Perfil {data.profile}</span></th>
+                      <th style={thCell}><span style={{ color: ROJO }}>●</span> {carteraLabel}</th>
                       <th style={thCell}><span style={{ color: GRIS }}>●</span> {benchLabel}</th>
                     </tr>
                   </thead>
@@ -278,7 +319,7 @@ export default function CarteraBacktestPage() {
                     </thead>
                     <tbody>
                       <tr>
-                        <td style={{ ...tdLeft, color: ROJO }}>Cartera K</td>
+                        <td style={{ ...tdLeft, color: ROJO }}>{data.source === "cartera" ? "Tu cartera" : "Cartera K"}</td>
                         {data.cartera.annualReturns.map((a) => (
                           <td key={a.year} style={{ ...tdNum, color: a.returnPct >= 0 ? VERDE : ROJO }}>{pctRaw(a.returnPct)}</td>
                         ))}
@@ -298,11 +339,18 @@ export default function CarteraBacktestPage() {
               </div>
             )}
 
+            {/* Aviso de instrumentos sin histórico */}
+            {data.droppedIsins && data.droppedIsins.length > 0 && (
+              <div style={{ background: "#FFF7E6", border: "1px solid #ecdca6", color: "#7a5b10", borderRadius: 10, padding: "10px 14px", marginTop: 14, fontSize: ".82rem" }}>
+                {data.droppedIsins.length} instrumento(s) de tu cartera no tienen histórico de precios disponible y se han excluido del backtest ({data.droppedIsins.join(", ")}). El resto se ha reescalado a 100%.
+              </div>
+            )}
+
             {/* Disclaimer */}
             <p style={{ fontSize: ".76rem", color: SUAVE, marginTop: 16, lineHeight: 1.5 }}>
               Cartera simulada con fines educativos. Las rentabilidades pasadas no garantizan rentabilidades futuras.
-              Esto no es asesoramiento financiero ni una recomendación personalizada. Datos de mercado vía EODHD;
-              la Cartera K mostrada es la cartera modelo del perfil, sin tus aportaciones reales.
+              Esto no es asesoramiento financiero ni una recomendación personalizada. Datos de mercado vía EODHD.
+              {data.source === "modelo" && " La Cartera K mostrada es la cartera modelo de tu perfil, sin tus aportaciones reales."}
             </p>
             {data.warnings && data.warnings.length > 0 && (
               <ul style={{ fontSize: ".74rem", color: SUAVE, marginTop: 8 }}>

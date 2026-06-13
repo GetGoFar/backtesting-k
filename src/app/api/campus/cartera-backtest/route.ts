@@ -15,7 +15,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runBacktest } from "@/lib/backtest-engine";
 import { getPresetById } from "@/lib/portfolio-presets";
-import { getFundById } from "@/lib/fund-database";
+import { getFundById, getFundByIsin } from "@/lib/fund-database";
 import { runWithContext } from "@/lib/request-context";
 import type { BacktestConfig } from "@/lib/types";
 
@@ -59,6 +59,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         benchmark?: string;
         period?: Period;
         rebalanceFrequency?: BacktestConfig["rebalanceFrequency"];
+        // Cartera real del alumno (instrumentos por ISIN + pesos objetivo).
+        // Si viene y resuelve, se backtestea ESTA en vez del modelo del perfil.
+        holdings?: Array<{ isin: string; weight: number }>;
+        carteraName?: string;
       };
       try {
         body = await request.json();
@@ -69,21 +73,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         );
       }
 
-      // --- Perfil -> preset Cartera K ---
-      const profile = Math.round(Number(body.profile));
-      if (!Number.isFinite(profile) || profile < 1 || profile > 10) {
-        return NextResponse.json(
-          { error: "Perfil inválido", message: "El perfil de riesgo debe ser un número entre 1 y 10." },
-          { status: 400 }
-        );
-      }
-      const preset = getPresetById(`k-inbestme-${profile}`);
-      if (!preset) {
-        return NextResponse.json(
-          { error: "Sin cartera", message: `No existe una Cartera K para el perfil ${profile}.` },
-          { status: 400 }
-        );
-      }
+      // --- Perfil (para el modelo y la etiqueta; opcional si vienen holdings) ---
+      const profileRaw = Math.round(Number(body.profile));
+      const profile =
+        Number.isFinite(profileRaw) && profileRaw >= 1 && profileRaw <= 10 ? profileRaw : null;
 
       // --- ETF de referencia ---
       const benchKey = (body.benchmark || "vwce").toLowerCase();
@@ -102,6 +95,60 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         );
       }
 
+      // --- Cartera A: la del alumno (holdings por ISIN) o el modelo del perfil ---
+      let portfolioAName: string;
+      let portfolioAHoldings: { fundId: string; weight: number }[];
+      let source: "cartera" | "modelo";
+      let presetName: string | null = null;
+      let presetDescription: string | null = null;
+      const droppedIsins: string[] = [];
+
+      // Resolver los holdings del alumno (ISIN -> fundId del motor).
+      const resolved: { fundId: string; weight: number }[] = [];
+      for (const h of Array.isArray(body.holdings) ? body.holdings : []) {
+        const isin = String(h?.isin || "").trim();
+        const w = Number(h?.weight);
+        if (!isin || !Number.isFinite(w) || w <= 0) continue;
+        const fund = getFundByIsin(isin);
+        if (fund) resolved.push({ fundId: fund.id, weight: w });
+        else droppedIsins.push(isin); // sin datos en el motor: se excluye y se avisa
+      }
+
+      if (resolved.length > 0) {
+        // Combinar pesos de fondos duplicados (mismo fundId en varias líneas).
+        const byFund = new Map<string, number>();
+        for (const r of resolved) byFund.set(r.fundId, (byFund.get(r.fundId) || 0) + r.weight);
+        portfolioAHoldings = [...byFund.entries()].map(([fundId, weight]) => ({ fundId, weight }));
+        portfolioAName = body.carteraName || "Mi Cartera";
+        source = "cartera";
+      } else {
+        // Fallback: Cartera K modelo del perfil.
+        if (profile === null) {
+          return NextResponse.json(
+            { error: "Sin cartera", message: "Indica un perfil de riesgo (1-10) o una cartera con instrumentos válidos." },
+            { status: 400 }
+          );
+        }
+        const preset = getPresetById(`k-inbestme-${profile}`);
+        if (!preset) {
+          return NextResponse.json(
+            { error: "Sin cartera", message: `No existe una Cartera K para el perfil ${profile}.` },
+            { status: 400 }
+          );
+        }
+        portfolioAHoldings = preset.holdings.map((h) => ({ fundId: h.fundId, weight: h.weight }));
+        portfolioAName = preset.name;
+        presetName = preset.name;
+        presetDescription = preset.description;
+        source = "modelo";
+      }
+
+      // Normalizar pesos a 100% (cubre instrumentos descartados y redondeos).
+      const sumW = portfolioAHoldings.reduce((s, h) => s + h.weight, 0);
+      if (sumW > 0 && Math.abs(sumW - 100) > 0.01) {
+        portfolioAHoldings = portfolioAHoldings.map((h) => ({ ...h, weight: (h.weight / sumW) * 100 }));
+      }
+
       // --- Periodo ---
       const period: Period = (["1y", "3y", "5y", "max", "ytd"] as Period[]).includes(
         body.period as Period
@@ -113,7 +160,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const rebalanceFrequency = body.rebalanceFrequency || "annual";
 
       const config: BacktestConfig = {
-        portfolioA: { name: preset.name, holdings: preset.holdings },
+        portfolioA: { name: portfolioAName, holdings: portfolioAHoldings },
         portfolioB: {
           name: benchFund.shortName || benchFund.name,
           holdings: [{ fundId: benchFundId, weight: 100 }],
@@ -126,7 +173,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         // Comparación JUSTA: ambas series se recortan a la ventana común donde
         // cartera y benchmark tienen datos. Sin esto, el ETF de referencia
         // (más joven) cubriría menos años y la rentabilidad total no sería
-        // comparable con la de la Cartera K.
+        // comparable con la de la cartera.
         useCommonDateRange: true,
       };
 
@@ -157,12 +204,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({
         profile,
         period,
+        source,
+        carteraName: portfolioAName,
         cartera: result.a,
         benchmark: result.b,
-        presetName: preset.name,
-        presetDescription: preset.description,
+        presetName,
+        presetDescription,
         benchmarkName: benchFund.shortName || benchFund.name,
         benchmarkKey: benchKey,
+        droppedIsins,
         effectiveDateRange,
         warnings: result.warnings,
       });

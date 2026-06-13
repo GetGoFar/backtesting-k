@@ -23,6 +23,7 @@ const Cartera = {
       this.regenerarLineasDefecto();
     }
     this.render();
+    this.saveHoldings(); // poblar ck-cartera-holdings al abrir Mi Cartera
   },
 
   // Estrategias disponibles + sus categorías
@@ -698,7 +699,37 @@ const Cartera = {
     return { capitalFinal, porCategoria, totalActual, totalObjetivoPct, totalesClase, terPonderado };
   },
 
-  save() { localStorage.setItem('ck-cartera', JSON.stringify(this.state)); },
+  // Exporta la cartera como holdings listos para el motor de backtest:
+  // peso de cada línea = peso objetivo de su categoría × pesoEnCat, instrumento
+  // = ISIN de la línea. El panel "Mi Cartera" (Backtest/Análisis/Seguimiento)
+  // lo consume para trabajar sobre la cartera REAL del alumno, no un preset.
+  exportHoldings() {
+    const pesos = this.pesosPorCategoria();
+    const holdings = [];
+    for (const linea of (this.state.lineas || [])) {
+      const isin = (linea.custom && linea.custom.isin) || linea.isin;
+      if (!isin) continue;
+      const catW = pesos.porCategoria[linea.categoria] || 0;
+      const w = catW * (linea.pesoEnCat || 0) * 100;
+      if (w > 0) holdings.push({ isin, weight: Math.round(w * 100) / 100, categoria: linea.categoria });
+    }
+    return holdings;
+  },
+
+  saveHoldings() {
+    try {
+      localStorage.setItem('ck-cartera-holdings', JSON.stringify({
+        riesgo: this.state.riesgo,
+        estrategia: this.state.estrategia,
+        holdings: this.exportHoldings(),
+      }));
+    } catch (e) {}
+  },
+
+  save() {
+    localStorage.setItem('ck-cartera', JSON.stringify(this.state));
+    this.saveHoldings();
+  },
   load() {
     try {
       const s = JSON.parse(localStorage.getItem('ck-cartera') || '{}');
