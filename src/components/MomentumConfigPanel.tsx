@@ -118,6 +118,7 @@ export function MomentumConfigPanel({
       | "mag7"
       | "global-tactical"
       | "acciones-caidas"
+      | "caidas-sp500"
   ) {
     let assets: MomentumAsset[] = [];
     // Campos extra que algunos presets necesitan aplicar junto a los activos
@@ -250,6 +251,40 @@ export function MomentumConfigPanel({
       ];
       extra.allowPartialUniverse = true;
       extra.startDate = "1998-01-01";
+    } else if (preset === "caidas-sp500") {
+      // SESGO DE SUPERVIVENCIA en estado PURO — 20 empresas que estuvieron en
+      // el S&P 500 y salieron del índice NO por adquisición, sino por QUIEBRA
+      // (10) o por PERDER TAMAÑO (10). Verificado 2026-06: membresía real en el
+      // S&P 500 + motivo ≠ adquisición (web) y ticker EODHD + serie de precios
+      // correctos (códigos con sufijo _old/Q para evitar tickers reutilizados:
+      // GM_old no la GM nueva, EK no la KODK post-quiebra, AMR_old, SHLD_old…).
+      // Universo evolutivo; arranca en 1981 (J.C. Penney, la serie más antigua).
+      assets = [
+        // Salieron por QUIEBRA (acción a ~0)
+        { ticker: "LEH", displayName: "Lehman Brothers †08" },
+        { ticker: "WAMUQ", displayName: "Washington Mutual †08" },
+        { ticker: "GM_old", displayName: "General Motors †09" },
+        { ticker: "ENRNQ", displayName: "Enron †01" },
+        { ticker: "MCWEQ", displayName: "WorldCom †02" },
+        { ticker: "ADELQ", displayName: "Adelphia †02" },
+        { ticker: "CNCEQ", displayName: "Conseco †02" },
+        { ticker: "KM", displayName: "Kmart †02" },
+        { ticker: "DPHIQ", displayName: "Delphi †05" },
+        { ticker: "CCTYQ", displayName: "Circuit City †08" },
+        // Salieron por TAMAÑO (el índice las expulsó por bajo valor)
+        { ticker: "BS", displayName: "Bethlehem Steel †01" },
+        { ticker: "AMR_old", displayName: "AMR / American Airlines †11" },
+        { ticker: "RSH", displayName: "RadioShack †15" },
+        { ticker: "EK", displayName: "Eastman Kodak †12" },
+        { ticker: "SHLD_old", displayName: "Sears †18" },
+        { ticker: "JCP", displayName: "J.C. Penney †20" },
+        { ticker: "FTR", displayName: "Frontier †20" },
+        { ticker: "UIS", displayName: "Unisys ↓" },
+        { ticker: "ODP", displayName: "Office Depot ↓" },
+        { ticker: "GNW", displayName: "Genworth ↓" },
+      ];
+      extra.allowPartialUniverse = true;
+      extra.startDate = "1981-01-01";
     }
 
     onChange({ ...config, assets, ...extra });
@@ -501,6 +536,13 @@ export function MomentumConfigPanel({
                 title="Experimento de sesgo de supervivencia: 17 acciones caídas — ángeles caídos modernos (Peloton, Zoom, PayPal…), caídos históricos vivos (GE, Citigroup, AIG…) y DESAPARECIDAS reales (Enron †2004, SVB †2023, First Republic †2023). Universo evolutivo desde 1998."
               >
                 Acciones caídas
+              </button>
+              <button
+                onClick={() => loadPreset("caidas-sp500")}
+                className="text-[11px] font-medium px-2 py-1 rounded bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors"
+                title="Sesgo de supervivencia PURO: 20 empresas que estuvieron en el S&P 500 y salieron NO por compra, sino por QUIEBRA (Lehman, GM, Enron, WorldCom, Kmart, Circuit City…) o por PERDER TAMAÑO (Kodak, Sears, J.C. Penney, Frontier, Unisys…). 10 quiebras + 10 expulsadas por tamaño. Universo evolutivo desde 1981."
+              >
+                Caídas del S&P 500
               </button>
             </div>
           </div>
