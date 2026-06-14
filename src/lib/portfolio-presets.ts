@@ -1475,6 +1475,40 @@ const PINAES_PRESETS: PortfolioPreset[] = [
   },
 ];
 
+const JL_PRESETS: PortfolioPreset[] = [
+  {
+    id: "cartera-jl-bkt-20260614",
+    name: "2026.06.14_Cartera_JL_Bkt",
+    description:
+      "Cartera real de banca privada (valoración 09/06/2026): 20 fondos, ~40,6% RV y ~59,4% RF. RV: índices Pictet USA + selección activa US (Putnam, AB), Europa (Eleva, M&G, Aperture), emergentes (Amundi idx, Invesco), tecnología (DNB) y small cap (Neuberger). RF: crédito euro (R-co, Morgan Stanley, Pictet), flexible/global (PIMCO, Muzinich, DNCA), gobierno EMU 3-5y y monetario (AXA). OJO: el rango común queda limitado a 2026 por dos clases RV recién lanzadas (Putnam, Neuberger); desactiva 'rango común' o quítalas para ver histórico largo.",
+    type: "active",
+    holdings: [
+      // Renta Variable (40.63%)
+      { fundId: "jl-ftgf-putnam-us-lcg", weight: 0.88 },
+      { fundId: "jl-neuberger-smcap-intrinsic", weight: 2.85 },
+      { fundId: "jl-pictet-usa-index-i", weight: 10.46 },
+      { fundId: "jl-pictet-usa-index-hi", weight: 3.54 },
+      { fundId: "jl-ab-select-us-equity-s1", weight: 4.87 },
+      { fundId: "jl-amundi-msci-em-iec", weight: 4.03 },
+      { fundId: "jl-dnb-technology-a", weight: 2.47 },
+      { fundId: "jl-eleva-european-selection-r", weight: 3.59 },
+      { fundId: "jl-mg-lux-euro-strategic-value", weight: 3.19 },
+      { fundId: "jl-mfs-meridian-contrarian-value", weight: 1.65 },
+      { fundId: "jl-aperture-european-innovation", weight: 2.22 },
+      { fundId: "jl-invesco-em-equity-z", weight: 0.88 },
+      // Renta Fija (59.37%)
+      { fundId: "jl-rco-conviction-credit-euro-p", weight: 13.25 },
+      { fundId: "jl-axa-court-terme-v", weight: 2.07 },
+      { fundId: "jl-pimco-low-dur-glb-ig-credit", weight: 7.67 },
+      { fundId: "jl-muzinich-enhanced-yield-st", weight: 8.75 },
+      { fundId: "jl-yis-3-5-emu-govt-bond-z", weight: 9.47 },
+      { fundId: "jl-morgan-stanley-euro-corp-z", weight: 3.1 },
+      { fundId: "bbvac-pictet-eur-short-term", weight: 9.24 },
+      { fundId: "jl-dnca-invest-alpha-bonds", weight: 5.82 },
+    ],
+  },
+];
+
 const ALL_PRESETS: PortfolioPreset[] = [
   ...K_INBESTME_PRESETS,
   ...K_SECTORIAL_USA_PRESETS,
@@ -1492,6 +1526,7 @@ const ALL_PRESETS: PortfolioPreset[] = [
   ...CAIXABANK_SMART_PRESETS,
   ...PABLO_CASTRO_PRESETS,
   ...PINAES_PRESETS,
+  ...JL_PRESETS,
   ...MOMENTUM_CARTERA_PRESETS,
 ];
 
