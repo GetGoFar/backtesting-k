@@ -38,6 +38,8 @@ export function ReportGeneratorModal({ open, onClose, results }: ReportGenerator
     new Set(PRESET_SECTIONS.completo)
   );
   const [primaryPortfolio, setPrimaryPortfolio] = useState<"a" | "b">(hasA ? "a" : "b");
+  // Con dos carteras, el informe es COMPARATIVO por defecto (no hay que elegir una).
+  const [comparative, setComparative] = useState<boolean>(hasA && hasB);
   const [clientName, setClientName] = useState("");
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +80,7 @@ export function ReportGeneratorModal({ open, onClose, results }: ReportGenerator
           .filter((s) => selectedSections.has(s.id))
           .map((s) => s.id),
         primaryPortfolio,
+        comparative: hasA && hasB && comparative,
         clientName: clientName.trim() || undefined,
       };
 
@@ -130,36 +133,53 @@ export function ReportGeneratorModal({ open, onClose, results }: ReportGenerator
 
         {/* Body scrollable */}
         <div className="px-6 py-5 overflow-y-auto flex-1 space-y-5">
-          {/* Cartera principal */}
+          {/* Tipo de informe: comparativo (default con 2 carteras) o una sola */}
           {(hasA && hasB) && (
             <div>
               <label className="block text-xs font-semibold text-brand-navy uppercase tracking-wider mb-2">
-                Cartera del informe
+                Tipo de informe
               </label>
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setPrimaryPortfolio("a")}
+                  onClick={() => setComparative(true)}
                   className={`flex-1 px-4 py-2 text-sm rounded-lg border transition-colors ${
-                    primaryPortfolio === "a"
-                      ? "bg-brand-navy text-white border-brand-navy"
+                    comparative
+                      ? "bg-brand-coral text-white border-brand-coral"
                       : "bg-white text-brand-navy border-slate-200 hover:border-brand-coral"
                   }`}
                 >
-                  {results.resultA?.portfolioName ?? "Cartera A"}
+                  Comparativo A vs B
                 </button>
                 <button
                   type="button"
-                  onClick={() => setPrimaryPortfolio("b")}
+                  onClick={() => { setComparative(false); setPrimaryPortfolio("a"); }}
                   className={`flex-1 px-4 py-2 text-sm rounded-lg border transition-colors ${
-                    primaryPortfolio === "b"
+                    !comparative && primaryPortfolio === "a"
                       ? "bg-brand-navy text-white border-brand-navy"
                       : "bg-white text-brand-navy border-slate-200 hover:border-brand-coral"
                   }`}
                 >
-                  {results.resultB?.portfolioName ?? "Cartera B"}
+                  Solo {results.resultA?.portfolioName ?? "A"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setComparative(false); setPrimaryPortfolio("b"); }}
+                  className={`flex-1 px-4 py-2 text-sm rounded-lg border transition-colors ${
+                    !comparative && primaryPortfolio === "b"
+                      ? "bg-brand-navy text-white border-brand-navy"
+                      : "bg-white text-brand-navy border-slate-200 hover:border-brand-coral"
+                  }`}
+                >
+                  Solo {results.resultB?.portfolioName ?? "B"}
                 </button>
               </div>
+              {comparative && (
+                <p className="text-xs text-brand-tertiary mt-2">
+                  Compara ambas carteras cara a cara: veredicto, métricas, evolución, año a año,
+                  caídas, ventanas móviles, costes{(results.resultA?.fees.taxMode && results.resultA.fees.taxMode !== "none") || (results.resultB?.fees.taxMode && results.resultB.fees.taxMode !== "none") ? " e impuestos" : ""} y conclusiones.
+                </p>
+              )}
             </div>
           )}
 
@@ -177,6 +197,10 @@ export function ReportGeneratorModal({ open, onClose, results }: ReportGenerator
             />
           </div>
 
+          {/* Plantilla y secciones: solo en modo de una sola cartera
+              (el comparativo tiene su propio conjunto fijo de secciones). */}
+          {!comparative && (
+          <>
           {/* Preset selector */}
           <div>
             <label className="block text-xs font-semibold text-brand-navy uppercase tracking-wider mb-2">
@@ -255,6 +279,8 @@ export function ReportGeneratorModal({ open, onClose, results }: ReportGenerator
               })}
             </div>
           </div>
+          </>
+          )}
 
           {/* Error */}
           {error && (

@@ -266,6 +266,9 @@ export interface ReportConfig {
   sections: ReportSectionId[];
   /** Cartera de la que se genera el informe ("a" o "b" — la otra y el benchmark se usan como contraste) */
   primaryPortfolio: "a" | "b";
+  /** Si true (y hay dos carteras), el informe es COMPARATIVO A vs B en vez de
+   *  centrarse en una sola. La pantalla lo activa por defecto cuando hay A y B. */
+  comparative?: boolean;
   /** Nombre del cliente opcional (aparece en portada) */
   clientName?: string;
   /** Fecha del informe (default: hoy) */

@@ -41,6 +41,10 @@ const RGB = {
   purple: [147, 51, 234] as [number, number, number],
   // Púrpura claro para rellenos/áreas del benchmark (#a855f7)
   purpleLight: [168, 85, 247] as [number, number, number],
+  // Colores semánticos de cartera en informes comparativos (coherentes con la
+  // app): Cartera A azul #1d4ed8, Cartera B rosa #e11d48.
+  blueA: [29, 78, 216] as [number, number, number],
+  roseB: [225, 29, 72] as [number, number, number],
 };
 
 // -----------------------------------------------------------------------------
@@ -1479,6 +1483,329 @@ function renderRebalances(ctx: RenderCtx, result: BacktestResult) {
   }
 }
 
+// =============================================================================
+// INFORME COMPARATIVO A vs B (cuando hay dos carteras)
+// Cartera A en azul, Cartera B en rosa, benchmark en púrpura. Veredicto y
+// comentario en voz El Proyecto K.
+// =============================================================================
+
+/** Devuelve " (gana A)" / " (gana B)" / "" según quién es mejor (higherBetter). */
+function winnerTag(va: number, vb: number, higherBetter: boolean): string {
+  if (Math.abs(va - vb) < 1e-9) return " (empate)";
+  const aWins = higherBetter ? va > vb : va < vb;
+  return aWins ? " — gana A" : " — gana B";
+}
+
+function renderCompareCover(pdf: jsPDF, a: BacktestResult, b: BacktestResult, config: ReportConfig, benchName?: string) {
+  drawBackground(pdf);
+  pdf.setFillColor(...RGB.red);
+  pdf.rect(ML, 50, 28, 0.8, "F");
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(30);
+  pdf.setTextColor(...RGB.dark);
+  pdf.text("Informe comparativo", ML, 64);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(13);
+  pdf.setTextColor(...RGB.gray);
+  pdf.text("Dos carteras, cara a cara, con los mismos datos", ML, 73);
+
+  // Cartera A
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(15);
+  pdf.setTextColor(...RGB.blueA);
+  pdf.text(`A · ${a.portfolioName}`, ML, 96);
+  pdf.setTextColor(...RGB.roseB);
+  pdf.text(`B · ${b.portfolioName}`, ML, 105);
+
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(11);
+  pdf.setTextColor(...RGB.gray);
+  let y = 117;
+  if (config.clientName) { pdf.text(`Preparado para: ${config.clientName}`, ML, y); y += 6; }
+  const start = a.timeSeries[0]?.date ?? "";
+  const end = a.timeSeries[a.timeSeries.length - 1]?.date ?? "";
+  pdf.text(`Periodo analizado: ${start} – ${end}`, ML, y); y += 6;
+  if (benchName) { pdf.text(`Índice de referencia: ${benchName}`, ML, y); }
+
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(14);
+  pdf.setTextColor(...RGB.red);
+  pdf.text("El Proyecto K", ML, PAGE_H - 35);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(9);
+  pdf.setTextColor(...RGB.gray);
+  pdf.text("Inversión indexada de bajo coste", ML, PAGE_H - 29);
+  pdf.text("www.elproyectok.com", ML, PAGE_H - 24);
+  const today = config.reportDate ?? new Date().toLocaleDateString("es-ES", { year: "numeric", month: "long", day: "numeric" });
+  pdf.setFontSize(8);
+  pdf.text(today, ML, PAGE_H - 19);
+}
+
+function renderCompareHero(ctx: RenderCtx, a: BacktestResult, b: BacktestResult) {
+  drawSectionHeader(ctx, "01", "El veredicto en 30 segundos");
+  const ma = a.metrics, mb = b.metrics;
+  drawBody(ctx,
+    "Sin rodeos: las dos carteras enfrentadas en lo que importa. Más rentabilidad casi siempre " +
+    "viene con más sustos; la cartera ganadora no es la que más sube, es la que mejor equilibra " +
+    "rentabilidad, riesgo y coste para que aguantes invertido."
+  );
+  const rows: (string | number)[][] = [
+    ["Valor final", fmtEUR(a.finalValue), fmtEUR(b.finalValue), winnerTag(a.finalValue, b.finalValue, true).replace(" — ", "")],
+    ["Rentab. anual (CAGR)", fmtPct(ma.cagr * 100), fmtPct(mb.cagr * 100), winnerTag(ma.cagr, mb.cagr, true).replace(" — ", "")],
+    ["Volatilidad", fmtPct(ma.volatility * 100), fmtPct(mb.volatility * 100), winnerTag(ma.volatility, mb.volatility, false).replace(" — ", "")],
+    ["Peor caída", fmtPct(ma.maxDrawdown * 100), fmtPct(mb.maxDrawdown * 100), winnerTag(ma.maxDrawdown, mb.maxDrawdown, true).replace(" — ", "")],
+    ["Sharpe (rent./riesgo)", ma.sharpe.toFixed(2), mb.sharpe.toFixed(2), winnerTag(ma.sharpe, mb.sharpe, true).replace(" — ", "")],
+    ["Coste (TER medio)", `${a.fees.weightedTer.toFixed(2)}%`, `${b.fees.weightedTer.toFixed(2)}%`, winnerTag(a.fees.weightedTer, b.fees.weightedTer, false).replace(" — ", "")],
+  ];
+  autoTable(ctx.pdf, {
+    startY: ctx.y,
+    margin: { left: ML, right: MR },
+    head: [["Métrica", `A · ${a.portfolioName}`, `B · ${b.portfolioName}`, "Mejor"]],
+    body: rows.map((r) => r.map((c) => String(c))),
+    headStyles: { fillColor: RGB.dark, textColor: RGB.white, fontStyle: "bold", fontSize: 8.5 },
+    bodyStyles: { fontSize: 8.5, textColor: RGB.dark },
+    alternateRowStyles: { fillColor: RGB.rowAlt },
+    styles: { cellPadding: 2.4, lineColor: RGB.lightGray, lineWidth: 0.1 },
+    columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "center", fontStyle: "bold" } },
+    didParseCell: (data) => {
+      if (data.section === "head" && data.column.index === 1) data.cell.styles.textColor = RGB.blueA;
+      if (data.section === "head" && data.column.index === 2) data.cell.styles.textColor = RGB.roseB;
+      if (data.section === "body" && data.column.index === 3) {
+        const v = String(data.cell.raw);
+        if (v.includes("gana A") || v === "gana A") data.cell.styles.textColor = RGB.blueA;
+        else if (v.includes("gana B") || v === "gana B") data.cell.styles.textColor = RGB.roseB;
+        else data.cell.styles.textColor = RGB.gray;
+      }
+    },
+  });
+  tableEnd(ctx);
+
+  // Veredicto en prosa
+  const better = ma.cagr >= mb.cagr ? "A" : "B";
+  const safer = ma.maxDrawdown >= mb.maxDrawdown ? "A" : "B"; // maxDD negativo: el menos negativo es más seguro
+  const cheaper = a.fees.weightedTer <= b.fees.weightedTer ? "A" : "B";
+  const diffCagr = Math.abs(ma.cagr - mb.cagr) * 100;
+  let verdict: string;
+  if (better === safer) {
+    verdict = `Caso claro: la Cartera ${better} gana en rentabilidad (${diffCagr.toFixed(1)} puntos al año de diferencia) ` +
+      `y además cae menos en los malos momentos. Cuando una cartera te da más por menos riesgo, no hay mucho que discutir.`;
+  } else {
+    verdict = `No hay ganador absoluto: la Cartera ${better} renta más (${diffCagr.toFixed(1)} puntos/año), pero la Cartera ${safer} ` +
+      `aguanta mejor las caídas. La pregunta de verdad no es cuál sube más, sino cuál podrás mantener sin vender en el peor momento. ` +
+      `La más barata es la ${cheaper}, y a largo plazo el coste pesa más de lo que parece.`;
+  }
+  drawCTABox(ctx, "Lectura rápida", verdict);
+}
+
+function renderCompareMetrics(ctx: RenderCtx, a: BacktestResult, b: BacktestResult, benchmark?: BenchmarkComparison) {
+  drawSectionHeader(ctx, "02", "Todas las métricas, cara a cara");
+  drawBody(ctx, "El cuadro completo. La columna del índice de referencia te dice si cualquiera de las dos está, al menos, batiendo a lo fácil y barato.");
+  const ma = a.metrics, mb = b.metrics;
+  const bm = benchmark?.benchmarkMetrics;
+  const hasBm = !!bm;
+  const bmName = benchmark?.benchmarkName ?? "Ref.";
+  const pct = (x: number) => fmtPct(x * 100);
+  const rows: (string | number)[][] = [
+    ["Rentabilidad total", pct(ma.totalReturn), pct(mb.totalReturn), hasBm ? pct(bm!.totalReturn) : "—"],
+    ["CAGR (anualizada)", pct(ma.cagr), pct(mb.cagr), hasBm ? pct(bm!.cagr) : "—"],
+    ["Volatilidad anual", pct(ma.volatility), pct(mb.volatility), hasBm ? pct(bm!.volatility) : "—"],
+    ["Sharpe", ma.sharpe.toFixed(2), mb.sharpe.toFixed(2), hasBm ? bm!.sharpe.toFixed(2) : "—"],
+    ["Sortino", ma.sortino.toFixed(2), mb.sortino.toFixed(2), hasBm ? bm!.sortino.toFixed(2) : "—"],
+    ["Máximo drawdown", pct(ma.maxDrawdown), pct(mb.maxDrawdown), hasBm ? pct(bm!.maxDrawdown) : "—"],
+    ["Mejor mes", pct(ma.bestMonth), pct(mb.bestMonth), hasBm ? pct(bm!.bestMonth) : "—"],
+    ["Peor mes", pct(ma.worstMonth), pct(mb.worstMonth), hasBm ? pct(bm!.worstMonth) : "—"],
+    ["% meses positivos", pct(ma.positiveMonthsRatio), pct(mb.positiveMonthsRatio), hasBm ? pct(bm!.positiveMonthsRatio) : "—"],
+  ];
+  autoTable(ctx.pdf, {
+    startY: ctx.y,
+    margin: { left: ML, right: MR },
+    head: [["Métrica", "A", "B", bmName]],
+    body: rows.map((r) => r.map((c) => String(c))),
+    headStyles: { fillColor: RGB.red, textColor: RGB.white, fontStyle: "bold", fontSize: 8.5 },
+    bodyStyles: { fontSize: 8.5, textColor: RGB.dark },
+    alternateRowStyles: { fillColor: RGB.rowAlt },
+    styles: { cellPadding: 2, lineColor: RGB.lightGray, lineWidth: 0.1 },
+    columnStyles: { 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right", fontStyle: "bold" }, 3: { halign: "right" } },
+    didParseCell: (data) => {
+      if (data.column.index === 1) data.cell.styles.textColor = RGB.blueA;
+      if (data.column.index === 2) data.cell.styles.textColor = RGB.roseB;
+      if (data.section === "body" && data.column.index === 3 && hasBm) data.cell.styles.textColor = RGB.purple;
+    },
+  });
+  tableEnd(ctx);
+}
+
+function renderCompareEvolution(ctx: RenderCtx, a: BacktestResult, b: BacktestResult, benchmark?: BenchmarkComparison) {
+  drawSectionHeader(ctx, "03", "Cómo crece tu dinero (A vs B)");
+  drawBody(ctx, "Las dos curvas, mismo punto de partida. No te fijes solo en dónde acaban: fíjate en cómo de baches es el camino de cada una.");
+  const tsA = a.timeSeries, tsB = b.timeSeries;
+  const bmTs = benchmark?.benchmarkTimeSeries;
+  const hasBm = !!bmTs && bmTs.length >= 2;
+  if (tsA.length < 2 || tsB.length < 2) { drawBody(ctx, "Series insuficientes para el gráfico.", { italic: true }); return; }
+  ensureSpace(ctx, 78);
+  const chartX = ML + 22, chartY = ctx.y, chartW = CW - 22, chartH = 58;
+  const allV = tsA.map((p) => p.value).concat(tsB.map((p) => p.value)).concat(hasBm ? bmTs!.map((p) => p.value) : []);
+  const minV = Math.min(...allV), maxV = Math.max(...allV), rangeV = (maxV - minV) || 1;
+  ctx.pdf.setFontSize(6); ctx.pdf.setTextColor(...RGB.gray); ctx.pdf.setFont("helvetica", "normal");
+  for (let i = 0; i < 5; i++) {
+    const v = maxV - (i / 4) * rangeV, yy = chartY + (i / 4) * chartH;
+    ctx.pdf.text(fmtEUR(v), chartX - 1, yy + 1, { align: "right" });
+    ctx.pdf.setDrawColor(...RGB.lightGray); ctx.pdf.setLineWidth(0.1); ctx.pdf.line(chartX, yy, chartX + chartW, yy);
+  }
+  ctx.pdf.setDrawColor(...RGB.lightGray); ctx.pdf.setLineWidth(0.3);
+  ctx.pdf.line(chartX, chartY, chartX, chartY + chartH); ctx.pdf.line(chartX, chartY + chartH, chartX + chartW, chartY + chartH);
+  const drawLine = (ts: { value: number }[], color: [number, number, number], dashed: boolean, w: number) => {
+    ctx.pdf.setDrawColor(...color); ctx.pdf.setLineWidth(w);
+    if (dashed) ctx.pdf.setLineDashPattern([1.5, 1], 0);
+    let px: number | null = null, py: number | null = null;
+    for (let i = 0; i < ts.length; i++) {
+      const x = chartX + (i / (ts.length - 1)) * chartW;
+      const y = chartY + chartH - ((ts[i]!.value - minV) / rangeV) * chartH;
+      if (px !== null && py !== null) ctx.pdf.line(px, py, x, y);
+      px = x; py = y;
+    }
+    if (dashed) ctx.pdf.setLineDashPattern([], 0);
+  };
+  if (hasBm) drawLine(bmTs!, RGB.purple, true, 0.5);
+  drawLine(tsA, RGB.blueA, false, 0.7);
+  drawLine(tsB, RGB.roseB, false, 0.7);
+  // años
+  ctx.pdf.setFontSize(6); ctx.pdf.setTextColor(...RGB.gray);
+  const seen = new Set<string>();
+  tsA.forEach((p, i) => { const yr = p.date.substring(0, 4); if (!seen.has(yr)) { seen.add(yr); ctx.pdf.text(yr, chartX + (i / (tsA.length - 1)) * chartW, chartY + chartH + 4, { align: "center" }); } });
+  ctx.y += chartH + 7;
+  // leyenda
+  const lg = (x: number, color: [number, number, number], label: string, dashed: boolean) => {
+    ctx.pdf.setDrawColor(...color); ctx.pdf.setLineWidth(0.7);
+    if (dashed) ctx.pdf.setLineDashPattern([1.5, 1], 0);
+    ctx.pdf.line(x, ctx.y, x + 7, ctx.y); ctx.pdf.setLineDashPattern([], 0);
+    ctx.pdf.setFont("helvetica", "normal"); ctx.pdf.setFontSize(7); ctx.pdf.setTextColor(...color);
+    ctx.pdf.text(label, x + 9, ctx.y + 1);
+    return x + 9 + ctx.pdf.getTextWidth(label) + 6;
+  };
+  let lx = lg(chartX, RGB.blueA, `A · ${a.portfolioName}`.substring(0, 22), false);
+  lx = lg(lx, RGB.roseB, `B · ${b.portfolioName}`.substring(0, 22), false);
+  if (hasBm) lg(lx, RGB.purple, benchmark!.benchmarkName, true);
+  ctx.y += 8;
+  drawTable(ctx, ["", "Cartera A", "Cartera B"], [
+    ["Valor final", fmtEUR(a.finalValue), fmtEUR(b.finalValue)],
+    ["Aportado", fmtEUR(a.totalContributions), fmtEUR(b.totalContributions)],
+    ["Ganancia", fmtEUR(a.finalValue - a.totalContributions), fmtEUR(b.finalValue - b.totalContributions)],
+  ], { 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right", fontStyle: "bold" } });
+}
+
+function renderCompareAnnual(ctx: RenderCtx, a: BacktestResult, b: BacktestResult) {
+  drawSectionHeader(ctx, "04", "Rentabilidad año a año (A vs B)");
+  drawBody(ctx, "El año a año desnuda el carácter de cada cartera: cuál sufre más en los años malos y cuál aprovecha mejor los buenos.");
+  const byYear = new Map<number, { a?: number; b?: number }>();
+  for (const r of a.annualReturns) byYear.set(r.year, { ...(byYear.get(r.year) ?? {}), a: r.returnPct });
+  for (const r of b.annualReturns) byYear.set(r.year, { ...(byYear.get(r.year) ?? {}), b: r.returnPct });
+  const years = Array.from(byYear.keys()).sort();
+  if (years.length === 0) { drawBody(ctx, "No hay años completos en el periodo.", { italic: true }); return; }
+  const body = years.map((y) => {
+    const v = byYear.get(y)!;
+    return [String(y), v.a != null ? fmtPct(v.a) : "—", v.b != null ? fmtPct(v.b) : "—",
+      v.a != null && v.b != null ? (v.a >= v.b ? "A" : "B") : "—"];
+  });
+  autoTable(ctx.pdf, {
+    startY: ctx.y, margin: { left: ML, right: MR },
+    head: [["Año", "Cartera A", "Cartera B", "Mejor"]],
+    body: body.map((r) => r.map((c) => String(c))),
+    headStyles: { fillColor: RGB.red, textColor: RGB.white, fontStyle: "bold", fontSize: 8.5 },
+    bodyStyles: { fontSize: 8.5, textColor: RGB.dark }, alternateRowStyles: { fillColor: RGB.rowAlt },
+    styles: { cellPadding: 2, lineColor: RGB.lightGray, lineWidth: 0.1 },
+    columnStyles: { 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right", fontStyle: "bold" }, 3: { halign: "center" } },
+    didParseCell: (data) => {
+      if (data.column.index === 1) data.cell.styles.textColor = RGB.blueA;
+      if (data.column.index === 2) data.cell.styles.textColor = RGB.roseB;
+      if (data.section === "body" && data.column.index === 3) {
+        data.cell.styles.textColor = String(data.cell.raw) === "A" ? RGB.blueA : String(data.cell.raw) === "B" ? RGB.roseB : RGB.gray;
+        data.cell.styles.fontStyle = "bold";
+      }
+    },
+  });
+  tableEnd(ctx);
+}
+
+function renderCompareDrawdown(ctx: RenderCtx, a: BacktestResult, b: BacktestResult) {
+  drawSectionHeader(ctx, "05", "Quién aguanta mejor las caídas");
+  drawBody(ctx,
+    "Aquí se separan los inversores de los que dicen que lo son. La cartera que menos cae es la que " +
+    "más fácil te resulta mantener sin vender en el peor momento — y vender en el fondo es lo único " +
+    "que convierte una caída temporal en una pérdida para siempre."
+  );
+  const ddA = a.topDrawdowns[0], ddB = b.topDrawdowns[0];
+  drawTable(ctx, ["", "Cartera A", "Cartera B"], [
+    ["Peor caída (máx drawdown)", fmtPct(a.metrics.maxDrawdown * 100), fmtPct(b.metrics.maxDrawdown * 100)],
+    ["Mayor caída — duración", ddA ? `${ddA.lengthMonths} meses` : "—", ddB ? `${ddB.lengthMonths} meses` : "—"],
+    ["Mayor caída — recuperación", ddA?.recoveryMonths != null ? `${ddA.recoveryMonths} meses` : "sin recuperar", ddB?.recoveryMonths != null ? `${ddB.recoveryMonths} meses` : "sin recuperar"],
+    ["Peor mes", fmtPct(a.metrics.worstMonth * 100), fmtPct(b.metrics.worstMonth * 100)],
+  ], { 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right", fontStyle: "bold" } });
+}
+
+function renderCompareRolling(ctx: RenderCtx, a: BacktestResult, b: BacktestResult) {
+  drawSectionHeader(ctx, "06", "Rentabilidad sostenida (ventanas móviles)");
+  drawBody(ctx, "La rentabilidad media a 1, 3 y 5 años según cuándo entraste, y con qué frecuencia cada cartera terminó en positivo. Cuanto más alto el % positivo, menos depende tu resultado de tener suerte con el timing.");
+  const win = (la: typeof a.rollingStats.oneYear, lb: typeof b.rollingStats.oneYear, label: string) =>
+    (la.count > 0 || lb.count > 0)
+      ? [label,
+         la.count > 0 ? fmtPct(la.avgCagr * 100) : "—",
+         lb.count > 0 ? fmtPct(lb.avgCagr * 100) : "—",
+         la.count > 0 ? `${(la.positiveRatio * 100).toFixed(0)}%` : "—",
+         lb.count > 0 ? `${(lb.positiveRatio * 100).toFixed(0)}%` : "—"]
+      : null;
+  const body = [
+    win(a.rollingStats.oneYear, b.rollingStats.oneYear, "1 año"),
+    win(a.rollingStats.threeYear, b.rollingStats.threeYear, "3 años"),
+    win(a.rollingStats.fiveYear, b.rollingStats.fiveYear, "5 años"),
+  ].filter((r): r is string[] => r !== null);
+  if (body.length === 0) { drawBody(ctx, "Periodo demasiado corto para ventanas móviles.", { italic: true }); return; }
+  drawTable(ctx, ["Ventana", "A media", "B media", "A % pos.", "B % pos."], body, {
+    1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right", fontStyle: "bold" }, 3: { halign: "right" }, 4: { halign: "right" },
+  });
+}
+
+function renderCompareCosts(ctx: RenderCtx, a: BacktestResult, b: BacktestResult) {
+  drawSectionHeader(ctx, "07", "El coste, que nunca se ve pero siempre se paga");
+  drawBody(ctx,
+    "Las comisiones son el único factor que conoces de antemano con certeza absoluta. Un punto más " +
+    "de coste al año, compuesto durante décadas, se come una porción enorme de tu patrimonio final. " +
+    "La banca lo sabe; por eso no te lo pone fácil de ver."
+  );
+  drawTable(ctx, ["", "Cartera A", "Cartera B"], [
+    ["TER medio ponderado", `${a.fees.weightedTer.toFixed(2)}%`, `${b.fees.weightedTer.toFixed(2)}%`],
+    ["Comisiones pagadas (periodo)", fmtEUR(a.fees.totalFees), fmtEUR(b.fees.totalFees)],
+    ["Coste sobre patrimonio final", fmtPct(a.fees.feesAsPercentage).replace("+", ""), fmtPct(b.fees.feesAsPercentage).replace("+", "")],
+  ], { 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right", fontStyle: "bold" } });
+  const cheaper = a.fees.weightedTer <= b.fees.weightedTer ? "A" : "B";
+  const diff = Math.abs(a.fees.weightedTer - b.fees.weightedTer);
+  if (diff > 0.05) {
+    drawBody(ctx,
+      `La Cartera ${cheaper} es ${diff.toFixed(2)} puntos más barata al año. Parece poco, pero esa diferencia ` +
+      "no se suma: se compone, año tras año, a tu favor.",
+      { size: 9, color: RGB.green, bold: true }
+    );
+  }
+}
+
+function renderCompareConclusion(ctx: RenderCtx, a: BacktestResult, b: BacktestResult) {
+  drawSectionHeader(ctx, "08", "Conclusiones");
+  const ma = a.metrics, mb = b.metrics;
+  const better = ma.cagr >= mb.cagr ? a : b;
+  const safer = ma.maxDrawdown >= mb.maxDrawdown ? a : b;
+  const cheaper = a.fees.weightedTer <= b.fees.weightedTer ? a : b;
+  drawBody(ctx, `Resumiendo sin paños calientes:`, { bold: true });
+  drawBody(ctx, `· Más rentabilidad histórica: ${better.portfolioName} (${fmtPct(better.metrics.cagr * 100)} anual).`);
+  drawBody(ctx, `· Más estable en las caídas: ${safer.portfolioName} (peor caída ${fmtPct(safer.metrics.maxDrawdown * 100)}).`);
+  drawBody(ctx, `· Más barata: ${cheaper.portfolioName} (${cheaper.fees.weightedTer.toFixed(2)}% de TER).`);
+  ctx.y += 2;
+  drawBody(ctx,
+    "Recuerda: rentabilidades pasadas no garantizan nada del futuro. La mejor cartera no es la que " +
+    "habría ganado más mirando por el retrovisor, sino la que encaja con tu horizonte, tu estómago y " +
+    "tus costes — y que por eso vas a poder mantener cuando vengan mal dadas, que vendrán."
+  );
+}
+
 // -----------------------------------------------------------------------------
 // API PÚBLICA
 // -----------------------------------------------------------------------------
@@ -1505,6 +1832,47 @@ export function generateReportPDF(
     unit: "mm",
     orientation: "portrait",
   });
+
+  // -------------------------------------------------------------------------
+  // INFORME COMPARATIVO A vs B (cuando hay dos carteras y se pidió comparar)
+  // -------------------------------------------------------------------------
+  if (config.comparative && results.resultA && results.resultB) {
+    const a = results.resultA;
+    const b = results.resultB;
+    const bm = a.benchmark ?? b.benchmark;
+    const compSubtitle = "Comparativa de carteras · El Proyecto K";
+    const cctx: RenderCtx = { pdf, pageNum: 0, totalPages: 0, y: MT + 8, subtitle: compSubtitle };
+
+    renderCompareCover(pdf, a, b, config, bm?.benchmarkName);
+
+    const compTaxes =
+      (a.fees.taxMode != null && a.fees.taxMode !== "none") ||
+      (b.fees.taxMode != null && b.fees.taxMode !== "none");
+
+    const compSections: Array<(c: RenderCtx) => void> = [
+      (c) => renderCompareHero(c, a, b),
+      (c) => renderCompareMetrics(c, a, b, bm),
+      (c) => renderCompareEvolution(c, a, b, bm),
+      (c) => renderCompareAnnual(c, a, b),
+      (c) => renderCompareDrawdown(c, a, b),
+      (c) => renderCompareRolling(c, a, b),
+      (c) => renderCompareCosts(c, a, b),
+      ...(compTaxes ? [(c: RenderCtx) => renderTaxes(c, a, b, bm)] : []),
+      (c) => renderCompareConclusion(c, a, b),
+      (c) => renderDisclaimer(c),
+    ];
+
+    for (const render of compSections) {
+      pdf.addPage();
+      cctx.pageNum++;
+      drawBackground(pdf);
+      drawHeader(pdf, compSubtitle);
+      drawFooter(pdf, cctx.pageNum);
+      cctx.y = MT + 8;
+      render(cctx);
+    }
+    return pdf.output("blob");
+  }
 
   // Orden canónico de secciones = orden de la pantalla de resultados.
   let selected = FULL_BACKTEST_ORDER.filter((id) => config.sections.includes(id));
