@@ -10,11 +10,11 @@ const BROKERS = [
   { id: 'renta4',        nombre: 'Renta 4',            tiposPermitidos: ['fondo', 'etf'], nota: 'Banco con catálogo amplio de fondos UCITS y acceso a ETFs en bolsas europeas.' },
   { id: 'ibkr',          nombre: 'Interactive Brokers',tiposPermitidos: ['etf'],         nota: 'Broker bursátil global. Solo ETFs UCITS para residentes UE.' },
   { id: 'degiro',        nombre: 'DeGiro',             tiposPermitidos: ['etf'],         nota: 'Solo ETFs. Tiene Core Selection con condiciones más ventajosas.' },
-  { id: 'traderepublic', nombre: 'Trade Republic',     tiposPermitidos: ['etf'],         nota: 'Solo ETFs cotizados, principalmente Xetra. Catálogo más limitado.' }
+  { id: 'traderepublic', nombre: 'Trade Republic',     tiposPermitidos: ['fondo', 'etf'], nota: 'ETFs (Xetra) y, desde junio 2025, fondos de inversión indexados en España (traspasables sin peaje fiscal).' }
 ];
 
-// Disponibilidad por defecto: todos los fondos en MyInvestor+Renta4; todos los ETFs en los 5
-const BROKERS_FONDOS = ['myinvestor', 'renta4'];
+// Disponibilidad por defecto: fondos en MyInvestor+Renta4+Trade Republic (fondos en España desde jun-2025); todos los ETFs en los 5
+const BROKERS_FONDOS = ['myinvestor', 'renta4', 'traderepublic'];
 const BROKERS_ETFS   = ['myinvestor', 'renta4', 'ibkr', 'degiro', 'traderepublic'];
 
 const DATA = {
