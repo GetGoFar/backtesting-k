@@ -26,13 +26,8 @@ interface ReportGeneratorModalProps {
   results: BacktestResponse;
 }
 
-const SECTIONS_NOT_YET_IMPLEMENTED: ReportSectionId[] = [
-  "comparison",
-  "stress",
-  "composition",
-  "contributions",
-  "rebalances",
-];
+// Todas las secciones del backtest completo están implementadas en report-pdf.ts.
+const SECTIONS_NOT_YET_IMPLEMENTED: ReportSectionId[] = [];
 
 export function ReportGeneratorModal({ open, onClose, results }: ReportGeneratorModalProps) {
   const hasA = !!results.resultA;
