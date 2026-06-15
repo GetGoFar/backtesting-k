@@ -2889,57 +2889,32 @@ const JL_FUNDS: Fund[] = [
   },
 
   // --- Clases alternativas de histórico largo (para el preset "_Hist") ---
-  // Sustituyen a las 4 clases recién lanzadas que limitaban el backtest a 2026.
+  // El usuario decidió ELIMINAR Putnam y Neuberger de la variante histórica
+  // (no quería ni el proxy ClearBridge ni la clase USD del small cap), y usar
+  // estas dos clases largas para Invesco y AXA:
   {
-    // PROXY de FTGF Putnam US Large Cap Growth (IE0009DMFOP6, nueva 2026-03):
-    // no hay clase más antigua del fondo Putnam (es nuevo y coexiste con
-    // ClearBridge). Usamos la clase EUR de ClearBridge US Large Cap Growth —
-    // OTRO fondo del mismo estilo US growth, correlación 0,997 en el solape.
-    id: "jl-clearbridge-us-lcg-eur",
-    name: "Legg Mason ClearBridge US Large Cap Growth A EUR (proxy de Putnam)",
-    shortName: "ClearBridge US LCG",
-    isin: "IE00BYML7L80",
-    ter: 0.85,
-    category: "RV EEUU",
-    type: "active",
-    currency: "EUR",
-    terSource: "estimated",
-  },
-  {
-    // MISMO fondo Neuberger US Small Cap Intrinsic Value, clase USD (2016) —
-    // no existe clase EUR con histórico largo. El motor NO convierte divisa,
-    // así que los retornos son en USD (sin el efecto EUR/USD que vive el
-    // inversor en la clase EUR). Salvedad documentada en el preset.
-    id: "jl-neuberger-smcap-usd",
-    name: "Neuberger Berman US Small Cap Intrinsic Value USD (clase USD)",
-    shortName: "Neuberger SmCap USD",
-    isin: "IE00BY7S3S36",
+    // MISMO fondo Invesco Emerging Markets Equity, clase USD elegida por el
+    // usuario (LU1775953141, desde 1999). El motor NO convierte divisa, así que
+    // los retornos van en USD (sin el efecto EUR/USD).
+    id: "jl-invesco-em-equity-usd",
+    name: "Invesco Emerging Markets Equity USD (clase histórica 1999)",
+    shortName: "Invesco EM Eq USD",
+    isin: "LU1775953141",
     ter: 1.0,
-    category: "RV Small Cap",
+    category: "RV Emergentes",
     type: "active",
     currency: "USD",
     terSource: "estimated",
   },
   {
-    // MISMO fondo monetario AXA Court Terme, clase C (EUR, desde 1984).
-    id: "jl-axa-court-terme-c",
-    name: "AXA Court Terme C (monetario, clase histórica)",
-    shortName: "AXA Court Terme C",
-    isin: "FR0000288946",
+    // Fondo monetario AXA Trésor Court Terme, clase C (EUR, desde 1995),
+    // elegido por el usuario.
+    id: "jl-axa-tresor-court-terme-c",
+    name: "AXA Trésor Court Terme C (monetario, clase histórica 1995)",
+    shortName: "AXA Trésor CT C",
+    isin: "FR0000447823",
     ter: 0.15,
     category: "RF EUR Gov Corto",
-    type: "active",
-    currency: "EUR",
-    terSource: "estimated",
-  },
-  {
-    // MISMO fondo Invesco Emerging Markets Equity, clase EUR (desde 2016).
-    id: "jl-invesco-em-equity-eur",
-    name: "Invesco Emerging Markets Equity (clase EUR histórica)",
-    shortName: "Invesco EM Eq EUR",
-    isin: "LU1775952929",
-    ter: 1.0,
-    category: "RV Emergentes",
     type: "active",
     currency: "EUR",
     terSource: "estimated",

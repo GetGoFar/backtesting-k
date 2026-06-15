@@ -1511,31 +1511,29 @@ const JL_PRESETS: PortfolioPreset[] = [
     id: "cartera-jl-bkt-20260614-hist",
     name: "2026.06.14_Cartera_JL_Bkt_Hist",
     description:
-      "Variante de histórico largo de la cartera JL: mismas posiciones y pesos, pero 4 clases recién lanzadas (que limitaban el backtest a 2026) sustituidas por clases con más historia, para poder simular desde ~nov-2020. El muro en 2020-10 lo pone Aperture European Innovation (fondo nuevo de 2020, sin clases anteriores). SUSTITUCIONES: Putnam→ClearBridge US Large Cap Growth EUR (OTRO fondo, mismo estilo, correl. 0,997 — es un PROXY, no el Putnam real); Neuberger US Small Cap→clase USD (no hay clase EUR larga; retornos en USD, sin efecto EUR/USD); AXA Court Terme→clase C EUR (mismo fondo, 1984); Invesco EM→clase EUR (mismo fondo, 2016). Para análisis de largo plazo; los pesos y el resto de fondos son idénticos al original.",
+      "Variante de histórico largo de la cartera JL (18 fondos). Se ELIMINARON Putnam (IE0009DMFOP6) y Neuberger US Small Cap (IE000EVIOG79) — las dos clases nuevas de 2026 sin equivalente EUR de histórico largo — y su peso conjunto (3,73%) se redistribuyó proporcionalmente entre el resto. Invesco EM usa la clase USD larga (LU1775953141, 1999) y AXA el monetario Trésor Court Terme C (FR0000447823, 1995). El backtest llega hasta ~nov-2020; el muro lo pone ahora Aperture European Innovation (fondo nuevo de 2020, sin clases anteriores). Salvedad: Invesco va en clase USD (el motor no convierte divisa). La cartera original '2026.06.14_Cartera_JL_Bkt' se mantiene intacta con los 20 fondos reales.",
     type: "active",
     holdings: [
-      // Renta Variable (40.63%) — Putnam/Neuberger/Invesco sustituidos
-      { fundId: "jl-clearbridge-us-lcg-eur", weight: 0.88 },      // PROXY de Putnam
-      { fundId: "jl-neuberger-smcap-usd", weight: 2.85 },         // clase USD
-      { fundId: "jl-pictet-usa-index-i", weight: 10.46 },
-      { fundId: "jl-pictet-usa-index-hi", weight: 3.54 },
-      { fundId: "jl-ab-select-us-equity-s1", weight: 4.87 },
-      { fundId: "jl-amundi-msci-em-iec", weight: 4.03 },
-      { fundId: "jl-dnb-technology-a", weight: 2.47 },
-      { fundId: "jl-eleva-european-selection-r", weight: 3.59 },
-      { fundId: "jl-mg-lux-euro-strategic-value", weight: 3.19 },
-      { fundId: "jl-mfs-meridian-contrarian-value", weight: 1.65 },
-      { fundId: "jl-aperture-european-innovation", weight: 2.22 }, // muro 2020-10
-      { fundId: "jl-invesco-em-equity-eur", weight: 0.88 },        // clase EUR
-      // Renta Fija (59.37%) — AXA Court Terme sustituido
-      { fundId: "jl-rco-conviction-credit-euro-p", weight: 13.25 },
-      { fundId: "jl-axa-court-terme-c", weight: 2.07 },            // clase C EUR 1984
-      { fundId: "jl-pimco-low-dur-glb-ig-credit", weight: 7.67 },
-      { fundId: "jl-muzinich-enhanced-yield-st", weight: 8.75 },
-      { fundId: "jl-yis-3-5-emu-govt-bond-z", weight: 9.47 },
-      { fundId: "jl-morgan-stanley-euro-corp-z", weight: 3.1 },
-      { fundId: "bbvac-pictet-eur-short-term", weight: 9.24 },
-      { fundId: "jl-dnca-invest-alpha-bonds", weight: 5.82 },
+      // Renta Variable (38.34%) — sin Putnam ni Neuberger; pesos redistribuidos
+      { fundId: "jl-pictet-usa-index-i", weight: 10.87 },
+      { fundId: "jl-pictet-usa-index-hi", weight: 3.68 },
+      { fundId: "jl-ab-select-us-equity-s1", weight: 5.06 },
+      { fundId: "jl-amundi-msci-em-iec", weight: 4.19 },
+      { fundId: "jl-dnb-technology-a", weight: 2.57 },
+      { fundId: "jl-eleva-european-selection-r", weight: 3.73 },
+      { fundId: "jl-mg-lux-euro-strategic-value", weight: 3.31 },
+      { fundId: "jl-mfs-meridian-contrarian-value", weight: 1.71 },
+      { fundId: "jl-aperture-european-innovation", weight: 2.31 }, // muro 2020-10
+      { fundId: "jl-invesco-em-equity-usd", weight: 0.91 },        // clase USD 1999
+      // Renta Fija (61.66%)
+      { fundId: "jl-rco-conviction-credit-euro-p", weight: 13.74 },
+      { fundId: "jl-axa-tresor-court-terme-c", weight: 2.15 },     // Trésor C EUR 1995
+      { fundId: "jl-pimco-low-dur-glb-ig-credit", weight: 7.97 },
+      { fundId: "jl-muzinich-enhanced-yield-st", weight: 9.09 },
+      { fundId: "jl-yis-3-5-emu-govt-bond-z", weight: 9.84 },
+      { fundId: "jl-morgan-stanley-euro-corp-z", weight: 3.22 },
+      { fundId: "bbvac-pictet-eur-short-term", weight: 9.6 },
+      { fundId: "jl-dnca-invest-alpha-bonds", weight: 6.05 },
     ],
   },
 ];
