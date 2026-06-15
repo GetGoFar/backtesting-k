@@ -869,7 +869,7 @@ function renderTaxes(ctx: RenderCtx, result: BacktestResult, otherResult?: Backt
 }
 
 function renderRecommendation(ctx: RenderCtx, score: PortfolioScore) {
-  drawSectionHeader(ctx, "06", "Recomendación y siguientes pasos");
+  drawSectionHeader(ctx, "16", "Conclusiones");
 
   let veredicto: string;
   let acciones: string[];
@@ -1507,7 +1507,21 @@ export function generateReportPDF(
   });
 
   // Orden canónico de secciones = orden de la pantalla de resultados.
-  const selected = FULL_BACKTEST_ORDER.filter((id) => config.sections.includes(id));
+  let selected = FULL_BACKTEST_ORDER.filter((id) => config.sections.includes(id));
+
+  // Si NINGUNA cartera del informe tiene impuestos configurados, omitimos la
+  // sección de impuestos: sin tributación, las tres rentabilidades (bruta, neta
+  // del camino y neta al liquidar) salen idénticas y la sección no aporta nada.
+  // (Se mantiene si la cartera de contraste sí tributa, porque la comparación
+  // fondo-sin-impuestos vs ETF-con-impuestos sí es informativa.)
+  const ownTaxMode = result.fees.taxMode;
+  const otherTaxMode = other?.fees.taxMode;
+  const anyTaxes =
+    (ownTaxMode != null && ownTaxMode !== "none") ||
+    (otherTaxMode != null && otherTaxMode !== "none");
+  if (!anyTaxes) {
+    selected = selected.filter((id) => id !== "taxes");
+  }
 
   let pageNum = 0;
   let coverDone = false;
