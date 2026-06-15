@@ -14,8 +14,9 @@
 
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { BacktestResponse, BacktestResult, BenchmarkComparison } from "./types";
+import type { BacktestResponse, BacktestResult, BenchmarkComparison, AssetMetrics, CorrelationMatrix } from "./types";
 import type { ReportConfig, ReportSectionId } from "./report-types";
+import { FULL_BACKTEST_ORDER } from "./report-types";
 import { computePortfolioScore, computeBenchmarkScore, type PortfolioScore, type ScoreDetail } from "./report-scoring";
 import { computeTaxOnGain, type TaxMode } from "./tax-utils";
 
@@ -962,6 +963,522 @@ function renderDisclaimer(ctx: RenderCtx) {
   );
 }
 
+// =============================================================================
+// SECCIONES DEL BACKTEST COMPLETO (reproducen la pantalla de resultados)
+// Comentario AUTO-generado en la voz de El Proyecto K: directo, anti-banca con
+// datos, cercano pero riguroso, sin prescribir.
+// =============================================================================
+
+/** Cierra una tabla autoTable y avanza el cursor vertical. */
+function tableEnd(ctx: RenderCtx) {
+  ctx.y = (ctx.pdf as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 4;
+}
+
+/** Tabla estándar con la estética del informe. */
+function drawTable(
+  ctx: RenderCtx,
+  head: string[],
+  body: (string | number)[][],
+  columnStyles?: Record<number, { halign?: "left" | "center" | "right"; fontStyle?: "bold"; cellWidth?: number }>
+) {
+  autoTable(ctx.pdf, {
+    startY: ctx.y,
+    margin: { left: ML, right: MR },
+    head: [head],
+    body: body.map((r) => r.map((c) => String(c))),
+    headStyles: { fillColor: RGB.red, textColor: RGB.white, fontStyle: "bold", fontSize: 8.5 },
+    bodyStyles: { fontSize: 8.5, textColor: RGB.dark },
+    alternateRowStyles: { fillColor: RGB.rowAlt },
+    styles: { cellPadding: 2, lineColor: RGB.lightGray, lineWidth: 0.1 },
+    columnStyles,
+  });
+  tableEnd(ctx);
+}
+
+const MONTHS_ES = ["E", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
+
+/** Color verde→rojo según signo e intensidad (para heatmaps de rentabilidad). */
+function heatColor(v: number, maxAbs: number): [number, number, number] {
+  const t = maxAbs > 0 ? Math.max(0, Math.min(1, Math.abs(v) / maxAbs)) : 0;
+  if (v >= 0) {
+    return [Math.round(255 - t * (255 - 46)), Math.round(255 - t * (255 - 125)), Math.round(255 - t * (255 - 50))];
+  }
+  return [Math.round(255 - t * (255 - 198)), Math.round(255 - t * (255 - 40)), Math.round(255 - t * (255 - 40))];
+}
+
+/** Color para correlaciones: +1 rojo (se mueven juntos), 0 neutro, -1 verde. */
+function corrColor(c: number): [number, number, number] {
+  if (c >= 0) {
+    const t = Math.max(0, Math.min(1, c));
+    return [Math.round(245 - t * (245 - 198)), Math.round(240 - t * (240 - 60)), Math.round(232 - t * (232 - 50))];
+  }
+  const t = Math.max(0, Math.min(1, -c));
+  return [Math.round(245 - t * (245 - 46)), Math.round(240 - t * (240 - 125)), Math.round(232 - t * (232 - 50))];
+}
+
+// 03b — Todas las métricas
+function renderMetricsFull(ctx: RenderCtx, result: BacktestResult, benchmark?: BenchmarkComparison) {
+  drawSectionHeader(ctx, "03", "Todas las métricas");
+  drawBody(ctx,
+    "El cuadro de mando completo. No te obsesiones con un solo número: una cartera buena " +
+    "no es la que más sube, es la que te deja dormir mientras compone a largo plazo."
+  );
+  const m = result.metrics;
+  const bm = benchmark?.benchmarkMetrics;
+  const hasBm = !!bm;
+  const bmName = benchmark?.benchmarkName ?? "Referencia";
+  const rows: (string | number)[][] = [
+    ["Rentabilidad total", fmtPct(m.totalReturn * 100), hasBm ? fmtPct(bm!.totalReturn * 100) : "—"],
+    ["CAGR (anualizada)", fmtPct(m.cagr * 100), hasBm ? fmtPct(bm!.cagr * 100) : "—"],
+    ["Volatilidad anual", fmtPct(m.volatility * 100), hasBm ? fmtPct(bm!.volatility * 100) : "—"],
+    ["Ratio de Sharpe", m.sharpe.toFixed(2), hasBm ? bm!.sharpe.toFixed(2) : "—"],
+    ["Ratio de Sortino", m.sortino.toFixed(2), hasBm ? bm!.sortino.toFixed(2) : "—"],
+    ["Ratio de Calmar", m.calmar.toFixed(2), hasBm ? bm!.calmar.toFixed(2) : "—"],
+    ["Máximo drawdown", fmtPct(m.maxDrawdown * 100), hasBm ? fmtPct(bm!.maxDrawdown * 100) : "—"],
+    ["Mejor mes", fmtPct(m.bestMonth * 100), hasBm ? fmtPct(bm!.bestMonth * 100) : "—"],
+    ["Peor mes", fmtPct(m.worstMonth * 100), hasBm ? fmtPct(bm!.worstMonth * 100) : "—"],
+    ["% meses positivos", fmtPct(m.positiveMonthsRatio * 100), hasBm ? fmtPct(bm!.positiveMonthsRatio * 100) : "—"],
+    ["VaR histórico (mensual)", fmtPct(m.varHistorical * 100), hasBm ? fmtPct(bm!.varHistorical * 100) : "—"],
+    ["CVaR (mensual)", fmtPct(m.cvar * 100), hasBm ? fmtPct(bm!.cvar * 100) : "—"],
+    ["Asimetría", m.skewness.toFixed(2), hasBm ? bm!.skewness.toFixed(2) : "—"],
+    ["Exceso de curtosis", m.excessKurtosis.toFixed(2), hasBm ? bm!.excessKurtosis.toFixed(2) : "—"],
+  ];
+  const head = hasBm ? ["Métrica", "Tu cartera", bmName] : ["Métrica", "Tu cartera", ""];
+  autoTable(ctx.pdf, {
+    startY: ctx.y,
+    margin: { left: ML, right: MR },
+    head: [head],
+    body: rows.map((r) => r.map((c) => String(c))),
+    headStyles: { fillColor: RGB.red, textColor: RGB.white, fontStyle: "bold", fontSize: 8.5 },
+    bodyStyles: { fontSize: 8.5, textColor: RGB.dark },
+    alternateRowStyles: { fillColor: RGB.rowAlt },
+    styles: { cellPadding: 2, lineColor: RGB.lightGray, lineWidth: 0.1 },
+    columnStyles: { 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right" } },
+    didParseCell: (data) => {
+      if (data.section === "body" && data.column.index === 2 && hasBm) {
+        data.cell.styles.textColor = RGB.purple;
+      }
+    },
+  });
+  tableEnd(ctx);
+  drawBody(ctx,
+    "Sharpe y Sortino miden cuánta rentabilidad sacas por cada unidad de riesgo: por encima " +
+    "de 1 es notable; por debajo de 0,5 estás asumiendo sustos que no te pagan. El Sortino " +
+    "solo castiga las caídas (que es lo que de verdad duele).",
+    { size: 9, color: RGB.gray }
+  );
+}
+
+// 03c — Rentabilidad año a año
+function renderAnnualReturns(ctx: RenderCtx, result: BacktestResult) {
+  drawSectionHeader(ctx, "04", "Rentabilidad año a año");
+  drawBody(ctx,
+    "Ningún año se parece al anterior. Lo importante no es acertar el bueno, sino aguantar el " +
+    "malo sin vender. Aquí ves en verde los años que ganaste y en rojo los que perdiste."
+  );
+  const ar = result.annualReturns;
+  if (ar.length === 0) { drawBody(ctx, "No hay años completos en el periodo analizado.", { italic: true }); return; }
+  const maxAbs = Math.max(...ar.map((a) => Math.abs(a.returnPct)), 1);
+  // mini barras horizontales
+  ensureSpace(ctx, ar.length * 7 + 6);
+  const labelW = 16;
+  const barX = ML + labelW;
+  const barMaxW = CW - labelW - 28;
+  const mid = barX + barMaxW / 2;
+  ctx.pdf.setFontSize(8);
+  for (const a of ar) {
+    const rowY = ctx.y;
+    ctx.pdf.setFont("helvetica", "bold");
+    ctx.pdf.setTextColor(...RGB.dark);
+    ctx.pdf.text(String(a.year), ML, rowY + 3);
+    const w = (Math.abs(a.returnPct) / maxAbs) * (barMaxW / 2);
+    if (a.returnPct >= 0) {
+      ctx.pdf.setFillColor(...RGB.green);
+      ctx.pdf.rect(mid, rowY, w, 4.5, "F");
+    } else {
+      ctx.pdf.setFillColor(...RGB.redNeg);
+      ctx.pdf.rect(mid - w, rowY, w, 4.5, "F");
+    }
+    ctx.pdf.setFont("helvetica", "normal");
+    ctx.pdf.setTextColor(...(a.returnPct >= 0 ? RGB.green : RGB.redNeg));
+    ctx.pdf.text(fmtPct(a.returnPct), barX + barMaxW + 2, rowY + 3);
+    ctx.y += 7;
+  }
+  // eje cero
+  ctx.pdf.setDrawColor(...RGB.lightGray);
+  ctx.pdf.setLineWidth(0.2);
+  ctx.y += 1;
+}
+
+// 04b — Mapa de calor mensual
+function renderMonthlyHeatmap(ctx: RenderCtx, result: BacktestResult) {
+  drawSectionHeader(ctx, "05", "Mapa de calor mensual");
+  drawBody(ctx,
+    "La textura real del camino, mes a mes. Casi todos los meses no pasa casi nada; el dinero " +
+    "se hace aguantando los pocos meses extraordinarios, que llegan sin avisar."
+  );
+  const ts = result.timeSeries;
+  const cells = new Map<string, number>();
+  for (let i = 1; i < ts.length; i++) {
+    const prev = ts[i - 1]!.value;
+    const cur = ts[i]!.value;
+    if (prev > 0) cells.set(ts[i]!.date.substring(0, 7), cur / prev - 1);
+  }
+  const years = Array.from(new Set(ts.map((p) => p.date.substring(0, 4)))).sort();
+  if (cells.size === 0) { drawBody(ctx, "Sin datos mensuales suficientes.", { italic: true }); return; }
+  const maxAbs = Math.max(...Array.from(cells.values()).map((v) => Math.abs(v)), 0.01);
+  const yearW = 12;
+  const cellW = (CW - yearW) / 12;
+  const cellH = 6;
+  ensureSpace(ctx, (years.length + 1) * cellH + 8);
+  // cabecera meses
+  ctx.pdf.setFontSize(6.5);
+  ctx.pdf.setFont("helvetica", "bold");
+  ctx.pdf.setTextColor(...RGB.gray);
+  for (let m = 0; m < 12; m++) {
+    ctx.pdf.text(MONTHS_ES[m]!, ML + yearW + m * cellW + cellW / 2, ctx.y + 3, { align: "center" });
+  }
+  ctx.y += cellH;
+  for (const y of years) {
+    ensureSpace(ctx, cellH + 2);
+    ctx.pdf.setFont("helvetica", "bold");
+    ctx.pdf.setFontSize(6.5);
+    ctx.pdf.setTextColor(...RGB.dark);
+    ctx.pdf.text(y, ML, ctx.y + 4);
+    for (let m = 0; m < 12; m++) {
+      const key = `${y}-${String(m + 1).padStart(2, "0")}`;
+      const x = ML + yearW + m * cellW;
+      if (cells.has(key)) {
+        const v = cells.get(key)!;
+        ctx.pdf.setFillColor(...heatColor(v, maxAbs));
+        ctx.pdf.rect(x, ctx.y, cellW - 0.5, cellH - 0.5, "F");
+        ctx.pdf.setFontSize(5);
+        ctx.pdf.setFont("helvetica", "normal");
+        ctx.pdf.setTextColor(...(Math.abs(v) / maxAbs > 0.55 ? RGB.white : RGB.dark));
+        ctx.pdf.text((v * 100).toFixed(0), x + cellW / 2, ctx.y + cellH / 2 + 1, { align: "center" });
+      } else {
+        ctx.pdf.setFillColor(...RGB.rowAlt);
+        ctx.pdf.rect(x, ctx.y, cellW - 0.5, cellH - 0.5, "F");
+      }
+    }
+    ctx.y += cellH;
+  }
+  ctx.y += 4;
+}
+
+// 04c — Las peores caídas
+function renderTopDrawdowns(ctx: RenderCtx, result: BacktestResult) {
+  drawSectionHeader(ctx, "06", "Las peores caídas");
+  drawBody(ctx,
+    "El examen de verdad de una cartera no es cuánto sube, es cuánto cae y cuánto tarda en " +
+    "recuperarse. El que vende en el fondo convierte una caída temporal en una pérdida permanente."
+  );
+  const dd = result.topDrawdowns.slice(0, 5);
+  if (dd.length === 0) { drawBody(ctx, "No se registraron caídas significativas.", { italic: true }); return; }
+  const body = dd.map((d, i) => [
+    `#${i + 1}`,
+    fmtPct(d.drawdownPct * 100),
+    (d.peakExactDate ?? d.peakDate).substring(0, 7),
+    (d.troughExactDate ?? d.troughDate).substring(0, 7),
+    d.recoveryDate ? (d.recoveryExactDate ?? d.recoveryDate).substring(0, 7) : "Sin recuperar",
+    d.recoveryMonths != null ? `${d.recoveryMonths} m` : "—",
+  ]);
+  drawTable(ctx, ["#", "Caída", "Desde", "Fondo", "Recuperación", "Tardó"], body, {
+    1: { halign: "right", fontStyle: "bold" },
+  });
+}
+
+// 06b — Rentabilidad en ventanas móviles
+function renderRolling(ctx: RenderCtx, result: BacktestResult) {
+  drawSectionHeader(ctx, "07", "Rentabilidad en ventanas móviles");
+  drawBody(ctx,
+    "Esto es el mejor antídoto contra el 'lo invierto cuando baje'. Mira qué rentabilidad " +
+    "anualizada habrías obtenido según el mes en que entraste, a 1, 3 y 5 años. Cuanto más " +
+    "larga la ventana, más se estrecha el abanico: el tiempo es tu mejor aliado."
+  );
+  const rs = result.rollingStats;
+  const body = [rs.oneYear, rs.threeYear, rs.fiveYear, rs.tenYear]
+    .filter((b) => b.count > 0)
+    .map((b) => [
+      b.label,
+      String(b.count),
+      fmtPct(b.bestCagr * 100),
+      fmtPct(b.avgCagr * 100),
+      fmtPct(b.worstCagr * 100),
+      `${(b.positiveRatio * 100).toFixed(0)}%`,
+    ]);
+  if (body.length === 0) { drawBody(ctx, "El periodo es demasiado corto para ventanas móviles.", { italic: true }); return; }
+  drawTable(ctx, ["Ventana", "Nº", "Mejor", "Media", "Peor", "% positivas"], body, {
+    2: { halign: "right" }, 3: { halign: "right", fontStyle: "bold" }, 4: { halign: "right" }, 5: { halign: "right" },
+  });
+  const fiveY = rs.fiveYear;
+  if (fiveY.count > 0 && fiveY.worstCagr >= 0) {
+    drawBody(ctx,
+      `Dato para enmarcar: en TODAS las ventanas de 5 años del periodo, hasta la peor terminó en ` +
+      `positivo (${fmtPct(fiveY.worstCagr * 100)} anual). Esto es exactamente por lo que el largo plazo perdona.`,
+      { size: 9, color: RGB.green, bold: true }
+    );
+  }
+}
+
+// 07b — Distribución de rentabilidades (histograma)
+function renderHistogram(ctx: RenderCtx, result: BacktestResult) {
+  drawSectionHeader(ctx, "08", "Distribución de rentabilidades");
+  const h = result.returnsHistogram;
+  drawBody(ctx,
+    `Con qué frecuencia se repiten los meses buenos y malos (${h.periodLabel.toLowerCase()}). ` +
+    "La mayoría se agolpa cerca del centro: el día a día es aburrido. Lo que mueve la aguja son las colas."
+  );
+  if (h.bins.length === 0) { drawBody(ctx, "Sin datos suficientes para la distribución.", { italic: true }); return; }
+  const maxCount = Math.max(...h.bins.map((b) => b.count), 1);
+  ensureSpace(ctx, 62);
+  const chartX = ML + 4;
+  const chartY = ctx.y;
+  const chartW = CW - 8;
+  const chartH = 48;
+  const bw = chartW / h.bins.length;
+  for (let i = 0; i < h.bins.length; i++) {
+    const b = h.bins[i]!;
+    const barH = (b.count / maxCount) * chartH;
+    const x = chartX + i * bw;
+    ctx.pdf.setFillColor(...(b.binMid >= 0 ? RGB.green : RGB.redNeg));
+    ctx.pdf.rect(x + 0.4, chartY + chartH - barH, bw - 0.8, barH, "F");
+  }
+  // eje X
+  ctx.pdf.setDrawColor(...RGB.lightGray);
+  ctx.pdf.setLineWidth(0.3);
+  ctx.pdf.line(chartX, chartY + chartH, chartX + chartW, chartY + chartH);
+  ctx.pdf.setFontSize(5.5);
+  ctx.pdf.setFont("helvetica", "normal");
+  ctx.pdf.setTextColor(...RGB.gray);
+  for (let i = 0; i < h.bins.length; i += Math.ceil(h.bins.length / 8)) {
+    const b = h.bins[i]!;
+    ctx.pdf.text(`${(b.binMid * 100).toFixed(0)}%`, chartX + i * bw + bw / 2, chartY + chartH + 4, { align: "center" });
+  }
+  ctx.y += chartH + 8;
+  drawBody(ctx,
+    `Media mensual ${fmtPct(h.mean * 100, 2)}, con una desviación de ${(h.stdDev * 100).toFixed(2)}%. ` +
+    "Cuanto más a la derecha esté el grueso y más cortas las colas rojas, mejor duermes.",
+    { size: 9, color: RGB.gray }
+  );
+}
+
+// 08b — De qué está hecha tu cartera (composición)
+function renderComposition(ctx: RenderCtx, result: BacktestResult) {
+  drawSectionHeader(ctx, "09", "De qué está hecha tu cartera");
+  drawBody(ctx,
+    "Lo que de verdad determina tu resultado no es qué fondo concreto eliges, sino el reparto " +
+    "entre tipos de activo. Aquí está esa foto."
+  );
+  const a = result.allocation;
+  const drawSlices = (title: string, slices: { label: string; weight: number }[]) => {
+    if (!slices || slices.length === 0) return;
+    drawBody(ctx, title, { bold: true, size: 10 });
+    const body = slices
+      .slice()
+      .sort((x, y) => y.weight - x.weight)
+      .map((s) => [s.label, fmtPct(s.weight * 100).replace("+", "")]);
+    drawTable(ctx, ["Categoría", "Peso"], body, { 1: { halign: "right", fontStyle: "bold" } });
+  };
+  drawSlices("Por clase de activo (RV / RF / Oro / Alternativos)", a.byAssetClass);
+  drawSlices("Por estilo de gestión (indexado vs activo)", a.byManagement);
+}
+
+// 09b — Correlación entre activos
+function renderCorrelations(ctx: RenderCtx, matrix?: CorrelationMatrix) {
+  drawSectionHeader(ctx, "10", "Correlación entre activos");
+  drawBody(ctx,
+    "Diversificar no es tener muchos fondos: es tener fondos que NO se muevan a la vez. Dos " +
+    "fondos con correlación 0,95 son, a efectos prácticos, el mismo fondo cobrándote dos comisiones. " +
+    "Verde = se diversifican; rojo = van de la mano."
+  );
+  if (!matrix || matrix.fundIds.length < 2) {
+    drawBody(ctx, "Se necesitan al menos dos activos con histórico común para calcular correlaciones.", { italic: true });
+    return;
+  }
+  const n = matrix.fundIds.length;
+  const names = matrix.fundNames;
+  const labelW = 30;
+  const cellW = Math.min(12, (CW - labelW) / n);
+  const cellH = 7;
+  ensureSpace(ctx, (n + 1) * cellH + 6);
+  // cabecera: índices
+  ctx.pdf.setFontSize(6);
+  ctx.pdf.setFont("helvetica", "bold");
+  ctx.pdf.setTextColor(...RGB.gray);
+  for (let j = 0; j < n; j++) {
+    ctx.pdf.text(String(j + 1), ML + labelW + j * cellW + cellW / 2, ctx.y + 4, { align: "center" });
+  }
+  ctx.y += cellH;
+  for (let i = 0; i < n; i++) {
+    ensureSpace(ctx, cellH + 2);
+    ctx.pdf.setFont("helvetica", "normal");
+    ctx.pdf.setFontSize(6.5);
+    ctx.pdf.setTextColor(...RGB.dark);
+    const label = `${i + 1}. ${names[i] ?? matrix.fundIds[i]}`;
+    ctx.pdf.text(label.length > 26 ? label.substring(0, 25) + "…" : label, ML, ctx.y + 4.5);
+    for (let j = 0; j < n; j++) {
+      const c = matrix.matrix[i]?.[j] ?? 0;
+      const x = ML + labelW + j * cellW;
+      ctx.pdf.setFillColor(...corrColor(c));
+      ctx.pdf.rect(x, ctx.y, cellW - 0.5, cellH - 0.5, "F");
+      ctx.pdf.setFontSize(5.5);
+      ctx.pdf.setTextColor(...RGB.dark);
+      ctx.pdf.text(c.toFixed(2), x + cellW / 2, ctx.y + cellH / 2 + 1, { align: "center" });
+    }
+    ctx.y += cellH;
+  }
+  ctx.y += 4;
+}
+
+// 10b — Métricas por activo
+function renderAssetMetricsSection(ctx: RenderCtx, assets?: AssetMetrics[]) {
+  drawSectionHeader(ctx, "11", "Métricas por activo");
+  drawBody(ctx,
+    "Qué aporta cada pieza por separado. Mira con lupa los fondos de gestión activa: si uno " +
+    "se mueve igual que un índice pero cobra cinco veces más de comisión, ya sabes qué sobra."
+  );
+  if (!assets || assets.length === 0) {
+    drawBody(ctx, "No hay métricas por activo disponibles para esta cartera.", { italic: true });
+    return;
+  }
+  const body = assets
+    .slice()
+    .sort((a, b) => b.cagr - a.cagr)
+    .map((a) => [
+      a.name.length > 28 ? a.name.substring(0, 27) + "…" : a.name,
+      `${a.ter.toFixed(2)}%`,
+      fmtPct(a.cagr * 100),
+      fmtPct(a.volatility * 100).replace("+", ""),
+      fmtPct(a.maxDrawdown * 100),
+      a.sharpe.toFixed(2),
+    ]);
+  drawTable(ctx, ["Activo", "TER", "CAGR", "Volat.", "Máx DD", "Sharpe"], body, {
+    1: { halign: "right" }, 2: { halign: "right", fontStyle: "bold" }, 3: { halign: "right" },
+    4: { halign: "right" }, 5: { halign: "right" },
+  });
+}
+
+// 11b — Resistencia en crisis históricas
+function renderStress(ctx: RenderCtx, result: BacktestResult, benchmark?: BenchmarkComparison) {
+  drawSectionHeader(ctx, "12", "Resistencia en crisis históricas");
+  drawBody(ctx,
+    "Las crisis no se avisan, pero sí se repiten. Así se habría comportado tu cartera en los " +
+    "episodios que de verdad ponen a prueba el estómago de un inversor."
+  );
+  const sp = result.stressPeriods.filter((s) => s.hasFullData);
+  if (sp.length === 0) {
+    drawBody(ctx, "El periodo analizado no cubre crisis históricas completas (2008, COVID 2020, 2022).", { italic: true });
+    return;
+  }
+  const bmMap = new Map((benchmark?.benchmarkStressPeriods ?? []).map((s) => [s.id, s]));
+  const hasBm = bmMap.size > 0;
+  const body = sp.map((s) => {
+    const row: (string | number)[] = [
+      s.name,
+      s.totalReturn != null ? fmtPct(s.totalReturn * 100) : "—",
+      s.maxDrawdown != null ? fmtPct(s.maxDrawdown * 100) : "—",
+    ];
+    if (hasBm) {
+      const b = bmMap.get(s.id);
+      row.push(b && b.totalReturn != null ? fmtPct(b.totalReturn * 100) : "—");
+    }
+    return row;
+  });
+  const head = hasBm
+    ? ["Episodio", "Rentab.", "Peor caída", benchmark?.benchmarkName ?? "Ref."]
+    : ["Episodio", "Rentabilidad", "Peor caída"];
+  drawTable(ctx, head, body, { 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right" }, 3: { halign: "right" } });
+}
+
+// 12b — Comparativa con el benchmark
+function renderComparison(ctx: RenderCtx, result: BacktestResult, benchmark?: BenchmarkComparison) {
+  drawSectionHeader(ctx, "13", "Comparativa con la referencia");
+  if (!benchmark) {
+    drawBody(ctx, "No seleccionaste un benchmark de referencia para esta comparación.", { italic: true });
+    return;
+  }
+  drawBody(ctx,
+    `Frente a ${benchmark.benchmarkName}. La pregunta honesta no es solo si bates al índice, sino ` +
+    "si el extra que sacas (o dejas de sacar) compensa el riesgo y el coste que asumes."
+  );
+  const body: (string | number)[][] = [
+    ["Alfa de Jensen (anual)", fmtPct(benchmark.alpha * 100)],
+    ["Beta", benchmark.beta.toFixed(2)],
+    ["Correlación", benchmark.correlation.toFixed(2)],
+    ["R²", benchmark.rSquared.toFixed(2)],
+    ["Tracking error", fmtPct(benchmark.trackingError * 100).replace("+", "")],
+    ["Information ratio", benchmark.informationRatio.toFixed(2)],
+    ["Captura de subidas", `${(benchmark.upCapture * 100).toFixed(0)}%`],
+    ["Captura de bajadas", `${(benchmark.downCapture * 100).toFixed(0)}%`],
+  ];
+  drawTable(ctx, ["Métrica vs referencia", "Valor"], body, { 1: { halign: "right", fontStyle: "bold" } });
+  drawBody(ctx,
+    "Capturar el 100% de las subidas y menos del 100% de las bajadas es el santo grial. Si capturas " +
+    "más bajada que subida, el fondo te está saliendo caro en el peor momento.",
+    { size: 9, color: RGB.gray }
+  );
+}
+
+// 13b — El poder de las aportaciones
+function renderContributions(ctx: RenderCtx, result: BacktestResult) {
+  drawSectionHeader(ctx, "14", "El poder de las aportaciones");
+  const aportado = result.totalContributions;
+  const inicial = result.timeSeries[0]?.value ?? 0;
+  const aportadoPeriodico = Math.max(0, aportado - inicial);
+  const valorFinal = result.finalValue;
+  const crecimiento = valorFinal - aportado;
+  drawBody(ctx,
+    "Cuánto de tu patrimonio final viene de aportar con disciplina y cuánto del crecimiento " +
+    "compuesto. Aportar cada mes pase lo que pase es, sin glamour, la decisión que más mueve la aguja."
+  );
+  const body: (string | number)[][] = [
+    ["Capital inicial", fmtEUR(inicial)],
+    ["Aportado durante el periodo", fmtEUR(aportadoPeriodico)],
+    ["Total de tu bolsillo", fmtEUR(aportado)],
+    ["Generado por el mercado", fmtEUR(crecimiento)],
+    ["Valor final", fmtEUR(valorFinal)],
+  ];
+  drawTable(ctx, ["Concepto", "Importe"], body, { 1: { halign: "right", fontStyle: "bold" } });
+  if (aportado > 0) {
+    const pctCrec = (crecimiento / valorFinal) * 100;
+    drawBody(ctx,
+      `De cada 100 € de tu patrimonio final, ${(100 - pctCrec).toFixed(0)} € los pusiste tú y ` +
+      `${pctCrec.toFixed(0)} € los puso el interés compuesto. Esa segunda cifra crece sola con el tiempo.`,
+      { size: 9, color: RGB.green, bold: true }
+    );
+  }
+}
+
+// 14b — Historial de movimientos (rebalanceos)
+function renderRebalances(ctx: RenderCtx, result: BacktestResult) {
+  drawSectionHeader(ctx, "15", "Historial de movimientos");
+  drawBody(ctx,
+    "Cada rebalanceo vende lo que ha subido y compra lo que ha bajado: disciplina automática " +
+    "que te obliga a hacer lo contrario de lo que pide el miedo. Si tributas, también ves aquí el peaje."
+  );
+  const rb = result.rebalanceLog;
+  if (rb.length === 0) { drawBody(ctx, "No hubo rebalanceos en el periodo (cartera sin rebalanceo o un solo activo).", { italic: true }); return; }
+  const totalTax = rb.reduce((s, r) => s + r.taxPaid, 0);
+  const body = rb.slice(0, 24).map((r) => [
+    r.date.substring(0, 7),
+    fmtEUR(r.portfolioValueBefore),
+    r.totalGain >= 0 ? fmtEUR(r.totalGain) : `-${fmtEUR(-r.totalGain)}`,
+    r.taxPaid > 0 ? fmtEUR(r.taxPaid) : "—",
+  ]);
+  drawTable(ctx, ["Fecha", "Valor cartera", "Plusvalía cristalizada", "Impuesto"], body, {
+    1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right", fontStyle: "bold" },
+  });
+  if (rb.length > 24) drawBody(ctx, `(Mostrados los primeros 24 de ${rb.length} movimientos.)`, { size: 8, italic: true, color: RGB.gray });
+  if (totalTax > 0) {
+    drawBody(ctx,
+      `Peaje fiscal total por el camino: ${fmtEUR(totalTax)}. Cada euro que adelantas a Hacienda ` +
+      "es un euro que deja de componer — por eso la fiscalidad diferida de los fondos traspasables es oro.",
+      { size: 9, color: RGB.redNeg }
+    );
+  }
+}
+
 // -----------------------------------------------------------------------------
 // API PÚBLICA
 // -----------------------------------------------------------------------------
@@ -989,13 +1506,8 @@ export function generateReportPDF(
     orientation: "portrait",
   });
 
-  // Orden canónico de secciones
-  const ORDER: ReportSectionId[] = [
-    "cover", "score", "summary", "evolution", "crisis", "taxes",
-    "comparison", "stress", "composition", "contributions",
-    "rebalances", "recommendation", "disclaimer",
-  ];
-  const selected = ORDER.filter((id) => config.sections.includes(id));
+  // Orden canónico de secciones = orden de la pantalla de resultados.
+  const selected = FULL_BACKTEST_ORDER.filter((id) => config.sections.includes(id));
 
   let pageNum = 0;
   let coverDone = false;
@@ -1027,9 +1539,22 @@ export function generateReportPDF(
 
       if (id === "score") renderScore(ctx, score, benchScore, benchName);
       else if (id === "summary") renderSummary(ctx, result, score);
+      else if (id === "metricsFull") renderMetricsFull(ctx, result, benchmark);
       else if (id === "evolution") renderEvolution(ctx, result, benchmark);
+      else if (id === "annualReturns") renderAnnualReturns(ctx, result);
+      else if (id === "monthlyHeatmap") renderMonthlyHeatmap(ctx, result);
       else if (id === "crisis") renderCrisis(ctx, result, benchmark);
+      else if (id === "topDrawdowns") renderTopDrawdowns(ctx, result);
+      else if (id === "rolling") renderRolling(ctx, result);
+      else if (id === "histogram") renderHistogram(ctx, result);
       else if (id === "taxes") renderTaxes(ctx, result, other ?? undefined, benchmark);
+      else if (id === "comparison") renderComparison(ctx, result, benchmark);
+      else if (id === "stress") renderStress(ctx, result, benchmark);
+      else if (id === "composition") renderComposition(ctx, result);
+      else if (id === "correlations") renderCorrelations(ctx, results.correlationMatrix);
+      else if (id === "assetMetrics") renderAssetMetricsSection(ctx, results.assetMetrics);
+      else if (id === "contributions") renderContributions(ctx, result);
+      else if (id === "rebalances") renderRebalances(ctx, result);
       else if (id === "recommendation") renderRecommendation(ctx, score);
       else if (id === "disclaimer") renderDisclaimer(ctx);
     }

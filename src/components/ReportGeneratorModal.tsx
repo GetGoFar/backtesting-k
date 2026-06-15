@@ -38,9 +38,9 @@ export function ReportGeneratorModal({ open, onClose, results }: ReportGenerator
   const hasA = !!results.resultA;
   const hasB = !!results.resultB;
 
-  const [preset, setPreset] = useState<ReportPreset>("estandar");
+  const [preset, setPreset] = useState<ReportPreset>("completo");
   const [selectedSections, setSelectedSections] = useState<Set<ReportSectionId>>(
-    new Set(PRESET_SECTIONS.estandar)
+    new Set(PRESET_SECTIONS.completo)
   );
   const [primaryPortfolio, setPrimaryPortfolio] = useState<"a" | "b">(hasA ? "a" : "b");
   const [clientName, setClientName] = useState("");

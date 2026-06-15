@@ -6,12 +6,20 @@ export type ReportSectionId =
   | "cover"
   | "score"
   | "summary"
+  | "metricsFull"
   | "evolution"
+  | "annualReturns"
+  | "monthlyHeatmap"
   | "crisis"
+  | "topDrawdowns"
+  | "rolling"
+  | "histogram"
   | "taxes"
   | "comparison"
   | "stress"
   | "composition"
+  | "correlations"
+  | "assetMetrics"
   | "contributions"
   | "rebalances"
   | "recommendation"
@@ -120,11 +128,76 @@ export const REPORT_SECTIONS: ReportSectionMeta[] = [
     defaultEnabled: false,
     pages: 2,
   },
+  // --- Secciones que reproducen el backtest completo de pantalla ---
+  {
+    id: "metricsFull",
+    title: "Todas las métricas",
+    emoji: "📐",
+    description: "Tabla completa: CAGR, volatilidad, Sharpe, Sortino, drawdown, mejor/peor mes, % meses positivos (vs benchmark si está).",
+    defaultEnabled: false,
+    pages: 1,
+  },
+  {
+    id: "annualReturns",
+    title: "Rentabilidad año a año",
+    emoji: "📅",
+    description: "Cada año natural en verde/rojo: cuándo ganó y cuándo perdió tu cartera.",
+    defaultEnabled: false,
+    pages: 1,
+  },
+  {
+    id: "monthlyHeatmap",
+    title: "Mapa de calor mensual",
+    emoji: "🗓️",
+    description: "Rejilla mes a mes coloreada por rentabilidad — la textura real del camino.",
+    defaultEnabled: false,
+    pages: 1,
+  },
+  {
+    id: "topDrawdowns",
+    title: "Las peores caídas",
+    emoji: "📉",
+    description: "Las 5 mayores caídas: cuánto, cuándo y cuánto tardó en recuperarse.",
+    defaultEnabled: false,
+    pages: 1,
+  },
+  {
+    id: "rolling",
+    title: "Rentabilidad en ventanas móviles",
+    emoji: "🪟",
+    description: "Rentabilidad anualizada a 1, 3 y 5 años según el momento de entrada — el mejor antídoto contra el 'market timing'.",
+    defaultEnabled: false,
+    pages: 1,
+  },
+  {
+    id: "histogram",
+    title: "Distribución de rentabilidades",
+    emoji: "📊",
+    description: "Con qué frecuencia se repiten meses buenos y malos (forma de la distribución).",
+    defaultEnabled: false,
+    pages: 1,
+  },
+  {
+    id: "correlations",
+    title: "Correlación entre activos",
+    emoji: "🔗",
+    description: "Qué activos se mueven juntos y cuáles te diversifican de verdad.",
+    defaultEnabled: false,
+    pages: 1,
+  },
+  {
+    id: "assetMetrics",
+    title: "Métricas por activo",
+    emoji: "🧩",
+    description: "Rentabilidad, volatilidad y peso de cada fondo de la cartera por separado.",
+    defaultEnabled: false,
+    pages: 1,
+  },
   {
     id: "recommendation",
-    title: "Recomendación y siguientes pasos",
+    title: "Conclusiones",
     emoji: "🎯",
-    description: "Conclusión personalizada según la nota global y CTA al Taller K.",
+    description: "Lectura final de los datos y puntos a observar (sin prescripción).",
     defaultEnabled: true,
     pages: 1,
   },
@@ -145,16 +218,42 @@ export const REPORT_SECTIONS: ReportSectionMeta[] = [
 
 export type ReportPreset = "basico" | "estandar" | "completo" | "personalizado";
 
+// Orden canónico = orden de la pantalla de resultados del backtest.
+export const FULL_BACKTEST_ORDER: ReportSectionId[] = [
+  "cover",
+  "score",
+  "summary",
+  "metricsFull",
+  "evolution",
+  "annualReturns",
+  "monthlyHeatmap",
+  "crisis",
+  "topDrawdowns",
+  "rolling",
+  "histogram",
+  "composition",
+  "correlations",
+  "assetMetrics",
+  "stress",
+  "taxes",
+  "comparison",
+  "contributions",
+  "rebalances",
+  "recommendation",
+  "disclaimer",
+];
+
 export const PRESET_SECTIONS: Record<Exclude<ReportPreset, "personalizado">, ReportSectionId[]> = {
   basico: ["cover", "score", "summary", "recommendation", "disclaimer"],
   estandar: ["cover", "score", "summary", "evolution", "crisis", "taxes", "recommendation", "disclaimer"],
-  completo: REPORT_SECTIONS.map((s) => s.id),
+  // "Backtest completo": reproduce TODO lo de la pantalla de resultados, en orden.
+  completo: FULL_BACKTEST_ORDER,
 };
 
 export const PRESET_LABELS: Record<ReportPreset, string> = {
   basico: "Básico (5 páginas)",
   estandar: "Estándar (8 páginas)",
-  completo: "Completo (13 páginas)",
+  completo: "Backtest completo (todo)",
   personalizado: "Personalizado",
 };
 
