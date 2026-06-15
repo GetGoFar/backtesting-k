@@ -654,10 +654,14 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
 
   return (
     <div
-      className={`${colors.bg} border ${colors.border} rounded-lg overflow-hidden shadow-sm`}
+      // Sin overflow-hidden: recortaba el desplegable de carteras (las de más
+      // abajo no se veían ni se podían alcanzar). El redondeo de esquinas se
+      // mantiene con rounded-t-lg en la cabecera (único hijo con fondo de color
+      // que llega a un borde).
+      className={`${colors.bg} border ${colors.border} rounded-lg shadow-sm`}
     >
       {/* Header con color */}
-      <div className={`${colors.headerBg} px-4 py-3`}>
+      <div className={`${colors.headerBg} px-4 py-3 rounded-t-lg`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center text-white font-bold text-sm">
@@ -763,7 +767,7 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
           </button>
 
           {showPresetDropdown && (
-            <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-96 overflow-auto">
+            <div className="absolute z-30 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-[32rem] overflow-auto">
               {/* Carteras de Consultoría individual (clientes) — destacadas
                   arriba del todo para que sean fáciles de encontrar durante
                   revisiones del cliente. */}
