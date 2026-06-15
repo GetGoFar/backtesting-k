@@ -24,27 +24,32 @@ import { computeTaxOnGain, type TaxMode } from "./tax-utils";
 // COLORES (RGB para jsPDF)
 // -----------------------------------------------------------------------------
 
+// Paleta MODERNA: papel blanco limpio + rojo de marca (#C81E2E) + grises
+// neutros, con beige solo como acento sutil. Reemplaza el look beige antiguo.
 const RGB = {
   beige: [245, 240, 232] as [number, number, number],
-  red: [192, 57, 43] as [number, number, number],
-  dark: [44, 44, 44] as [number, number, number],
-  gray: [107, 107, 107] as [number, number, number],
-  lightGray: [213, 206, 189] as [number, number, number],
+  page: [255, 255, 255] as [number, number, number],     // fondo de página: blanco
+  red: [200, 30, 46] as [number, number, number],         // rojo de marca #C81E2E
+  redDark: [160, 22, 36] as [number, number, number],
+  dark: [26, 26, 26] as [number, number, number],         // tinta casi negra moderna
+  gray: [107, 114, 128] as [number, number, number],      // gris #6B7280
+  lightGray: [229, 231, 235] as [number, number, number], // hairline #E5E7EB
   white: [255, 255, 255] as [number, number, number],
-  rowLight: [250, 247, 242] as [number, number, number],
-  rowAlt: [240, 235, 225] as [number, number, number],
-  green: [46, 125, 50] as [number, number, number],
-  redNeg: [198, 40, 40] as [number, number, number],
-  darkBg: [44, 62, 80] as [number, number, number],
+  rowLight: [255, 255, 255] as [number, number, number],  // filas: blanco
+  rowAlt: [249, 250, 251] as [number, number, number],    // alterna gris muy claro
+  card: [248, 247, 244] as [number, number, number],      // tarjeta beige sutil
+  green: [5, 150, 105] as [number, number, number],       // verde moderno #059669
+  redNeg: [220, 38, 38] as [number, number, number],      // rojo dato #DC2626
+  darkBg: [17, 24, 39] as [number, number, number],       // casi negro #111827
   gold: [212, 160, 23] as [number, number, number],
   // Identidad visual del benchmark (coherente con la app): púrpura #9333ea
   purple: [147, 51, 234] as [number, number, number],
-  // Púrpura claro para rellenos/áreas del benchmark (#a855f7)
   purpleLight: [168, 85, 247] as [number, number, number],
-  // Colores semánticos de cartera en informes comparativos (coherentes con la
-  // app): Cartera A azul #1d4ed8, Cartera B rosa #e11d48.
+  // Colores semánticos de cartera: Cartera A azul #1d4ed8, Cartera B rosa #e11d48.
   blueA: [29, 78, 216] as [number, number, number],
+  blueAbg: [239, 246, 255] as [number, number, number],   // azul claro de relleno
   roseB: [225, 29, 72] as [number, number, number],
+  roseBbg: [255, 241, 242] as [number, number, number],   // rosa claro de relleno
 };
 
 // -----------------------------------------------------------------------------
@@ -93,42 +98,52 @@ interface RenderCtx {
   subtitle: string;
 }
 
-/** Dibuja el fondo beige completo de la página actual */
+/** Dibuja el fondo blanco limpio de la página actual */
 function drawBackground(pdf: jsPDF) {
-  pdf.setFillColor(...RGB.beige);
+  pdf.setFillColor(...RGB.page);
   pdf.rect(0, 0, PAGE_W, PAGE_H, "F");
 }
 
-/** Dibuja el header (solo para páginas de contenido, no portada) */
-function drawHeader(pdf: jsPDF, subtitle: string) {
-  // "El Proyecto K" (izquierda) + subtítulo (derecha)
+/** Badge cuadrado redondeado con la "K" — el logo de El Proyecto K.
+ *  light=true → badge blanco con K roja (para fondos de color). */
+function drawLogoBadge(pdf: jsPDF, x: number, y: number, size: number, light = false) {
+  pdf.setFillColor(...(light ? RGB.white : RGB.red));
+  pdf.roundedRect(x, y, size, size, size * 0.24, size * 0.24, "F");
   pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(9);
-  pdf.setTextColor(...RGB.dark);
-  pdf.text("El Proyecto K", ML, 12);
-
-  pdf.setFont("helvetica", "normal");
-  pdf.setTextColor(...RGB.gray);
-  pdf.text(subtitle, PAGE_W - MR, 12, { align: "right" });
-
-  // Línea roja debajo
-  pdf.setDrawColor(...RGB.red);
-  pdf.setLineWidth(0.4);
-  pdf.line(ML, 14, PAGE_W - MR, 14);
+  pdf.setFontSize(size * 2.0);
+  pdf.setTextColor(...(light ? RGB.red : RGB.white));
+  pdf.text("K", x + size / 2, y + size * 0.71, { align: "center" });
 }
 
-/** Dibuja el footer */
+/** Header de páginas de contenido: logo + marca a la izq, subtítulo a la der. */
+function drawHeader(pdf: jsPDF, subtitle: string) {
+  drawLogoBadge(pdf, ML, 7.5, 5);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(8.5);
+  pdf.setTextColor(...RGB.dark);
+  pdf.text("El Proyecto K", ML + 6.5, 11.2);
+
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(8);
+  pdf.setTextColor(...RGB.gray);
+  pdf.text(subtitle, PAGE_W - MR, 11.2, { align: "right" });
+
+  pdf.setDrawColor(...RGB.lightGray);
+  pdf.setLineWidth(0.3);
+  pdf.line(ML, 14.5, PAGE_W - MR, 14.5);
+}
+
+/** Footer minimalista */
 function drawFooter(pdf: jsPDF, pageNum: number) {
-  // Línea gris encima
   pdf.setDrawColor(...RGB.lightGray);
   pdf.setLineWidth(0.2);
-  pdf.line(ML, PAGE_H - 14, PAGE_W - MR, PAGE_H - 14);
-
+  pdf.line(ML, PAGE_H - 13, PAGE_W - MR, PAGE_H - 13);
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(7);
   pdf.setTextColor(...RGB.gray);
-  pdf.text("www.elproyectok.com", ML, PAGE_H - 10);
-  pdf.text(String(pageNum), PAGE_W - MR, PAGE_H - 10, { align: "right" });
+  pdf.text("El Proyecto K · Inversión indexada de bajo coste", ML, PAGE_H - 9);
+  pdf.setFont("helvetica", "bold");
+  pdf.text(String(pageNum), PAGE_W - MR, PAGE_H - 9, { align: "right" });
 }
 
 /** Inicia una nueva página de contenido (con header y footer) */
@@ -150,25 +165,23 @@ function ensureSpace(ctx: RenderCtx, needed: number): RenderCtx {
   return ctx;
 }
 
-/** Dibuja cabecera de sección: número rojo + título + línea separadora */
+/** Cabecera de sección moderna: barra de acento roja + eyebrow + título grande. */
 function drawSectionHeader(ctx: RenderCtx, num: string, title: string) {
+  ctx.y += 1;
+  // Barra de acento vertical roja
+  ctx.pdf.setFillColor(...RGB.red);
+  ctx.pdf.roundedRect(ML, ctx.y - 3.5, 1.4, 11, 0.7, 0.7, "F");
+  // Eyebrow (número en rojo, pequeño)
   ctx.pdf.setFont("helvetica", "bold");
-  ctx.pdf.setFontSize(11);
+  ctx.pdf.setFontSize(8);
   ctx.pdf.setTextColor(...RGB.red);
-  ctx.pdf.text(num, ML, ctx.y);
-  ctx.y += 6;
-
+  ctx.pdf.text(`SECCIÓN ${num}`, ML + 4, ctx.y - 0.5);
+  // Título grande
   ctx.pdf.setFont("helvetica", "bold");
-  ctx.pdf.setFontSize(20);
+  ctx.pdf.setFontSize(19);
   ctx.pdf.setTextColor(...RGB.dark);
-  ctx.pdf.text(title, ML, ctx.y);
-  ctx.y += 7;
-
-  // Línea separadora roja
-  ctx.pdf.setDrawColor(...RGB.red);
-  ctx.pdf.setLineWidth(0.3);
-  ctx.pdf.line(ML, ctx.y, PAGE_W - MR, ctx.y);
-  ctx.y += 6;
+  ctx.pdf.text(title, ML + 4, ctx.y + 6.5);
+  ctx.y += 13;
 }
 
 /** Dibuja un párrafo justificado con wrap automático */
@@ -194,32 +207,70 @@ function drawBody(
 }
 
 /** Caja CTA con borde rojo a la izquierda */
+/** Caja de comentario destacado: tarjeta beige sutil con barra roja y título. */
 function drawCTABox(ctx: RenderCtx, title: string, body: string) {
-  const boxH = 24 + (Math.ceil(body.length / 90)) * 5;
+  ctx.pdf.setFont("helvetica", "normal");
+  ctx.pdf.setFontSize(9.5);
+  const lines = ctx.pdf.splitTextToSize(body, CW - 12) as string[];
+  const boxH = 12 + lines.length * 4.6 + 3;
   ensureSpace(ctx, boxH + 6);
-  // Fondo
-  ctx.pdf.setFillColor(...RGB.rowAlt);
-  ctx.pdf.rect(ML + 1, ctx.y, CW - 1, boxH, "F");
-  // Borde izquierdo rojo
+  // Tarjeta redondeada con fondo sutil
+  ctx.pdf.setFillColor(...RGB.card);
+  ctx.pdf.roundedRect(ML, ctx.y, CW, boxH, 2.2, 2.2, "F");
+  // Barra roja izquierda
   ctx.pdf.setFillColor(...RGB.red);
-  ctx.pdf.rect(ML, ctx.y, 1.2, boxH, "F");
-
+  ctx.pdf.roundedRect(ML, ctx.y, 1.6, boxH, 0.8, 0.8, "F");
   // Título
   ctx.pdf.setFont("helvetica", "bold");
-  ctx.pdf.setFontSize(11);
+  ctx.pdf.setFontSize(10.5);
   ctx.pdf.setTextColor(...RGB.red);
-  ctx.pdf.text(title, ML + 5, ctx.y + 6);
+  ctx.pdf.text(title, ML + 6, ctx.y + 7.5);
   // Cuerpo
   ctx.pdf.setFont("helvetica", "normal");
-  ctx.pdf.setFontSize(10);
+  ctx.pdf.setFontSize(9.5);
   ctx.pdf.setTextColor(...RGB.dark);
-  const lines = ctx.pdf.splitTextToSize(body, CW - 8) as string[];
-  let yLine = ctx.y + 11;
+  let yLine = ctx.y + 13;
   for (const line of lines) {
-    ctx.pdf.text(line, ML + 5, yLine);
-    yLine += 4.5;
+    ctx.pdf.text(line, ML + 6, yLine);
+    yLine += 4.6;
   }
-  ctx.y += boxH + 5;
+  ctx.y += boxH + 6;
+}
+
+/** Fila de tarjetas KPI: cada una con etiqueta, número grande y subtítulo.
+ *  Cards: { label, value, sub?, color? }. */
+function drawStatCards(
+  ctx: RenderCtx,
+  cards: Array<{ label: string; value: string; sub?: string; color?: [number, number, number]; bg?: [number, number, number] }>
+) {
+  const n = cards.length;
+  const gap = 4;
+  const cw = (CW - gap * (n - 1)) / n;
+  const ch = 24;
+  ensureSpace(ctx, ch + 4);
+  cards.forEach((c, i) => {
+    const x = ML + i * (cw + gap);
+    ctx.pdf.setFillColor(...(c.bg ?? RGB.card));
+    ctx.pdf.roundedRect(x, ctx.y, cw, ch, 2.2, 2.2, "F");
+    // etiqueta
+    ctx.pdf.setFont("helvetica", "bold");
+    ctx.pdf.setFontSize(6.8);
+    ctx.pdf.setTextColor(...RGB.gray);
+    ctx.pdf.text(c.label.toUpperCase(), x + 3.5, ctx.y + 6);
+    // valor grande
+    ctx.pdf.setFont("helvetica", "bold");
+    ctx.pdf.setFontSize(15);
+    ctx.pdf.setTextColor(...(c.color ?? RGB.dark));
+    ctx.pdf.text(c.value, x + 3.5, ctx.y + 15);
+    // subtítulo
+    if (c.sub) {
+      ctx.pdf.setFont("helvetica", "normal");
+      ctx.pdf.setFontSize(6.8);
+      ctx.pdf.setTextColor(...RGB.gray);
+      ctx.pdf.text(c.sub, x + 3.5, ctx.y + 20.5);
+    }
+  });
+  ctx.y += ch + 6;
 }
 
 // -----------------------------------------------------------------------------
@@ -228,76 +279,58 @@ function drawCTABox(ctx: RenderCtx, title: string, body: string) {
 
 function renderCover(pdf: jsPDF, result: BacktestResult, config: ReportConfig, otherName?: string, benchName?: string) {
   drawBackground(pdf);
-
-  // Línea roja superior
+  // Banda de marca roja
+  const bandH = 70;
   pdf.setFillColor(...RGB.red);
-  pdf.rect(ML, 50, 28, 0.8, "F");
-
-  // Título
+  pdf.rect(0, 0, PAGE_W, bandH, "F");
+  drawLogoBadge(pdf, ML, 18, 11, true);
   pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(32);
-  pdf.setTextColor(...RGB.dark);
-  pdf.text("Informe de Cartera", ML, 65);
-
-  // Subtítulo
+  pdf.setFontSize(10);
+  pdf.setTextColor(...RGB.white);
+  pdf.text("EL PROYECTO K", ML + 14, 22.5);
   pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(13);
-  pdf.setTextColor(...RGB.gray);
-  pdf.text("Análisis personalizado de tu inversión", ML, 73);
-
-  // Nombre de la cartera
+  pdf.setFontSize(8);
+  pdf.text("Inversión indexada de bajo coste", ML + 14, 27.5);
   pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(16);
-  pdf.setTextColor(...RGB.dark);
-  pdf.text(result.portfolioName, ML, 95);
-
-  // Datos
+  pdf.setFontSize(31);
+  pdf.setTextColor(...RGB.white);
+  pdf.text("Informe de cartera", ML, 50);
   pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(11);
-  pdf.setTextColor(...RGB.gray);
-  let coverY = 103;
-  if (config.clientName) {
-    pdf.text(`Preparado para: ${config.clientName}`, ML, coverY);
-    coverY += 6;
-  }
-  const start = result.timeSeries[0]?.date ?? "";
-  const end = result.timeSeries[result.timeSeries.length - 1]?.date ?? "";
-  pdf.text(`Periodo analizado: ${start} – ${end}`, ML, coverY);
-  coverY += 6;
+  pdf.setFontSize(12);
+  pdf.text("Análisis personalizado de tu inversión", ML, 59);
 
-  // Comparativa
-  if (otherName || benchName) {
-    coverY += 6;
-    pdf.setFontSize(10);
-    pdf.text("Comparativa con:", ML, coverY);
-    coverY += 5;
-    if (otherName) {
-      pdf.setTextColor(...RGB.dark);
-      pdf.text(`  · ${otherName}`, ML, coverY);
-      coverY += 5;
-    }
-    if (benchName) {
-      pdf.setTextColor(...RGB.dark);
-      pdf.text(`  · ${benchName} (índice de referencia)`, ML, coverY);
-    }
-  }
-
-  // Footer cover
+  // Chip con el nombre de la cartera
+  let cy = bandH + 14;
+  pdf.setFillColor(...RGB.card);
+  pdf.roundedRect(ML, cy, CW, 16, 2.5, 2.5, "F");
+  pdf.setFillColor(...RGB.red);
+  pdf.roundedRect(ML, cy, 1.8, 16, 0.9, 0.9, "F");
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(14);
-  pdf.setTextColor(...RGB.red);
-  pdf.text("El Proyecto K", ML, PAGE_H - 35);
+  pdf.setTextColor(...RGB.dark);
+  pdf.text(result.portfolioName.length > 52 ? result.portfolioName.substring(0, 51) + "…" : result.portfolioName, ML + 6, cy + 10);
+  cy += 16 + 10;
 
+  // Meta
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(10.5);
+  pdf.setTextColor(...RGB.gray);
+  if (config.clientName) { pdf.text(`Preparado para:  ${config.clientName}`, ML, cy); cy += 6.5; }
+  const start = result.timeSeries[0]?.date ?? "";
+  const end = result.timeSeries[result.timeSeries.length - 1]?.date ?? "";
+  pdf.text(`Periodo analizado:  ${start} – ${end}`, ML, cy); cy += 6.5;
+  if (otherName) { pdf.text(`Comparada con:  ${otherName}`, ML, cy); cy += 6.5; }
+  if (benchName) { pdf.text(`Índice de referencia:  ${benchName}`, ML, cy); }
+
+  // Footer cover
+  pdf.setDrawColor(...RGB.lightGray); pdf.setLineWidth(0.3);
+  pdf.line(ML, PAGE_H - 24, PAGE_W - MR, PAGE_H - 24);
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(9);
   pdf.setTextColor(...RGB.gray);
-  pdf.text("Inversión indexada de bajo coste", ML, PAGE_H - 29);
-  pdf.text("www.elproyectok.com", ML, PAGE_H - 24);
-
-  const today = config.reportDate ?? new Date().toLocaleDateString("es-ES",
-    { year: "numeric", month: "long", day: "numeric" });
-  pdf.setFontSize(8);
-  pdf.text(today, ML, PAGE_H - 19);
+  pdf.text("www.elproyectok.com", ML, PAGE_H - 18);
+  const today = config.reportDate ?? new Date().toLocaleDateString("es-ES", { year: "numeric", month: "long", day: "numeric" });
+  pdf.text(today, PAGE_W - MR, PAGE_H - 18, { align: "right" });
 }
 
 function renderScore(ctx: RenderCtx, score: PortfolioScore, benchScore?: PortfolioScore | null, benchName?: string) {
@@ -644,10 +677,10 @@ function renderEvolution(ctx: RenderCtx, result: BacktestResult, benchmark?: Ben
     margin: { left: ML, right: MR },
     head: [["Concepto", "Importe"]],
     body: tableBody,
-    headStyles: { fillColor: RGB.red, textColor: RGB.white, fontStyle: "bold", fontSize: 9 },
+    headStyles: { fillColor: RGB.dark, textColor: RGB.white, fontStyle: "bold", fontSize: 8.5, cellPadding: 3 },
     bodyStyles: { fontSize: 9, textColor: RGB.dark },
     alternateRowStyles: { fillColor: RGB.rowAlt },
-    styles: { cellPadding: 2.5, lineColor: RGB.lightGray, lineWidth: 0.1 },
+    styles: { lineWidth: 0, cellPadding: 2.7 },
     columnStyles: { 1: { halign: "right", fontStyle: "bold" } },
     didParseCell: (data) => {
       // Pintar la fila del benchmark en púrpura para mantener la identidad visual.
@@ -724,10 +757,10 @@ function renderCrisis(ctx: RenderCtx, result: BacktestResult, benchmark?: Benchm
         ["Peor mes", fmtPct(worstMonth), fmtPct(bmMetrics.worstMonth * 100)],
         ["Cuán movida (volatilidad anual)", fmtPct(vol), fmtPct(bmMetrics.volatility * 100)],
       ],
-      headStyles: { fillColor: RGB.red, textColor: RGB.white, fontStyle: "bold", fontSize: 9 },
+      headStyles: { fillColor: RGB.dark, textColor: RGB.white, fontStyle: "bold", fontSize: 8.5, cellPadding: 3 },
       bodyStyles: { fontSize: 9, textColor: RGB.dark },
       alternateRowStyles: { fillColor: RGB.rowAlt },
-      styles: { cellPadding: 2.5, lineColor: RGB.lightGray, lineWidth: 0.1 },
+      styles: { lineWidth: 0, cellPadding: 2.7 },
       columnStyles: {
         1: { halign: "right", fontStyle: "bold" },
         2: { halign: "right", fontStyle: "bold", textColor: RGB.purple },
@@ -819,10 +852,10 @@ function renderTaxes(ctx: RenderCtx, result: BacktestResult, otherResult?: Backt
     margin: { left: ML, right: MR },
     head,
     body,
-    headStyles: { fillColor: RGB.red, textColor: RGB.white, fontStyle: "bold", fontSize: 9 },
+    headStyles: { fillColor: RGB.dark, textColor: RGB.white, fontStyle: "bold", fontSize: 8.5, cellPadding: 3 },
     bodyStyles: { fontSize: 9, textColor: RGB.dark, valign: "middle" },
     alternateRowStyles: { fillColor: RGB.rowAlt },
-    styles: { cellPadding: 3, lineColor: RGB.lightGray, lineWidth: 0.1 },
+    styles: { lineWidth: 0, cellPadding: 2.7 },
     columnStyles: hasBmTax
       ? {
           1: { halign: "right", fontStyle: "bold" },
@@ -990,10 +1023,10 @@ function drawTable(
     margin: { left: ML, right: MR },
     head: [head],
     body: body.map((r) => r.map((c) => String(c))),
-    headStyles: { fillColor: RGB.red, textColor: RGB.white, fontStyle: "bold", fontSize: 8.5 },
-    bodyStyles: { fontSize: 8.5, textColor: RGB.dark },
+    headStyles: { fillColor: RGB.dark, textColor: RGB.white, fontStyle: "bold", fontSize: 8.2, cellPadding: 3 },
+    bodyStyles: { fontSize: 8.5, textColor: RGB.dark, cellPadding: 2.8 },
     alternateRowStyles: { fillColor: RGB.rowAlt },
-    styles: { cellPadding: 2, lineColor: RGB.lightGray, lineWidth: 0.1 },
+    styles: { lineWidth: 0 },
     columnStyles,
   });
   tableEnd(ctx);
@@ -1053,10 +1086,10 @@ function renderMetricsFull(ctx: RenderCtx, result: BacktestResult, benchmark?: B
     margin: { left: ML, right: MR },
     head: [head],
     body: rows.map((r) => r.map((c) => String(c))),
-    headStyles: { fillColor: RGB.red, textColor: RGB.white, fontStyle: "bold", fontSize: 8.5 },
+    headStyles: { fillColor: RGB.dark, textColor: RGB.white, fontStyle: "bold", fontSize: 8.2, cellPadding: 3 },
     bodyStyles: { fontSize: 8.5, textColor: RGB.dark },
     alternateRowStyles: { fillColor: RGB.rowAlt },
-    styles: { cellPadding: 2, lineColor: RGB.lightGray, lineWidth: 0.1 },
+    styles: { lineWidth: 0, cellPadding: 2.7 },
     columnStyles: { 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right" } },
     didParseCell: (data) => {
       if (data.section === "body" && data.column.index === 2 && hasBm) {
@@ -1498,47 +1531,67 @@ function winnerTag(va: number, vb: number, higherBetter: boolean): string {
 
 function renderCompareCover(pdf: jsPDF, a: BacktestResult, b: BacktestResult, config: ReportConfig, benchName?: string) {
   drawBackground(pdf);
+  // Banda de marca roja superior
+  const bandH = 70;
   pdf.setFillColor(...RGB.red);
-  pdf.rect(ML, 50, 28, 0.8, "F");
+  pdf.rect(0, 0, PAGE_W, bandH, "F");
+  drawLogoBadge(pdf, ML, 18, 11, true);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(10);
+  pdf.setTextColor(...RGB.white);
+  pdf.text("EL PROYECTO K", ML + 14, 22.5);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(8);
+  pdf.text("Inversión indexada de bajo coste", ML + 14, 27.5);
+  // Título sobre la banda
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(30);
-  pdf.setTextColor(...RGB.dark);
-  pdf.text("Informe comparativo", ML, 64);
+  pdf.setTextColor(...RGB.white);
+  pdf.text("Informe comparativo", ML, 50);
   pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(13);
-  pdf.setTextColor(...RGB.gray);
-  pdf.text("Dos carteras, cara a cara, con los mismos datos", ML, 73);
+  pdf.setFontSize(12);
+  pdf.text("Dos carteras, cara a cara, con los mismos datos", ML, 59);
 
-  // Cartera A
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(15);
-  pdf.setTextColor(...RGB.blueA);
-  pdf.text(`A · ${a.portfolioName}`, ML, 96);
-  pdf.setTextColor(...RGB.roseB);
-  pdf.text(`B · ${b.portfolioName}`, ML, 105);
+  // Chips de cartera A / B (tarjetas)
+  let cy = bandH + 14;
+  const chip = (label: string, name: string, accent: [number, number, number], bg: [number, number, number]) => {
+    const h = 16;
+    pdf.setFillColor(...bg);
+    pdf.roundedRect(ML, cy, CW, h, 2.5, 2.5, "F");
+    pdf.setFillColor(...accent);
+    pdf.roundedRect(ML, cy, 6.5, h, 2.5, 2.5, "F");
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(11);
+    pdf.setTextColor(...RGB.white);
+    pdf.text(label, ML + 3.25, cy + h / 2 + 1.5, { align: "center" });
+    pdf.setTextColor(...accent);
+    pdf.setFontSize(13);
+    pdf.text(name.length > 46 ? name.substring(0, 45) + "…" : name, ML + 11, cy + h / 2 + 1.5);
+    cy += h + 4;
+  };
+  chip("A", a.portfolioName, RGB.blueA, RGB.blueAbg);
+  chip("B", b.portfolioName, RGB.roseB, RGB.roseBbg);
 
+  // Meta
+  cy += 6;
   pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(11);
+  pdf.setFontSize(10.5);
   pdf.setTextColor(...RGB.gray);
-  let y = 117;
-  if (config.clientName) { pdf.text(`Preparado para: ${config.clientName}`, ML, y); y += 6; }
+  if (config.clientName) { pdf.text(`Preparado para:  ${config.clientName}`, ML, cy); cy += 6.5; }
   const start = a.timeSeries[0]?.date ?? "";
   const end = a.timeSeries[a.timeSeries.length - 1]?.date ?? "";
-  pdf.text(`Periodo analizado: ${start} – ${end}`, ML, y); y += 6;
-  if (benchName) { pdf.text(`Índice de referencia: ${benchName}`, ML, y); }
+  pdf.text(`Periodo analizado:  ${start} – ${end}`, ML, cy); cy += 6.5;
+  if (benchName) { pdf.text(`Índice de referencia:  ${benchName}`, ML, cy); }
 
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(14);
-  pdf.setTextColor(...RGB.red);
-  pdf.text("El Proyecto K", ML, PAGE_H - 35);
+  // Footer cover
+  pdf.setDrawColor(...RGB.lightGray); pdf.setLineWidth(0.3);
+  pdf.line(ML, PAGE_H - 24, PAGE_W - MR, PAGE_H - 24);
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(9);
   pdf.setTextColor(...RGB.gray);
-  pdf.text("Inversión indexada de bajo coste", ML, PAGE_H - 29);
-  pdf.text("www.elproyectok.com", ML, PAGE_H - 24);
+  pdf.text("www.elproyectok.com", ML, PAGE_H - 18);
   const today = config.reportDate ?? new Date().toLocaleDateString("es-ES", { year: "numeric", month: "long", day: "numeric" });
-  pdf.setFontSize(8);
-  pdf.text(today, ML, PAGE_H - 19);
+  pdf.text(today, PAGE_W - MR, PAGE_H - 18, { align: "right" });
 }
 
 function renderCompareHero(ctx: RenderCtx, a: BacktestResult, b: BacktestResult) {
@@ -1549,6 +1602,15 @@ function renderCompareHero(ctx: RenderCtx, a: BacktestResult, b: BacktestResult)
     "viene con más sustos; la cartera ganadora no es la que más sube, es la que mejor equilibra " +
     "rentabilidad, riesgo y coste para que aguantes invertido."
   );
+  // Tarjetas KPI de cabecera
+  const diffCagrPts = (ma.cagr - mb.cagr) * 100;
+  const ganador = ma.cagr >= mb.cagr ? "A" : "B";
+  drawStatCards(ctx, [
+    { label: "Valor final · A", value: fmtEUR(a.finalValue), sub: a.portfolioName.substring(0, 18), color: RGB.blueA, bg: RGB.blueAbg },
+    { label: "Valor final · B", value: fmtEUR(b.finalValue), sub: b.portfolioName.substring(0, 18), color: RGB.roseB, bg: RGB.roseBbg },
+    { label: "Ventaja anual", value: `${diffCagrPts >= 0 ? "+" : ""}${diffCagrPts.toFixed(1)} pts`, sub: `gana ${diffCagrPts >= 0 ? "A" : "B"}`, color: RGB.dark },
+    { label: "Más rentable", value: ganador, sub: "en CAGR", color: ganador === "A" ? RGB.blueA : RGB.roseB },
+  ]);
   const rows: (string | number)[][] = [
     ["Valor final", fmtEUR(a.finalValue), fmtEUR(b.finalValue), winnerTag(a.finalValue, b.finalValue, true).replace(" — ", "")],
     ["Rentab. anual (CAGR)", fmtPct(ma.cagr * 100), fmtPct(mb.cagr * 100), winnerTag(ma.cagr, mb.cagr, true).replace(" — ", "")],
@@ -1565,7 +1627,7 @@ function renderCompareHero(ctx: RenderCtx, a: BacktestResult, b: BacktestResult)
     headStyles: { fillColor: RGB.dark, textColor: RGB.white, fontStyle: "bold", fontSize: 8.5 },
     bodyStyles: { fontSize: 8.5, textColor: RGB.dark },
     alternateRowStyles: { fillColor: RGB.rowAlt },
-    styles: { cellPadding: 2.4, lineColor: RGB.lightGray, lineWidth: 0.1 },
+    styles: { lineWidth: 0, cellPadding: 2.7 },
     columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "center", fontStyle: "bold" } },
     didParseCell: (data) => {
       if (data.section === "head" && data.column.index === 1) data.cell.styles.textColor = RGB.blueA;
@@ -1621,10 +1683,10 @@ function renderCompareMetrics(ctx: RenderCtx, a: BacktestResult, b: BacktestResu
     margin: { left: ML, right: MR },
     head: [["Métrica", "A", "B", bmName]],
     body: rows.map((r) => r.map((c) => String(c))),
-    headStyles: { fillColor: RGB.red, textColor: RGB.white, fontStyle: "bold", fontSize: 8.5 },
+    headStyles: { fillColor: RGB.dark, textColor: RGB.white, fontStyle: "bold", fontSize: 8.2, cellPadding: 3 },
     bodyStyles: { fontSize: 8.5, textColor: RGB.dark },
     alternateRowStyles: { fillColor: RGB.rowAlt },
-    styles: { cellPadding: 2, lineColor: RGB.lightGray, lineWidth: 0.1 },
+    styles: { lineWidth: 0, cellPadding: 2.7 },
     columnStyles: { 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right", fontStyle: "bold" }, 3: { halign: "right" } },
     didParseCell: (data) => {
       if (data.column.index === 1) data.cell.styles.textColor = RGB.blueA;
@@ -1711,9 +1773,9 @@ function renderCompareAnnual(ctx: RenderCtx, a: BacktestResult, b: BacktestResul
     startY: ctx.y, margin: { left: ML, right: MR },
     head: [["Año", "Cartera A", "Cartera B", "Mejor"]],
     body: body.map((r) => r.map((c) => String(c))),
-    headStyles: { fillColor: RGB.red, textColor: RGB.white, fontStyle: "bold", fontSize: 8.5 },
+    headStyles: { fillColor: RGB.dark, textColor: RGB.white, fontStyle: "bold", fontSize: 8.2, cellPadding: 3 },
     bodyStyles: { fontSize: 8.5, textColor: RGB.dark }, alternateRowStyles: { fillColor: RGB.rowAlt },
-    styles: { cellPadding: 2, lineColor: RGB.lightGray, lineWidth: 0.1 },
+    styles: { lineWidth: 0, cellPadding: 2.7 },
     columnStyles: { 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right", fontStyle: "bold" }, 3: { halign: "center" } },
     didParseCell: (data) => {
       if (data.column.index === 1) data.cell.styles.textColor = RGB.blueA;
