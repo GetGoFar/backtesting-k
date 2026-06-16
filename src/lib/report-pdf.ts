@@ -17,6 +17,7 @@ import autoTable from "jspdf-autotable";
 import type { BacktestResponse, BacktestResult, BenchmarkComparison, AssetMetrics, CorrelationMatrix } from "./types";
 import type { ReportConfig, ReportSectionId } from "./report-types";
 import { FULL_BACKTEST_ORDER } from "./report-types";
+import { LOGO_WHITE_PNG, LOGO_DARK_PNG, LOGO_ASPECT } from "./report-logo";
 import { computePortfolioScore, computeBenchmarkScore, type PortfolioScore, type ScoreDetail } from "./report-scoring";
 import { computeTaxOnGain, type TaxMode } from "./tax-utils";
 
@@ -24,32 +25,35 @@ import { computeTaxOnGain, type TaxMode } from "./tax-utils";
 // COLORES (RGB para jsPDF)
 // -----------------------------------------------------------------------------
 
-// Paleta MODERNA: papel blanco limpio + rojo de marca (#C81E2E) + grises
-// neutros, con beige solo como acento sutil. Reemplaza el look beige antiguo.
+// Paleta CORPORATIVA editorial de El Proyecto K (la de los informes de
+// Consultoría K, según el skill proyectok-pdf): papel cálido, tinta carbón,
+// rojo corporativo #BC3B2D y grises cálidos. NO es blanco puro ni el rojo viejo.
 const RGB = {
   beige: [245, 240, 232] as [number, number, number],
-  page: [255, 255, 255] as [number, number, number],     // fondo de página: blanco
-  red: [200, 30, 46] as [number, number, number],         // rojo de marca #C81E2E
-  redDark: [160, 22, 36] as [number, number, number],
-  dark: [26, 26, 26] as [number, number, number],         // tinta casi negra moderna
-  gray: [107, 114, 128] as [number, number, number],      // gris #6B7280
-  lightGray: [229, 231, 235] as [number, number, number], // hairline #E5E7EB
+  page: [247, 244, 238] as [number, number, number],      // papel cálido #F7F4EE
+  red: [188, 59, 45] as [number, number, number],          // ROJO corporativo #BC3B2D
+  redDark: [150, 45, 34] as [number, number, number],
+  dark: [42, 39, 36] as [number, number, number],          // tinta carbón #2A2724
+  cream: [242, 237, 227] as [number, number, number],      // texto sobre oscuro #F2EDE3
+  gray: [138, 131, 120] as [number, number, number],       // gris cálido #8A8378
+  grayD: [110, 103, 92] as [number, number, number],       // gris cálido oscuro #6E675C
+  lightGray: [216, 210, 198] as [number, number, number],  // filete #D8D2C6
   white: [255, 255, 255] as [number, number, number],
-  rowLight: [255, 255, 255] as [number, number, number],  // filas: blanco
-  rowAlt: [249, 250, 251] as [number, number, number],    // alterna gris muy claro
-  card: [248, 247, 244] as [number, number, number],      // tarjeta beige sutil
-  green: [5, 150, 105] as [number, number, number],       // verde moderno #059669
-  redNeg: [220, 38, 38] as [number, number, number],      // rojo dato #DC2626
-  darkBg: [17, 24, 39] as [number, number, number],       // casi negro #111827
-  gold: [212, 160, 23] as [number, number, number],
-  // Identidad visual del benchmark (coherente con la app): púrpura #9333ea
+  rowLight: [247, 244, 238] as [number, number, number],   // filas: papel
+  rowAlt: [242, 236, 225] as [number, number, number],     // fila alterna #F2ECE1
+  card: [239, 234, 223] as [number, number, number],       // caja clara sutil #EFEADF
+  green: [60, 122, 80] as [number, number, number],        // verde corporativo #3C7A50
+  redNeg: [188, 59, 45] as [number, number, number],       // negativo = rojo corporativo
+  darkBg: [42, 39, 36] as [number, number, number],        // carbón (cabeceras de tabla)
+  gold: [192, 137, 46] as [number, number, number],        // oro corporativo #C0892E
+  // Benchmark = oro corporativo (identidad de gráficos del skill).
   purple: [147, 51, 234] as [number, number, number],
   purpleLight: [168, 85, 247] as [number, number, number],
-  // Colores semánticos de cartera: Cartera A azul #1d4ed8, Cartera B rosa #e11d48.
-  blueA: [29, 78, 216] as [number, number, number],
-  blueAbg: [239, 246, 255] as [number, number, number],   // azul claro de relleno
-  roseB: [225, 29, 72] as [number, number, number],
-  roseBbg: [255, 241, 242] as [number, number, number],   // rosa claro de relleno
+  // Cartera A = azul marino corporativo #3A4A5A, Cartera B = rojo corporativo.
+  blueA: [58, 74, 90] as [number, number, number],
+  blueAbg: [236, 239, 242] as [number, number, number],
+  roseB: [188, 59, 45] as [number, number, number],
+  roseBbg: [248, 235, 232] as [number, number, number],
 };
 
 // -----------------------------------------------------------------------------
@@ -104,33 +108,26 @@ function drawBackground(pdf: jsPDF) {
   pdf.rect(0, 0, PAGE_W, PAGE_H, "F");
 }
 
-/** Badge cuadrado redondeado con la "K" — el logo de El Proyecto K.
- *  light=true → badge blanco con K roja (para fondos de color). */
-function drawLogoBadge(pdf: jsPDF, x: number, y: number, size: number, light = false) {
-  pdf.setFillColor(...(light ? RGB.white : RGB.red));
-  pdf.roundedRect(x, y, size, size, size * 0.24, size * 0.24, "F");
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(size * 2.0);
-  pdf.setTextColor(...(light ? RGB.red : RGB.white));
-  pdf.text("K", x + size / 2, y + size * 0.71, { align: "center" });
+/** Dibuja el logotipo oficial "El Proyecto k" (wordmark con la k caligráfica).
+ *  white=true → versión blanca (para fondos oscuros / banda roja). */
+function drawLogo(pdf: jsPDF, x: number, y: number, w: number, white = false) {
+  const h = w / LOGO_ASPECT;
+  // El alias hace que jsPDF embeba la imagen UNA sola vez aunque se pinte en
+  // cada página (si no, el logo de la cabecera multiplicaría el peso del PDF).
+  pdf.addImage(white ? LOGO_WHITE_PNG : LOGO_DARK_PNG, "PNG", x, y, w, h, white ? "epk-logo-white" : "epk-logo-dark", "FAST");
 }
 
-/** Header de páginas de contenido: logo + marca a la izq, subtítulo a la der. */
+/** Header de páginas de contenido: logo oficial a la izq, subtítulo a la der. */
 function drawHeader(pdf: jsPDF, subtitle: string) {
-  drawLogoBadge(pdf, ML, 7.5, 5);
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(8.5);
-  pdf.setTextColor(...RGB.dark);
-  pdf.text("El Proyecto K", ML + 6.5, 11.2);
-
+  drawLogo(pdf, ML, 6.5, 32, false);
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(8);
   pdf.setTextColor(...RGB.gray);
-  pdf.text(subtitle, PAGE_W - MR, 11.2, { align: "right" });
+  pdf.text(subtitle, PAGE_W - MR, 11.5, { align: "right" });
 
   pdf.setDrawColor(...RGB.lightGray);
   pdf.setLineWidth(0.3);
-  pdf.line(ML, 14.5, PAGE_W - MR, 14.5);
+  pdf.line(ML, 16, PAGE_W - MR, 16);
 }
 
 /** Footer minimalista */
@@ -283,14 +280,11 @@ function renderCover(pdf: jsPDF, result: BacktestResult, config: ReportConfig, o
   const bandH = 70;
   pdf.setFillColor(...RGB.red);
   pdf.rect(0, 0, PAGE_W, bandH, "F");
-  drawLogoBadge(pdf, ML, 18, 11, true);
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(10);
-  pdf.setTextColor(...RGB.white);
-  pdf.text("EL PROYECTO K", ML + 14, 22.5);
+  drawLogo(pdf, ML, 15, 54, true);
   pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(8);
-  pdf.text("Inversión indexada de bajo coste", ML + 14, 27.5);
+  pdf.setFontSize(8.5);
+  pdf.setTextColor(...RGB.cream);
+  pdf.text("Inversión indexada de bajo coste", ML, 33);
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(31);
   pdf.setTextColor(...RGB.white);
@@ -1535,14 +1529,11 @@ function renderCompareCover(pdf: jsPDF, a: BacktestResult, b: BacktestResult, co
   const bandH = 70;
   pdf.setFillColor(...RGB.red);
   pdf.rect(0, 0, PAGE_W, bandH, "F");
-  drawLogoBadge(pdf, ML, 18, 11, true);
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(10);
-  pdf.setTextColor(...RGB.white);
-  pdf.text("EL PROYECTO K", ML + 14, 22.5);
+  drawLogo(pdf, ML, 15, 54, true);
   pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(8);
-  pdf.text("Inversión indexada de bajo coste", ML + 14, 27.5);
+  pdf.setFontSize(8.5);
+  pdf.setTextColor(...RGB.cream);
+  pdf.text("Inversión indexada de bajo coste", ML, 33);
   // Título sobre la banda
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(30);
