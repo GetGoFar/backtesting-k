@@ -56,6 +56,13 @@ const RGB = {
   roseBbg: [248, 235, 232] as [number, number, number],
 };
 
+// Tipografía editorial (estilo Consultoría K): serif para títulos y cifras,
+// monoespaciada para etiquetas/eyebrows/cabeceras, sans para el cuerpo.
+// jsPDF trae estas tres familias de serie (no hay que embeber TTF):
+const F_SERIF = "times";       // ~Georgia (display, sub-headings, números KPI)
+const F_MONO = "courier";      // ~Consolas (etiquetas, eyebrows, cabecera/pie)
+const F_SANS = "helvetica";    // ~Segoe UI (cuerpo)
+
 // -----------------------------------------------------------------------------
 // CONFIG DE PÁGINA (A4)
 // -----------------------------------------------------------------------------
@@ -117,30 +124,29 @@ function drawLogo(pdf: jsPDF, x: number, y: number, w: number, white = false) {
   pdf.addImage(white ? LOGO_WHITE_PNG : LOGO_DARK_PNG, "PNG", x, y, w, h, white ? "epk-logo-white" : "epk-logo-dark", "FAST");
 }
 
-/** Header de páginas de contenido: logo oficial a la izq, subtítulo a la der. */
+/** Header editorial: marca mono a la izq, subtítulo mono a la der (sin filete). */
 function drawHeader(pdf: jsPDF, subtitle: string) {
-  drawLogo(pdf, ML, 6.5, 32, false);
-  pdf.setFont("helvetica", "normal");
+  pdf.setFont(F_MONO, "bold");
+  pdf.setFontSize(8);
+  pdf.setTextColor(...RGB.grayD);
+  pdf.text("EL PROYECTO K", ML, 11, { charSpace: 0.5 });
+  pdf.setFont(F_MONO, "normal");
   pdf.setFontSize(8);
   pdf.setTextColor(...RGB.gray);
-  pdf.text(subtitle, PAGE_W - MR, 11.5, { align: "right" });
-
-  pdf.setDrawColor(...RGB.lightGray);
-  pdf.setLineWidth(0.3);
-  pdf.line(ML, 16, PAGE_W - MR, 16);
+  pdf.text(subtitle.toUpperCase(), PAGE_W - MR, 11, { align: "right", charSpace: 0.3 });
 }
 
-/** Footer minimalista */
+/** Footer editorial: K serif roja + marca mono + número de página de dos dígitos. */
 function drawFooter(pdf: jsPDF, pageNum: number) {
-  pdf.setDrawColor(...RGB.lightGray);
-  pdf.setLineWidth(0.2);
-  pdf.line(ML, PAGE_H - 13, PAGE_W - MR, PAGE_H - 13);
-  pdf.setFont("helvetica", "normal");
+  pdf.setFont(F_SERIF, "bold");
+  pdf.setFontSize(11);
+  pdf.setTextColor(...RGB.red);
+  pdf.text("K", ML, PAGE_H - 9);
+  pdf.setFont(F_MONO, "normal");
   pdf.setFontSize(7);
   pdf.setTextColor(...RGB.gray);
-  pdf.text("El Proyecto K · Inversión indexada de bajo coste", ML, PAGE_H - 9);
-  pdf.setFont("helvetica", "bold");
-  pdf.text(String(pageNum), PAGE_W - MR, PAGE_H - 9, { align: "right" });
+  pdf.text("EL PROYECTO K · INVIERTE EN LO QUE NO CAMBIA", ML + 5, PAGE_H - 9.3, { charSpace: 0.3 });
+  pdf.text(String(pageNum).padStart(2, "0"), PAGE_W - MR, PAGE_H - 9.3, { align: "right", charSpace: 0.5 });
 }
 
 /** Inicia una nueva página de contenido (con header y footer) */
@@ -162,23 +168,25 @@ function ensureSpace(ctx: RenderCtx, needed: number): RenderCtx {
   return ctx;
 }
 
-/** Cabecera de sección moderna: barra de acento roja + eyebrow + título grande. */
+/** Cabecera de sección EDITORIAL: número mono rojo + eyebrow mono, título serif grande. */
 function drawSectionHeader(ctx: RenderCtx, num: string, title: string) {
-  ctx.y += 1;
-  // Barra de acento vertical roja
-  ctx.pdf.setFillColor(...RGB.red);
-  ctx.pdf.roundedRect(ML, ctx.y - 3.5, 1.4, 11, 0.7, 0.7, "F");
-  // Eyebrow (número en rojo, pequeño)
-  ctx.pdf.setFont("helvetica", "bold");
-  ctx.pdf.setFontSize(8);
+  ctx.y += 3;
+  // Eyebrow: "NN  TÍTULO EN MAYÚSCULAS" en mono
+  ctx.pdf.setFont(F_MONO, "bold");
+  ctx.pdf.setFontSize(9);
   ctx.pdf.setTextColor(...RGB.red);
-  ctx.pdf.text(`SECCIÓN ${num}`, ML + 4, ctx.y - 0.5);
-  // Título grande
-  ctx.pdf.setFont("helvetica", "bold");
-  ctx.pdf.setFontSize(19);
+  ctx.pdf.text(num, ML, ctx.y, { charSpace: 0.5 });
+  ctx.pdf.setFont(F_MONO, "normal");
+  ctx.pdf.setFontSize(8.5);
+  ctx.pdf.setTextColor(...RGB.gray);
+  ctx.pdf.text(title.toUpperCase(), ML + 9, ctx.y, { charSpace: 0.5 });
+  ctx.y += 8.5;
+  // Título grande en serif
+  ctx.pdf.setFont(F_SERIF, "normal");
+  ctx.pdf.setFontSize(27);
   ctx.pdf.setTextColor(...RGB.dark);
-  ctx.pdf.text(title, ML + 4, ctx.y + 6.5);
-  ctx.y += 13;
+  ctx.pdf.text(title, ML, ctx.y);
+  ctx.y += 11;
 }
 
 /** Dibuja un párrafo justificado con wrap automático */
@@ -203,30 +211,27 @@ function drawBody(
   ctx.y += 2;
 }
 
-/** Caja CTA con borde rojo a la izquierda */
-/** Caja de comentario destacado: tarjeta beige sutil con barra roja y título. */
+/** Caja de comentario editorial: tarjeta clara con barra roja, eyebrow mono rojo. */
 function drawCTABox(ctx: RenderCtx, title: string, body: string) {
-  ctx.pdf.setFont("helvetica", "normal");
+  ctx.pdf.setFont(F_SANS, "normal");
   ctx.pdf.setFontSize(9.5);
-  const lines = ctx.pdf.splitTextToSize(body, CW - 12) as string[];
-  const boxH = 12 + lines.length * 4.6 + 3;
+  const lines = ctx.pdf.splitTextToSize(body, CW - 14) as string[];
+  const boxH = 13 + lines.length * 4.6 + 3;
   ensureSpace(ctx, boxH + 6);
-  // Tarjeta redondeada con fondo sutil
   ctx.pdf.setFillColor(...RGB.card);
-  ctx.pdf.roundedRect(ML, ctx.y, CW, boxH, 2.2, 2.2, "F");
-  // Barra roja izquierda
+  ctx.pdf.rect(ML, ctx.y, CW, boxH, "F");
   ctx.pdf.setFillColor(...RGB.red);
-  ctx.pdf.roundedRect(ML, ctx.y, 1.6, boxH, 0.8, 0.8, "F");
-  // Título
-  ctx.pdf.setFont("helvetica", "bold");
-  ctx.pdf.setFontSize(10.5);
+  ctx.pdf.rect(ML, ctx.y, 1.4, boxH, "F");
+  // Eyebrow mono rojo
+  ctx.pdf.setFont(F_MONO, "bold");
+  ctx.pdf.setFontSize(8);
   ctx.pdf.setTextColor(...RGB.red);
-  ctx.pdf.text(title, ML + 6, ctx.y + 7.5);
-  // Cuerpo
-  ctx.pdf.setFont("helvetica", "normal");
+  ctx.pdf.text(title.toUpperCase(), ML + 6, ctx.y + 8, { charSpace: 0.3 });
+  // Cuerpo sans
+  ctx.pdf.setFont(F_SANS, "normal");
   ctx.pdf.setFontSize(9.5);
   ctx.pdf.setTextColor(...RGB.dark);
-  let yLine = ctx.y + 13;
+  let yLine = ctx.y + 14;
   for (const line of lines) {
     ctx.pdf.text(line, ML + 6, yLine);
     yLine += 4.6;
@@ -234,8 +239,7 @@ function drawCTABox(ctx: RenderCtx, title: string, body: string) {
   ctx.y += boxH + 6;
 }
 
-/** Fila de tarjetas KPI: cada una con etiqueta, número grande y subtítulo.
- *  Cards: { label, value, sub?, color? }. */
+/** Fila de tarjetas KPI editorial: número SERIF grande + etiqueta MONO + subtítulo. */
 function drawStatCards(
   ctx: RenderCtx,
   cards: Array<{ label: string; value: string; sub?: string; color?: [number, number, number]; bg?: [number, number, number] }>
@@ -243,28 +247,28 @@ function drawStatCards(
   const n = cards.length;
   const gap = 4;
   const cw = (CW - gap * (n - 1)) / n;
-  const ch = 24;
+  const ch = 27;
   ensureSpace(ctx, ch + 4);
   cards.forEach((c, i) => {
     const x = ML + i * (cw + gap);
     ctx.pdf.setFillColor(...(c.bg ?? RGB.card));
-    ctx.pdf.roundedRect(x, ctx.y, cw, ch, 2.2, 2.2, "F");
-    // etiqueta
-    ctx.pdf.setFont("helvetica", "bold");
-    ctx.pdf.setFontSize(6.8);
-    ctx.pdf.setTextColor(...RGB.gray);
-    ctx.pdf.text(c.label.toUpperCase(), x + 3.5, ctx.y + 6);
-    // valor grande
-    ctx.pdf.setFont("helvetica", "bold");
-    ctx.pdf.setFontSize(15);
+    ctx.pdf.rect(x, ctx.y, cw, ch, "F");
+    // valor grande SERIF
+    ctx.pdf.setFont(F_SERIF, "normal");
+    ctx.pdf.setFontSize(18);
     ctx.pdf.setTextColor(...(c.color ?? RGB.dark));
-    ctx.pdf.text(c.value, x + 3.5, ctx.y + 15);
-    // subtítulo
+    ctx.pdf.text(c.value, x + 3.5, ctx.y + 11);
+    // etiqueta MONO
+    ctx.pdf.setFont(F_MONO, "normal");
+    ctx.pdf.setFontSize(6.4);
+    ctx.pdf.setTextColor(...RGB.gray);
+    ctx.pdf.text(c.label.toUpperCase(), x + 3.5, ctx.y + 17.5, { charSpace: 0.2 });
+    // subtítulo sans
     if (c.sub) {
-      ctx.pdf.setFont("helvetica", "normal");
+      ctx.pdf.setFont(F_SANS, "normal");
       ctx.pdf.setFontSize(6.8);
       ctx.pdf.setTextColor(...RGB.gray);
-      ctx.pdf.text(c.sub, x + 3.5, ctx.y + 20.5);
+      ctx.pdf.text(c.sub, x + 3.5, ctx.y + 22.5);
     }
   });
   ctx.y += ch + 6;
@@ -274,57 +278,84 @@ function drawStatCards(
 // SECCIONES
 // -----------------------------------------------------------------------------
 
-function renderCover(pdf: jsPDF, result: BacktestResult, config: ReportConfig, otherName?: string, benchName?: string) {
-  drawBackground(pdf);
-  // Banda de marca roja
-  const bandH = 70;
-  pdf.setFillColor(...RGB.red);
-  pdf.rect(0, 0, PAGE_W, bandH, "F");
-  drawLogo(pdf, ML, 15, 54, true);
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(8.5);
-  pdf.setTextColor(...RGB.cream);
-  pdf.text("Inversión indexada de bajo coste", ML, 33);
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(31);
-  pdf.setTextColor(...RGB.white);
-  pdf.text("Informe de cartera", ML, 50);
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(12);
-  pdf.text("Análisis personalizado de tu inversión", ML, 59);
-
-  // Chip con el nombre de la cartera
-  let cy = bandH + 14;
-  pdf.setFillColor(...RGB.card);
-  pdf.roundedRect(ML, cy, CW, 16, 2.5, 2.5, "F");
-  pdf.setFillColor(...RGB.red);
-  pdf.roundedRect(ML, cy, 1.8, 16, 0.9, 0.9, "F");
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(14);
-  pdf.setTextColor(...RGB.dark);
-  pdf.text(result.portfolioName.length > 52 ? result.portfolioName.substring(0, 51) + "…" : result.portfolioName, ML + 6, cy + 10);
-  cy += 16 + 10;
-
-  // Meta
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(10.5);
+/** Portada EDITORIAL: fondo carbón oscuro, logo blanco, eyebrow mono, título
+ *  serif enorme en crema, meta mono+serif abajo. Estilo Consultoría K. */
+function drawDarkCover(pdf: jsPDF, opts: {
+  topRight: string[];
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  extraLines?: Array<{ tag: string; text: string; color: [number, number, number] }>;
+  metaL: { label: string; value: string };
+  metaR: { label: string; value: string };
+}) {
+  pdf.setFillColor(...RGB.dark);
+  pdf.rect(0, 0, PAGE_W, PAGE_H, "F");
+  // Logo blanco arriba-izquierda
+  drawLogo(pdf, ML, 18, 44, true);
+  // Meta mono arriba-derecha
+  pdf.setFont(F_MONO, "normal");
+  pdf.setFontSize(8);
   pdf.setTextColor(...RGB.gray);
-  if (config.clientName) { pdf.text(`Preparado para:  ${config.clientName}`, ML, cy); cy += 6.5; }
+  let ty = 21;
+  for (const line of opts.topRight) { pdf.text(line.toUpperCase(), PAGE_W - MR, ty, { align: "right", charSpace: 0.4 }); ty += 5.5; }
+
+  // Eyebrow con filete rojo corto
+  const eyeY = 150;
+  pdf.setDrawColor(...RGB.red); pdf.setLineWidth(0.7);
+  pdf.line(ML, eyeY - 2.4, ML + 11, eyeY - 2.4);
+  pdf.setFont(F_MONO, "normal"); pdf.setFontSize(9); pdf.setTextColor(...RGB.gray);
+  pdf.text(opts.eyebrow.toUpperCase(), ML + 15, eyeY, { charSpace: 0.5 });
+
+  // Título serif enorme (crema)
+  pdf.setFont(F_SERIF, "normal"); pdf.setFontSize(44); pdf.setTextColor(...RGB.cream);
+  const tlines = pdf.splitTextToSize(opts.title, CW) as string[];
+  let yy = eyeY + 20;
+  for (const l of tlines) { pdf.text(l, ML, yy); yy += 17; }
+
+  // Subtítulo sans
+  pdf.setFont(F_SANS, "normal"); pdf.setFontSize(11); pdf.setTextColor(...RGB.gray);
+  const slines = pdf.splitTextToSize(opts.subtitle, CW - 25) as string[];
+  yy += 3;
+  for (const l of slines) { pdf.text(l, ML, yy); yy += 6; }
+
+  // Líneas extra (p.ej. A · cartera, B · cartera)
+  if (opts.extraLines) {
+    yy += 5;
+    for (const e of opts.extraLines) {
+      pdf.setFont(F_MONO, "bold"); pdf.setFontSize(10); pdf.setTextColor(...e.color);
+      pdf.text(e.tag, ML, yy);
+      pdf.setFont(F_SERIF, "normal"); pdf.setFontSize(14); pdf.setTextColor(...RGB.cream);
+      pdf.text(e.text.length > 48 ? e.text.substring(0, 47) + "…" : e.text, ML + 8, yy);
+      yy += 8.5;
+    }
+  }
+
+  // Hairline + meta abajo
+  const hairY = PAGE_H - 52;
+  pdf.setDrawColor(...RGB.grayD); pdf.setLineWidth(0.3);
+  pdf.line(ML, hairY, PAGE_W - MR, hairY);
+  const my = hairY + 13;
+  pdf.setFont(F_MONO, "normal"); pdf.setFontSize(7.5); pdf.setTextColor(...RGB.gray);
+  pdf.text(opts.metaL.label.toUpperCase(), ML, my, { charSpace: 0.4 });
+  pdf.text(opts.metaR.label.toUpperCase(), PAGE_W - MR, my, { align: "right", charSpace: 0.4 });
+  pdf.setFont(F_SERIF, "normal"); pdf.setFontSize(16); pdf.setTextColor(...RGB.cream);
+  pdf.text(opts.metaL.value, ML, my + 9);
+  pdf.text(opts.metaR.value, PAGE_W - MR, my + 9, { align: "right" });
+}
+
+function renderCover(pdf: jsPDF, result: BacktestResult, config: ReportConfig, otherName?: string, benchName?: string) {
   const start = result.timeSeries[0]?.date ?? "";
   const end = result.timeSeries[result.timeSeries.length - 1]?.date ?? "";
-  pdf.text(`Periodo analizado:  ${start} – ${end}`, ML, cy); cy += 6.5;
-  if (otherName) { pdf.text(`Comparada con:  ${otherName}`, ML, cy); cy += 6.5; }
-  if (benchName) { pdf.text(`Índice de referencia:  ${benchName}`, ML, cy); }
-
-  // Footer cover
-  pdf.setDrawColor(...RGB.lightGray); pdf.setLineWidth(0.3);
-  pdf.line(ML, PAGE_H - 24, PAGE_W - MR, PAGE_H - 24);
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(9);
-  pdf.setTextColor(...RGB.gray);
-  pdf.text("www.elproyectok.com", ML, PAGE_H - 18);
   const today = config.reportDate ?? new Date().toLocaleDateString("es-ES", { year: "numeric", month: "long", day: "numeric" });
-  pdf.text(today, PAGE_W - MR, PAGE_H - 18, { align: "right" });
+  drawDarkCover(pdf, {
+    topRight: ["Anexo al informe", "Backtest de cartera", today],
+    eyebrow: `Backtest de cartera${benchName ? ` · vs ${benchName}` : ""}`,
+    title: "Backtest de tu cartera",
+    subtitle: `Comportamiento histórico de ${result.portfolioName}${otherName ? `, comparada con ${otherName}` : ""}, con datos reales de cada activo.`,
+    metaL: { label: "Preparado para", value: config.clientName || result.portfolioName },
+    metaR: { label: "Periodo analizado", value: `${start} – ${end}` },
+  });
 }
 
 function renderScore(ctx: RenderCtx, score: PortfolioScore, benchScore?: PortfolioScore | null, benchName?: string) {
@@ -671,11 +702,10 @@ function renderEvolution(ctx: RenderCtx, result: BacktestResult, benchmark?: Ben
     margin: { left: ML, right: MR },
     head: [["Concepto", "Importe"]],
     body: tableBody,
-    headStyles: { fillColor: RGB.dark, textColor: RGB.white, fontStyle: "bold", fontSize: 8.5, cellPadding: 3 },
-    bodyStyles: { fontSize: 9, textColor: RGB.dark },
-    alternateRowStyles: { fillColor: RGB.rowAlt },
-    styles: { lineWidth: 0, cellPadding: 2.7 },
-    columnStyles: { 1: { halign: "right", fontStyle: "bold" } },
+    theme: "plain",
+    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 7, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
+    bodyStyles: { font: F_MONO, fontSize: 8.5, textColor: RGB.dark, cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 }, lineColor: RGB.lightGray, lineWidth: { bottom: 0.1 } },
+    columnStyles: { 0: { font: F_SANS }, 1: { halign: "right", fontStyle: "bold" } },
     didParseCell: (data) => {
       // Pintar la fila del benchmark en púrpura para mantener la identidad visual.
       if (data.section === "body" && bmRowIdx >= 0 && data.row.index === bmRowIdx) {
@@ -751,10 +781,9 @@ function renderCrisis(ctx: RenderCtx, result: BacktestResult, benchmark?: Benchm
         ["Peor mes", fmtPct(worstMonth), fmtPct(bmMetrics.worstMonth * 100)],
         ["Cuán movida (volatilidad anual)", fmtPct(vol), fmtPct(bmMetrics.volatility * 100)],
       ],
-      headStyles: { fillColor: RGB.dark, textColor: RGB.white, fontStyle: "bold", fontSize: 8.5, cellPadding: 3 },
-      bodyStyles: { fontSize: 9, textColor: RGB.dark },
-      alternateRowStyles: { fillColor: RGB.rowAlt },
-      styles: { lineWidth: 0, cellPadding: 2.7 },
+      theme: "plain",
+    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 7, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
+      bodyStyles: { font: F_MONO, fontSize: 8.5, textColor: RGB.dark, cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 }, lineColor: RGB.lightGray, lineWidth: { bottom: 0.1 } },
       columnStyles: {
         1: { halign: "right", fontStyle: "bold" },
         2: { halign: "right", fontStyle: "bold", textColor: RGB.purple },
@@ -846,10 +875,9 @@ function renderTaxes(ctx: RenderCtx, result: BacktestResult, otherResult?: Backt
     margin: { left: ML, right: MR },
     head,
     body,
-    headStyles: { fillColor: RGB.dark, textColor: RGB.white, fontStyle: "bold", fontSize: 8.5, cellPadding: 3 },
+    theme: "plain",
+    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 7, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
     bodyStyles: { fontSize: 9, textColor: RGB.dark, valign: "middle" },
-    alternateRowStyles: { fillColor: RGB.rowAlt },
-    styles: { lineWidth: 0, cellPadding: 2.7 },
     columnStyles: hasBmTax
       ? {
           1: { halign: "right", fontStyle: "bold" },
@@ -1017,11 +1045,19 @@ function drawTable(
     margin: { left: ML, right: MR },
     head: [head],
     body: body.map((r) => r.map((c) => String(c))),
-    headStyles: { fillColor: RGB.dark, textColor: RGB.white, fontStyle: "bold", fontSize: 8.2, cellPadding: 3 },
-    bodyStyles: { fontSize: 8.5, textColor: RGB.dark, cellPadding: 2.8 },
-    alternateRowStyles: { fillColor: RGB.rowAlt },
-    styles: { lineWidth: 0 },
-    columnStyles,
+    theme: "plain",
+    headStyles: {
+      font: F_MONO, fontStyle: "bold", fontSize: 7, textColor: RGB.gray,
+      cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 },
+      lineColor: RGB.dark, lineWidth: { bottom: 0.3 },
+    },
+    bodyStyles: {
+      font: F_MONO, fontSize: 8.6, textColor: RGB.dark,
+      cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 },
+      lineColor: RGB.lightGray, lineWidth: { bottom: 0.1 },
+    },
+    // Columna 0 = etiquetas en sans; resto (cifras) en mono.
+    columnStyles: { 0: { font: F_SANS, halign: "left" }, ...(columnStyles as Record<number, object>) },
   });
   tableEnd(ctx);
 }
@@ -1080,11 +1116,10 @@ function renderMetricsFull(ctx: RenderCtx, result: BacktestResult, benchmark?: B
     margin: { left: ML, right: MR },
     head: [head],
     body: rows.map((r) => r.map((c) => String(c))),
-    headStyles: { fillColor: RGB.dark, textColor: RGB.white, fontStyle: "bold", fontSize: 8.2, cellPadding: 3 },
-    bodyStyles: { fontSize: 8.5, textColor: RGB.dark },
-    alternateRowStyles: { fillColor: RGB.rowAlt },
-    styles: { lineWidth: 0, cellPadding: 2.7 },
-    columnStyles: { 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right" } },
+    theme: "plain",
+    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 7, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
+    bodyStyles: { font: F_MONO, fontSize: 8.5, textColor: RGB.dark, cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 }, lineColor: RGB.lightGray, lineWidth: { bottom: 0.1 } },
+    columnStyles: { 0: { font: F_SANS }, 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right" } },
     didParseCell: (data) => {
       if (data.section === "body" && data.column.index === 2 && hasBm) {
         data.cell.styles.textColor = RGB.purple;
@@ -1524,65 +1559,21 @@ function winnerTag(va: number, vb: number, higherBetter: boolean): string {
 }
 
 function renderCompareCover(pdf: jsPDF, a: BacktestResult, b: BacktestResult, config: ReportConfig, benchName?: string) {
-  drawBackground(pdf);
-  // Banda de marca roja superior
-  const bandH = 70;
-  pdf.setFillColor(...RGB.red);
-  pdf.rect(0, 0, PAGE_W, bandH, "F");
-  drawLogo(pdf, ML, 15, 54, true);
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(8.5);
-  pdf.setTextColor(...RGB.cream);
-  pdf.text("Inversión indexada de bajo coste", ML, 33);
-  // Título sobre la banda
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(30);
-  pdf.setTextColor(...RGB.white);
-  pdf.text("Informe comparativo", ML, 50);
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(12);
-  pdf.text("Dos carteras, cara a cara, con los mismos datos", ML, 59);
-
-  // Chips de cartera A / B (tarjetas)
-  let cy = bandH + 14;
-  const chip = (label: string, name: string, accent: [number, number, number], bg: [number, number, number]) => {
-    const h = 16;
-    pdf.setFillColor(...bg);
-    pdf.roundedRect(ML, cy, CW, h, 2.5, 2.5, "F");
-    pdf.setFillColor(...accent);
-    pdf.roundedRect(ML, cy, 6.5, h, 2.5, 2.5, "F");
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(11);
-    pdf.setTextColor(...RGB.white);
-    pdf.text(label, ML + 3.25, cy + h / 2 + 1.5, { align: "center" });
-    pdf.setTextColor(...accent);
-    pdf.setFontSize(13);
-    pdf.text(name.length > 46 ? name.substring(0, 45) + "…" : name, ML + 11, cy + h / 2 + 1.5);
-    cy += h + 4;
-  };
-  chip("A", a.portfolioName, RGB.blueA, RGB.blueAbg);
-  chip("B", b.portfolioName, RGB.roseB, RGB.roseBbg);
-
-  // Meta
-  cy += 6;
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(10.5);
-  pdf.setTextColor(...RGB.gray);
-  if (config.clientName) { pdf.text(`Preparado para:  ${config.clientName}`, ML, cy); cy += 6.5; }
   const start = a.timeSeries[0]?.date ?? "";
   const end = a.timeSeries[a.timeSeries.length - 1]?.date ?? "";
-  pdf.text(`Periodo analizado:  ${start} – ${end}`, ML, cy); cy += 6.5;
-  if (benchName) { pdf.text(`Índice de referencia:  ${benchName}`, ML, cy); }
-
-  // Footer cover
-  pdf.setDrawColor(...RGB.lightGray); pdf.setLineWidth(0.3);
-  pdf.line(ML, PAGE_H - 24, PAGE_W - MR, PAGE_H - 24);
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(9);
-  pdf.setTextColor(...RGB.gray);
-  pdf.text("www.elproyectok.com", ML, PAGE_H - 18);
   const today = config.reportDate ?? new Date().toLocaleDateString("es-ES", { year: "numeric", month: "long", day: "numeric" });
-  pdf.text(today, PAGE_W - MR, PAGE_H - 18, { align: "right" });
+  drawDarkCover(pdf, {
+    topRight: ["Informe comparativo", "Backtest de cartera", today],
+    eyebrow: `Comparador de carteras${benchName ? ` · vs ${benchName}` : ""}`,
+    title: "Tus carteras, cara a cara",
+    subtitle: "Comportamiento histórico de las dos carteras sobre exactamente los mismos datos.",
+    extraLines: [
+      { tag: "A", text: a.portfolioName, color: RGB.cream },
+      { tag: "B", text: b.portfolioName, color: RGB.cream },
+    ],
+    metaL: { label: "Preparado para", value: config.clientName || "—" },
+    metaR: { label: "Periodo analizado", value: `${start} – ${end}` },
+  });
 }
 
 function renderCompareHero(ctx: RenderCtx, a: BacktestResult, b: BacktestResult) {
@@ -1615,11 +1606,10 @@ function renderCompareHero(ctx: RenderCtx, a: BacktestResult, b: BacktestResult)
     margin: { left: ML, right: MR },
     head: [["Métrica", `A · ${a.portfolioName}`, `B · ${b.portfolioName}`, "Mejor"]],
     body: rows.map((r) => r.map((c) => String(c))),
-    headStyles: { fillColor: RGB.dark, textColor: RGB.white, fontStyle: "bold", fontSize: 8.5 },
-    bodyStyles: { fontSize: 8.5, textColor: RGB.dark },
-    alternateRowStyles: { fillColor: RGB.rowAlt },
-    styles: { lineWidth: 0, cellPadding: 2.7 },
-    columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "center", fontStyle: "bold" } },
+    theme: "plain",
+    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 7, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
+    bodyStyles: { font: F_MONO, fontSize: 8.5, textColor: RGB.dark, cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 }, lineColor: RGB.lightGray, lineWidth: { bottom: 0.1 } },
+    columnStyles: { 0: { font: F_SANS }, 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "center", fontStyle: "bold" } },
     didParseCell: (data) => {
       if (data.section === "head" && data.column.index === 1) data.cell.styles.textColor = RGB.blueA;
       if (data.section === "head" && data.column.index === 2) data.cell.styles.textColor = RGB.roseB;
@@ -1674,11 +1664,10 @@ function renderCompareMetrics(ctx: RenderCtx, a: BacktestResult, b: BacktestResu
     margin: { left: ML, right: MR },
     head: [["Métrica", "A", "B", bmName]],
     body: rows.map((r) => r.map((c) => String(c))),
-    headStyles: { fillColor: RGB.dark, textColor: RGB.white, fontStyle: "bold", fontSize: 8.2, cellPadding: 3 },
-    bodyStyles: { fontSize: 8.5, textColor: RGB.dark },
-    alternateRowStyles: { fillColor: RGB.rowAlt },
-    styles: { lineWidth: 0, cellPadding: 2.7 },
-    columnStyles: { 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right", fontStyle: "bold" }, 3: { halign: "right" } },
+    theme: "plain",
+    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 7, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
+    bodyStyles: { font: F_MONO, fontSize: 8.5, textColor: RGB.dark, cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 }, lineColor: RGB.lightGray, lineWidth: { bottom: 0.1 } },
+    columnStyles: { 0: { font: F_SANS }, 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right", fontStyle: "bold" }, 3: { halign: "right" } },
     didParseCell: (data) => {
       if (data.column.index === 1) data.cell.styles.textColor = RGB.blueA;
       if (data.column.index === 2) data.cell.styles.textColor = RGB.roseB;
@@ -1764,10 +1753,10 @@ function renderCompareAnnual(ctx: RenderCtx, a: BacktestResult, b: BacktestResul
     startY: ctx.y, margin: { left: ML, right: MR },
     head: [["Año", "Cartera A", "Cartera B", "Mejor"]],
     body: body.map((r) => r.map((c) => String(c))),
-    headStyles: { fillColor: RGB.dark, textColor: RGB.white, fontStyle: "bold", fontSize: 8.2, cellPadding: 3 },
-    bodyStyles: { fontSize: 8.5, textColor: RGB.dark }, alternateRowStyles: { fillColor: RGB.rowAlt },
-    styles: { lineWidth: 0, cellPadding: 2.7 },
-    columnStyles: { 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right", fontStyle: "bold" }, 3: { halign: "center" } },
+    theme: "plain",
+    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 7, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
+    bodyStyles: { font: F_MONO, fontSize: 8.5, textColor: RGB.dark, cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 }, lineColor: RGB.lightGray, lineWidth: { bottom: 0.1 } },
+    columnStyles: { 0: { font: F_SANS }, 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right", fontStyle: "bold" }, 3: { halign: "center" } },
     didParseCell: (data) => {
       if (data.column.index === 1) data.cell.styles.textColor = RGB.blueA;
       if (data.column.index === 2) data.cell.styles.textColor = RGB.roseB;
