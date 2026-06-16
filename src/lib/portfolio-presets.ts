@@ -1538,6 +1538,38 @@ const JL_PRESETS: PortfolioPreset[] = [
   },
 ];
 
+// Cartera RF (Ruben Fraile) — cartera real de activos reales / cobertura:
+// muy concentrada en oro físico (48,2%) y bitcoin (23,1%), con una cola de
+// gestión activa value/recursos (Cobas, Azvalor, Kopernik, Goehring,
+// Wellington, Argonaut) + plata y China A. Sin renta fija. El peso se ajustó
+// 48,2→48,0 en el oro para que sume exactamente 100 (la captura sumaba 100,2
+// por redondeo). El rango común lo limita Kopernik (desde 2017-11).
+const RF_PRESETS: PortfolioPreset[] = [
+  {
+    id: "cartera-rf",
+    name: "Cartera RF",
+    description:
+      "Cartera real de activos reales y cobertura: 48% oro físico (Invesco) + 23% bitcoin (XBT) como núcleo, y una cola de gestión activa — value (Cobas, Azvalor, Kopernik), recursos naturales (Goehring & Rozencwajg), absolute return (Argonaut), enduring assets (Wellington) — más plata y China A. Sin renta fija. 10 posiciones. Histórico común limitado por Kopernik (desde nov-2017). Aviso: la plata va en clase USD (SSLV) y G&R en USD (el motor no convierte divisa), pesos pequeños (1% y 6,5%).",
+    type: "active",
+    holdings: [
+      // Núcleo activos reales / cobertura (71,1%)
+      { fundId: "ishares-gold", weight: 48.0 }, // oro físico (48,2 en la captura, −0,2 para sumar 100)
+      { fundId: "xbt-bitcoin-tracker-eur", weight: 23.1 }, // bitcoin
+      // Gestión activa value / recursos (20,7%)
+      { fundId: "rf-goehring-rozencwajg-resources", weight: 6.5 },
+      { fundId: "rf-azvalor-internacional", weight: 5.1 },
+      { fundId: "rf-kopernik-global-allcap", weight: 3.9 },
+      { fundId: "rf-argonaut-absolute-return", weight: 3.2 },
+      { fundId: "rf-cobas-seleccion", weight: 1.9 },
+      // RV temática / emergentes (7,3%)
+      { fundId: "rf-ishares-china-a", weight: 6.0 },
+      { fundId: "rf-wellington-enduring-assets", weight: 1.3 },
+      // Plata (1%)
+      { fundId: "rf-invesco-silver", weight: 1.0 },
+    ],
+  },
+];
+
 const ALL_PRESETS: PortfolioPreset[] = [
   ...K_INBESTME_PRESETS,
   ...K_SECTORIAL_USA_PRESETS,
@@ -1556,6 +1588,7 @@ const ALL_PRESETS: PortfolioPreset[] = [
   ...PABLO_CASTRO_PRESETS,
   ...PINAES_PRESETS,
   ...JL_PRESETS,
+  ...RF_PRESETS,
   ...MOMENTUM_CARTERA_PRESETS,
 ];
 

@@ -2922,6 +2922,112 @@ const JL_FUNDS: Fund[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// Cartera RF (Ruben Fraile) — fondos reales de una cartera de activos reales /
+// cobertura: oro físico (48%), bitcoin (23%), gestión activa value (Cobas,
+// Azvalor, Kopernik), recursos naturales (Goehring), absolute return
+// (Argonaut), enduring assets (Wellington), plata y China A. Símbolos EODHD
+// verificados 2026-06 (rangos coinciden con la cartera del cliente):
+//  · Fondos UCITS sin ticker → resuelven por ISIN.EUFUND.
+//  · Goehring (US mutual fund) → ticker GRHIX (.US).
+//  · Silver → SSLV.LSE (USD; única clase con histórico desde 2011, como en la
+//    cartera del cliente. El motor NO convierte FX, pero pesa solo 1%).
+//  · China A → 36BZ.F (Frankfurt EUR, desde 2015-04).
+// -----------------------------------------------------------------------------
+const RF_FUNDS: Fund[] = [
+  {
+    id: "rf-argonaut-absolute-return",
+    name: "VT Argonaut Absolute Return A Acc EUR",
+    shortName: "Argonaut Abs Return",
+    isin: "GB00B7K37282", // EUFUND desde 2012-07
+    ter: 1.6,
+    category: "Alternativo",
+    type: "active",
+    currency: "EUR",
+    terSource: "user",
+  },
+  {
+    id: "rf-kopernik-global-allcap",
+    name: "Heptagon Fund ICAV – Kopernik Global All-Cap Equity AE EUR Acc",
+    shortName: "Kopernik Global",
+    isin: "IE00BH6XSF26", // EUFUND desde 2017-11
+    ter: 1.6,
+    category: "RV Global",
+    type: "active",
+    currency: "EUR",
+    terSource: "user",
+  },
+  {
+    id: "rf-cobas-seleccion",
+    name: "Cobas Lux SICAV – Cobas Selection Fund",
+    shortName: "Cobas Selección",
+    isin: "LU1372006947", // EUFUND desde 2016-03
+    ter: 1.59,
+    category: "RV Global",
+    type: "active",
+    currency: "EUR",
+    terSource: "user",
+  },
+  {
+    id: "rf-goehring-rozencwajg-resources",
+    name: "Goehring & Rozencwajg Resources Fund Retail Class",
+    shortName: "G&R Resources",
+    isin: "US38035R1095",
+    ticker: "GRHIX", // US mutual fund → GRHIX.US, desde 2016-12
+    ter: 1.55,
+    category: "RV Sectorial",
+    type: "active",
+    currency: "USD",
+    terSource: "user",
+  },
+  {
+    id: "rf-wellington-enduring-assets",
+    name: "Wellington Enduring Assets Fund EUR G Acc",
+    shortName: "Wellington Enduring",
+    isin: "IE00B906ZW71", // EUFUND desde 2013-05
+    ter: 1.69,
+    category: "RV Global",
+    type: "active",
+    currency: "EUR",
+    terSource: "user",
+  },
+  {
+    id: "rf-invesco-silver",
+    name: "Invesco Physical Silver ETC",
+    shortName: "Invesco Silver",
+    isin: "IE00B43VDT70",
+    ticker: "SSLV.LSE", // USD, histórico desde 2011-04 (clase con histórico largo)
+    ter: 0.19,
+    category: "Alternativo",
+    type: "index",
+    currency: "USD",
+    terSource: "curated",
+  },
+  {
+    id: "rf-ishares-china-a",
+    name: "iShares MSCI China A UCITS ETF USD Acc",
+    shortName: "iShares China A",
+    isin: "IE00BQT3WG13",
+    ticker: "36BZ.F", // Frankfurt (EUR) — datos desde 2015-04
+    ter: 0.4,
+    category: "RV Emergentes",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "rf-azvalor-internacional",
+    name: "Azvalor Internacional FI",
+    shortName: "Azvalor Internacional",
+    isin: "ES0112611001", // EUFUND desde 2015-10
+    ter: 1.59,
+    category: "RV Global",
+    type: "active",
+    currency: "EUR",
+    terSource: "user",
+  },
+];
+
+// -----------------------------------------------------------------------------
 // Todos los fondos combinados
 // -----------------------------------------------------------------------------
 
@@ -2938,6 +3044,7 @@ const ALL_FUNDS: Fund[] = [
   ...PABLO_CASTRO_FUNDS,
   ...PINAES_FUNDS,
   ...JL_FUNDS,
+  ...RF_FUNDS,
 ];
 
 // Mapa para búsqueda rápida por ID
