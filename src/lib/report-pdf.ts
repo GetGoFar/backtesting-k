@@ -17,7 +17,7 @@ import autoTable from "jspdf-autotable";
 import type { BacktestResponse, BacktestResult, BenchmarkComparison, AssetMetrics, CorrelationMatrix } from "./types";
 import type { ReportConfig, ReportSectionId } from "./report-types";
 import { FULL_BACKTEST_ORDER } from "./report-types";
-import { LOGO_WHITE_PNG, LOGO_DARK_PNG, LOGO_ASPECT } from "./report-logo";
+import { LOGO_WHITE_PNG, LOGO_DARK_PNG, LOGO_ASPECT, KMARK_RED_PNG, KMARK_ASPECT } from "./report-logo";
 import { computePortfolioScore, computeBenchmarkScore, type PortfolioScore, type ScoreDetail } from "./report-scoring";
 import { computeTaxOnGain, type TaxMode } from "./tax-utils";
 
@@ -124,6 +124,14 @@ function drawLogo(pdf: jsPDF, x: number, y: number, w: number, white = false) {
   pdf.addImage(white ? LOGO_WHITE_PNG : LOGO_DARK_PNG, "PNG", x, y, w, h, white ? "epk-logo-white" : "epk-logo-dark", "FAST");
 }
 
+/** Dibuja el icono oficial "K" de El Proyecto K (k.svg de la web) en rojo.
+ *  Se le pasa la ALTURA; devuelve el ancho resultante. */
+function drawKMark(pdf: jsPDF, x: number, y: number, h: number): number {
+  const w = h * KMARK_ASPECT;
+  pdf.addImage(KMARK_RED_PNG, "PNG", x, y, w, h, "epk-kmark-red", "FAST");
+  return w;
+}
+
 /** Header editorial: LOGO real "El Proyecto k" a la izq, subtítulo mono a la der. */
 function drawHeader(pdf: jsPDF, subtitle: string) {
   drawLogo(pdf, ML, 6.5, 30, false);
@@ -133,16 +141,13 @@ function drawHeader(pdf: jsPDF, subtitle: string) {
   pdf.text(subtitle.toUpperCase(), PAGE_W - MR, 11.5, { align: "right", charSpace: 0.3 });
 }
 
-/** Footer editorial: K serif roja + marca mono + número de página de dos dígitos. */
+/** Footer editorial: icono K real (rojo) + marca mono + nº de página de dos dígitos. */
 function drawFooter(pdf: jsPDF, pageNum: number) {
-  pdf.setFont(F_SERIF, "bold");
-  pdf.setFontSize(11);
-  pdf.setTextColor(...RGB.red);
-  pdf.text("K", ML, PAGE_H - 9);
+  const kW = drawKMark(pdf, ML, PAGE_H - 12.4, 4.6);
   pdf.setFont(F_MONO, "normal");
   pdf.setFontSize(7);
   pdf.setTextColor(...RGB.gray);
-  pdf.text("EL PROYECTO K · INVIERTE EN LO QUE NO CAMBIA", ML + 5, PAGE_H - 9.3, { charSpace: 0.3 });
+  pdf.text("EL PROYECTO K · INVIERTE EN LO QUE NO CAMBIA", ML + kW + 2.5, PAGE_H - 9.3, { charSpace: 0.3 });
   pdf.text(String(pageNum).padStart(2, "0"), PAGE_W - MR, PAGE_H - 9.3, { align: "right", charSpace: 0.5 });
 }
 
@@ -178,12 +183,26 @@ function drawSectionHeader(ctx: RenderCtx, num: string, title: string) {
   ctx.pdf.setTextColor(...RGB.gray);
   ctx.pdf.text(title.toUpperCase(), ML + 10, ctx.y, { charSpace: 0.5 });
   ctx.y += 9;
-  // Título grande en serif
+  // Título grande en serif, con AJUSTE para que nunca se salga del margen:
+  // primero se encoge la fuente hasta caber en una línea; si aun así no cabe
+  // (títulos muy largos), se reparte en varias líneas.
   ctx.pdf.setFont(F_SERIF, "normal");
-  ctx.pdf.setFontSize(31);
   ctx.pdf.setTextColor(...RGB.dark);
-  ctx.pdf.text(title, ML, ctx.y);
-  ctx.y += 12.5;
+  let tSize = 31;
+  ctx.pdf.setFontSize(tSize);
+  while (ctx.pdf.getTextWidth(title) > CW && tSize > 21) {
+    tSize -= 0.5;
+    ctx.pdf.setFontSize(tSize);
+  }
+  const tLines = ctx.pdf.getTextWidth(title) > CW
+    ? (ctx.pdf.splitTextToSize(title, CW) as string[])
+    : [title];
+  const tLineH = tSize * 0.4;
+  for (const ln of tLines) {
+    ctx.pdf.text(ln, ML, ctx.y);
+    ctx.y += tLineH;
+  }
+  ctx.y += 1;
 }
 
 /** Dibuja un párrafo justificado con wrap automático */
