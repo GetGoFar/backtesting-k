@@ -25,14 +25,14 @@ import { computeTaxOnGain, type TaxMode } from "./tax-utils";
 // COLORES (RGB para jsPDF)
 // -----------------------------------------------------------------------------
 
-// Paleta CORPORATIVA editorial de El Proyecto K (la de los informes de
-// Consultoría K, según el skill proyectok-pdf): papel cálido, tinta carbón,
-// rojo corporativo #BC3B2D y grises cálidos. NO es blanco puro ni el rojo viejo.
+// Paleta editorial de El Proyecto K: papel cálido + tinta carbón + grises
+// cálidos del skill proyectok-pdf, PERO con el ROJO DE LA WEB #C81E2E (el
+// mismo CTA de elproyectok.com) como único acento, para el toque minimalista.
 const RGB = {
   beige: [245, 240, 232] as [number, number, number],
   page: [247, 244, 238] as [number, number, number],      // papel cálido #F7F4EE
-  red: [188, 59, 45] as [number, number, number],          // ROJO corporativo #BC3B2D
-  redDark: [150, 45, 34] as [number, number, number],
+  red: [200, 30, 46] as [number, number, number],          // ROJO web El Proyecto K #C81E2E
+  redDark: [158, 22, 36] as [number, number, number],
   dark: [42, 39, 36] as [number, number, number],          // tinta carbón #2A2724
   cream: [242, 237, 227] as [number, number, number],      // texto sobre oscuro #F2EDE3
   gray: [138, 131, 120] as [number, number, number],       // gris cálido #8A8378
@@ -43,7 +43,7 @@ const RGB = {
   rowAlt: [242, 236, 225] as [number, number, number],     // fila alterna #F2ECE1
   card: [239, 234, 223] as [number, number, number],       // caja clara sutil #EFEADF
   green: [60, 122, 80] as [number, number, number],        // verde corporativo #3C7A50
-  redNeg: [188, 59, 45] as [number, number, number],       // negativo = rojo corporativo
+  redNeg: [200, 30, 46] as [number, number, number],       // negativo = rojo web #C81E2E
   darkBg: [42, 39, 36] as [number, number, number],        // carbón (cabeceras de tabla)
   gold: [192, 137, 46] as [number, number, number],        // oro corporativo #C0892E
   // Benchmark = oro corporativo (identidad de gráficos del skill).
@@ -52,8 +52,8 @@ const RGB = {
   // Cartera A = azul marino corporativo #3A4A5A, Cartera B = rojo corporativo.
   blueA: [58, 74, 90] as [number, number, number],
   blueAbg: [236, 239, 242] as [number, number, number],
-  roseB: [188, 59, 45] as [number, number, number],
-  roseBbg: [248, 235, 232] as [number, number, number],
+  roseB: [200, 30, 46] as [number, number, number],
+  roseBbg: [250, 233, 235] as [number, number, number],
 };
 
 // Tipografía editorial (estilo Consultoría K): serif para títulos y cifras,
@@ -124,16 +124,13 @@ function drawLogo(pdf: jsPDF, x: number, y: number, w: number, white = false) {
   pdf.addImage(white ? LOGO_WHITE_PNG : LOGO_DARK_PNG, "PNG", x, y, w, h, white ? "epk-logo-white" : "epk-logo-dark", "FAST");
 }
 
-/** Header editorial: marca mono a la izq, subtítulo mono a la der (sin filete). */
+/** Header editorial: LOGO real "El Proyecto k" a la izq, subtítulo mono a la der. */
 function drawHeader(pdf: jsPDF, subtitle: string) {
-  pdf.setFont(F_MONO, "bold");
-  pdf.setFontSize(8);
-  pdf.setTextColor(...RGB.grayD);
-  pdf.text("EL PROYECTO K", ML, 11, { charSpace: 0.5 });
+  drawLogo(pdf, ML, 6.5, 30, false);
   pdf.setFont(F_MONO, "normal");
-  pdf.setFontSize(8);
+  pdf.setFontSize(8.5);
   pdf.setTextColor(...RGB.gray);
-  pdf.text(subtitle.toUpperCase(), PAGE_W - MR, 11, { align: "right", charSpace: 0.3 });
+  pdf.text(subtitle.toUpperCase(), PAGE_W - MR, 11.5, { align: "right", charSpace: 0.3 });
 }
 
 /** Footer editorial: K serif roja + marca mono + número de página de dos dígitos. */
@@ -173,20 +170,20 @@ function drawSectionHeader(ctx: RenderCtx, num: string, title: string) {
   ctx.y += 3;
   // Eyebrow: "NN  TÍTULO EN MAYÚSCULAS" en mono
   ctx.pdf.setFont(F_MONO, "bold");
-  ctx.pdf.setFontSize(9);
+  ctx.pdf.setFontSize(10);
   ctx.pdf.setTextColor(...RGB.red);
   ctx.pdf.text(num, ML, ctx.y, { charSpace: 0.5 });
   ctx.pdf.setFont(F_MONO, "normal");
-  ctx.pdf.setFontSize(8.5);
+  ctx.pdf.setFontSize(9.5);
   ctx.pdf.setTextColor(...RGB.gray);
-  ctx.pdf.text(title.toUpperCase(), ML + 9, ctx.y, { charSpace: 0.5 });
-  ctx.y += 8.5;
+  ctx.pdf.text(title.toUpperCase(), ML + 10, ctx.y, { charSpace: 0.5 });
+  ctx.y += 9;
   // Título grande en serif
   ctx.pdf.setFont(F_SERIF, "normal");
-  ctx.pdf.setFontSize(27);
+  ctx.pdf.setFontSize(31);
   ctx.pdf.setTextColor(...RGB.dark);
   ctx.pdf.text(title, ML, ctx.y);
-  ctx.y += 11;
+  ctx.y += 12.5;
 }
 
 /** Dibuja un párrafo justificado con wrap automático */
@@ -195,14 +192,14 @@ function drawBody(
   text: string,
   options: { size?: number; color?: [number, number, number]; bold?: boolean; italic?: boolean } = {}
 ) {
-  const size = options.size ?? 10;
+  const size = options.size ?? 11;
   const color = options.color ?? RGB.dark;
   const style = options.bold && options.italic ? "bolditalic" : options.bold ? "bold" : options.italic ? "italic" : "normal";
   ctx.pdf.setFont("helvetica", style);
   ctx.pdf.setFontSize(size);
   ctx.pdf.setTextColor(...color);
   const lines = ctx.pdf.splitTextToSize(text, CW) as string[];
-  const lineHeight = size * 0.45;
+  const lineHeight = size * 0.46;
   for (const line of lines) {
     ensureSpace(ctx, lineHeight + 2);
     ctx.pdf.text(line, ML, ctx.y);
@@ -214,27 +211,27 @@ function drawBody(
 /** Caja de comentario editorial: tarjeta clara con barra roja, eyebrow mono rojo. */
 function drawCTABox(ctx: RenderCtx, title: string, body: string) {
   ctx.pdf.setFont(F_SANS, "normal");
-  ctx.pdf.setFontSize(9.5);
+  ctx.pdf.setFontSize(10.5);
   const lines = ctx.pdf.splitTextToSize(body, CW - 14) as string[];
-  const boxH = 13 + lines.length * 4.6 + 3;
+  const boxH = 14 + lines.length * 5.1 + 3;
   ensureSpace(ctx, boxH + 6);
   ctx.pdf.setFillColor(...RGB.card);
   ctx.pdf.rect(ML, ctx.y, CW, boxH, "F");
   ctx.pdf.setFillColor(...RGB.red);
-  ctx.pdf.rect(ML, ctx.y, 1.4, boxH, "F");
+  ctx.pdf.rect(ML, ctx.y, 1.6, boxH, "F");
   // Eyebrow mono rojo
   ctx.pdf.setFont(F_MONO, "bold");
-  ctx.pdf.setFontSize(8);
+  ctx.pdf.setFontSize(9);
   ctx.pdf.setTextColor(...RGB.red);
-  ctx.pdf.text(title.toUpperCase(), ML + 6, ctx.y + 8, { charSpace: 0.3 });
+  ctx.pdf.text(title.toUpperCase(), ML + 6, ctx.y + 8.5, { charSpace: 0.3 });
   // Cuerpo sans
   ctx.pdf.setFont(F_SANS, "normal");
-  ctx.pdf.setFontSize(9.5);
+  ctx.pdf.setFontSize(10.5);
   ctx.pdf.setTextColor(...RGB.dark);
-  let yLine = ctx.y + 14;
+  let yLine = ctx.y + 15;
   for (const line of lines) {
     ctx.pdf.text(line, ML + 6, yLine);
-    yLine += 4.6;
+    yLine += 5.1;
   }
   ctx.y += boxH + 6;
 }
@@ -247,7 +244,7 @@ function drawStatCards(
   const n = cards.length;
   const gap = 4;
   const cw = (CW - gap * (n - 1)) / n;
-  const ch = 27;
+  const ch = 30;
   ensureSpace(ctx, ch + 4);
   cards.forEach((c, i) => {
     const x = ML + i * (cw + gap);
@@ -255,20 +252,20 @@ function drawStatCards(
     ctx.pdf.rect(x, ctx.y, cw, ch, "F");
     // valor grande SERIF
     ctx.pdf.setFont(F_SERIF, "normal");
-    ctx.pdf.setFontSize(18);
+    ctx.pdf.setFontSize(22);
     ctx.pdf.setTextColor(...(c.color ?? RGB.dark));
-    ctx.pdf.text(c.value, x + 3.5, ctx.y + 11);
+    ctx.pdf.text(c.value, x + 4, ctx.y + 12);
     // etiqueta MONO
     ctx.pdf.setFont(F_MONO, "normal");
-    ctx.pdf.setFontSize(6.4);
+    ctx.pdf.setFontSize(7.2);
     ctx.pdf.setTextColor(...RGB.gray);
-    ctx.pdf.text(c.label.toUpperCase(), x + 3.5, ctx.y + 17.5, { charSpace: 0.2 });
+    ctx.pdf.text(c.label.toUpperCase(), x + 4, ctx.y + 19.5, { charSpace: 0.2 });
     // subtítulo sans
     if (c.sub) {
       ctx.pdf.setFont(F_SANS, "normal");
-      ctx.pdf.setFontSize(6.8);
+      ctx.pdf.setFontSize(7.4);
       ctx.pdf.setTextColor(...RGB.gray);
-      ctx.pdf.text(c.sub, x + 3.5, ctx.y + 22.5);
+      ctx.pdf.text(c.sub, x + 4, ctx.y + 25);
     }
   });
   ctx.y += ch + 6;
@@ -366,7 +363,7 @@ function renderScore(ctx: RenderCtx, score: PortfolioScore, benchScore?: Portfol
     "Esta es la valoración global de tu cartera. La nota se calcula sobre las " +
     "métricas antes de impuestos, porque la calidad intrínseca de la cartera " +
     "no depende de tu situación fiscal personal.",
-    { size: 10 }
+    { size: 11 }
   );
 
   ensureSpace(ctx, 50);
@@ -494,7 +491,7 @@ function renderSummary(ctx: RenderCtx, result: BacktestResult, score: PortfolioS
   drawBody(ctx,
     "Lo más importante de tu cartera resumido en tres cifras y un párrafo. " +
     "Si solo tienes 30 segundos, esto es lo que necesitas saber.",
-    { size: 10 }
+    { size: 11 }
   );
 
   // 3 KPI boxes
@@ -703,8 +700,8 @@ function renderEvolution(ctx: RenderCtx, result: BacktestResult, benchmark?: Ben
     head: [["Concepto", "Importe"]],
     body: tableBody,
     theme: "plain",
-    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 7, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
-    bodyStyles: { font: F_MONO, fontSize: 8.5, textColor: RGB.dark, cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 }, lineColor: RGB.lightGray, lineWidth: { bottom: 0.1 } },
+    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 8, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
+    bodyStyles: { font: F_MONO, fontSize: 9.5, textColor: RGB.dark, cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 }, lineColor: RGB.lightGray, lineWidth: { bottom: 0.1 } },
     columnStyles: { 0: { font: F_SANS }, 1: { halign: "right", fontStyle: "bold" } },
     didParseCell: (data) => {
       // Pintar la fila del benchmark en púrpura para mantener la identidad visual.
@@ -782,8 +779,8 @@ function renderCrisis(ctx: RenderCtx, result: BacktestResult, benchmark?: Benchm
         ["Cuán movida (volatilidad anual)", fmtPct(vol), fmtPct(bmMetrics.volatility * 100)],
       ],
       theme: "plain",
-    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 7, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
-      bodyStyles: { font: F_MONO, fontSize: 8.5, textColor: RGB.dark, cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 }, lineColor: RGB.lightGray, lineWidth: { bottom: 0.1 } },
+    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 8, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
+      bodyStyles: { font: F_MONO, fontSize: 9.5, textColor: RGB.dark, cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 }, lineColor: RGB.lightGray, lineWidth: { bottom: 0.1 } },
       columnStyles: {
         1: { halign: "right", fontStyle: "bold" },
         2: { halign: "right", fontStyle: "bold", textColor: RGB.purple },
@@ -876,7 +873,7 @@ function renderTaxes(ctx: RenderCtx, result: BacktestResult, otherResult?: Backt
     head,
     body,
     theme: "plain",
-    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 7, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
+    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 8, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
     bodyStyles: { fontSize: 9, textColor: RGB.dark, valign: "middle" },
     columnStyles: hasBmTax
       ? {
@@ -915,14 +912,14 @@ function renderTaxes(ctx: RenderCtx, result: BacktestResult, otherResult?: Backt
     drawBody(ctx,
       `Durante el periodo has pagado ${fmtEUR(paid)} en impuestos por los rebalanceos. ` +
       `Y aún tienes ${fmtEUR(pending)} pendientes que pagarías si liquidaras hoy.`,
-      { size: 9 }
+      { size: 10 }
     );
   } else if (paid === 0 && pending > 0) {
     drawBody(ctx,
       `No has pagado impuestos durante el camino (típico de fondos con traspaso fiscal), ` +
       `pero al liquidar tributarías hipotéticamente unos ${fmtEUR(pending)}. Esta cifra ` +
       `es la única forma justa de comparar tu cartera con otra que sí tributa por el camino.`,
-      { size: 9 }
+      { size: 10 }
     );
   }
 }
@@ -1012,13 +1009,13 @@ function renderDisclaimer(ctx: RenderCtx) {
     "El cálculo de impuestos pendientes asume liquidación total en la fecha final del periodo bajo el régimen fiscal aplicado. Tu situación fiscal personal puede diferir y debe consultarse con un asesor cualificado.",
   ];
   for (const item of items) {
-    drawBody(ctx, item, { size: 9 });
+    drawBody(ctx, item, { size: 10 });
   }
 
   ctx.y += 4;
   drawBody(ctx,
     "El Proyecto K no es una entidad de asesoramiento financiero regulada por la CNMV.",
-    { size: 9, bold: true }
+    { size: 10, bold: true }
   );
 }
 
@@ -1047,13 +1044,13 @@ function drawTable(
     body: body.map((r) => r.map((c) => String(c))),
     theme: "plain",
     headStyles: {
-      font: F_MONO, fontStyle: "bold", fontSize: 7, textColor: RGB.gray,
+      font: F_MONO, fontStyle: "bold", fontSize: 8, textColor: RGB.gray,
       cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 },
       lineColor: RGB.dark, lineWidth: { bottom: 0.3 },
     },
     bodyStyles: {
-      font: F_MONO, fontSize: 8.6, textColor: RGB.dark,
-      cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 },
+      font: F_MONO, fontSize: 9.5, textColor: RGB.dark,
+      cellPadding: { top: 2.6, right: 2, bottom: 2.6, left: 2 },
       lineColor: RGB.lightGray, lineWidth: { bottom: 0.1 },
     },
     // Columna 0 = etiquetas en sans; resto (cifras) en mono.
@@ -1117,8 +1114,8 @@ function renderMetricsFull(ctx: RenderCtx, result: BacktestResult, benchmark?: B
     head: [head],
     body: rows.map((r) => r.map((c) => String(c))),
     theme: "plain",
-    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 7, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
-    bodyStyles: { font: F_MONO, fontSize: 8.5, textColor: RGB.dark, cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 }, lineColor: RGB.lightGray, lineWidth: { bottom: 0.1 } },
+    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 8, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
+    bodyStyles: { font: F_MONO, fontSize: 9.5, textColor: RGB.dark, cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 }, lineColor: RGB.lightGray, lineWidth: { bottom: 0.1 } },
     columnStyles: { 0: { font: F_SANS }, 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right" } },
     didParseCell: (data) => {
       if (data.section === "body" && data.column.index === 2 && hasBm) {
@@ -1131,7 +1128,7 @@ function renderMetricsFull(ctx: RenderCtx, result: BacktestResult, benchmark?: B
     "Sharpe y Sortino miden cuánta rentabilidad sacas por cada unidad de riesgo: por encima " +
     "de 1 es notable; por debajo de 0,5 estás asumiendo sustos que no te pagan. El Sortino " +
     "solo castiga las caídas (que es lo que de verdad duele).",
-    { size: 9, color: RGB.gray }
+    { size: 10, color: RGB.gray }
   );
 }
 
@@ -1282,7 +1279,7 @@ function renderRolling(ctx: RenderCtx, result: BacktestResult) {
     drawBody(ctx,
       `Dato para enmarcar: en TODAS las ventanas de 5 años del periodo, hasta la peor terminó en ` +
       `positivo (${fmtPct(fiveY.worstCagr * 100)} anual). Esto es exactamente por lo que el largo plazo perdona.`,
-      { size: 9, color: RGB.green, bold: true }
+      { size: 10, color: RGB.green, bold: true }
     );
   }
 }
@@ -1325,7 +1322,7 @@ function renderHistogram(ctx: RenderCtx, result: BacktestResult) {
   drawBody(ctx,
     `Media mensual ${fmtPct(h.mean * 100, 2)}, con una desviación de ${(h.stdDev * 100).toFixed(2)}%. ` +
     "Cuanto más a la derecha esté el grueso y más cortas las colas rojas, mejor duermes.",
-    { size: 9, color: RGB.gray }
+    { size: 10, color: RGB.gray }
   );
 }
 
@@ -1482,7 +1479,7 @@ function renderComparison(ctx: RenderCtx, result: BacktestResult, benchmark?: Be
   drawBody(ctx,
     "Capturar el 100% de las subidas y menos del 100% de las bajadas es el santo grial. Si capturas " +
     "más bajada que subida, el fondo te está saliendo caro en el peor momento.",
-    { size: 9, color: RGB.gray }
+    { size: 10, color: RGB.gray }
   );
 }
 
@@ -1511,7 +1508,7 @@ function renderContributions(ctx: RenderCtx, result: BacktestResult) {
     drawBody(ctx,
       `De cada 100 € de tu patrimonio final, ${(100 - pctCrec).toFixed(0)} € los pusiste tú y ` +
       `${pctCrec.toFixed(0)} € los puso el interés compuesto. Esa segunda cifra crece sola con el tiempo.`,
-      { size: 9, color: RGB.green, bold: true }
+      { size: 10, color: RGB.green, bold: true }
     );
   }
 }
@@ -1540,7 +1537,7 @@ function renderRebalances(ctx: RenderCtx, result: BacktestResult) {
     drawBody(ctx,
       `Peaje fiscal total por el camino: ${fmtEUR(totalTax)}. Cada euro que adelantas a Hacienda ` +
       "es un euro que deja de componer — por eso la fiscalidad diferida de los fondos traspasables es oro.",
-      { size: 9, color: RGB.redNeg }
+      { size: 10, color: RGB.redNeg }
     );
   }
 }
@@ -1607,8 +1604,8 @@ function renderCompareHero(ctx: RenderCtx, a: BacktestResult, b: BacktestResult)
     head: [["Métrica", `A · ${a.portfolioName}`, `B · ${b.portfolioName}`, "Mejor"]],
     body: rows.map((r) => r.map((c) => String(c))),
     theme: "plain",
-    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 7, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
-    bodyStyles: { font: F_MONO, fontSize: 8.5, textColor: RGB.dark, cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 }, lineColor: RGB.lightGray, lineWidth: { bottom: 0.1 } },
+    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 8, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
+    bodyStyles: { font: F_MONO, fontSize: 9.5, textColor: RGB.dark, cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 }, lineColor: RGB.lightGray, lineWidth: { bottom: 0.1 } },
     columnStyles: { 0: { font: F_SANS }, 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "center", fontStyle: "bold" } },
     didParseCell: (data) => {
       if (data.section === "head" && data.column.index === 1) data.cell.styles.textColor = RGB.blueA;
@@ -1665,8 +1662,8 @@ function renderCompareMetrics(ctx: RenderCtx, a: BacktestResult, b: BacktestResu
     head: [["Métrica", "A", "B", bmName]],
     body: rows.map((r) => r.map((c) => String(c))),
     theme: "plain",
-    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 7, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
-    bodyStyles: { font: F_MONO, fontSize: 8.5, textColor: RGB.dark, cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 }, lineColor: RGB.lightGray, lineWidth: { bottom: 0.1 } },
+    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 8, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
+    bodyStyles: { font: F_MONO, fontSize: 9.5, textColor: RGB.dark, cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 }, lineColor: RGB.lightGray, lineWidth: { bottom: 0.1 } },
     columnStyles: { 0: { font: F_SANS }, 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right", fontStyle: "bold" }, 3: { halign: "right" } },
     didParseCell: (data) => {
       if (data.column.index === 1) data.cell.styles.textColor = RGB.blueA;
@@ -1754,8 +1751,8 @@ function renderCompareAnnual(ctx: RenderCtx, a: BacktestResult, b: BacktestResul
     head: [["Año", "Cartera A", "Cartera B", "Mejor"]],
     body: body.map((r) => r.map((c) => String(c))),
     theme: "plain",
-    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 7, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
-    bodyStyles: { font: F_MONO, fontSize: 8.5, textColor: RGB.dark, cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 }, lineColor: RGB.lightGray, lineWidth: { bottom: 0.1 } },
+    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 8, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
+    bodyStyles: { font: F_MONO, fontSize: 9.5, textColor: RGB.dark, cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 }, lineColor: RGB.lightGray, lineWidth: { bottom: 0.1 } },
     columnStyles: { 0: { font: F_SANS }, 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right", fontStyle: "bold" }, 3: { halign: "center" } },
     didParseCell: (data) => {
       if (data.column.index === 1) data.cell.styles.textColor = RGB.blueA;
@@ -1825,7 +1822,7 @@ function renderCompareCosts(ctx: RenderCtx, a: BacktestResult, b: BacktestResult
     drawBody(ctx,
       `La Cartera ${cheaper} es ${diff.toFixed(2)} puntos más barata al año. Parece poco, pero esa diferencia ` +
       "no se suma: se compone, año tras año, a tu favor.",
-      { size: 9, color: RGB.green, bold: true }
+      { size: 10, color: RGB.green, bold: true }
     );
   }
 }
