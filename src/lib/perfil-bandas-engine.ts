@@ -106,6 +106,8 @@ export interface PerfilBandasResult {
     avgRebalances: number;
     totalTax: number;
     avgFinalValue: number;
+    avgRealizedVol: number;
+    avgCagrNet: number;
   }>;
   warnings: string[];
 }
@@ -133,6 +135,12 @@ export interface PerfilDriftResult {
     maxRvWeight: number; // % — RV máximo alcanzado
     taxPaid: number; // € impuesto por rebalanceos
     finalValue: number; // €
+    /** Volatilidad REALIZADA de periodo completo (anualizada, retornos
+     *  mensuales brutos de la cartera). Es el riesgo que el cliente EXPERIMENTÓ
+     *  de verdad — el contraste clave frente a la vol ex-ante de composición. */
+    realizedVolFull: number; // %
+    /** CAGR neto de impuestos del camino (anualizado). */
+    cagrNet: number; // %
   };
 }
 
@@ -371,6 +379,11 @@ export async function runPerfilBandasStudy(
     const maxDriftUp = Math.max(...series.map((s) => s.impliedExante - p0));
     const vols = series.map((s) => s.volExante);
     const finalValue = usedClasses.reduce((s, c) => s + val[c], 0);
+    // Vol REALIZADA de periodo completo (retornos mensuales brutos)
+    const muP = portRets.reduce((a, b) => a + b, 0) / portRets.length;
+    const varP = portRets.reduce((a, b) => a + (b - muP) ** 2, 0) / portRets.length;
+    const realizedVolFull = Math.sqrt(varP) * Math.sqrt(12) * 100;
+    const cagrNet = (Math.pow(finalValue / config.initialAmount, 12 / n) - 1) * 100;
     const tgtPct: Record<AssetClass, number> = {} as Record<AssetClass, number>;
     for (const c of usedClasses) tgtPct[c] = tgt[c] * 100;
 
@@ -389,6 +402,8 @@ export async function runPerfilBandasStudy(
         maxRvWeight: Math.max(...series.map((s) => s.weights.RV ?? 0)),
         taxPaid,
         finalValue,
+        realizedVolFull,
+        cagrNet,
       },
     };
   }
@@ -415,6 +430,10 @@ export async function runPerfilBandasStudy(
       /** Valor final medio neto de impuestos del camino — el beneficio real
        *  para el cliente (más diferimiento → más capital compuesto). */
       avgFinalValue: res.reduce((s, r) => s + r.stats.finalValue, 0) / res.length,
+      /** Vol REALIZADA media (riesgo experimentado) y CAGR medio neto: el
+       *  contraste rentabilidad/riesgo REAL entre bandas. */
+      avgRealizedVol: res.reduce((s, r) => s + r.stats.realizedVolFull, 0) / res.length,
+      avgCagrNet: res.reduce((s, r) => s + r.stats.cagrNet, 0) / res.length,
     };
   });
 
