@@ -36,6 +36,23 @@ interface PortfolioBuilderProps {
     /** Banda absoluta en % (UI), 0 = desactivada */
     rebalanceBandAbsolutePct: number;
   }) => void;
+  /** Datos a importar (copiar) desde la OTRA cartera. Cuando cambia `nonce`, el
+   *  builder reemplaza su contenido con estos holdings y ajustes. */
+  importData?: {
+    name: string;
+    holdings: PortfolioHolding[];
+    managementFee: number;
+    taxMode: "none" | "flat" | "spain-irpf";
+    /** Tasa fiscal en DECIMAL (ej: 0.21) — el builder la pasa a % al aplicarla */
+    taxRate: number;
+    rebalanceFrequency: RebalanceFrequency;
+    rebalanceBandRelativePct: number;
+    rebalanceBandAbsolutePct: number;
+    /** Se incrementa en cada clic de "Copiar"; dispara la importación */
+    nonce: number;
+  } | null;
+  /** Llamado al pulsar "Copiar a la otra cartera" (el padre hace la copia). */
+  onCopyToOther?: () => void;
 }
 
 // Colores según el side — estilo El Proyecto K
@@ -70,7 +87,7 @@ import {
   type SavedMomentumStrategy,
 } from "@/lib/saved-momentum-strategies";
 
-export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
+export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: PortfolioBuilderProps) {
   const [allocations, setAllocations] = useState<FundAllocation[]>([]);
   // Carteras guardadas localmente por el usuario (localStorage)
   const [savedPortfolios, setSavedPortfolios] = useState<SavedPortfolio[]>([]);
@@ -192,6 +209,41 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
   useEffect(() => {
     notifyUpdate();
   }, [notifyUpdate]);
+
+  // Importar (copiar) el contenido de la OTRA cartera cuando el padre lo pide.
+  // Se dispara SOLO cuando cambia el `nonce` (un clic en "Copiar a A/B"), no en
+  // cada render. Reconstruye las allocations igual que al cargar una guardada.
+  const lastImportNonce = useRef<number | null>(null);
+  useEffect(() => {
+    if (!importData || importData.nonce === lastImportNonce.current) return;
+    lastImportNonce.current = importData.nonce;
+    const allocs: FundAllocation[] = [];
+    for (const h of importData.holdings) {
+      // Snapshot del fondo si es dinámico (eodhd-/yahoo-/momentum-); si no,
+      // se resuelve por id en la base de datos local.
+      const fund = h.fund ?? getFundById(h.fundId);
+      if (fund) {
+        allocs.push({
+          fund,
+          weight: h.weight,
+          ...(h.momentumConfig ? { momentumConfig: h.momentumConfig } : {}),
+        });
+      }
+    }
+    setAllocations(allocs);
+    setSelectedPresetId(null);
+    setShowPresetDropdown(false);
+    // Nombre "(copia)" + marcado como manual para que el auto-nombre no lo pise.
+    setNameManuallyEdited(true);
+    setName(`${importData.name} (copia)`);
+    setManagementFee(importData.managementFee);
+    setTaxMode(importData.taxMode);
+    setTaxRatePct(importData.taxRate * 100); // decimal → %
+    setRebalanceFrequencyLocal(importData.rebalanceFrequency);
+    setBandRelativePct(importData.rebalanceBandRelativePct);
+    setBandAbsolutePct(importData.rebalanceBandAbsolutePct);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importData]);
 
   // Auto-nombre: si el usuario no editó manualmente, actualizar según contexto
   const updateAutoName = useCallback(
@@ -684,6 +736,23 @@ export function PortfolioBuilder({ side, onUpdate }: PortfolioBuilderProps) {
               <span className="text-xs text-white/70 bg-white/10 px-2 py-1 rounded">
                 Preset
               </span>
+            )}
+            {onCopyToOther && (
+              <button
+                onClick={onCopyToOther}
+                disabled={allocations.length === 0}
+                className="text-xs text-white/90 bg-white/10 hover:bg-white/25 disabled:opacity-40 disabled:cursor-not-allowed px-2.5 py-1 rounded flex items-center gap-1.5 transition-colors"
+                title={
+                  allocations.length === 0
+                    ? "Añade al menos un activo para poder copiarla"
+                    : `Copiar esta cartera a la Cartera ${side === "a" ? "B" : "A"} (sustituye su contenido)`
+                }
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                <span>Copiar a {side === "a" ? "B" : "A"}</span>
+              </button>
             )}
             <button
               onClick={handleSaveClick}
