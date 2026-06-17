@@ -262,6 +262,21 @@ export default function Home() {
     setPortfolioB(data);
   }, []);
 
+  // Copiar (duplicar) una cartera en la otra. El padre guarda el estado de
+  // origen y lo inyecta en el builder destino vía `importData`; el `nonce`
+  // (incrementado en cada clic) es lo que dispara la importación en el builder.
+  const [importToA, setImportToA] = useState<(PortfolioState & { nonce: number }) | null>(null);
+  const [importToB, setImportToB] = useState<(PortfolioState & { nonce: number }) | null>(null);
+  const copyNonce = useRef(0);
+  const handleCopyAToB = useCallback(() => {
+    if (portfolioA.holdings.length === 0) return;
+    setImportToB({ ...portfolioA, nonce: ++copyNonce.current });
+  }, [portfolioA]);
+  const handleCopyBToA = useCallback(() => {
+    if (portfolioB.holdings.length === 0) return;
+    setImportToA({ ...portfolioB, nonce: ++copyNonce.current });
+  }, [portfolioB]);
+
   // Validar que las carteras están completas
   const hasHoldingsA = portfolioA.holdings.length > 0;
   const hasHoldingsB = portfolioB.holdings.length > 0;
@@ -551,8 +566,8 @@ export default function Home() {
             1. Configura tus carteras
           </h3>
           <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
-            <PortfolioBuilder side="a" onUpdate={handlePortfolioAUpdate} />
-            <PortfolioBuilder side="b" onUpdate={handlePortfolioBUpdate} />
+            <PortfolioBuilder side="a" onUpdate={handlePortfolioAUpdate} importData={importToA} onCopyToOther={handleCopyAToB} />
+            <PortfolioBuilder side="b" onUpdate={handlePortfolioBUpdate} importData={importToB} onCopyToOther={handleCopyBToA} />
           </div>
         </section>
 
