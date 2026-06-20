@@ -204,14 +204,24 @@ function buildMetricsConfig(
     return (1 + r.metrics.totalReturn) * scale - 1;
   };
 
-  // CAGR escalado al modo (anualizado a partir del cumulative escalado)
+  // ¿El modo NO introduce efecto fiscal? Sin impuestos pagados ni pendientes el
+  // factor de escala es 1 → Bruto = Neta del camino = Al liquidar. En ese caso
+  // TODAS las métricas deben ser IDÉNTICAS a las del motor. (Antes el CAGR se
+  // re-anualizaba con un nº de años calculado en el componente, distinto al del
+  // motor, y "bailaba" entre lentes aunque el valor final no se moviera.)
+  const noFiscalDrag = (r: BacktestResult, mode: ValueMode): boolean =>
+    mode === "camino" || Math.abs(scaleFactor(r, mode) - 1) < 1e-9;
+
+  // CAGR escalado al modo. Se ANCLA en el CAGR del motor (TWRR) y solo se
+  // anualiza el ajuste por el factor del modo:  (1 + cagr) · scale^(1/años) − 1.
+  // Con scale = 1 el resultado es EXACTAMENTE metrics.cagr (Math.pow(1,·)=1),
+  // así que las tres lentes coinciden cuando no hay impuestos.
   const cagrByMode = (r: BacktestResult, mode: ValueMode): number => {
-    if (mode === "camino") return r.metrics.cagr;
+    if (noFiscalDrag(r, mode)) return r.metrics.cagr;
     const scale = scaleFactor(r, mode);
-    const newCum = (1 + r.metrics.totalReturn) * scale;
-    if (newCum <= 0) return -1;
+    if (scale <= 0) return -1;
     const years = yearsOf(r);
-    return Math.pow(newCum, 1 / years) - 1;
+    return (1 + r.metrics.cagr) * Math.pow(scale, 1 / years) - 1;
   };
 
   // Sharpe / Sortino / Calmar derivan del CAGR escalado. Usamos la tasa libre
@@ -219,13 +229,13 @@ function buildMetricsConfig(
   // con el modo fiscal — son la experiencia real de la cartera durante el camino).
   const RISK_FREE_RATE = 0.01;
   const sharpeByMode = (r: BacktestResult, mode: ValueMode): number => {
-    if (mode === "camino") return r.metrics.sharpe;
+    if (noFiscalDrag(r, mode)) return r.metrics.sharpe;
     const vol = r.metrics.volatility;
     if (vol <= 0) return 0;
     return (cagrByMode(r, mode) - RISK_FREE_RATE) / vol;
   };
   const sortinoByMode = (r: BacktestResult, mode: ValueMode): number => {
-    if (mode === "camino") return r.metrics.sortino;
+    if (noFiscalDrag(r, mode)) return r.metrics.sortino;
     // Reconstruir downside deviation desde el Sortino y CAGR originales
     const camCagr = r.metrics.cagr;
     const camSortino = r.metrics.sortino;
@@ -235,7 +245,7 @@ function buildMetricsConfig(
     return (cagrByMode(r, mode) - RISK_FREE_RATE) / downsideDev;
   };
   const calmarByMode = (r: BacktestResult, mode: ValueMode): number => {
-    if (mode === "camino") return r.metrics.calmar;
+    if (noFiscalDrag(r, mode)) return r.metrics.calmar;
     const dd = r.metrics.maxDrawdown;
     if (dd >= 0) return 0;
     return cagrByMode(r, mode) / Math.abs(dd);
