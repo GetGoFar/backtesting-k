@@ -8,7 +8,8 @@
 // 3. Origen (Yahoo Finance / CSV)
 //
 // Upstash free tier: 10K comandos/dia
-// Con ~30 fondos y TTL de 30 dias, uso estimado: ~100 comandos/dia
+// Con ~30 fondos y TTL de 24h, uso estimado: unos cientos de comandos/dia
+// (un refetch por fondo y dia) — muy por debajo del limite.
 
 import type { DailyPrice } from "./types";
 
@@ -21,7 +22,11 @@ const memoryCache = new Map<
 const MEMORY_TTL_MS = 30 * 60 * 1000; // 30 minutos
 
 // --- Redis TTL ---
-const REDIS_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 dias
+// 24h: la serie de precios se refresca a diario para que el ÚLTIMO tramo de
+// datos no se quede congelado hasta 30 días. El histórico es inmutable, pero la
+// cola (los días más recientes) crece cada día de mercado, así que cachear 30
+// días dejaba el backtest "anclado" en la fecha en que se cacheó la serie.
+const REDIS_TTL_SECONDS = 24 * 60 * 60; // 24 horas
 
 // --- Redis client (lazy loaded) ---
 let redisClient: import("@upstash/redis").Redis | null = null;
@@ -88,7 +93,11 @@ async function getRedis(): Promise<import("@upstash/redis").Redis | null> {
 //       tenían datos contaminados de cuando Yahoo caía silenciosamente a EODHD bajo
 //       la clave de Yahoo. Esta versión invalida toda la cache previa para evitar
 //       servir datos cruzados.
-const CACHE_VERSION = "v23";
+// v24 = TTL de precios reducido de 30 días a 24h. Invalida la cache previa para
+//       refrescar el ÚLTIMO tramo de datos: con TTL de 30 días, una serie
+//       cacheada se quedaba "anclada" en su último día (p.ej. el backtest se
+//       quedaba en 12-jun aunque ya hubiera datos posteriores).
+const CACHE_VERSION = "v24";
 
 function makeKey(fundId: string): string {
   return `${CACHE_VERSION}:prices:${fundId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
