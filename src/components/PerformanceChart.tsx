@@ -706,6 +706,10 @@ export function PerformanceChart({ results, isLoading, valueMode = "camino" }: P
                 stroke={COLORS.a}
                 strokeWidth={2}
                 dot={false}
+                // Puentea huecos INTERNOS de datos (p.ej. un fondo sin
+                // cotizaciones un tramo) para que la línea no se corte. No
+                // dibuja antes del primer dato ni después del último de la serie.
+                connectNulls
                 activeDot={{ r: 4, fill: COLORS.a }}
               />
             )}
@@ -717,6 +721,7 @@ export function PerformanceChart({ results, isLoading, valueMode = "camino" }: P
                 stroke={COLORS.b}
                 strokeWidth={2}
                 dot={false}
+                connectNulls
                 activeDot={{ r: 4, fill: COLORS.b }}
               />
             )}
@@ -729,6 +734,7 @@ export function PerformanceChart({ results, isLoading, valueMode = "camino" }: P
                 strokeWidth={2}
                 strokeDasharray="6 4"
                 dot={false}
+                connectNulls
                 activeDot={{ r: 4, fill: COLORS.benchmark }}
               />
             )}

@@ -265,6 +265,7 @@ export function DrawdownChart({ results, isLoading }: DrawdownChartProps) {
                 stroke={COLORS.a.stroke}
                 fill="url(#gradientA)"
                 strokeWidth={2}
+                connectNulls
               />
             )}
             {resultB && (
@@ -275,6 +276,7 @@ export function DrawdownChart({ results, isLoading }: DrawdownChartProps) {
                 stroke={COLORS.b.stroke}
                 fill="url(#gradientB)"
                 strokeWidth={2}
+                connectNulls
               />
             )}
             {hasBenchmark && (
@@ -286,6 +288,7 @@ export function DrawdownChart({ results, isLoading }: DrawdownChartProps) {
                 fill="url(#gradientBench)"
                 strokeWidth={2}
                 strokeDasharray="6 4"
+                connectNulls
               />
             )}
           </AreaChart>
