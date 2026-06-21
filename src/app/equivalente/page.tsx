@@ -1,6 +1,7 @@
 "use client";
 
 import { KMark } from "@/components/KMark";
+import { NumberInput } from "@/components/NumberInput";
 
 // =============================================================================
 // PÁGINA EQUIVALENTE — Encuentra el ETF indexado equivalente a tu fondo activo
@@ -1687,7 +1688,6 @@ function ConfigField({
   onChange,
   min,
   max,
-  step,
 }: {
   label: string;
   suffix: string;
@@ -1703,16 +1703,11 @@ function ConfigField({
         {label}
       </span>
       <div className="relative">
-        <input
-          type="number"
+        <NumberInput
           value={value}
-          onChange={(e) => {
-            const v = parseFloat(e.target.value);
-            if (!isNaN(v)) onChange(v);
-          }}
+          onChange={onChange}
           min={min}
           max={max}
-          step={step}
           className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/30 pr-12"
         />
         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-brand-tertiary font-medium">

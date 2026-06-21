@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from "react";
 import { Tooltip } from "./Tooltip";
+import { NumberInput } from "./NumberInput";
 import type { MomentumConfig, MomentumAsset } from "@/lib/momentum-types";
 import {
   saveMomentumStrategy,
@@ -622,10 +623,10 @@ export function MomentumConfigPanel({
             tooltip="Importe en EUR (o la divisa de los activos). El motor no convierte FX entre activos."
           >
             <div className="relative">
-              <input
-                type="number"
+              <NumberInput
+                emptyValue={0}
                 value={config.initialAmount}
-                onChange={(e) => update("initialAmount", parseFloat(e.target.value) || 0)}
+                onChange={(v) => update("initialAmount", v)}
                 className="w-full px-3 py-2 pr-10 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30"
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-tertiary text-sm">€</span>
@@ -636,12 +637,13 @@ export function MomentumConfigPanel({
             label="Lookback (meses)"
             tooltip="Periodo histórico que se usa para calcular el momentum. 12 meses es el clásico académico (Jegadeesh & Titman 1993)."
           >
-            <input
-              type="number"
+            <NumberInput
               min={1}
               max={60}
+              allowDecimal={false}
+              emptyValue={12}
               value={config.lookbackMonths}
-              onChange={(e) => update("lookbackMonths", parseInt(e.target.value) || 12)}
+              onChange={(v) => update("lookbackMonths", v)}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30"
             />
           </Field>
@@ -680,14 +682,13 @@ export function MomentumConfigPanel({
             label="Periodo volatilidad (meses)"
             tooltip="Ventana en meses para calcular la volatilidad anualizada. Se usa para:&#10;• El denominador del ratio Sharpe-like del ranking (si el método de ranking es Sharpe).&#10;• La ponderación inverse-volatility (si está activa).&#10;Recomendado: 3 meses (como en Portfoliovisualizer). Más corto = más reactivo, más largo = más estable."
           >
-            <input
-              type="number"
+            <NumberInput
               min={2}
               max={36}
+              allowDecimal={false}
+              emptyValue={3}
               value={config.volatilityPeriodMonths ?? 3}
-              onChange={(e) =>
-                update("volatilityPeriodMonths", Math.max(2, parseInt(e.target.value) || 3))
-              }
+              onChange={(v) => update("volatilityPeriodMonths", v)}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30"
             />
           </Field>
@@ -696,14 +697,13 @@ export function MomentumConfigPanel({
             label="Top N activos a mantener"
             tooltip="Cuántos activos se mantienen en la cartera. 1 = el más fuerte. 3 = los 3 más fuertes ponderados según el esquema elegido."
           >
-            <input
-              type="number"
+            <NumberInput
               min={1}
               max={config.assets.length}
+              allowDecimal={false}
+              emptyValue={1}
               value={config.assetsToHold}
-              onChange={(e) =>
-                update("assetsToHold", Math.max(1, parseInt(e.target.value) || 1))
-              }
+              onChange={(v) => update("assetsToHold", v)}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30"
             />
           </Field>
@@ -757,12 +757,13 @@ export function MomentumConfigPanel({
             label="Filtro MA (meses)"
             tooltip="Si > 0, solo se entra en un activo si su precio supera su media móvil de N meses. Filtro de tendencia clásico (10 meses funciona bien). 0 = sin filtro. Si todos los top-N fallan el filtro, va a CASH."
           >
-            <input
-              type="number"
+            <NumberInput
               min={0}
               max={24}
+              allowDecimal={false}
+              emptyValue={0}
               value={config.movingAverageMonths ?? 0}
-              onChange={(e) => update("movingAverageMonths", parseInt(e.target.value) || 0)}
+              onChange={(v) => update("movingAverageMonths", v)}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30"
             />
           </Field>
@@ -771,13 +772,12 @@ export function MomentumConfigPanel({
             label="Slippage por trade (%)"
             tooltip="Coste estimado por operación (spread + comisión broker). Se aplica al porcentaje de cartera rotado en cada rebalanceo. Recomendado: 0,05% para ETFs líquidos, 0,1-0,2% para acciones."
           >
-            <input
-              type="number"
-              step={0.01}
+            <NumberInput
               min={0}
               max={2}
+              emptyValue={0}
               value={config.slippagePercent ?? 0}
-              onChange={(e) => update("slippagePercent", parseFloat(e.target.value) || 0)}
+              onChange={(v) => update("slippagePercent", v)}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30"
             />
           </Field>
@@ -809,15 +809,13 @@ export function MomentumConfigPanel({
               label="Tipo impositivo (%)"
               tooltip="Porcentaje plano aplicado a cada plusvalía realizada. En España el tipo del ahorro va del 19% al 28% por tramos; 21% es una aproximación razonable de tipo medio."
             >
-              <input
-                type="number"
-                step={1}
+              <NumberInput
                 min={0}
                 max={50}
+                allowDecimal={false}
+                emptyValue={21}
                 value={Math.round((config.taxRate ?? 0.21) * 100)}
-                onChange={(e) =>
-                  update("taxRate", Math.max(0, parseFloat(e.target.value) || 0) / 100)
-                }
+                onChange={(v) => update("taxRate", v / 100)}
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30"
               />
             </Field>

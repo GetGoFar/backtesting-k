@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { FundSearch } from "./FundSearch";
 import { FundDataRange } from "./FundDataRange";
+import { NumberInput } from "./NumberInput";
 import type { Fund, PortfolioPreset, PortfolioHolding, RebalanceFrequency } from "@/lib/types";
 import { getAllPresets } from "@/lib/portfolio-presets";
 import { getFundById } from "@/lib/fund-database";
@@ -1435,16 +1436,12 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                   <span className="text-xs text-brand-secondary">
                     Peso del satélite:
                   </span>
-                  <input
-                    type="number"
-                    min="1"
-                    max="99"
-                    step="1"
+                  <NumberInput
+                    min={1}
+                    max={99}
+                    emptyValue={1}
                     value={satelliteWeight}
-                    onChange={(e) => {
-                      const v = parseFloat(e.target.value);
-                      if (!isNaN(v) && v >= 1 && v <= 99) setSatelliteWeight(v);
-                    }}
+                    onChange={(v) => setSatelliteWeight(v)}
                     className="w-16 px-2 py-1 text-sm font-semibold border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral"
                   />
                   <span className="text-sm font-semibold text-brand-navy">%</span>
@@ -1580,18 +1577,12 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                   {/* TER editable */}
                   <div className="flex items-center gap-1 mt-0.5">
                     <span className="text-xs text-slate-500">TER:</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max="10"
-                      step="0.01"
+                    <NumberInput
+                      min={0}
+                      max={10}
+                      emptyValue={0}
                       value={allocation.fund.ter}
-                      onChange={(e) =>
-                        handleTerChange(
-                          allocation.fund.id,
-                          Number(e.target.value)
-                        )
-                      }
+                      onChange={(v) => handleTerChange(allocation.fund.id, v)}
                       className={`w-14 px-1 py-0.5 text-xs text-right border rounded focus:outline-none focus:ring-1 focus:ring-brand-coral ${
                         allocation.fund.terConfirmed === false
                           ? "border-amber-400 bg-amber-50"
@@ -1617,18 +1608,12 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
 
                 {/* Input de peso */}
                 <div className="flex items-center gap-1">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="5"
+                  <NumberInput
+                    min={0}
+                    max={100}
+                    emptyValue={0}
                     value={allocation.weight}
-                    onChange={(e) =>
-                      handleWeightChange(
-                        allocation.fund.id,
-                        Number(e.target.value)
-                      )
-                    }
+                    onChange={(v) => handleWeightChange(allocation.fund.id, v)}
                     className={`w-16 px-2 py-1.5 text-sm text-right border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:${colors.ring}`}
                   />
                   <span className="text-sm text-slate-400">%</span>
@@ -1760,13 +1745,12 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                 </span>
               </div>
               <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  min="0"
-                  max="5"
-                  step="0.01"
+                <NumberInput
+                  min={0}
+                  max={5}
+                  emptyValue={0}
                   value={managementFee}
-                  onChange={(e) => setManagementFee(Math.max(0, Number(e.target.value)))}
+                  onChange={(v) => setManagementFee(v)}
                   className="w-16 px-1.5 py-0.5 text-xs text-right border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-brand-coral"
                 />
                 <span className="text-xs text-slate-500">%</span>
@@ -1856,13 +1840,12 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-slate-600">Tasa fija:</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max="50"
-                      step="0.5"
+                    <NumberInput
+                      min={0}
+                      max={50}
+                      emptyValue={0}
                       value={taxRatePct}
-                      onChange={(e) => setTaxRatePct(Math.max(0, Math.min(50, Number(e.target.value))))}
+                      onChange={(v) => setTaxRatePct(v)}
                       className="w-16 px-1.5 py-0.5 text-xs text-right border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-brand-coral"
                     />
                     <span className="text-xs text-slate-500">%</span>
@@ -1924,15 +1907,12 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] text-slate-600">Banda rel.</span>
                       <div className="flex items-center gap-0.5">
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="5"
+                        <NumberInput
+                          min={0}
+                          max={100}
+                          emptyValue={0}
                           value={bandRelativePct}
-                          onChange={(e) =>
-                            setBandRelativePct(Math.max(0, Math.min(100, Number(e.target.value))))
-                          }
+                          onChange={(v) => setBandRelativePct(v)}
                           className="w-12 px-1 py-0.5 text-[11px] text-right border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-brand-coral"
                         />
                         <span className="text-[10px] text-slate-500">%</span>
@@ -1943,15 +1923,12 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] text-slate-600">Banda abs.</span>
                       <div className="flex items-center gap-0.5">
-                        <input
-                          type="number"
-                          min="0"
-                          max="50"
-                          step="1"
+                        <NumberInput
+                          min={0}
+                          max={50}
+                          emptyValue={0}
                           value={bandAbsolutePct}
-                          onChange={(e) =>
-                            setBandAbsolutePct(Math.max(0, Math.min(50, Number(e.target.value))))
-                          }
+                          onChange={(v) => setBandAbsolutePct(v)}
                           className="w-12 px-1 py-0.5 text-[11px] text-right border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-brand-coral"
                         />
                         <span className="text-[10px] text-slate-500">%</span>

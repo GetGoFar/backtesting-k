@@ -1,6 +1,7 @@
 "use client";
 
 import { KMark } from "@/components/KMark";
+import { NumberInput } from "@/components/NumberInput";
 
 // =============================================================================
 // JUBILACIÓN — Financial Goals al estilo Portfolio Visualizer
@@ -470,15 +471,12 @@ function FinancialGoalsEditor({
                   <span className="block text-[10px] font-semibold text-brand-tertiary uppercase tracking-wider mb-1">
                     % anual sobre patrimonio
                   </span>
-                  <input
-                    type="number"
+                  <NumberInput
                     min={0}
                     max={20}
-                    step={0.1}
+                    emptyValue={0}
                     value={g.percentagePct ?? 0}
-                    onChange={(e) =>
-                      update(g.id, { percentagePct: parseFloat(e.target.value) || 0 })
-                    }
+                    onChange={(v) => update(g.id, { percentagePct: v })}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral"
                   />
                 </label>
@@ -487,14 +485,11 @@ function FinancialGoalsEditor({
                   <span className="block text-[10px] font-semibold text-brand-tertiary uppercase tracking-wider mb-1">
                     EUR / mes
                   </span>
-                  <input
-                    type="number"
+                  <NumberInput
                     min={0}
-                    step={50}
+                    emptyValue={0}
                     value={g.amount ?? 0}
-                    onChange={(e) =>
-                      update(g.id, { amount: parseFloat(e.target.value) || 0 })
-                    }
+                    onChange={(v) => update(g.id, { amount: v })}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral"
                   />
                 </label>
@@ -540,17 +535,13 @@ function FinancialGoalsEditor({
                   <span className="block text-[10px] font-semibold text-brand-tertiary uppercase tracking-wider mb-1">
                     Años desde ahora
                   </span>
-                  <input
-                    type="number"
+                  <NumberInput
                     min={0}
                     max={50}
-                    step={1}
+                    allowDecimal={false}
+                    emptyValue={0}
                     value={g.startYearsFromNow ?? 0}
-                    onChange={(e) =>
-                      update(g.id, {
-                        startYearsFromNow: parseInt(e.target.value, 10) || 0,
-                      })
-                    }
+                    onChange={(v) => update(g.id, { startYearsFromNow: v })}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral"
                   />
                 </label>
@@ -580,17 +571,13 @@ function FinancialGoalsEditor({
                   <span className="block text-[10px] font-semibold text-brand-tertiary uppercase tracking-wider mb-1">
                     Años de duración
                   </span>
-                  <input
-                    type="number"
+                  <NumberInput
                     min={1}
                     max={80}
-                    step={1}
+                    allowDecimal={false}
+                    emptyValue={1}
                     value={g.durationYears ?? 1}
-                    onChange={(e) =>
-                      update(g.id, {
-                        durationYears: parseInt(e.target.value, 10) || 1,
-                      })
-                    }
+                    onChange={(v) => update(g.id, { durationYears: v })}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral"
                   />
                 </label>
@@ -609,7 +596,6 @@ function NumberField({
   onChange,
   min,
   max,
-  step = 1,
   tooltip,
 }: {
   label: string;
@@ -625,16 +611,11 @@ function NumberField({
       <span className="block text-xs font-semibold text-brand-tertiary uppercase tracking-wider mb-1" title={tooltip}>
         {label}
       </span>
-      <input
-        type="number"
+      <NumberInput
         value={value}
-        onChange={(e) => {
-          const v = parseFloat(e.target.value);
-          if (!isNaN(v)) onChange(v);
-        }}
+        onChange={onChange}
         min={min}
         max={max}
-        step={step}
         className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral"
       />
     </label>
