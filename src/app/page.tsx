@@ -5,6 +5,7 @@ import { KMark } from "@/components/KMark";
 import { useState, useRef, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { PortfolioBuilder } from "@/components/PortfolioBuilder";
+import { NumberInput } from "@/components/NumberInput";
 import { FundSearch } from "@/components/FundSearch";
 import { MetricsTable, type ValueMode } from "@/components/MetricsTable";
 import { FeeImpactCard } from "@/components/FeeImpactCard";
@@ -614,15 +615,12 @@ export default function Home() {
                   Inversión inicial
                 </label>
                 <div className="relative">
-                  <input
-                    type="number"
+                  <NumberInput
                     value={initialInvestment}
-                    onChange={(e) =>
-                      setInitialInvestment(Number(e.target.value))
-                    }
+                    onChange={(v) => setInitialInvestment(v)}
                     min={100}
                     max={10000000}
-                    step={100}
+                    emptyValue={100}
                     className="w-full px-3 py-2 pr-12 text-sm sm:text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral transition-colors"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-tertiary text-xs sm:text-sm">
@@ -637,15 +635,12 @@ export default function Home() {
                   Aportación mensual
                 </label>
                 <div className="relative">
-                  <input
-                    type="number"
+                  <NumberInput
                     value={monthlyContribution}
-                    onChange={(e) =>
-                      setMonthlyContribution(Number(e.target.value))
-                    }
+                    onChange={(v) => setMonthlyContribution(v)}
                     min={0}
                     max={100000}
-                    step={50}
+                    emptyValue={0}
                     className="w-full px-3 py-2 pr-12 text-sm sm:text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral transition-colors"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-tertiary text-xs sm:text-sm">

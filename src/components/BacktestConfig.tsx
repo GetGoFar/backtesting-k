@@ -1,6 +1,7 @@
 "use client";
 
 import type { RebalanceFrequency } from "@/lib/types";
+import { NumberInput } from "./NumberInput";
 
 // Componente de configuración del backtest
 
@@ -73,12 +74,11 @@ export function BacktestConfig({
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Inversión inicial (€)
           </label>
-          <input
-            type="number"
-            min="1000"
-            step="1000"
+          <NumberInput
+            min={1000}
+            emptyValue={1000}
             value={initialInvestment}
-            onChange={(e) => onInitialInvestmentChange(Number(e.target.value))}
+            onChange={(v) => onInitialInvestmentChange(v)}
             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -88,12 +88,11 @@ export function BacktestConfig({
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Aportación mensual (€)
           </label>
-          <input
-            type="number"
-            min="0"
-            step="100"
+          <NumberInput
+            min={0}
+            emptyValue={0}
             value={monthlyContribution}
-            onChange={(e) => onMonthlyContributionChange(Number(e.target.value))}
+            onChange={(v) => onMonthlyContributionChange(v)}
             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <p className="text-xs text-gray-500 mt-1">
