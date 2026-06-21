@@ -397,7 +397,8 @@ const K_SECTORIAL_USA_PRESETS: PortfolioPreset[] = [
     description: "Riesgo máximo: 80% sectores + 20% Oro (sin bonos ni cash)",
     type: "index",
     holdings: [
-      { fundId: "spdr-xlp", weight: 20 },
+      { fundId: "spdr-xlp", weight: 10 },
+      { fundId: "spdr-xlu", weight: 10 },
       { fundId: "spdr-xlv", weight: 20 },
       { fundId: "spdr-xlk", weight: 20 },
       { fundId: "spdr-xle", weight: 10 },
