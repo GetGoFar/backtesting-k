@@ -2153,7 +2153,8 @@ function calculatePortfolioAllocation(holdings: PortfolioHolding[]): PortfolioAl
   const byManagementMap = new Map<string, Bucket>();
 
   // Mapeo categoría → familia
-  const familyOf = (category: string): string => {
+  const familyOf = (category: string | undefined): string => {
+    if (!category) return "Otros"; // p.ej. estrategias de momentum (sin categoría)
     if (category === "Oro") return "Oro";
     if (category === "Alternativo") return "Alternativos";
     if (category.startsWith("RV")) return "Renta Variable";
@@ -2166,15 +2167,16 @@ function calculatePortfolioAllocation(holdings: PortfolioHolding[]): PortfolioAl
     if (!fund) continue;
     const w = holding.weight / 100; // a decimal
     const shortName = fund.shortName ?? fund.name ?? holding.fundId;
+    const cat = fund.category ?? "Sin categoría";
 
     // Por categoría detallada
-    const catEntry = byCategoryMap.get(fund.category) ?? { weight: 0, fundShortNames: [] };
+    const catEntry = byCategoryMap.get(cat) ?? { weight: 0, fundShortNames: [] };
     catEntry.weight += w;
     catEntry.fundShortNames.push(shortName);
-    byCategoryMap.set(fund.category, catEntry);
+    byCategoryMap.set(cat, catEntry);
 
     // Por familia (asset class)
-    const family = familyOf(fund.category);
+    const family = familyOf(cat);
     const famEntry = byAssetClassMap.get(family) ?? { weight: 0, fundShortNames: [] };
     famEntry.weight += w;
     famEntry.fundShortNames.push(shortName);
@@ -2586,6 +2588,87 @@ function pearsonCorrelation(a: number[], b: number[]): number {
 // Métricas individuales de activos (usa datos DIARIOS — ya cacheados)
 // -----------------------------------------------------------------------------
 
+// -----------------------------------------------------------------------------
+// Serie de un holding teniendo en cuenta las estrategias de momentum.
+// El momentum no es un fondo real (no tiene precios que descargar); su "precio"
+// es su equity curve. Para que aparezca en la correlación y en las métricas por
+// activo, re-ejecutamos la estrategia (barato: los precios de los subyacentes ya
+// están cacheados) y convertimos su equity en una serie normalizada a 100.
+// -----------------------------------------------------------------------------
+
+/** Equity curve (mensual) → precios DIARIOS normalizados a 100 (forward-fill). */
+function equityCurveToDailyPrices(
+  equityCurve: Array<{ date: string; value: number }>
+): Map<string, number> {
+  const out = new Map<string, number>();
+  if (!equityCurve || equityCurve.length < 2) return out;
+  const baseValue = equityCurve[0]!.value;
+  if (baseValue <= 0) return out;
+  let idx = 0;
+  const start = new Date(equityCurve[0]!.date);
+  const end = new Date(equityCurve[equityCurve.length - 1]!.date);
+  for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+    const dStr = d.toISOString().substring(0, 10);
+    while (idx + 1 < equityCurve.length && equityCurve[idx + 1]!.date <= dStr) idx++;
+    out.set(dStr, (equityCurve[idx]!.value / baseValue) * 100);
+  }
+  return out;
+}
+
+/** Equity curve → precios MENSUALES (YYYY-MM) normalizados a 100. */
+function equityCurveToMonthlyPrices(
+  equityCurve: Array<{ date: string; value: number }>
+): Map<string, number> {
+  const out = new Map<string, number>();
+  if (!equityCurve || equityCurve.length < 2) return out;
+  const baseValue = equityCurve[0]!.value;
+  if (baseValue <= 0) return out;
+  for (const p of equityCurve) {
+    out.set(p.date.substring(0, 7), (p.value / baseValue) * 100); // último del mes gana
+  }
+  return out;
+}
+
+/** Precios diarios de un holding (momentum re-ejecutado, o fondo descargado). */
+async function getHoldingDailySeries(
+  holding: PortfolioHolding,
+  startDate: string,
+  endDate: string
+): Promise<Map<string, number>> {
+  if (holding.momentumConfig) {
+    try {
+      const res = await runMomentum({ ...holding.momentumConfig, startDate, endDate, initialAmount: 100 });
+      return equityCurveToDailyPrices(res.equityCurve);
+    } catch (e) {
+      console.warn(`[AssetSeries] momentum diario ${holding.fundId}:`, e);
+      return new Map();
+    }
+  }
+  const fund = getFundById(holding.fundId) || holding.fund;
+  const { prices } = await getDailyPrices(holding.fundId, fund?.ticker, fund?.isin);
+  return prices;
+}
+
+/** Precios mensuales de un holding (momentum re-ejecutado, o fondo descargado). */
+async function getHoldingMonthlySeries(
+  holding: PortfolioHolding,
+  startDate: string,
+  endDate: string
+): Promise<Map<string, number>> {
+  if (holding.momentumConfig) {
+    try {
+      const res = await runMomentum({ ...holding.momentumConfig, startDate, endDate, initialAmount: 100 });
+      return equityCurveToMonthlyPrices(res.equityCurve);
+    } catch (e) {
+      console.warn(`[AssetSeries] momentum mensual ${holding.fundId}:`, e);
+      return new Map();
+    }
+  }
+  const fund = getFundById(holding.fundId) || holding.fund;
+  const { prices } = await getMonthlyPrices(holding.fundId, fund?.ticker, fund?.isin);
+  return prices;
+}
+
 async function calculateIndividualAssetMetrics(
   holdings: PortfolioHolding[],
   startDate: string,
@@ -2612,8 +2695,10 @@ async function calculateIndividualAssetMetrics(
     if (!fund) continue;
 
     try {
-      // Usar datos diarios (ya están cacheados desde el backtest)
-      const { prices } = await getDailyPrices(holding.fundId, fund.ticker, fund.isin);
+      // Serie diaria del activo. Si el holding es una estrategia de momentum,
+      // se re-ejecuta y se usa su equity curve normalizada (en vez de descargar
+      // precios, que no existen para una estrategia).
+      const prices = await getHoldingDailySeries(holding, startDate, endDate);
       if (prices.size < 20) continue;
 
       const sortedDates = Array.from(prices.keys())
@@ -2761,7 +2846,8 @@ async function calculateAssetCorrelationMatrix(
     if (!fund) continue;
 
     try {
-      const { prices } = await getMonthlyPrices(holding.fundId, fund.ticker, fund.isin);
+      // Serie mensual del activo; momentum → equity curve re-ejecutada.
+      const prices = await getHoldingMonthlySeries(holding, startDate, endDate);
       if (prices.size < 3) continue;
 
       const returns = calculateReturnsFromPrices(prices);
