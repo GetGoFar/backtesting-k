@@ -7,6 +7,7 @@ import { NumberInput } from "./NumberInput";
 import type { Fund, PortfolioPreset, PortfolioHolding, RebalanceFrequency } from "@/lib/types";
 import { getAllPresets } from "@/lib/portfolio-presets";
 import { getFundById } from "@/lib/fund-database";
+import { saveWorkingPortfolio, loadWorkingPortfolio } from "@/lib/working-portfolio";
 import { isCampusMode, isCampusPreset } from "@/lib/campus-client";
 
 // Tipo interno para manejar allocaciones con datos completos del fondo
@@ -245,6 +246,62 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
     setBandAbsolutePct(importData.rebalanceBandAbsolutePct);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [importData]);
+
+  // --- Persistencia de la cartera de TRABAJO (no perderla al cambiar de pestaña) ---
+  // Autoguardado: persiste en cada cambio, pero SOLO tras la hidratación inicial,
+  // para no pisar lo guardado con el estado vacío del primer render. Declarado
+  // ANTES del efecto de restauración a propósito (así en el montaje corre primero
+  // y se salta por `hydratedRef === false`).
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    saveWorkingPortfolio(side, {
+      name,
+      nameManuallyEdited,
+      holdings: allocations.map((a) => ({
+        fundId: a.fund.id,
+        weight: a.weight,
+        fund: a.fund, // Fund completo → restaura también fondos dinámicos/momentum
+        ...(a.momentumConfig ? { momentumConfig: a.momentumConfig } : {}),
+      })),
+      managementFee,
+      taxMode,
+      taxRatePct,
+      rebalanceFrequency: rebalanceFrequencyLocal,
+      rebalanceBandRelativePct: bandRelativePct,
+      rebalanceBandAbsolutePct: bandAbsolutePct,
+    });
+  }, [allocations, name, nameManuallyEdited, managementFee, taxMode, taxRatePct,
+      rebalanceFrequencyLocal, bandRelativePct, bandAbsolutePct, side]);
+
+  // Restauración al montar (volver a la pestaña del backtest, o recargar). Una
+  // sola vez; marca `hydratedRef` para habilitar el autoguardado a partir de ahí.
+  useEffect(() => {
+    const data = loadWorkingPortfolio(side);
+    if (data && Array.isArray(data.holdings) && data.holdings.length > 0) {
+      const allocs: FundAllocation[] = [];
+      for (const h of data.holdings) {
+        const fund = h.fund ?? getFundById(h.fundId);
+        if (fund) {
+          allocs.push({ fund, weight: h.weight, ...(h.momentumConfig ? { momentumConfig: h.momentumConfig } : {}) });
+        }
+      }
+      if (allocs.length > 0) {
+        setAllocations(allocs);
+        setSelectedPresetId(null);
+        setNameManuallyEdited(data.nameManuallyEdited ?? true);
+        if (data.name) setName(data.name);
+        if (typeof data.managementFee === "number") setManagementFee(data.managementFee);
+        if (data.taxMode) setTaxMode(data.taxMode);
+        if (typeof data.taxRatePct === "number") setTaxRatePct(data.taxRatePct);
+        if (data.rebalanceFrequency) setRebalanceFrequencyLocal(data.rebalanceFrequency);
+        if (typeof data.rebalanceBandRelativePct === "number") setBandRelativePct(data.rebalanceBandRelativePct);
+        if (typeof data.rebalanceBandAbsolutePct === "number") setBandAbsolutePct(data.rebalanceBandAbsolutePct);
+      }
+    }
+    hydratedRef.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-nombre: si el usuario no editó manualmente, actualizar según contexto
   const updateAutoName = useCallback(
