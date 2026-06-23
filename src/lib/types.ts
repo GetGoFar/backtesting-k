@@ -576,6 +576,9 @@ export interface BacktestResult {
   allocation: PortfolioAllocation;
   /** Resumen de comisiones */
   fees: FeesSummary;
+  /** Capital inicial invertido (el importe de partida del backtest, sin contar
+   *  las aportaciones periódicas posteriores). */
+  initialAmount: number;
   /** Aportaciones totales realizadas */
   totalContributions: number;
   /** Valor final del patrimonio */
@@ -649,6 +652,9 @@ export interface AssetMetrics {
   totalReturn: number;
   /** Número de meses de datos */
   months: number;
+  /** Peso del activo en la cartera (%, ej. 20 para 20%). Permite calcular la
+   *  reducción de riesgo por diversificación. */
+  weight?: number;
 }
 
 /** Matriz de correlaciones entre activos */

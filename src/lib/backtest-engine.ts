@@ -735,6 +735,7 @@ async function runPortfolioBacktest(
     returnsHistogram,
     allocation,
     fees,
+    initialAmount,
     totalContributions: simulation.totalContributions,
     finalValue,
     grossFinalValue,
@@ -2809,6 +2810,7 @@ async function calculateIndividualAssetMetrics(
         sharpe,
         totalReturn,
         months: monthsSet.size,
+        weight: holding.weight,
       });
     } catch (error) {
       console.warn(`[AssetMetrics] Error calculando métricas para ${holding.fundId}:`, error);

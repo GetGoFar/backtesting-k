@@ -661,6 +661,7 @@ export function MetricsTable({ results, isLoading, valueMode, onValueModeChange 
           returnsHistogram: { periodLabel: "mes", bins: [], mean: 0, stdDev: 0, totalCount: 0 },
           allocation: { byCategory: [], byAssetClass: [], byManagement: [] },
           fees: benchmark.benchmarkFees,
+          initialAmount: benchmark.benchmarkTotalContributions ?? 0,
           totalContributions: benchmark.benchmarkTotalContributions ?? 0,
           finalValue: benchmark.benchmarkFinalValue,
         }

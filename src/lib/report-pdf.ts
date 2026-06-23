@@ -703,7 +703,7 @@ function renderEvolution(ctx: RenderCtx, result: BacktestResult, benchmark?: Ben
   // Tabla
   const profit = result.finalValue - result.totalContributions;
   const tableBody: string[][] = [
-    ["Capital inicial aportado", fmtEUR(ts[0]?.value ?? 0)],
+    ["Capital inicial aportado", fmtEUR(result.initialAmount ?? result.totalContributions)],
     ["Total aportado en el periodo", fmtEUR(result.totalContributions)],
     ["Valor final", fmtEUR(result.finalValue)],
     ["Ganancia bruta", fmtEUR(profit)],
@@ -1091,13 +1091,28 @@ function heatColor(v: number, maxAbs: number): [number, number, number] {
 }
 
 /** Color para correlaciones: +1 rojo (se mueven juntos), 0 neutro, -1 verde. */
+/** Color de una celda de correlación: VERDE intenso = baja correlación (buena
+ *  diversificación) → amarillo (~0,5) → ROJO = alta correlación (van de la mano).
+ *  La diagonal y la correlación perfecta no dominan: lo que llama la atención es
+ *  el verde de los pares que de verdad diversifican. */
 function corrColor(c: number): [number, number, number] {
-  if (c >= 0) {
-    const t = Math.max(0, Math.min(1, c));
-    return [Math.round(245 - t * (245 - 198)), Math.round(240 - t * (240 - 60)), Math.round(232 - t * (232 - 50))];
+  const lerp = (a: number, b: number, t: number) => Math.round(a + (b - a) * t);
+  // Paradas: #16A34A verde, #FACC15 amarillo, #DC2626 rojo (tema de la app).
+  const G: [number, number, number] = [22, 163, 74];
+  const Y: [number, number, number] = [250, 204, 21];
+  const R: [number, number, number] = [220, 38, 38];
+  const x = Math.max(-0.2, Math.min(1, c));
+  if (x <= 0.5) {
+    const t = (x + 0.2) / 0.7; // −0,2..0,5 → 0..1 (verde→amarillo)
+    return [lerp(G[0], Y[0], t), lerp(G[1], Y[1], t), lerp(G[2], Y[2], t)];
   }
-  const t = Math.max(0, Math.min(1, -c));
-  return [Math.round(245 - t * (245 - 46)), Math.round(240 - t * (240 - 125)), Math.round(232 - t * (232 - 50))];
+  const t = (x - 0.5) / 0.5; // 0,5..1 → 0..1 (amarillo→rojo)
+  return [lerp(Y[0], R[0], t), lerp(Y[1], R[1], t), lerp(Y[2], R[2], t)];
+}
+
+/** ¿El texto sobre este color debe ser blanco? (sobre verde/rojo saturados). */
+function corrTextWhite(c: number): boolean {
+  return c >= 0.78 || c <= 0.12; // rojo fuerte o verde fuerte
 }
 
 // 03b — Todas las métricas
@@ -1368,12 +1383,12 @@ function renderComposition(ctx: RenderCtx, result: BacktestResult) {
 }
 
 // 09b — Correlación entre activos
-function renderCorrelations(ctx: RenderCtx, matrix?: CorrelationMatrix) {
+function renderCorrelations(ctx: RenderCtx, matrix?: CorrelationMatrix, assetMetrics?: AssetMetrics[], portfolioVol?: number) {
   drawSectionHeader(ctx, "10", "Correlación entre activos");
   drawBody(ctx,
     "Diversificar no es tener muchos fondos: es tener fondos que NO se muevan a la vez. Dos " +
     "fondos con correlación 0,95 son, a efectos prácticos, el mismo fondo cobrándote dos comisiones. " +
-    "Verde = se diversifican; rojo = van de la mano."
+    "Verde intenso = se diversifican (correlación baja); rojo = van de la mano (correlación alta)."
   );
   if (!matrix || matrix.fundIds.length < 2) {
     drawBody(ctx, "Se necesitan al menos dos activos con histórico común para calcular correlaciones.", { italic: true });
@@ -1403,15 +1418,44 @@ function renderCorrelations(ctx: RenderCtx, matrix?: CorrelationMatrix) {
     for (let j = 0; j < n; j++) {
       const c = matrix.matrix[i]?.[j] ?? 0;
       const x = ML + labelW + j * cellW;
-      ctx.pdf.setFillColor(...corrColor(c));
-      ctx.pdf.rect(x, ctx.y, cellW - 0.5, cellH - 0.5, "F");
-      ctx.pdf.setFontSize(5.5);
-      ctx.pdf.setTextColor(...RGB.dark);
-      ctx.pdf.text(c.toFixed(2), x + cellW / 2, ctx.y + cellH / 2 + 1, { align: "center" });
+      if (i === j) {
+        // Diagonal (autocorrelación = 1): neutra, no debe robar atención.
+        ctx.pdf.setFillColor(235, 235, 235);
+        ctx.pdf.rect(x, ctx.y, cellW - 0.5, cellH - 0.5, "F");
+        ctx.pdf.setFontSize(5.5);
+        ctx.pdf.setTextColor(...RGB.gray);
+        ctx.pdf.text("—", x + cellW / 2, ctx.y + cellH / 2 + 1, { align: "center" });
+      } else {
+        ctx.pdf.setFillColor(...corrColor(c));
+        ctx.pdf.rect(x, ctx.y, cellW - 0.5, cellH - 0.5, "F");
+        ctx.pdf.setFontSize(5.5);
+        if (corrTextWhite(c)) ctx.pdf.setTextColor(255, 255, 255);
+        else ctx.pdf.setTextColor(...RGB.dark);
+        ctx.pdf.text(c.toFixed(2), x + cellW / 2, ctx.y + cellH / 2 + 1, { align: "center" });
+      }
     }
     ctx.y += cellH;
   }
   ctx.y += 4;
+
+  // % de riesgo diversificable que elimina la cartera: cuánto baja la
+  // volatilidad real frente a la media ponderada de las volatilidades de los
+  // activos. Si todos fueran idénticos (corr=1) no se reduciría nada.
+  if (assetMetrics && assetMetrics.length >= 2 && portfolioVol && portfolioVol > 0) {
+    const withW = assetMetrics.filter((m) => (m.weight ?? 0) > 0 && m.volatility > 0);
+    const sumW = withW.reduce((s, m) => s + (m.weight ?? 0), 0);
+    if (sumW > 0) {
+      const weightedAvgVol = withW.reduce((s, m) => s + ((m.weight ?? 0) / sumW) * m.volatility, 0);
+      if (weightedAvgVol > 0) {
+        const reduccion = Math.max(0, 1 - portfolioVol / weightedAvgVol) * 100;
+        drawCTABox(ctx, "Riesgo que elimina la diversificación",
+          `La volatilidad real de la cartera es ${fmtPct(portfolioVol * 100).replace("+", "")}, frente a ${fmtPct(weightedAvgVol * 100).replace("+", "")} ` +
+          `que tendría la media ponderada de sus activos por separado. Es decir, combinar activos que no se mueven a la vez ` +
+          `elimina un ${reduccion.toFixed(0)} % del riesgo — diversificación que no cuesta rentabilidad esperada.`
+        );
+      }
+    }
+  }
 }
 
 // 10b — Métricas por activo
@@ -1507,7 +1551,7 @@ function renderComparison(ctx: RenderCtx, result: BacktestResult, benchmark?: Be
 function renderContributions(ctx: RenderCtx, result: BacktestResult) {
   drawSectionHeader(ctx, "14", "El poder de las aportaciones");
   const aportado = result.totalContributions;
-  const inicial = result.timeSeries[0]?.value ?? 0;
+  const inicial = result.initialAmount ?? result.totalContributions;
   const aportadoPeriodico = Math.max(0, aportado - inicial);
   const valorFinal = result.finalValue;
   const crecimiento = valorFinal - aportado;
@@ -1536,24 +1580,40 @@ function renderContributions(ctx: RenderCtx, result: BacktestResult) {
 // 14b — Historial de movimientos (rebalanceos)
 function renderRebalances(ctx: RenderCtx, result: BacktestResult) {
   drawSectionHeader(ctx, "15", "Historial de movimientos");
+  // En fondos traspasables (taxMode "none") el rebalanceo NO cristaliza la
+  // plusvalía: se traspasa de un fondo a otro sin pasar por Hacienda y el
+  // impuesto se difiere hasta el reembolso final. En ETFs/acciones sí se realiza.
+  const isFunds = (result.fees.taxMode ?? "none") === "none";
   drawBody(ctx,
     "Cada rebalanceo vende lo que ha subido y compra lo que ha bajado: disciplina automática " +
-    "que te obliga a hacer lo contrario de lo que pide el miedo. Si tributas, también ves aquí el peaje."
+    "que te obliga a hacer lo contrario de lo que pide el miedo. " +
+    (isFunds
+      ? "Al ser fondos traspasables, estos movimientos NO cristalizan la plusvalía: se difieren y solo tributan al reembolsar."
+      : "Como tributas en cada venta, también ves aquí el peaje fiscal de cada movimiento.")
   );
   const rb = result.rebalanceLog;
   if (rb.length === 0) { drawBody(ctx, "No hubo rebalanceos en el periodo (cartera sin rebalanceo o un solo activo).", { italic: true }); return; }
   const totalTax = rb.reduce((s, r) => s + r.taxPaid, 0);
+  const gainHeader = isFunds ? "Plusvalía movida (diferida)" : "Plusvalía cristalizada";
   const body = rb.slice(0, 24).map((r) => [
     r.date.substring(0, 7),
     fmtEUR(r.portfolioValueBefore),
     r.totalGain >= 0 ? fmtEUR(r.totalGain) : `-${fmtEUR(-r.totalGain)}`,
-    r.taxPaid > 0 ? fmtEUR(r.taxPaid) : "—",
+    isFunds ? "diferido" : (r.taxPaid > 0 ? fmtEUR(r.taxPaid) : "—"),
   ]);
-  drawTable(ctx, ["Fecha", "Valor cartera", "Plusvalía cristalizada", "Impuesto"], body, {
+  drawTable(ctx, ["Fecha", "Valor cartera", gainHeader, "Impuesto"], body, {
     1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right", fontStyle: "bold" },
   });
   if (rb.length > 24) drawBody(ctx, `(Mostrados los primeros 24 de ${rb.length} movimientos.)`, { size: 8, italic: true, color: RGB.gray });
-  if (totalTax > 0) {
+  if (isFunds) {
+    const latente = result.fees.unrealizedGain ?? 0;
+    drawBody(ctx,
+      `Ninguno de estos movimientos ha tributado: en fondos traspasables el impuesto se difiere hasta el reembolso. ` +
+      (latente > 0 ? `La plusvalía latente acumulada al final del periodo es ${fmtEUR(latente)} y solo cristalizaría (y tributaría) si vendieras. ` : "") +
+      "Justo por eso el traspaso fiscal de los fondos es oro: el dinero que no adelantas a Hacienda sigue componiendo.",
+      { size: 10, color: RGB.green }
+    );
+  } else if (totalTax > 0) {
     drawBody(ctx,
       `Peaje fiscal total por el camino: ${fmtEUR(totalTax)}. Cada euro que adelantas a Hacienda ` +
       "es un euro que deja de componer — por eso la fiscalidad diferida de los fondos traspasables es oro.",
@@ -2205,7 +2265,7 @@ export function generateReportPDF(
       else if (id === "comparison") renderComparison(ctx, dResult, dBenchmark);
       else if (id === "stress") renderStress(ctx, dResult, dBenchmark);
       else if (id === "composition") renderComposition(ctx, dResult);
-      else if (id === "correlations") renderCorrelations(ctx, results.correlationMatrix);
+      else if (id === "correlations") renderCorrelations(ctx, results.correlationMatrix, results.assetMetrics, dResult.metrics.volatility);
       else if (id === "assetMetrics") renderAssetMetricsSection(ctx, results.assetMetrics);
       else if (id === "contributions") renderContributions(ctx, result);
       else if (id === "rebalances") renderRebalances(ctx, result);
