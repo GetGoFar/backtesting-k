@@ -1571,6 +1571,56 @@ const RF_PRESETS: PortfolioPreset[] = [
   },
 ];
 
+// Carteras LNE (Luis Navarro Estrada) — dos carteras reales de cliente (perfil
+// de riesgo 5): una GEOGRÁFICA implementada con fondos y otra SECTORIAL con
+// ETFs. Misma estructura RV ~48% / RF ~37% / Oro 15%. Pesos del Excel del
+// cliente (2026-06-23); se omitió el plug de liquidez AXA (0,06%) y se ajustó
+// −0,15 en Fidelity para sumar 100 en la geográfica.
+const LNE_PRESETS: PortfolioPreset[] = [
+  {
+    id: "cartera-lne-geografica",
+    name: "Cartera LNE Geográfica",
+    description:
+      "Cartera real (perfil 5) con FONDOS indexados, enfoque geográfico: RV global (Fidelity MSCI World 45% + Vanguard Emergentes 3,15%), RF 37% (Vanguard Euro Gov, Treasury 20+, Global Short-Term Bond hedged, EM Bond hedged) y 15% oro físico. RV ~48 / RF 37 / Oro 15.",
+    type: "index",
+    holdings: [
+      // Renta Variable (48,15%)
+      { fundId: "pablo-fidelity-msci-world", weight: 44.85 },
+      { fundId: "vanguard-em-stock-inv", weight: 3.15 },
+      // Renta Fija (37%)
+      { fundId: "lne-vanguard-euro-gov-bond", weight: 9.0 },
+      { fundId: "vanguard-20y-euro-treasury", weight: 3.0 },
+      { fundId: "vanguard-global-short-term-bond-eurh", weight: 23.0 }, // 18% + 5% del Excel
+      { fundId: "vanguard-em-bond-eurh", weight: 2.0 },
+      // Oro (15%)
+      { fundId: "ishares-gold", weight: 15.0 },
+    ],
+  },
+  {
+    id: "cartera-lne-sectorial",
+    name: "Cartera LNE Sectorial",
+    description:
+      "Cartera real (perfil 5) con ETFs, enfoque sectorial: RV 48% por sectores MSCI World (Consumo Básico, Salud y Tecnología 12% c/u, Energía 6%, Inmobiliario global 6%), RF 37% (Xtrackers Global Gov, iShares USD Treasury hedged, Amundi Gov 10-15y, Vanguard EUR Corp, iShares HY ESG) y 15% oro físico.",
+    type: "index",
+    holdings: [
+      // Renta Variable sectorial (48%)
+      { fundId: "xtrackers-staples", weight: 12.0 },
+      { fundId: "xtrackers-healthcare", weight: 12.0 },
+      { fundId: "xtrackers-technology", weight: 12.0 },
+      { fundId: "xtrackers-energy", weight: 6.0 },
+      { fundId: "hsbc-reits", weight: 6.0 },
+      // Renta Fija (37%)
+      { fundId: "lne-xtrackers-global-gov-hedged", weight: 15.0 },
+      { fundId: "ishares-usd-treasury-hedged", weight: 10.0 },
+      { fundId: "amundi-gov-10-15y", weight: 5.0 },
+      { fundId: "lne-vanguard-eur-corp-etf", weight: 5.0 },
+      { fundId: "lne-ishares-eur-hy-esg", weight: 2.0 },
+      // Oro (15%)
+      { fundId: "ishares-gold", weight: 15.0 },
+    ],
+  },
+];
+
 const ALL_PRESETS: PortfolioPreset[] = [
   ...K_INBESTME_PRESETS,
   ...K_SECTORIAL_USA_PRESETS,
@@ -1590,6 +1640,7 @@ const ALL_PRESETS: PortfolioPreset[] = [
   ...PINAES_PRESETS,
   ...JL_PRESETS,
   ...RF_PRESETS,
+  ...LNE_PRESETS,
   ...MOMENTUM_CARTERA_PRESETS,
 ];
 

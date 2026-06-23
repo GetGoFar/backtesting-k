@@ -3028,6 +3028,61 @@ const RF_FUNDS: Fund[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// Carteras LNE (Luis Navarro Estrada) — fondos de RF que faltaban para sus
+// dos carteras (geográfica de fondos + sectorial de ETFs). El resto de
+// posiciones ya existían en la BD. Símbolos EODHD verificados 2026-06.
+// -----------------------------------------------------------------------------
+const LNE_FUNDS: Fund[] = [
+  {
+    id: "lne-vanguard-euro-gov-bond",
+    name: "Vanguard Euro Government Bond Index Fund EUR Acc",
+    shortName: "Vanguard Euro Gov Bond",
+    isin: "IE0007472990", // EUFUND desde 2000-09
+    ter: 0.12,
+    category: "RF EUR Gov",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "lne-xtrackers-global-gov-hedged",
+    name: "Xtrackers II Global Government Bond UCITS ETF 1C",
+    shortName: "Xtrackers Global Gov",
+    isin: "LU0378818131",
+    ticker: "DBZB.XETRA", // datos desde 2009-01
+    ter: 0.2,
+    category: "RF EUR Gov",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "lne-vanguard-eur-corp-etf",
+    name: "Vanguard EUR Corporate Bond UCITS ETF",
+    shortName: "Vanguard EUR Corp",
+    isin: "IE00BGYWT403",
+    ticker: "VECA.XETRA", // datos desde 2019-02
+    ter: 0.09,
+    category: "RF EUR Corp",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+  {
+    id: "lne-ishares-eur-hy-esg",
+    name: "iShares € High Yield Corp Bond ESG UCITS ETF",
+    shortName: "iShares EUR HY ESG",
+    isin: "IE00BJK55C48",
+    ticker: "EHYA.AS", // datos desde 2019-11
+    ter: 0.45,
+    category: "RF EUR Corp",
+    type: "index",
+    currency: "EUR",
+    terSource: "curated",
+  },
+];
+
+// -----------------------------------------------------------------------------
 // Todos los fondos combinados
 // -----------------------------------------------------------------------------
 
@@ -3045,6 +3100,7 @@ const ALL_FUNDS: Fund[] = [
   ...PINAES_FUNDS,
   ...JL_FUNDS,
   ...RF_FUNDS,
+  ...LNE_FUNDS,
 ];
 
 // Mapa para búsqueda rápida por ID
