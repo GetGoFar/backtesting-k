@@ -368,7 +368,8 @@ function renderCover(pdf: jsPDF, result: BacktestResult, config: ReportConfig, o
     topRight: ["Anexo al informe", "Backtest de cartera", today],
     eyebrow: `Backtest de cartera${benchName ? ` · vs ${benchName}` : ""}`,
     title: "Backtest de tu cartera",
-    subtitle: `Comportamiento histórico de ${result.portfolioName}${otherName ? `, comparada con ${otherName}` : ""}, con datos reales de cada activo.`,
+    subtitle: `Comportamiento histórico de ${result.portfolioName}${otherName ? `, comparada con ${otherName}` : ""}, con datos reales de cada activo.` +
+      valueModeCoverNote(config.valueMode ?? "camino"),
     metaL: { label: "Preparado para", value: config.clientName || result.portfolioName },
     metaR: { label: "Periodo analizado", value: `${start} – ${end}` },
   });
@@ -1582,7 +1583,8 @@ function renderCompareCover(pdf: jsPDF, a: BacktestResult, b: BacktestResult, co
     topRight: ["Informe comparativo", "Backtest de cartera", today],
     eyebrow: `Comparador de carteras${benchName ? ` · vs ${benchName}` : ""}`,
     title: "Tus carteras, cara a cara",
-    subtitle: "Comportamiento histórico de las dos carteras sobre exactamente los mismos datos.",
+    subtitle: "Comportamiento histórico de las dos carteras sobre exactamente los mismos datos." +
+      valueModeCoverNote(config.valueMode ?? "camino"),
     extraLines: [
       { tag: "A", text: a.portfolioName, color: RGB.cream },
       { tag: "B", text: b.portfolioName, color: RGB.cream },
@@ -1983,6 +1985,84 @@ function renderCompareConclusion(ctx: RenderCtx, a: BacktestResult, b: BacktestR
 }
 
 // -----------------------------------------------------------------------------
+// BASE DE LAS RENTABILIDADES PRINCIPALES (valor final / total / CAGR)
+//
+// El usuario elige expresar las cifras de cabecera en bruto, neto del camino o
+// neto al liquidar. Solo cambian las cifras de NIVEL (valor final, rentabilidad
+// total, CAGR); las métricas de riesgo (vol, Sharpe, drawdown) son del camino y
+// no se tocan. Para no reescribir cada sección, generamos COPIAS del resultado
+// con esas tres cifras recalculadas y las pasamos a las funciones de render.
+// -----------------------------------------------------------------------------
+
+type ValueMode = "bruto" | "camino" | "liquidar";
+
+function yearsOf(r: BacktestResult): number {
+  const ts = r.timeSeries;
+  if (ts && ts.length >= 2) {
+    const y =
+      (new Date(ts[ts.length - 1]!.date).getTime() - new Date(ts[0]!.date).getTime()) /
+      (365.25 * 24 * 3600 * 1000);
+    if (y > 0) return y;
+  }
+  return r.metrics.cagr !== 0
+    ? Math.log(1 + r.metrics.totalReturn) / Math.log(1 + r.metrics.cagr)
+    : 1;
+}
+
+/** Valor final según la base elegida (con pendiente hipotético al liquidar si
+ *  la cartera no tributa por el camino pero la comparada sí). */
+function displayFinalValue(r: BacktestResult, mode: ValueMode, other?: BacktestResult): number {
+  if (mode === "bruto") return r.grossFinalValue ?? r.finalValue + (r.fees.totalTaxesPaid ?? 0);
+  if (mode === "camino") return r.finalValue;
+  let pending = r.fees.pendingTaxes ?? 0;
+  if ((r.fees.taxMode ?? "none") === "none" && other) {
+    const om = (other.fees.taxMode ?? "none") as TaxMode;
+    if (om !== "none") pending = computeTaxOnGain(r.fees.unrealizedGain ?? 0, om, other.fees.taxRate ?? 0);
+  }
+  return r.finalValue - pending;
+}
+
+/** Devuelve una copia del resultado con valor final, rentabilidad total y CAGR
+ *  expresados en la base elegida. El resto (riesgo, series, fees) intacto. */
+function applyValueMode(r: BacktestResult, mode: ValueMode, other?: BacktestResult): BacktestResult {
+  if (mode === "camino") return r;
+  const fv = displayFinalValue(r, mode, other);
+  const initial = r.finalValue / (1 + r.metrics.totalReturn);
+  const years = yearsOf(r);
+  const totalReturn = initial > 0 ? fv / initial - 1 : 0;
+  const cagr = initial > 0 && years > 0 ? Math.pow(fv / initial, 1 / years) - 1 : totalReturn;
+  return { ...r, finalValue: fv, metrics: { ...r.metrics, totalReturn, cagr } };
+}
+
+/** Ajuste equivalente para el benchmark (para que la comparación sea homogénea). */
+function applyValueModeBenchmark(bm: BenchmarkComparison | undefined, mode: ValueMode): BenchmarkComparison | undefined {
+  if (!bm || mode === "camino" || bm.benchmarkFinalValue == null || !bm.benchmarkMetrics) return bm;
+  const m = bm.benchmarkMetrics;
+  const fv0 = bm.benchmarkFinalValue;
+  const fv = mode === "bruto"
+    ? fv0 + (bm.benchmarkFees?.totalTaxesPaid ?? 0)
+    : fv0 - (bm.benchmarkFees?.pendingTaxes ?? 0);
+  const initial = fv0 / (1 + m.totalReturn);
+  const years = m.cagr !== 0 ? Math.log(1 + m.totalReturn) / Math.log(1 + m.cagr) : 1;
+  const totalReturn = initial > 0 ? fv / initial - 1 : 0;
+  const cagr = initial > 0 && years > 0 ? Math.pow(fv / initial, 1 / years) - 1 : totalReturn;
+  return { ...bm, benchmarkFinalValue: fv, benchmarkMetrics: { ...m, totalReturn, cagr } };
+}
+
+function valueModeLabel(mode: ValueMode): string {
+  return mode === "bruto" ? "Rentab. brutas" : mode === "liquidar" ? "Rentab. al liquidar" : "";
+}
+
+/** Nota descriptiva para la portada (vacía en el modo por defecto "camino"). */
+function valueModeCoverNote(mode: ValueMode): string {
+  return mode === "bruto"
+    ? " Rentabilidades principales en BRUTO (antes de impuestos)."
+    : mode === "liquidar"
+      ? " Rentabilidades principales NETAS AL LIQUIDAR (después de impuestos)."
+      : "";
+}
+
+// -----------------------------------------------------------------------------
 // API PÚBLICA
 // -----------------------------------------------------------------------------
 
@@ -2001,7 +2081,13 @@ export function generateReportPDF(
   // El benchmark es global (A y B comparten benchmark). Se obtiene del que lo tenga.
   const benchmark = result.benchmark ?? other?.benchmark;
   const benchScore = computeBenchmarkScore(benchmark);
-  const subtitle = `${result.portfolioName} · Informe de cartera`;
+  // Base elegida para las cifras de cabecera (valor final / total / CAGR).
+  // `result`/`benchmark` originales se conservan para la sección de impuestos.
+  const mode: ValueMode = config.valueMode ?? "camino";
+  const dResult = applyValueMode(result, mode, other ?? undefined);
+  const dBenchmark = applyValueModeBenchmark(benchmark, mode);
+  const mLabel = valueModeLabel(mode);
+  const subtitle = `${result.portfolioName} · Informe de cartera` + (mLabel ? ` · ${mLabel}` : "");
 
   const pdf = new jsPDF({
     format: "a4",
@@ -2016,25 +2102,34 @@ export function generateReportPDF(
     const a = results.resultA;
     const b = results.resultB;
     const bm = a.benchmark ?? b.benchmark;
-    const compSubtitle = "Comparativa de carteras · El Proyecto K";
+    // Copias en la base elegida (bruto/camino/liquidar) para las cifras de
+    // cabecera; los ORIGINALES (a, b, bm) se reservan para la sección de
+    // impuestos, que siempre muestra los tres escenarios.
+    const mode: ValueMode = config.valueMode ?? "camino";
+    const aD = applyValueMode(a, mode, b);
+    const bD = applyValueMode(b, mode, a);
+    const bmD = applyValueModeBenchmark(bm, mode);
+    const mLabel = valueModeLabel(mode);
+    const compSubtitle = "Comparativa de carteras · El Proyecto K" + (mLabel ? ` · ${mLabel}` : "");
     const cctx: RenderCtx = { pdf, pageNum: 0, totalPages: 0, y: MT + 8, subtitle: compSubtitle };
 
-    renderCompareCover(pdf, a, b, config, bm?.benchmarkName);
+    renderCompareCover(pdf, aD, bD, config, bm?.benchmarkName);
 
     const compTaxes =
       (a.fees.taxMode != null && a.fees.taxMode !== "none") ||
       (b.fees.taxMode != null && b.fees.taxMode !== "none");
 
     const compSections: Array<(c: RenderCtx) => void> = [
-      (c) => renderCompareHero(c, a, b),
-      (c) => renderCompareMetrics(c, a, b, bm),
-      (c) => renderCompareEvolution(c, a, b, bm),
-      (c) => renderCompareAnnual(c, a, b),
-      (c) => renderCompareDrawdown(c, a, b),
-      (c) => renderCompareRolling(c, a, b),
-      (c) => renderCompareCosts(c, a, b),
+      (c) => renderCompareHero(c, aD, bD),
+      (c) => renderCompareMetrics(c, aD, bD, bmD),
+      (c) => renderCompareEvolution(c, aD, bD, bmD),
+      (c) => renderCompareAnnual(c, aD, bD),
+      (c) => renderCompareDrawdown(c, aD, bD),
+      (c) => renderCompareRolling(c, aD, bD),
+      (c) => renderCompareCosts(c, aD, bD),
+      // Impuestos: ORIGINALES, para mostrar bruta / camino / liquidar de ambas.
       ...(compTaxes ? [(c: RenderCtx) => renderCompareTaxes(c, a, b, bm)] : []),
-      (c) => renderCompareConclusion(c, a, b),
+      (c) => renderCompareConclusion(c, aD, bD),
       (c) => renderDisclaimer(c),
     ];
 
@@ -2077,7 +2172,7 @@ export function generateReportPDF(
   for (const id of selected) {
     if (id === "cover") {
       // Portada en la primera página existente (no addPage)
-      renderCover(pdf, result, config, otherName, benchName);
+      renderCover(pdf, dResult, config, otherName, benchName);
       coverDone = true;
     } else {
       // Para las demás secciones, nueva página
@@ -2096,19 +2191,20 @@ export function generateReportPDF(
       ctx.y = MT + 8;
 
       if (id === "score") renderScore(ctx, score, benchScore, benchName);
-      else if (id === "summary") renderSummary(ctx, result, score);
-      else if (id === "metricsFull") renderMetricsFull(ctx, result, benchmark);
-      else if (id === "evolution") renderEvolution(ctx, result, benchmark);
-      else if (id === "annualReturns") renderAnnualReturns(ctx, result);
-      else if (id === "monthlyHeatmap") renderMonthlyHeatmap(ctx, result);
-      else if (id === "crisis") renderCrisis(ctx, result, benchmark);
-      else if (id === "topDrawdowns") renderTopDrawdowns(ctx, result);
-      else if (id === "rolling") renderRolling(ctx, result);
-      else if (id === "histogram") renderHistogram(ctx, result);
+      else if (id === "summary") renderSummary(ctx, dResult, score);
+      else if (id === "metricsFull") renderMetricsFull(ctx, dResult, dBenchmark);
+      else if (id === "evolution") renderEvolution(ctx, dResult, dBenchmark);
+      else if (id === "annualReturns") renderAnnualReturns(ctx, dResult);
+      else if (id === "monthlyHeatmap") renderMonthlyHeatmap(ctx, dResult);
+      else if (id === "crisis") renderCrisis(ctx, dResult, dBenchmark);
+      else if (id === "topDrawdowns") renderTopDrawdowns(ctx, dResult);
+      else if (id === "rolling") renderRolling(ctx, dResult);
+      else if (id === "histogram") renderHistogram(ctx, dResult);
+      // Impuestos: ORIGINALES (muestra los tres escenarios).
       else if (id === "taxes") renderTaxes(ctx, result, other ?? undefined, benchmark);
-      else if (id === "comparison") renderComparison(ctx, result, benchmark);
-      else if (id === "stress") renderStress(ctx, result, benchmark);
-      else if (id === "composition") renderComposition(ctx, result);
+      else if (id === "comparison") renderComparison(ctx, dResult, dBenchmark);
+      else if (id === "stress") renderStress(ctx, dResult, dBenchmark);
+      else if (id === "composition") renderComposition(ctx, dResult);
       else if (id === "correlations") renderCorrelations(ctx, results.correlationMatrix);
       else if (id === "assetMetrics") renderAssetMetricsSection(ctx, results.assetMetrics);
       else if (id === "contributions") renderContributions(ctx, result);
