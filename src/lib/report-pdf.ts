@@ -863,7 +863,17 @@ function renderTaxes(ctx: RenderCtx, result: BacktestResult, otherResult?: Backt
   let bmLiquidar = 0;
   if (hasBmTax) {
     const bmPaid = bmFees!.totalTaxesPaid ?? 0;
-    const bmPending = bmFees!.pendingTaxes ?? 0;
+    // El benchmark se calcula sin impuestos (pendingTaxes 0). Para la fila "Neta
+    // al liquidar" le aplicamos el impuesto sobre su plusvalía latente con el
+    // régimen de la cartera que tributa, en vez de dejarlo en bruto.
+    let bmPending = bmFees!.pendingTaxes ?? 0;
+    if (bmPending <= 0) {
+      const regime = referenceTaxRegime(result, otherResult);
+      if (regime) {
+        const gain = bmFees!.unrealizedGain ?? Math.max(0, bmFinal! - bmFinal! / (1 + (benchmark!.benchmarkMetrics?.totalReturn ?? 0)));
+        if (gain > 0) bmPending = computeTaxOnGain(gain, regime.mode, regime.rate);
+      }
+    }
     bmBruto = bmFinal! + bmPaid;
     bmCamino = bmFinal!;
     bmLiquidar = bmFinal! - bmPending;
@@ -1957,7 +1967,18 @@ function renderCompareTaxes(ctx: RenderCtx, a: BacktestResult, b: BacktestResult
   if (hasBm) {
     bmBruto = bmFinal! + (bmFees!.totalTaxesPaid ?? 0);
     bmCamino = bmFinal!;
-    bmLiquidar = bmFinal! - (bmFees!.pendingTaxes ?? 0);
+    // El benchmark se calcula sin impuestos, así que su pendingTaxes es 0. Para
+    // la fila "Neta al liquidar" le aplicamos el impuesto sobre su plusvalía
+    // latente con el régimen de la cartera que tributa (igual que a las carteras).
+    let bmPending = bmFees!.pendingTaxes ?? 0;
+    if (bmPending <= 0) {
+      const regime = referenceTaxRegime(a, b);
+      if (regime) {
+        const gain = bmFees!.unrealizedGain ?? Math.max(0, bmFinal! - bmFinal! / (1 + (benchmark!.benchmarkMetrics?.totalReturn ?? 0)));
+        if (gain > 0) bmPending = computeTaxOnGain(gain, regime.mode, regime.rate);
+      }
+    }
+    bmLiquidar = bmFinal! - bmPending;
   }
 
   const anyHypo = sa.hypo || sb.hypo;
@@ -2091,22 +2112,59 @@ function applyValueMode(r: BacktestResult, mode: ValueMode, other?: BacktestResu
   const years = yearsOf(r);
   const totalReturn = initial > 0 ? fv / initial - 1 : 0;
   const cagr = initial > 0 && years > 0 ? Math.pow(fv / initial, 1 / years) - 1 : totalReturn;
-  return { ...r, finalValue: fv, metrics: { ...r.metrics, totalReturn, cagr } };
+  // Escalamos la serie temporal por el mismo factor para que el gráfico de
+  // evolución (y su eje Y) acabe en el valor de la base elegida, sin mostrar el
+  // bruto/camino cuando se pidió "al liquidar". El escalado es uniforme: no
+  // altera ratios (heatmap mensual) ni fechas.
+  const scale = r.finalValue > 0 ? fv / r.finalValue : 1;
+  const timeSeries = scale === 1 ? r.timeSeries : r.timeSeries.map((p) => ({ ...p, value: p.value * scale }));
+  return { ...r, finalValue: fv, timeSeries, metrics: { ...r.metrics, totalReturn, cagr } };
+}
+
+/** Régimen fiscal de referencia para el impuesto AL LIQUIDAR del benchmark.
+ *  El benchmark se calcula SIN impuestos (taxMode "none"), así que no tiene
+ *  impuesto pendiente propio. Para mostrarlo "al liquidar" de forma homogénea
+ *  con las carteras, le aplicamos el régimen de la primera cartera que tribute.
+ *  Si ninguna tributa, devuelve null y el benchmark no se ajusta (coherente:
+ *  las carteras tampoco cambian al liquidar). */
+function referenceTaxRegime(...portfolios: Array<BacktestResult | undefined | null>): { mode: TaxMode; rate: number } | null {
+  for (const p of portfolios) {
+    const tm = (p?.fees.taxMode ?? "none") as TaxMode;
+    if (tm !== "none") return { mode: tm, rate: p?.fees.taxRate ?? 0 };
+  }
+  return null;
 }
 
 /** Ajuste equivalente para el benchmark (para que la comparación sea homogénea). */
-function applyValueModeBenchmark(bm: BenchmarkComparison | undefined, mode: ValueMode): BenchmarkComparison | undefined {
+function applyValueModeBenchmark(bm: BenchmarkComparison | undefined, mode: ValueMode, regime?: { mode: TaxMode; rate: number } | null): BenchmarkComparison | undefined {
   if (!bm || mode === "camino" || bm.benchmarkFinalValue == null || !bm.benchmarkMetrics) return bm;
   const m = bm.benchmarkMetrics;
   const fv0 = bm.benchmarkFinalValue;
-  const fv = mode === "bruto"
-    ? fv0 + (bm.benchmarkFees?.totalTaxesPaid ?? 0)
-    : fv0 - (bm.benchmarkFees?.pendingTaxes ?? 0);
+  let fv: number;
+  if (mode === "bruto") {
+    fv = fv0 + (bm.benchmarkFees?.totalTaxesPaid ?? 0);
+  } else {
+    // AL LIQUIDAR: el benchmark se calculó sin impuestos, su pendingTaxes es 0.
+    // Le aplicamos el impuesto sobre su plusvalía latente con el régimen de
+    // referencia para que no aparezca en bruto frente a las carteras netas.
+    let pending = bm.benchmarkFees?.pendingTaxes ?? 0;
+    if (pending <= 0 && regime && regime.mode !== "none") {
+      const gain = bm.benchmarkFees?.unrealizedGain ?? Math.max(0, fv0 * (m.totalReturn / (1 + m.totalReturn)));
+      if (gain > 0) pending = computeTaxOnGain(gain, regime.mode, regime.rate);
+    }
+    fv = fv0 - pending;
+  }
   const initial = fv0 / (1 + m.totalReturn);
   const years = m.cagr !== 0 ? Math.log(1 + m.totalReturn) / Math.log(1 + m.cagr) : 1;
   const totalReturn = initial > 0 ? fv / initial - 1 : 0;
   const cagr = initial > 0 && years > 0 ? Math.pow(fv / initial, 1 / years) - 1 : totalReturn;
-  return { ...bm, benchmarkFinalValue: fv, benchmarkMetrics: { ...m, totalReturn, cagr } };
+  // Escalamos también la serie del benchmark para que su línea en el gráfico de
+  // evolución acabe en el valor neto (no en el bruto) cuando se elige "al liquidar".
+  const scale = fv0 > 0 ? fv / fv0 : 1;
+  const benchmarkTimeSeries = (bm.benchmarkTimeSeries && scale !== 1)
+    ? bm.benchmarkTimeSeries.map((p) => ({ ...p, value: p.value * scale }))
+    : bm.benchmarkTimeSeries;
+  return { ...bm, benchmarkFinalValue: fv, benchmarkTimeSeries, benchmarkMetrics: { ...m, totalReturn, cagr } };
 }
 
 function valueModeLabel(mode: ValueMode): string {
@@ -2145,7 +2203,7 @@ export function generateReportPDF(
   // `result`/`benchmark` originales se conservan para la sección de impuestos.
   const mode: ValueMode = config.valueMode ?? "camino";
   const dResult = applyValueMode(result, mode, other ?? undefined);
-  const dBenchmark = applyValueModeBenchmark(benchmark, mode);
+  const dBenchmark = applyValueModeBenchmark(benchmark, mode, referenceTaxRegime(result, other));
   const mLabel = valueModeLabel(mode);
   const subtitle = `${result.portfolioName} · Informe de cartera` + (mLabel ? ` · ${mLabel}` : "");
 
@@ -2168,7 +2226,7 @@ export function generateReportPDF(
     const mode: ValueMode = config.valueMode ?? "camino";
     const aD = applyValueMode(a, mode, b);
     const bD = applyValueMode(b, mode, a);
-    const bmD = applyValueModeBenchmark(bm, mode);
+    const bmD = applyValueModeBenchmark(bm, mode, referenceTaxRegime(a, b));
     const mLabel = valueModeLabel(mode);
     const compSubtitle = "Comparativa de carteras · El Proyecto K" + (mLabel ? ` · ${mLabel}` : "");
     const cctx: RenderCtx = { pdf, pageNum: 0, totalPages: 0, y: MT + 8, subtitle: compSubtitle };
