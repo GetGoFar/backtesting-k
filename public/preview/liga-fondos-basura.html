@@ -644,10 +644,11 @@
 <h3>Metodología</h3>
 
 <p><strong>Dinero Quemado (DQ)</strong></p>
-<p>Cuánto dinero pierde (o gana) una inversión de 100.000 € durante 3, 5 y 10 años respecto al benchmark del propio fondo, usando el alfa anualizado de Morningstar:</p>
-<div class="formula">DQ = 100.000 × (1 − (1 + α / 100)<sup>n</sup>)</div>
-<p>Un DQ en <span class="dq-neg">rojo</span> indica dinero destruido — el fondo rinde peor que su índice de referencia. Un DQ en <span class="dq-pos">verde</span> indica que el fondo ha superado a su índice.</p>
-<p>Los valores marcados con <span class="proj" style="font-size:1em">*</span> son proyecciones: si falta el alfa a 10 años, se estima con el de 5 años; si también falta el de 5 años, se usa el de 3 años.</p>
+<p>Cuánto dinero pierde (o gana) una inversión de 100.000 € a 3, 5 y 10 años frente a invertir en el índice global de referencia (MSCI ACWI, en euros), medido como coste de oportunidad. Para cada horizonte usamos el alfa anualizado de <em>esa misma ventana</em> —el dato más real para ese plazo—, calculado a partir de los valores liquidativos del fondo:</p>
+<div class="formula">DQ(n) = 100.000 × (1 − (1 + α<sub>n</sub> / 100)<sup>n</sup>)</div>
+<p>donde α<sub>3</sub>, α<sub>5</sub> y α<sub>10</sub> son la rentabilidad anualizada del fondo menos la del índice en los últimos 3, 5 y 10 años. Un DQ en <span class="dq-neg">rojo</span> indica dinero destruido (el fondo rinde peor que el índice); en <span class="dq-pos">verde</span>, que lo ha batido.</p>
+<p><strong>Cada columna es independiente.</strong> Como el DQ a 3, 5 y 10 años se calcula con la rentabilidad de <em>su propia ventana</em>, las tres cifras no son acumulables entre sí: un fondo puede tener un DQ a 3 años <em>mayor</em> que a 5 años si ha empeorado en el último trienio. No es un error — es la señal de que el fondo se ha deteriorado recientemente.</p>
+<p>El ranking de la liga se ordena por el <strong>DQ a 3 años</strong>, la ventana que todos los fondos tienen con datos reales. Los valores marcados con <span class="proj" style="font-size:1em">*</span> son proyecciones: cuando un fondo no tiene historial suficiente para una ventana (p. ej. menos de 10 años), ese DQ se estima con la ventana real más larga disponible.</p>
 
 <p style="margin-top:15px"><strong>Zonas de la liga</strong></p>
 <ul>
@@ -661,8 +662,8 @@
 <ul>
   <li>Se analizan 87 fondos de renta variable de las principales gestoras bancarias españolas y 13 fondos de gestoras independientes.</li>
   <li>De los fondos bancarios, se incluye la clase más cara (la que vende la sucursal al inversor minorista).</li>
-  <li>TER y alfa proceden de Morningstar (datos a febrero 2026).</li>
-  <li>Los fondos sin ningún dato de alfa han sido excluidos del ranking.</li>
+  <li>El alfa se calcula a partir de los valores liquidativos (NAV) del fondo frente al MSCI ACWI en euros; los datos se actualizan mensualmente.</li>
+  <li>Los fondos sin historial suficiente para calcular el alfa han sido excluidos del ranking.</li>
 </ul>
 
 <div class="disclaimer">
