@@ -1846,6 +1846,124 @@ function renderCompareCosts(ctx: RenderCtx, a: BacktestResult, b: BacktestResult
   }
 }
 
+/** Calcula los 3 escenarios fiscales de una cartera. `other` se usa para el
+ *  pendiente HIPOTÉTICO cuando la cartera no tributa por el camino (fondos
+ *  traspasables) pero la comparada sí: así la comparación al liquidar es justa. */
+function taxScenarios(r: BacktestResult, other: BacktestResult) {
+  const paid = r.fees.totalTaxesPaid ?? 0;
+  const ownMode = (r.fees.taxMode ?? "none") as TaxMode;
+  let pending = r.fees.pendingTaxes ?? 0;
+  let hypo = false;
+  if (ownMode === "none") {
+    const otherMode = (other.fees.taxMode ?? "none") as TaxMode;
+    const otherRate = other.fees.taxRate ?? 0;
+    if (otherMode !== "none") {
+      pending = computeTaxOnGain(r.fees.unrealizedGain ?? 0, otherMode, otherRate);
+      hypo = pending > 0;
+    }
+  }
+  return {
+    bruto: r.grossFinalValue ?? (r.finalValue + paid),
+    camino: r.finalValue,
+    liquidar: r.finalValue - pending,
+    paid,
+    pending,
+    hypo,
+  };
+}
+
+/** Sección de impuestos COMPARATIVA — muestra los 3 escenarios (bruta, neta del
+ *  camino y neta al liquidar) para AMBAS carteras (y el benchmark si lo hay).
+ *  Antes el comparativo reutilizaba renderTaxes, que solo mostraba A vs índice. */
+function renderCompareTaxes(ctx: RenderCtx, a: BacktestResult, b: BacktestResult, benchmark?: BenchmarkComparison) {
+  drawSectionHeader(ctx, "08", "Cómo afectan los impuestos — A vs B");
+  drawBody(ctx,
+    "Hay tres rentabilidades que conviene distinguir, y aquí las ves para las dos carteras. " +
+    "La que de verdad importa es la NETA AL LIQUIDAR: el dinero que acaba en tu bolsillo " +
+    "después de pasar por Hacienda. Mirar solo el valor de hoy (neto del camino) puede engañar " +
+    "si una cartera lleva una mochila de impuestos latentes mayor que la otra."
+  );
+
+  const sa = taxScenarios(a, b);
+  const sb = taxScenarios(b, a);
+
+  const bmFees = benchmark?.benchmarkFees;
+  const bmFinal = benchmark?.benchmarkFinalValue;
+  const hasBm = !!bmFees && bmFinal != null;
+  const bmName = benchmark?.benchmarkName ?? "Ref.";
+  let bmBruto = 0, bmCamino = 0, bmLiquidar = 0;
+  if (hasBm) {
+    bmBruto = bmFinal! + (bmFees!.totalTaxesPaid ?? 0);
+    bmCamino = bmFinal!;
+    bmLiquidar = bmFinal! - (bmFees!.pendingTaxes ?? 0);
+  }
+
+  const anyHypo = sa.hypo || sb.hypo;
+  const liqLabel = `3. Neta al liquidar${anyHypo ? " (*)" : ""}\nLo que de verdad te llevas al bolsillo`;
+  const head = hasBm
+    ? [["Escenario", `A · ${a.portfolioName.substring(0, 22)}`, `B · ${b.portfolioName.substring(0, 22)}`, bmName]]
+    : [["Escenario", `A · ${a.portfolioName.substring(0, 24)}`, `B · ${b.portfolioName.substring(0, 24)}`]];
+  const row = (label: string, va: number, vb: number, vbm: number) =>
+    hasBm ? [label, fmtEUR(va), fmtEUR(vb), fmtEUR(vbm)] : [label, fmtEUR(va), fmtEUR(vb)];
+  const body = [
+    row("1. Bruta (en el papel)\nAntes de cualquier impuesto", sa.bruto, sb.bruto, bmBruto),
+    row("2. Neta del camino\nLo que ves hoy en tu cuenta", sa.camino, sb.camino, bmCamino),
+    row(liqLabel, sa.liquidar, sb.liquidar, bmLiquidar),
+  ];
+
+  autoTable(ctx.pdf, {
+    startY: ctx.y,
+    margin: { left: ML, right: MR },
+    head,
+    body,
+    theme: "plain",
+    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 8, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
+    bodyStyles: { fontSize: 9, textColor: RGB.dark, valign: "middle" },
+    columnStyles: hasBm
+      ? { 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right", fontStyle: "bold" }, 3: { halign: "right", fontStyle: "bold" } }
+      : { 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right", fontStyle: "bold" } },
+    didParseCell: (data) => {
+      // Color por columna: A navy, B rosa, benchmark púrpura.
+      if (data.column.index === 1) data.cell.styles.textColor = RGB.blueA;
+      if (data.column.index === 2) data.cell.styles.textColor = RGB.roseB;
+      if (data.column.index === 3 && hasBm) data.cell.styles.textColor = RGB.purple;
+      // Fila 3 (al liquidar) destacada: fondo de color por cartera, texto blanco.
+      if (data.section === "body" && data.row.index === 2) {
+        if (data.column.index === 1) { data.cell.styles.fillColor = RGB.blueA; data.cell.styles.textColor = RGB.white; }
+        else if (data.column.index === 2) { data.cell.styles.fillColor = RGB.roseB; data.cell.styles.textColor = RGB.white; }
+        else if (data.column.index === 3 && hasBm) { data.cell.styles.fillColor = RGB.purple; data.cell.styles.textColor = RGB.white; }
+      }
+    },
+  });
+  ctx.y = (ctx.pdf as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
+
+  if (anyHypo) {
+    drawBody(ctx,
+      "(*) Hipotético: una cartera de fondos traspasables no tributa por el camino; su impuesto " +
+      "al liquidar se estima como si tributara igual que la otra cartera. Es la única forma justa de compararlas.",
+      { size: 8.5, color: RGB.gray }
+    );
+  }
+
+  // Impuestos pagados y pendientes de CADA cartera, en prosa.
+  const linea = (nombre: string, s: ReturnType<typeof taxScenarios>) =>
+    s.paid > 0
+      ? `${nombre}: ${fmtEUR(s.paid)} pagados por el camino y ${fmtEUR(s.pending)} pendientes al liquidar.`
+      : s.pending > 0
+        ? `${nombre}: 0 € por el camino (traspaso fiscal) y ${fmtEUR(s.pending)}${s.hypo ? " hipotéticos" : ""} al liquidar.`
+        : `${nombre}: sin impacto fiscal relevante en el periodo.`;
+  drawBody(ctx, linea("Cartera A", sa), { size: 10, color: RGB.blueA });
+  drawBody(ctx, linea("Cartera B", sb), { size: 10, color: RGB.roseB });
+
+  // Veredicto al liquidar (la cifra que de verdad cuenta).
+  const ganaLiq = sa.liquidar >= sb.liquidar ? "A" : "B";
+  const difLiq = Math.abs(sa.liquidar - sb.liquidar);
+  drawCTABox(ctx, "Lo que de verdad te llevas",
+    `Después de Hacienda, la Cartera ${ganaLiq} deja ${fmtEUR(difLiq)} más en el bolsillo al liquidar. ` +
+    "La rentabilidad bruta es la de los folletos; la neta al liquidar es la única que mide tu dinero real."
+  );
+}
+
 function renderCompareConclusion(ctx: RenderCtx, a: BacktestResult, b: BacktestResult) {
   drawSectionHeader(ctx, "08", "Conclusiones");
   const ma = a.metrics, mb = b.metrics;
@@ -1915,7 +2033,7 @@ export function generateReportPDF(
       (c) => renderCompareDrawdown(c, a, b),
       (c) => renderCompareRolling(c, a, b),
       (c) => renderCompareCosts(c, a, b),
-      ...(compTaxes ? [(c: RenderCtx) => renderTaxes(c, a, b, bm)] : []),
+      ...(compTaxes ? [(c: RenderCtx) => renderCompareTaxes(c, a, b, bm)] : []),
       (c) => renderCompareConclusion(c, a, b),
       (c) => renderDisclaimer(c),
     ];
