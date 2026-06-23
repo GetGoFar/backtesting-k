@@ -40,7 +40,7 @@
 	var DATE_EL_ID = 'liga-updated-at';
 
 	function fmtEur( n ) {
-		if ( n == null || isNaN( n ) ) return '—';
+		if ( n == null || isNaN( n ) ) return 'sin datos';
 		// Convencion DQ: raw POSITIVO = el fondo quema dinero al inversor (perdida).
 		// raw NEGATIVO = el fondo bate al benchmark (ahorro). Mostramos el signo
 		// que el lector espera ver: '+' para ahorro, '−' (U+2212) para perdida.
@@ -712,17 +712,21 @@
 	}
 	function renderDashboard( fondos ) {
 		try {
+			// "10 años": solo fondos con dq10 REAL (sin extrapolar). Los demás salen
+			// como "sin datos" y no entran en scatter/treemap/KPIs de 10A.
+			var con10 = fondos.filter( function ( f ) { return f.dq10 != null; } );
 			var disp = function ( f ) { return -( f.dq10 || 0 ); };
-			var disps = fondos.map( disp );
-			var peor = Math.min.apply( null, disps ), mejor = Math.max.apply( null, disps );
+			var disps = con10.map( disp );
+			var peor = disps.length ? Math.min.apply( null, disps ) : 0;
+			var mejor = disps.length ? Math.max.apply( null, disps ) : 0;
 			var bancos = fondos.filter( function ( f ) { return f.tipo === 'Bancario'; } );
 			var indeps = fondos.filter( function ( f ) { return f.tipo !== 'Bancario'; } );
 			var avgTer = function ( a ) { return a.length ? a.reduce( function ( s, f ) { return s + ( f.ter || 0 ); }, 0 ) / a.length : 0; };
 			var terB = avgTer( bancos ), terI = avgTer( indeps );
 			var difPct = terI ? Math.round( ( terB / terI - 1 ) * 100 ) : 0;
 			var burned = function ( f ) { return Math.max( f.dq10 || 0, 0 ); };
-			var totalBurn = fondos.reduce( function ( s, f ) { return s + burned( f ); }, 0 );
-			var bankBurn = bancos.reduce( function ( s, f ) { return s + burned( f ); }, 0 );
+			var totalBurn = con10.reduce( function ( s, f ) { return s + burned( f ); }, 0 );
+			var bankBurn = con10.reduce( function ( s, f ) { return s + ( f.tipo === 'Bancario' ? burned( f ) : 0 ); }, 0 );
 			var bankShare = totalBurn ? Math.round( bankBurn / totalBurn * 100 ) : 0;
 
 			setStatVal( 'Fondos Analizados', String( fondos.length ), false );
@@ -749,8 +753,8 @@
 
 			dashSetText( '.tagline', bancos.length + ' fondos bancarios y ' + indeps.length + ' fondos de gestoras independientes analizados' );
 
-			replaceChart( 'TER vs Dinero Quemado', buildScatterSVG( fondos ) );
-			replaceChart( 'Dinero Quemado por Gestora', buildTreemapSVG( fondos ) );
+			replaceChart( 'TER vs Dinero Quemado', buildScatterSVG( con10 ) );
+			replaceChart( 'Dinero Quemado por Gestora', buildTreemapSVG( con10 ) );
 		} catch ( e ) { console.warn( '[liga-fetcher] renderDashboard fallo:', e ); }
 	}
 
