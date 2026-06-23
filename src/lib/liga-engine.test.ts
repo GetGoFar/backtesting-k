@@ -98,22 +98,22 @@ describe("proyectarDineroQuemado (alfa por ventana)", () => {
     expect(p.dq3!).toBeGreaterThan(p.dq5!);   // no-monotonía deliberada = info real
   });
 
-  it("proyecta desde la ventana real más larga y lo marca (fondo joven, solo 3y)", () => {
+  it("fondo joven (solo 3y): dq5/dq10 = null (sin datos), NO se extrapola", () => {
     const p = proyectarDineroQuemado(-6, null, null);
     expect(p.dq3).toBeCloseTo(dineroQuemado(-6, 3), 5);    // real
-    expect(p.dq5).toBeCloseTo(dineroQuemado(-6, 5), 5);    // proyectado desde alfa3
-    expect(p.dq10).toBeCloseTo(dineroQuemado(-6, 10), 5);  // proyectado desde alfa3
+    expect(p.dq5).toBeNull();                              // sin histórico 5y → sin datos
+    expect(p.dq10).toBeNull();                             // sin histórico 10y → sin datos
     expect(p.dq3Proyectado).toBe(false);
-    expect(p.dq5Proyectado).toBe(true);
-    expect(p.dq10Proyectado).toBe(true);
+    expect(p.dq5Proyectado).toBe(false);
+    expect(p.dq10Proyectado).toBe(false);
   });
 
-  it("fondo con 5-9 años: dq10 proyecta desde alfa5, dq3/dq5 reales", () => {
+  it("fondo con 5-9 años: dq3/dq5 reales, dq10 = null (sin datos)", () => {
     const p = proyectarDineroQuemado(-7, -5, null);
     expect(p.dq3).toBeCloseTo(dineroQuemado(-7, 3), 5);
     expect(p.dq5).toBeCloseTo(dineroQuemado(-5, 5), 5);
-    expect(p.dq10).toBeCloseTo(dineroQuemado(-5, 10), 5);  // fallback a alfa5
-    expect(p.dq10Proyectado).toBe(true);
+    expect(p.dq10).toBeNull();                             // sin histórico 10y → sin datos
+    expect(p.dq10Proyectado).toBe(false);
     expect(p.dq5Proyectado).toBe(false);
   });
 

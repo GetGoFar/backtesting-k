@@ -483,12 +483,12 @@ export function proyectarDineroQuemado(
   alfa5: number | null,
   alfa10: number | null,
 ): ProyeccionDineroQuemado {
-  // Alfa efectiva por horizonte: su propia ventana, con fallback a la real más
-  // larga disponible (las ventanas son anidadas, así que el fallback solo
-  // entra para horizontes que superan el histórico del fondo).
-  const a3 = alfa3 ?? alfa5 ?? alfa10;
-  const a5 = alfa5 ?? alfa10 ?? alfa3;
-  const a10 = alfa10 ?? alfa5 ?? alfa3;
+  // SIN EXTRAPOLACIÓN (decisión de producto, jun-2026): cada horizonte usa SOLO
+  // el alfa de su propia ventana real. Si el fondo no tiene histórico para ese
+  // plazo, dqN = null y la UI muestra "sin datos" — proyectar sería engañoso.
+  const a3 = alfa3;
+  const a5 = alfa5;
+  const a10 = alfa10;
 
   if (a3 == null && a5 == null && a10 == null) {
     return {
@@ -511,10 +511,11 @@ export function proyectarDineroQuemado(
     dq3: a3 != null ? dineroQuemado(a3, 3) : null,
     dq5: a5 != null ? dineroQuemado(a5, 5) : null,
     dq10: a10 != null ? dineroQuemado(a10, 10) : null,
-    // Proyectado = la ventana propia del horizonte no existe (se usó fallback).
-    dq3Proyectado: alfa3 == null,
-    dq5Proyectado: alfa5 == null,
-    dq10Proyectado: alfa10 == null,
+    // Ya no se proyecta ningún horizonte: si falta histórico real, dqN = null
+    // ("sin datos"). Las flags se conservan en false por compatibilidad.
+    dq3Proyectado: false,
+    dq5Proyectado: false,
+    dq10Proyectado: false,
   };
 }
 
