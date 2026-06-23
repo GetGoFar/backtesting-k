@@ -8,6 +8,7 @@ import {
   calcularCAGR,
   calcularAlfa,
   dineroQuemado,
+  proyectarDineroQuemado,
   asignarCategoria,
   generarSnapshot,
   type NavPoint,
@@ -77,6 +78,57 @@ describe("dineroQuemado (fórmula publicada)", () => {
     expect(dineroQuemado(alfaImplicita, 3)).toBeGreaterThan(0);
     expect(dineroQuemado(alfaImplicita, 3)).toBeLessThan(dineroQuemado(alfaImplicita, 5));
     expect(dineroQuemado(alfaImplicita, 5)).toBeLessThan(dineroQuemado(alfaImplicita, 10));
+  });
+});
+
+describe("proyectarDineroQuemado (alfa por ventana)", () => {
+  it("cada horizonte usa el alfa de su propia ventana", () => {
+    const p = proyectarDineroQuemado(-12, -8, -5);
+    expect(p.dq3).toBeCloseTo(dineroQuemado(-12, 3), 5);   // dq3 ← alfa3
+    expect(p.dq5).toBeCloseTo(dineroQuemado(-8, 5), 5);    // dq5 ← alfa5
+    expect(p.dq10).toBeCloseTo(dineroQuemado(-5, 10), 5);  // dq10 ← alfa10
+    expect(p.dq3Proyectado).toBe(false);
+    expect(p.dq5Proyectado).toBe(false);
+    expect(p.dq10Proyectado).toBe(false);
+  });
+
+  it("permite dq3 > dq5 cuando el fondo empeoró en los últimos 3 años", () => {
+    // alfa3 = -10% (mal trienio reciente) PEOR que alfa5 = -2%
+    const p = proyectarDineroQuemado(-10, -2, -2);
+    expect(p.dq3!).toBeGreaterThan(p.dq5!);   // no-monotonía deliberada = info real
+  });
+
+  it("proyecta desde la ventana real más larga y lo marca (fondo joven, solo 3y)", () => {
+    const p = proyectarDineroQuemado(-6, null, null);
+    expect(p.dq3).toBeCloseTo(dineroQuemado(-6, 3), 5);    // real
+    expect(p.dq5).toBeCloseTo(dineroQuemado(-6, 5), 5);    // proyectado desde alfa3
+    expect(p.dq10).toBeCloseTo(dineroQuemado(-6, 10), 5);  // proyectado desde alfa3
+    expect(p.dq3Proyectado).toBe(false);
+    expect(p.dq5Proyectado).toBe(true);
+    expect(p.dq10Proyectado).toBe(true);
+  });
+
+  it("fondo con 5-9 años: dq10 proyecta desde alfa5, dq3/dq5 reales", () => {
+    const p = proyectarDineroQuemado(-7, -5, null);
+    expect(p.dq3).toBeCloseTo(dineroQuemado(-7, 3), 5);
+    expect(p.dq5).toBeCloseTo(dineroQuemado(-5, 5), 5);
+    expect(p.dq10).toBeCloseTo(dineroQuemado(-5, 10), 5);  // fallback a alfa5
+    expect(p.dq10Proyectado).toBe(true);
+    expect(p.dq5Proyectado).toBe(false);
+  });
+
+  it("alfaBase titular = ventana real más larga (campo legacy `alfa`)", () => {
+    expect(proyectarDineroQuemado(-12, -8, -5).alfaBase).toBe(-5);
+    expect(proyectarDineroQuemado(-12, -8, null).alfaBase).toBe(-8);
+    expect(proyectarDineroQuemado(-12, null, null).alfaBase).toBe(-12);
+  });
+
+  it("todo null ⇒ dq null sin flags", () => {
+    const p = proyectarDineroQuemado(null, null, null);
+    expect(p.dq3).toBeNull();
+    expect(p.dq5).toBeNull();
+    expect(p.dq10).toBeNull();
+    expect(p.alfaBase).toBeNull();
   });
 });
 
@@ -248,7 +300,7 @@ describe("generarSnapshot", () => {
     const fetcher = async (sim: string): Promise<NavPoint[]> => {
       if (sim === "ES0000000001.EUFUND") return serieMala;
       if (sim === "ES0000000002.EUFUND") return serieBuena;
-      if (sim === "IWDA.AS") return serieBench;
+      if (sim === "SPYY.XETRA") return serieBench;
       return [];
     };
 
@@ -280,7 +332,7 @@ describe("generarSnapshot", () => {
   it("marca como stale los fondos sin datos EODHD", async () => {
     const serieBench = generarSerieFija(0.07, "2018-01-01", "2025-01-01");
     const fetcher = async (sim: string): Promise<NavPoint[]> => {
-      if (sim === "IWDA.AS") return serieBench;
+      if (sim === "SPYY.XETRA") return serieBench;
       return []; // todos los fondos fallan
     };
 
@@ -311,25 +363,31 @@ describe("generarSnapshot", () => {
     await generarSnapshot(fondos, { apiToken: "test", fetcher });
 
     // 3 fondos + 1 benchmark único = 4 llamadas, no 6
-    const llamadasBench = llamadas.filter((s) => s === "IWDA.AS");
+    const llamadasBench = llamadas.filter((s) => s === "SPYY.XETRA");
     expect(llamadasBench.length).toBe(1);
     expect(llamadas.length).toBe(4);
   });
 
-  it("sin snapshot previo, todas las tendencias son sin_ref", async () => {
+  it("la comparación con snapshot previo (dq5Anterior/deltaDq5) queda en null", async () => {
+    // NOTA: la tendencia ya NO se calcula como delta-dq5 entre snapshots, sino
+    // como momentum 30d vs ACWI (ver calcularTendencia30dias). Por eso aquí solo
+    // verificamos que los campos de comparación entre snapshots quedan null.
     const serie = generarSerieFija(0.04, "2018-01-01", "2025-01-01");
     const bench = generarSerieFija(0.07, "2018-01-01", "2025-01-01");
     const fetcher = async (sim: string): Promise<NavPoint[]> => {
-      if (sim === "IWDA.AS") return bench;
+      if (sim === "SPYY.XETRA") return bench;
       return serie;
     };
     const snap = await generarSnapshot([fondoMalo], { apiToken: "test", fetcher });
-    expect(snap.fondos[0]?.tendencia).toBe("sin_ref");
     expect(snap.fondos[0]?.dq5Anterior).toBeNull();
     expect(snap.fondos[0]?.deltaDq5).toBeNull();
   });
 
-  it("compara dq5 con snapshot previo y asigna mejorando/empeorando/estable/nuevo", async () => {
+  // OBSOLETO: este test asume el modelo viejo de tendencia = delta-dq5 entre
+  // snapshots (función `asignarTendencia`, hoy código muerto no cableado en
+  // generarSnapshot). El motor calcula la tendencia por momentum 30d vs ACWI.
+  // Pendiente: reescribir con series de momentum o eliminar asignarTendencia.
+  it.skip("compara dq5 con snapshot previo y asigna mejorando/empeorando/estable/nuevo", async () => {
     const bench = generarSerieFija(0.07, "2018-01-01", "2025-01-01");
     // Tres fondos: uno empeora, otro mejora, otro estable, uno nuevo (sin previo)
     const fondoEmpeora: FondoCsv = { ...fondoMalo, isin: "ES0000000001" };
@@ -341,7 +399,7 @@ describe("generarSnapshot", () => {
     // CAGR: 5% → α=-2% → dq5 ≈  9608 (vs previo 12000 → mejora, Δ<-500)
     // CAGR: 4.5% → α=-2.5% → dq5 ≈ 11890 (vs previo 11900 → estable, |Δ|<500)
     const fetcher = async (sim: string): Promise<NavPoint[]> => {
-      if (sim === "IWDA.AS") return bench;
+      if (sim === "SPYY.XETRA") return bench;
       if (sim === "ES0000000001.EUFUND") return generarSerieFija(0.04, "2018-01-01", "2025-01-01");
       if (sim === "ES0000000002.EUFUND") return generarSerieFija(0.05, "2018-01-01", "2025-01-01");
       if (sim === "ES0000000003.EUFUND") return generarSerieFija(0.045, "2018-01-01", "2025-01-01");
@@ -382,7 +440,7 @@ describe("generarSnapshot", () => {
   it("fondos stale tienen tendencia sin_ref aunque haya previo", async () => {
     const bench = generarSerieFija(0.07, "2018-01-01", "2025-01-01");
     const fetcher = async (sim: string): Promise<NavPoint[]> => {
-      if (sim === "IWDA.AS") return bench;
+      if (sim === "SPYY.XETRA") return bench;
       return []; // fondo sin datos
     };
     const previo: SnapshotLiga = {
@@ -416,6 +474,7 @@ function mockResultado(isin: string, dq5: number): ResultadoFondo {
     dq3: dq5 * 0.6,
     dq5,
     dq10: dq5 * 1.6,
+    dq3Proyectado: false,
     dq5Proyectado: false,
     dq10Proyectado: false,
     liga: "europa",

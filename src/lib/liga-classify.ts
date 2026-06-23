@@ -264,24 +264,27 @@ export function isinValido(isin: string): boolean {
 }
 
 /**
- * Calcula la posición que un dq5 tendría en el ranking actual de la liga.
- * Basado en orden descendente (mayor dq5 = peor = posición 1).
+ * Calcula la posición que un dq3 tendría en el ranking actual de la liga.
+ * Basado en orden descendente (mayor dq3 = peor = posición 1).
+ *
+ * Rankeamos por dq3 (no dq5) para ser coherentes con el motor del snapshot:
+ * dq3 es la ventana que TODOS los fondos tienen real, incluidos los de < 5 años.
  */
 export function posicionEnRanking(
-  dq5: number,
+  dq3: number,
   snapshot: SnapshotLiga,
 ): { posicion: number; total: number; zona: "champions" | "europa" | "permanencia" | "descenso" } {
-  const dq5sActuales = snapshot.fondos
-    .filter((f) => !f.stale && f.dq5 != null)
-    .map((f) => f.dq5 as number)
+  const dq3sActuales = snapshot.fondos
+    .filter((f) => !f.stale && f.dq3 != null)
+    .map((f) => f.dq3 as number)
     .sort((a, b) => b - a);
-  // Posición = nº de fondos con dq5 estrictamente mayor + 1
+  // Posición = nº de fondos con dq3 estrictamente mayor + 1
   let posicion = 1;
-  for (const v of dq5sActuales) {
-    if (v > dq5) posicion += 1;
+  for (const v of dq3sActuales) {
+    if (v > dq3) posicion += 1;
     else break;
   }
-  const total = dq5sActuales.length + 1; // +1 para incluir al fondo nuevo
+  const total = dq3sActuales.length + 1; // +1 para incluir al fondo nuevo
   const pct = posicion / total;
   let zona: "champions" | "europa" | "permanencia" | "descenso";
   if (pct <= 0.25) zona = "champions";
@@ -355,8 +358,8 @@ export async function classifyFund(
 
   // Fast path: ya está en la liga
   const enLiga = opts.snapshot.fondos.find((f) => f.isin === isin);
-  if (enLiga && enLiga.dq5 != null && !enLiga.stale) {
-    const { posicion, zona } = posicionEnRanking(enLiga.dq5, opts.snapshot);
+  if (enLiga && enLiga.dq3 != null && !enLiga.stale) {
+    const { posicion, zona } = posicionEnRanking(enLiga.dq3, opts.snapshot);
     // Recuperar el benchmark real del CSV para mostrarlo
     const fondosCsv = opts.fondosCsv ?? (await cargarFondosCsv().catch(() => []));
     const csvRow = fondosCsv.find((c) => c.isin === isin);
@@ -484,9 +487,9 @@ export async function classifyFund(
   const dq5 = alfa5w ? dineroQuemado(alfa5w.alfaPct, 5) : null;
   const dq10 = alfa10w ? dineroQuemado(alfa10w.alfaPct, 10) : null;
 
-  // Para posicionar en ranking necesitamos un dq5; si no hay, caemos a la
-  // ventana siguiente disponible para evitar dejar el fondo sin posición.
-  const dqRanking = dq5 ?? dq10 ?? dq3 ?? 0;
+  // Para posicionar en ranking usamos dq3 (criterio del motor); si no hay,
+  // caemos a la ventana siguiente disponible para no dejar el fondo sin posición.
+  const dqRanking = dq3 ?? dq5 ?? dq10 ?? 0;
   const { posicion, zona } = posicionEnRanking(dqRanking, opts.snapshot);
 
   const alfaPpal = alfa5w ?? alfa10w ?? alfa3w;

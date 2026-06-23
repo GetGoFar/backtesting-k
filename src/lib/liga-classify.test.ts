@@ -94,6 +94,7 @@ function mockSnapshot(dq5s: (number | null)[]): SnapshotLiga {
     dq3: dq5 != null ? dq5 * 0.6 : null,
     dq5,
     dq10: dq5 != null ? dq5 * 1.6 : null,
+    dq3Proyectado: false,
     dq5Proyectado: false,
     dq10Proyectado: false,
     liga: "europa",
@@ -116,20 +117,22 @@ function mockSnapshot(dq5s: (number | null)[]): SnapshotLiga {
 }
 
 describe("posicionEnRanking", () => {
-  // Liga con 4 fondos: dq5 = 50000, 30000, 10000, -20000 (ordenado descendente)
+  // El ranking es por dq3. El mock fija dq3 = dq5 * 0.6, así que con
+  // dq5 = [50000, 30000, 10000, -20000] la lista de dq3 (desc) es
+  // [30000, 18000, 6000, -12000].
   const snap = mockSnapshot([50000, 30000, 10000, -20000]);
 
-  it("dq5 más alto → posición 1 (champions)", () => {
-    const r = posicionEnRanking(60000, snap);
+  it("dq3 más alto → posición 1 (champions)", () => {
+    const r = posicionEnRanking(40000, snap); // > 30000 (el mayor dq3)
     expect(r.posicion).toBe(1);
     expect(r.zona).toBe("champions");
   });
-  it("dq5 entre 50k y 30k → posición 2", () => {
-    const r = posicionEnRanking(40000, snap);
+  it("dq3 entre el 1º y el 2º → posición 2", () => {
+    const r = posicionEnRanking(24000, snap); // entre 30000 y 18000
     expect(r.posicion).toBe(2);
   });
-  it("dq5 más bajo → última posición (descenso)", () => {
-    const r = posicionEnRanking(-30000, snap);
+  it("dq3 más bajo → última posición (descenso)", () => {
+    const r = posicionEnRanking(-30000, snap); // por debajo de -12000
     expect(r.posicion).toBe(5); // 4 existentes + el nuevo
     expect(r.zona).toBe("descenso");
   });

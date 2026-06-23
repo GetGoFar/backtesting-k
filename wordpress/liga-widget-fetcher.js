@@ -151,10 +151,13 @@
 		asegurarHeaderTendencia();
 
 		// Filtrar fondos con datos válidos para mostrar primero, stale al final
-		var conDatos = fondos.filter( function ( f ) { return f.dq5 != null && ! f.stale; } );
+		var conDatos = fondos.filter( function ( f ) { return f.dq3 != null && ! f.stale; } );
 		var stale = fondos.filter( function ( f ) { return f.stale; } );
-		// Ordenar conDatos descendente por dq5 (mayor = peor)
-		conDatos.sort( function ( a, b ) { return ( b.dq5 || 0 ) - ( a.dq5 || 0 ); } );
+		// Ordenar conDatos descendente por dq3 (mayor = peor). Usamos dq3 (no dq5)
+		// para que coincida con el ranking del motor: dq3 es la ventana que TODOS
+		// los fondos tienen real, incluidos los de < 5 años. Las zonas (Champions…)
+		// se derivan de esta posición de fila.
+		conDatos.sort( function ( a, b ) { return ( b.dq3 || 0 ) - ( a.dq3 || 0 ); } );
 
 		// Calcular % barra de impacto (relativo al peor dq10 absoluto)
 		var maxAbsDq10 = 1;

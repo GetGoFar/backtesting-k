@@ -79,15 +79,17 @@ export interface ResultadoFondo {
   alfa3: number | null;         // alfa de los últimos 3 años
   alfa5: number | null;         // alfa de los últimos 5 años
   alfa10: number | null;        // alfa de los últimos 10 años
-  // dq3/dq5/dq10 se calculan SIEMPRE con una única alfa base (la de la ventana
-  // disponible más larga, preferentemente 5y), proyectada a cada horizonte.
-  // Esto garantiza que los tres valores sean coherentes (mismo signo, magnitud
-  // creciente) — igual que la metodología de la página original. Cuando la
-  // ventana de la alfa base es más corta que el horizonte, el dq es una
-  // proyección y se marca con la flag correspondiente.
+  // dq3/dq5/dq10 se calculan con ALFA POR VENTANA: cada horizonte usa el alfa de
+  // su propia ventana (dq3←alfa3, dq5←alfa5, dq10←alfa10) — la cifra más real
+  // para ese plazo. Cuando una ventana no existe (fondo joven) se proyecta desde
+  // la real más larga disponible y se marca con la flag correspondiente. Los tres
+  // valores NO son necesariamente monótonos: un dq3 > dq5 indica que el fondo ha
+  // empeorado en los últimos 3 años respecto a los últimos 5 (info real). Ver
+  // proyectarDineroQuemado.
   dq3: number | null;           // €
   dq5: number | null;           // €
   dq10: number | null;          // €
+  dq3Proyectado: boolean;       // true si dq3 proyecta una alfa de < 3 años (fondo muy joven)
   dq5Proyectado: boolean;       // true si dq5 proyecta una alfa de < 5 años
   dq10Proyectado: boolean;      // true si dq10 proyecta una alfa de < 10 años
   liga: LigaCategoria | null;
@@ -442,61 +444,77 @@ export function dineroQuemado(
 }
 
 export interface ProyeccionDineroQuemado {
-  alfaBase: number | null;       // alfa usada para los tres horizontes (%)
+  alfaBase: number | null;       // alfa "titular" (ventana real más larga) para el campo legacy `alfa`
   ventanaBaseAnos: number | null; // 3, 5 o 10 — longitud real de la ventana de alfaBase
   dq3: number | null;
   dq5: number | null;
   dq10: number | null;
-  dq5Proyectado: boolean;
-  dq10Proyectado: boolean;
+  dq3Proyectado: boolean;        // true si dq3 proyecta una alfa de < 3 años (fondo muy joven)
+  dq5Proyectado: boolean;        // true si dq5 proyecta una alfa de < 5 años
+  dq10Proyectado: boolean;       // true si dq10 proyecta una alfa de < 10 años
 }
 
 /**
- * Calcula dq3/dq5/dq10 COHERENTES a partir de las alfas disponibles por ventana.
+ * Calcula dq3/dq5/dq10 con la metodología de ALFA POR VENTANA: el dinero
+ * quemado a N años se calcula con el alfa de la ventana de N años — la cifra
+ * más real para ese horizonte — no con una única alfa histórica proyectada.
  *
- * Metodología (igual que la página original): se elige UNA alfa base y se
- * proyecta a los tres horizontes con la fórmula dineroQuemado. Así los tres
- * valores comparten signo y crecen en magnitud — nunca aparece un dq10 nulo o
- * incoherente con el dq5.
+ *   dq3  ← alfa3   (infrautilización real de los últimos 3 años)
+ *   dq5  ← alfa5   (… de los últimos 5 años)
+ *   dq10 ← alfa10  (… de los últimos 10 años)
  *
- * Elección de la alfa base, por orden de preferencia:
- *   1. alfa10 (ventana larga: la más estable, evita distorsión por rally reciente)
- *   2. alfa5  (si el fondo no tiene 10y de histórico)
- *   3. alfa3  (fondos jóvenes)
+ * Si una ventana no tiene cobertura suficiente (fondo joven), se proyecta desde
+ * la ventana real más larga disponible y se marca con la flag `dqNProyectado`.
+ * Como las ventanas son anidadas (tener 10y implica tener 5y y 3y), en la
+ * práctica solo se proyectan horizontes MÁS LARGOS que el histórico del fondo.
  *
- * Marcamos como "proyectado" cuando la ventana de la alfa base es más corta
- * que el horizonte (p.ej. proyectar una alfa de 5 años a 10 años).
+ * CONSECUENCIA DELIBERADA (decisión de producto, jun 2026): dq3/dq5/dq10 dejan
+ * de ser necesariamente monótonos. Si un fondo ha empeorado en los últimos 3
+ * años respecto a los últimos 5, su dq3 puede SUPERAR a su dq5 — y eso es
+ * información real ("ha empeorado recientemente"), no una incoherencia. La nota
+ * de metodología de la página explica que las tres columnas son proyecciones
+ * independientes (cada una sobre su ventana), no un acumulado.
+ *
+ * `alfaBase`/`ventanaBaseAnos` se conservan como cifra "titular" para el campo
+ * legacy `alfa`: usamos la ventana real más larga (la más estable).
  */
 export function proyectarDineroQuemado(
   alfa3: number | null,
   alfa5: number | null,
   alfa10: number | null,
 ): ProyeccionDineroQuemado {
+  // Alfa efectiva por horizonte: su propia ventana, con fallback a la real más
+  // larga disponible (las ventanas son anidadas, así que el fallback solo
+  // entra para horizontes que superan el histórico del fondo).
+  const a3 = alfa3 ?? alfa5 ?? alfa10;
+  const a5 = alfa5 ?? alfa10 ?? alfa3;
+  const a10 = alfa10 ?? alfa5 ?? alfa3;
+
+  if (a3 == null && a5 == null && a10 == null) {
+    return {
+      alfaBase: null, ventanaBaseAnos: null,
+      dq3: null, dq5: null, dq10: null,
+      dq3Proyectado: false, dq5Proyectado: false, dq10Proyectado: false,
+    };
+  }
+
+  // Cifra titular (campo legacy `alfa`): ventana real más larga, la más estable.
   let alfaBase: number | null = null;
   let ventana: number | null = null;
-  // Preferimos la ventana MÁS LARGA disponible (10 > 5 > 3): es la más estable y
-  // evita que un rally reciente (p.ej. banca/bolsa española 2021-2026) infle el
-  // resultado de un fondo regional/apalancado y lo proyecte erróneamente a 10 años.
   if (alfa10 != null) { alfaBase = alfa10; ventana = 10; }
   else if (alfa5 != null) { alfaBase = alfa5; ventana = 5; }
   else if (alfa3 != null) { alfaBase = alfa3; ventana = 3; }
 
-  if (alfaBase == null || ventana == null) {
-    return {
-      alfaBase: null, ventanaBaseAnos: null,
-      dq3: null, dq5: null, dq10: null,
-      dq5Proyectado: false, dq10Proyectado: false,
-    };
-  }
-
   return {
     alfaBase,
     ventanaBaseAnos: ventana,
-    dq3: dineroQuemado(alfaBase, 3),
-    dq5: dineroQuemado(alfaBase, 5),
-    dq10: dineroQuemado(alfaBase, 10),
-    dq5Proyectado: ventana < 5,
-    dq10Proyectado: ventana < 10,
+    dq3: a3 != null ? dineroQuemado(a3, 3) : null,
+    dq5: a5 != null ? dineroQuemado(a5, 5) : null,
+    dq10: a10 != null ? dineroQuemado(a10, 10) : null,
+    // Proyectado = la ventana propia del horizonte no existe (se usó fallback).
+    dq3Proyectado: alfa3 == null,
+    dq5Proyectado: alfa5 == null,
+    dq10Proyectado: alfa10 == null,
   };
 }
 
@@ -565,7 +583,7 @@ export async function generarSnapshot(
 
     // Caso preferente: Morningstar nos da al menos una alfa.
     if (ms && (ms.alfa3 != null || ms.alfa5 != null || ms.alfa10 != null)) {
-      // Proyectamos UNA alfa base a 3/5/10 para que los tres dq sean coherentes.
+      // Cada dq con la alfa de su propia ventana (proyecta solo si falta historial).
       const proy = proyectarDineroQuemado(ms.alfa3 ?? null, ms.alfa5 ?? null, ms.alfa10 ?? null);
 
       resultados.push({
@@ -582,6 +600,7 @@ export async function generarSnapshot(
         dq3: proy.dq3,
         dq5: proy.dq5,
         dq10: proy.dq10,
+        dq3Proyectado: proy.dq3Proyectado,
         dq5Proyectado: proy.dq5Proyectado,
         dq10Proyectado: proy.dq10Proyectado,
         liga: null,
@@ -616,7 +635,7 @@ export async function generarSnapshot(
       continue;
     }
 
-    // Proyectamos UNA alfa base a 3/5/10 para coherencia entre horizontes.
+    // Cada dq con la alfa de su propia ventana (proyecta solo si falta historial).
     const proy = proyectarDineroQuemado(
       alfa3?.alfaPct ?? null,
       alfa5?.alfaPct ?? null,
@@ -640,6 +659,7 @@ export async function generarSnapshot(
       dq3: proy.dq3,
       dq5: proy.dq5,
       dq10: proy.dq10,
+      dq3Proyectado: proy.dq3Proyectado,
       dq5Proyectado: proy.dq5Proyectado,
       dq10Proyectado: proy.dq10Proyectado,
       liga: null,           // se asigna después de ordenar
@@ -656,12 +676,15 @@ export async function generarSnapshot(
   // La tendencia es el momentum reciente (vs ACWI, ~30 días), calculado por fondo
   // en el bucle anterior. Ya no se compara contra el snapshot mensual anterior.
 
-  // Ranking + categoría: orden descendente por dq5 (mayor = peor).
-  // Solo fondos con datos frescos (no stale) participan en la categorización.
-  // Los stale conservan dq5 para mostrarlos en la tabla pero sin liga asignada.
+  // Ranking + categoría: orden descendente por dq3 (mayor = peor).
+  // Usamos dq3 (no dq5) como criterio porque es la ventana que TODOS los fondos
+  // tienen REAL — incluidos los de < 5 años, cuyo dq5/dq10 sería proyectado. Así
+  // la clasificación nunca mezcla dato real con proyección, y refleja la
+  // infrautilización más reciente. Solo fondos frescos (no stale) se categorizan;
+  // los stale conservan sus dq para la tabla pero sin liga asignada.
   const conDatos = resultados
-    .filter((r) => !r.stale && r.dq5 != null)
-    .sort((a, b) => (b.dq5 ?? 0) - (a.dq5 ?? 0));
+    .filter((r) => !r.stale && r.dq3 != null)
+    .sort((a, b) => (b.dq3 ?? 0) - (a.dq3 ?? 0));
   conDatos.forEach((r, i) => { r.liga = asignarCategoria(i + 1, conDatos.length); });
 
   const stale = resultados.filter((r) => r.stale);
@@ -738,6 +761,7 @@ function stalePorFalta(f: FondoCsv, previo?: ResultadoFondo): ResultadoFondo {
     dq3: f.ref_dq3 || null,
     dq5: f.ref_dq5 || null,
     dq10: f.ref_dq10 || null,
+    dq3Proyectado: false,
     dq5Proyectado: false,
     dq10Proyectado: false,
     liga: null,
