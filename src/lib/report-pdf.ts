@@ -838,13 +838,12 @@ function renderTaxes(ctx: RenderCtx, result: BacktestResult, otherResult?: Backt
   // marcamos como tal en la tabla. Las métricas principales del informe NO
   // usan esta herencia (allí taxMode "none" = cero impuestos siempre).
   let pendingEsHipotetico = false;
-  if (ownMode === "none" && otherResult) {
-    const otherMode = (otherResult.fees.taxMode ?? "none") as TaxMode;
-    const otherRate = otherResult.fees.taxRate ?? 0;
-    if (otherMode !== "none") {
-      pending = computeTaxOnGain(result.fees.unrealizedGain ?? 0, otherMode, otherRate);
-      pendingEsHipotetico = pending > 0;
-    }
+  if (ownMode === "none") {
+    // Fondo traspasable: al liquidar tributa IRPF sobre la plusvalía latente
+    // (régimen de la comparada si tributa, o IRPF del ahorro por defecto).
+    const regime = referenceTaxRegime(otherResult);
+    pending = computeTaxOnGain(result.fees.unrealizedGain ?? 0, regime.mode, regime.rate);
+    pendingEsHipotetico = pending > 0;
   }
 
   // Bruto exacto del motor (contrafactual sin salidas fiscales, con el
@@ -883,7 +882,7 @@ function renderTaxes(ctx: RenderCtx, result: BacktestResult, otherResult?: Backt
     ? [["Escenario", "Tu cartera", `${bmName} (referencia)`]]
     : [["Escenario", "Valor final"]];
   const liquidarLabel = pendingEsHipotetico
-    ? `3. Neta al liquidar (hipotético)\nSi tributaras como la cartera comparada`
+    ? `3. Neta al liquidar (estimada)\nIRPF del ahorro sobre la plusvalía al reembolsar`
     : `3. Neta al liquidar\nLo que de verdad te llevas al bolsillo`;
   const body = hasBmTax
     ? [
@@ -1927,12 +1926,11 @@ function taxScenarios(r: BacktestResult, other: BacktestResult) {
   let pending = r.fees.pendingTaxes ?? 0;
   let hypo = false;
   if (ownMode === "none") {
-    const otherMode = (other.fees.taxMode ?? "none") as TaxMode;
-    const otherRate = other.fees.taxRate ?? 0;
-    if (otherMode !== "none") {
-      pending = computeTaxOnGain(r.fees.unrealizedGain ?? 0, otherMode, otherRate);
-      hypo = pending > 0;
-    }
+    // Fondo traspasable: al liquidar tributa IRPF sobre la plusvalía latente
+    // (régimen de la cartera comparada si tributa, o IRPF del ahorro por defecto).
+    const regime = referenceTaxRegime(other);
+    pending = computeTaxOnGain(r.fees.unrealizedGain ?? 0, regime.mode, regime.rate);
+    hypo = pending > 0;
   }
   return {
     bruto: r.grossFinalValue ?? (r.finalValue + paid),
@@ -1983,6 +1981,7 @@ function renderCompareTaxes(ctx: RenderCtx, a: BacktestResult, b: BacktestResult
 
   const anyHypo = sa.hypo || sb.hypo;
   const liqLabel = `3. Neta al liquidar${anyHypo ? " (*)" : ""}\nLo que de verdad te llevas al bolsillo`;
+  // (nota explicativa del asterisco más abajo)
   const head = hasBm
     ? [["Escenario", `A · ${a.portfolioName.substring(0, 22)}`, `B · ${b.portfolioName.substring(0, 22)}`, bmName]]
     : [["Escenario", `A · ${a.portfolioName.substring(0, 24)}`, `B · ${b.portfolioName.substring(0, 24)}`]];
@@ -2022,8 +2021,9 @@ function renderCompareTaxes(ctx: RenderCtx, a: BacktestResult, b: BacktestResult
 
   if (anyHypo) {
     drawBody(ctx,
-      "(*) Hipotético: una cartera de fondos traspasables no tributa por el camino; su impuesto " +
-      "al liquidar se estima como si tributara igual que la otra cartera. Es la única forma justa de compararlas.",
+      "(*) Estimado: los fondos traspasables no tributan por el camino; su impuesto al liquidar se " +
+      "estima con el IRPF del ahorro sobre la plusvalía latente (el mismo régimen de la cartera que " +
+      "tributa, si la hay). Es la única forma justa de compararlas al liquidar.",
       { size: 8.5, color: RGB.gray }
     );
   }
@@ -2096,9 +2096,11 @@ function displayFinalValue(r: BacktestResult, mode: ValueMode, other?: BacktestR
   if (mode === "bruto") return r.grossFinalValue ?? r.finalValue + (r.fees.totalTaxesPaid ?? 0);
   if (mode === "camino") return r.finalValue;
   let pending = r.fees.pendingTaxes ?? 0;
-  if ((r.fees.taxMode ?? "none") === "none" && other) {
-    const om = (other.fees.taxMode ?? "none") as TaxMode;
-    if (om !== "none") pending = computeTaxOnGain(r.fees.unrealizedGain ?? 0, om, other.fees.taxRate ?? 0);
+  if ((r.fees.taxMode ?? "none") === "none") {
+    // Fondos traspasables: al liquidar tributan IRPF sobre la plusvalía latente.
+    // Régimen = el de la cartera comparada si tributa, o IRPF del ahorro por defecto.
+    const regime = referenceTaxRegime(other);
+    pending = computeTaxOnGain(r.fees.unrealizedGain ?? 0, regime.mode, regime.rate);
   }
   return r.finalValue - pending;
 }
@@ -2127,12 +2129,16 @@ function applyValueMode(r: BacktestResult, mode: ValueMode, other?: BacktestResu
  *  con las carteras, le aplicamos el régimen de la primera cartera que tribute.
  *  Si ninguna tributa, devuelve null y el benchmark no se ajusta (coherente:
  *  las carteras tampoco cambian al liquidar). */
-function referenceTaxRegime(...portfolios: Array<BacktestResult | undefined | null>): { mode: TaxMode; rate: number } | null {
+function referenceTaxRegime(...portfolios: Array<BacktestResult | undefined | null>): { mode: TaxMode; rate: number } {
   for (const p of portfolios) {
     const tm = (p?.fees.taxMode ?? "none") as TaxMode;
     if (tm !== "none") return { mode: tm, rate: p?.fees.taxRate ?? 0 };
   }
-  return null;
+  // Por defecto: IRPF del ahorro español. "Al liquidar" significa "después de
+  // Hacienda" — un índice de referencia (benchmark) y los fondos traspasables
+  // tributan IRPF al reembolsar aunque no se haya marcado ninguna cartera con
+  // impuestos. Así la base "al liquidar" es coherente para todas las series.
+  return { mode: "spain-irpf", rate: 0 };
 }
 
 /** Ajuste equivalente para el benchmark (para que la comparación sea homogénea). */
