@@ -130,7 +130,7 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
   const [managementFee, setManagementFee] = useState(0);
   // Modo fiscal: "none" = sin impuestos (fondos con traspaso), "flat" = tasa fija
   // (otros países o personalización), "spain-irpf" = tramos progresivos del IRPF
-  // español sobre el ahorro (19%/21%/23%/27%/28%).
+  // español sobre el ahorro (19%/21%/23%/27%/30%).
   const [taxMode, setTaxMode] = useState<"none" | "flat" | "spain-irpf">("none");
   // Tasa fija a aplicar cuando taxMode = "flat" (porcentaje en UI, ej: 21)
   const [taxRatePct, setTaxRatePct] = useState(21);
@@ -1852,7 +1852,7 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                       ? "bg-white text-brand-navy shadow-sm"
                       : "text-slate-500 hover:text-brand-navy"
                   }`}
-                  title="Tramos progresivos del IRPF español sobre el ahorro: 19% (hasta 6k€/año), 21% (6k-50k), 23% (50k-200k), 27% (200k-300k), 28% (+300k)"
+                  title="Tramos progresivos del IRPF español sobre el ahorro: 19% (hasta 6k€/año), 21% (6k-50k), 23% (50k-200k), 27% (200k-300k), 30% (+300k)"
                 >
                   IRPF España
                 </button>
@@ -1888,7 +1888,7 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                     <li>• 6.000 – 50.000 €: <strong>21%</strong></li>
                     <li>• 50.000 – 200.000 €: <strong>23%</strong></li>
                     <li>• 200.000 – 300.000 €: <strong>27%</strong></li>
-                    <li>• Más de 300.000 €: <strong>28%</strong></li>
+                    <li>• Más de 300.000 €: <strong>30%</strong></li>
                   </ul>
                 </div>
               )}

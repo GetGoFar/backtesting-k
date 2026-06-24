@@ -64,7 +64,7 @@ function buildLegacyGoals(config: RetirementConfig): FinancialGoal[] {
 }
 
 // -----------------------------------------------------------------------------
-// IRPF España 2024 sobre el ahorro — tramos progresivos
+// IRPF España sobre el ahorro — tramos progresivos (top > 300.000 € = 30% desde 2025)
 // -----------------------------------------------------------------------------
 
 const SPAIN_IRPF_BRACKETS: Array<{ upTo: number; rate: number }> = [
@@ -72,7 +72,7 @@ const SPAIN_IRPF_BRACKETS: Array<{ upTo: number; rate: number }> = [
   { upTo: 50000, rate: 0.21 },
   { upTo: 200000, rate: 0.23 },
   { upTo: 300000, rate: 0.27 },
-  { upTo: Infinity, rate: 0.28 },
+  { upTo: Infinity, rate: 0.30 },
 ];
 
 /** Cuota IRPF total para una plusvalía anual `gainAnnual` (€). */
