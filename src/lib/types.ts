@@ -134,7 +134,7 @@ export interface Portfolio {
    *   - "none" (default): sin impuestos (fondos de inversión con traspaso)
    *   - "flat": tasa fija (taxRate)
    *   - "spain-irpf": tramos progresivos del IRPF español sobre el ahorro
-   *      (19%/21%/23%/27%/28%), aplicados sobre las plusvalías anuales acumuladas. */
+   *      (19%/21%/23%/27%/30%), aplicados sobre las plusvalías anuales acumuladas. */
   taxMode?: "none" | "flat" | "spain-irpf";
   /** Tasa fija a aplicar cuando taxMode = "flat" (decimal, ej: 0.21 para 21%) */
   taxRate?: number;

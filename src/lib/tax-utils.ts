@@ -12,7 +12,8 @@
 export type TaxMode = "none" | "flat" | "spain-irpf";
 
 /**
- * Tramos del IRPF español sobre rendimientos del ahorro (vigente 2023-2025).
+ * Tramos del IRPF español sobre rendimientos del ahorro (vigente desde 2025:
+ * el tramo > 300.000 € subió del 28% al 30%).
  * Aplicación progresiva sobre las plusvalías anuales acumuladas.
  */
 export const SPAIN_IRPF_BRACKETS: ReadonlyArray<{ limit: number; rate: number }> = [
@@ -20,7 +21,7 @@ export const SPAIN_IRPF_BRACKETS: ReadonlyArray<{ limit: number; rate: number }>
   { limit: 50000, rate: 0.21 },
   { limit: 200000, rate: 0.23 },
   { limit: 300000, rate: 0.27 },
-  { limit: Infinity, rate: 0.28 },
+  { limit: Infinity, rate: 0.30 },
 ];
 
 /** Calcula el impuesto total que tocaría pagar dada una plusvalía anual total. */

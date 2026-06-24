@@ -784,7 +784,7 @@ export function MomentumConfigPanel({
 
           <Field
             label="Impuestos"
-            tooltip="Régimen fiscal sobre las plusvalías. OJO: a diferencia de los fondos traspasables, aquí se opera con ETFs/acciones — cada rotación VENDE y realiza la plusvalía, que tributa en el acto. No hay diferimiento. Es el coste fiscal real de una estrategia de alta rotación.&#10;• Sin impuestos: rentabilidad bruta.&#10;• Tipo fijo: un % plano sobre cada plusvalía.&#10;• IRPF España: tramos del ahorro (19/21/23/27/28%) acumulando por año natural."
+            tooltip="Régimen fiscal sobre las plusvalías. OJO: a diferencia de los fondos traspasables, aquí se opera con ETFs/acciones — cada rotación VENDE y realiza la plusvalía, que tributa en el acto. No hay diferimiento. Es el coste fiscal real de una estrategia de alta rotación.&#10;• Sin impuestos: rentabilidad bruta.&#10;• Tipo fijo: un % plano sobre cada plusvalía.&#10;• IRPF España: tramos del ahorro (19/21/23/27/30%) acumulando por año natural."
           >
             <select
               value={config.taxMode ?? "none"}
@@ -807,7 +807,7 @@ export function MomentumConfigPanel({
           {config.taxMode === "flat" && (
             <Field
               label="Tipo impositivo (%)"
-              tooltip="Porcentaje plano aplicado a cada plusvalía realizada. En España el tipo del ahorro va del 19% al 28% por tramos; 21% es una aproximación razonable de tipo medio."
+              tooltip="Porcentaje plano aplicado a cada plusvalía realizada. En España el tipo del ahorro va del 19% al 30% por tramos; 21% es una aproximación razonable de tipo medio."
             >
               <NumberInput
                 min={0}
