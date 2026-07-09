@@ -222,11 +222,11 @@ export default function Home() {
   // Estado de configuración - usar fechas dinámicas
   const currentMonth = useMemo(() => getCurrentMonth(), []);
   const previousMonth = useMemo(() => getPreviousMonth(), []);
-  // Fecha de inicio por defecto: 1990-01. Cubre todo el histórico disponible
-  // para la mayoría de activos (XAUUSD desde 1979, Vanguard funds desde 1992,
-  // bancos españoles desde 1997). Si el backtest selecciona un activo con
-  // menos histórico, el motor ajusta automáticamente al primer dato disponible.
-  const [startDate, setStartDate] = useState("1990-01");
+  // Fecha de inicio por defecto: 1900-01, muy anterior a cualquier serie.
+  // El motor ajusta automáticamente al primer dato disponible del activo con
+  // menos histórico, así el backtest siempre arranca en la fecha más antigua
+  // con datos (y avisa con un warning si difiere de la solicitada).
+  const [startDate, setStartDate] = useState("1900-01");
   const [endDate, setEndDate] = useState(currentMonth);
   const [initialInvestment, setInitialInvestment] = useState(10000);
   const [monthlyContribution, setMonthlyContribution] = useState(0);
@@ -588,7 +588,7 @@ export default function Home() {
                   type="month"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  min="1990-01"
+                  min="1900-01"
                   max={previousMonth}
                   className="w-full px-3 py-2 text-sm sm:text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral transition-colors"
                 />
@@ -603,7 +603,7 @@ export default function Home() {
                   type="month"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  min="1990-02"
+                  min="1900-02"
                   max={currentMonth}
                   className="w-full px-3 py-2 text-sm sm:text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral transition-colors"
                 />

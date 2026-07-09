@@ -455,10 +455,11 @@ function validateDates(startDate: string, endDate: string): string | null {
     return "La fecha de fin no puede ser posterior al mes actual.";
   }
 
-  // Verificar fecha mínima razonable (1990)
-  const minDate = new Date("1990-01-01");
+  // Verificar fecha mínima razonable (1900): solo descarta errores de tipeo.
+  // El motor ajusta la fecha real al primer dato disponible de cada serie.
+  const minDate = new Date("1900-01-01");
   if (start < minDate) {
-    return "La fecha de inicio no puede ser anterior a 1990.";
+    return "La fecha de inicio no puede ser anterior a 1900.";
   }
 
   return null;
