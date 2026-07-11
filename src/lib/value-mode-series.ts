@@ -134,3 +134,79 @@ export function buildScaledSeries(
   }
   return series;
 }
+
+// =====================================================================
+// CAGR POR MODO — copia FIEL de la lógica de MetricsTable (cagrByMode).
+// Se extrae aquí para que otros componentes (p.ej. la tabla de rentabilidad
+// por horizonte, fila "Desde inicio") muestren EXACTAMENTE el mismo número
+// que la métrica "CAGR al liquidar" de la cabecera, en los tres modos.
+//
+// IMPORTANTE: si cambias la fórmula del CAGR por modo en MetricsTable,
+// actualiza también esta copia (y viceversa). Ambas deben coincidir.
+// =====================================================================
+
+/**
+ * Impuesto pendiente efectivo al liquidar. Réplica de MetricsTable.effectivePending:
+ * usa el régimen propio si lo hay; si no, hereda el de las carteras `others`
+ * (para A → [B]; para B → [A]; para benchmark → [A, B]).
+ */
+function effectivePendingFor(result: BacktestResult, others: BacktestResult[]): number {
+  const ownMode = (result.fees.taxMode ?? "none") as TaxMode;
+  if (ownMode !== "none") return result.fees.pendingTaxes ?? 0;
+  let inheritedMode: TaxMode = "none";
+  let inheritedRate = 0;
+  for (const c of others) {
+    if (!c) continue;
+    const mode = (c.fees.taxMode ?? "none") as TaxMode;
+    if (mode !== "none") {
+      inheritedMode = mode;
+      inheritedRate = c.fees.taxRate ?? 0;
+      break;
+    }
+  }
+  if (inheritedMode === "none") return 0;
+  return computeTaxOnGain(result.fees.unrealizedGain ?? 0, inheritedMode, inheritedRate);
+}
+
+/** Factor de escala del valor final según el modo (== MetricsTable.scaleFactor). */
+function scaleFactorFor(result: BacktestResult, mode: ValueMode, others: BacktestResult[]): number {
+  if (mode === "camino") return 1;
+  const finalVal = result.finalValue;
+  if (finalVal <= 0) return 1;
+  const paid = result.fees.totalTaxesPaid ?? 0;
+  const pending = effectivePendingFor(result, others);
+  return mode === "bruto"
+    ? (result.grossFinalValue ?? (finalVal + paid)) / finalVal
+    : (finalVal - pending) / finalVal;
+}
+
+/** Años cubiertos por la serie (días exactos / 365.25) — == MetricsTable.yearsOf. */
+function yearsOf(result: BacktestResult): number {
+  const ts = result.timeSeries;
+  if (!ts || ts.length < 2) return 1;
+  const first = ts[0];
+  const last = ts[ts.length - 1];
+  if (!first || !last) return 1;
+  const firstDate = new Date(first.exactDate || `${first.date}-01`);
+  const lastDate = new Date(last.exactDate || `${last.date}-01`);
+  const days = (lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24);
+  return Math.max(0.01, days / 365.25);
+}
+
+/**
+ * CAGR del periodo completo según el modo de valoración. Idéntico a
+ * MetricsTable.cagrByMode: se ancla en el CAGR del motor (TWRR) y solo se
+ * anualiza el ajuste por el factor del modo. Con factor 1 (sin efecto fiscal)
+ * devuelve exactamente metrics.cagr.
+ */
+export function cagrByMode(
+  result: BacktestResult,
+  mode: ValueMode,
+  others: BacktestResult[] = []
+): number {
+  const scale = scaleFactorFor(result, mode, others);
+  if (mode === "camino" || Math.abs(scale - 1) < 1e-9) return result.metrics.cagr;
+  if (scale <= 0) return -1;
+  const years = yearsOf(result);
+  return (1 + result.metrics.cagr) * Math.pow(scale, 1 / years) - 1;
+}

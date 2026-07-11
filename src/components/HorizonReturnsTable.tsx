@@ -2,7 +2,7 @@
 
 import type { BacktestResponse, BacktestResult, TimeSeriesPoint } from "@/lib/types";
 import type { ValueMode } from "./MetricsTable";
-import { buildScaledSeries } from "@/lib/value-mode-series";
+import { buildScaledSeries, cagrByMode } from "@/lib/value-mode-series";
 import { formatPct, formatNumber } from "@/lib/formatters";
 import { Tooltip } from "./Tooltip";
 
@@ -31,6 +31,13 @@ interface Column {
   color: "blue" | "rose" | "purple";
   /** Serie ya escalada al modo de valoración seleccionado. */
   series: TimeSeriesPoint[];
+  /** BacktestResult completo (A/B) — permite calcular "Desde inicio" con la
+   *  MISMA fórmula que el CAGR de la cabecera. Ausente para el benchmark. */
+  result?: BacktestResult;
+  /** Otras carteras (para heredar el régimen fiscal en modo "liquidar"). */
+  others?: BacktestResult[];
+  /** CAGR del periodo completo para el benchmark (no tiene BacktestResult). */
+  benchmarkCagr?: number;
 }
 
 interface HorizonDef {
@@ -184,6 +191,8 @@ export function HorizonReturnsTable({ results, isLoading, valueMode = "camino" }
       name: resultA.portfolioName,
       color: "blue",
       series: scaledSeries(resultA, valueMode, resultB ?? null, monthlyContribution, initialAmount),
+      result: resultA,
+      others: resultB ? [resultB] : [],
     });
   }
   if (resultB) {
@@ -192,6 +201,8 @@ export function HorizonReturnsTable({ results, isLoading, valueMode = "camino" }
       name: resultB.portfolioName,
       color: "rose",
       series: scaledSeries(resultB, valueMode, resultA ?? null, monthlyContribution, initialAmount),
+      result: resultB,
+      others: resultA ? [resultA] : [],
     });
   }
   if (bm && bm.benchmarkTimeSeries && bm.benchmarkTimeSeries.length > 0) {
@@ -201,6 +212,7 @@ export function HorizonReturnsTable({ results, isLoading, valueMode = "camino" }
       name: bm.benchmarkName ?? "Benchmark",
       color: "purple",
       series: bm.benchmarkTimeSeries,
+      benchmarkCagr: bm.benchmarkMetrics?.cagr ?? bm.benchmarkCagr,
     });
   }
 
@@ -211,9 +223,18 @@ export function HorizonReturnsTable({ results, isLoading, valueMode = "camino" }
   const lastRef = refSeries && refSeries.length > 0 ? refSeries[refSeries.length - 1] : undefined;
   const finalYear = lastRef ? Number(lastRef.date.split("-")[0]) : null;
 
+  // "Desde inicio" de cada columna: se calcula con la MISMA fórmula que el
+  // CAGR de la cabecera (cagrByMode) para que ambos números coincidan siempre.
+  // Para el benchmark usamos su propio CAGR. Fallback: punto a punto.
+  const inceptionValue = (c: Column, h: HorizonDef): number | null => {
+    if (c.result) return cagrByMode(c.result, valueMode, c.others ?? []);
+    if (c.benchmarkCagr != null && Number.isFinite(c.benchmarkCagr)) return c.benchmarkCagr;
+    return computeReturn(c.series, h);
+  };
+
   // Precalcular todos los valores: matriz [horizonte][columna]
   const matrix: (number | null)[][] = HORIZONS.map((h) =>
-    columns.map((c) => computeReturn(c.series, h))
+    columns.map((c) => (h.mode === "inception" ? inceptionValue(c, h) : computeReturn(c.series, h)))
   );
 
   const canCompare = columns.length >= 2;
@@ -358,10 +379,11 @@ export function HorizonReturnsTable({ results, isLoading, valueMode = "camino" }
             </>
           )}
           <span className="italic">N/D</span> = el backtest no cubre ese plazo (p.ej. no hay 10 años completos).
-          Cifras sobre la evolución del patrimonio en el escenario{" "}
-          <span className="font-medium">{MODE_LABEL[valueMode]}</span> (cambia con el selector de arriba)
+          Los plazos intermedios se calculan sobre la evolución del patrimonio en el escenario{" "}
+          <span className="font-medium">{MODE_LABEL[valueMode]}</span> (cambia con el selector de arriba);
+          la fila <span className="font-medium">Desde inicio</span> usa el mismo CAGR que la métrica de la cabecera
           {monthlyContribution > 0 && (
-            <>. <span className="italic">Ojo:</span> con aportaciones periódicas activas estas cifras reflejan la trayectoria del valor, no una rentabilidad pura de la cartera</>
+            <>. <span className="italic">Ojo:</span> con aportaciones periódicas activas los plazos intermedios reflejan la trayectoria del valor, no una rentabilidad pura de la cartera</>
           )}
           .
         </p>
