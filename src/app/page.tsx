@@ -136,6 +136,14 @@ const RollingStatsTable = dynamic(
   }
 );
 
+const HorizonReturnsTable = dynamic(
+  () => import("@/components/HorizonReturnsTable").then((mod) => mod.HorizonReturnsTable),
+  {
+    loading: () => <ChartLoadingSkeleton height="h-64" />,
+    ssr: false,
+  }
+);
+
 const ReturnsHistogramChart = dynamic(
   () => import("@/components/ReturnsHistogramChart").then((mod) => mod.ReturnsHistogramChart),
   {
@@ -1136,6 +1144,11 @@ export default function Home() {
                   valueMode={valueMode}
                   onValueModeChange={setValueMode}
                 />
+              </div>
+
+              {/* 3b. Rentabilidad por horizonte temporal (YTD / 1a / 2a / 3a / 5a / 10a / inicio) */}
+              <div id="section-horizons" className="scroll-mt-24">
+                <HorizonReturnsTable results={results} isLoading={false} valueMode={valueMode} />
               </div>
 
               {/* 4. Métricas individuales de cada activo */}
