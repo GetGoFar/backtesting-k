@@ -250,6 +250,10 @@ export default function Home() {
   const [bInitialInvestment, setBInitialInvestment] = useState(10000);
   const [bMonthlyContribution, setBMonthlyContribution] = useState(0);
   const [bContributionRebalance, setBContributionRebalance] = useState(false);
+  // Aportación mensual EFECTIVA de B: la suya si tiene importes propios, la de
+  // A si los hereda. Sirve para saber si tiene sentido ofrecerle el rebalanceo
+  // por aportaciones (sin dinero nuevo que dirigir, no hay nada que rebalancear).
+  const bEffectiveMonthly = bUsesOwnParams ? bMonthlyContribution : monthlyContribution;
   const [displayGranularity, setDisplayGranularity] =
     useState<DisplayGranularity>("monthly");
   const [useCommonDateRange, setUseCommonDateRange] = useState(true);
@@ -418,8 +422,12 @@ export default function Home() {
           // motor hereda las globales, que son las de A.
           initialAmount: bUsesOwnParams ? bInitialInvestment : undefined,
           monthlyContribution: bUsesOwnParams ? bMonthlyContribution : undefined,
+          // El rebalanceo por aportaciones de B es INDEPENDIENTE de si B usa
+          // sus propios importes: así se puede comparar la MISMA cartera con y
+          // sin dirigir el dinero nuevo a los rezagados, que es justo la
+          // pregunta interesante (cuánto IRPF te ahorras evitando ventas).
           contributionRebalance:
-            bUsesOwnParams && bMonthlyContribution > 0 ? bContributionRebalance : undefined,
+            bEffectiveMonthly > 0 ? bContributionRebalance : undefined,
         };
       }
 
@@ -684,7 +692,7 @@ export default function Home() {
                     </span>
                     <span className="text-xs text-brand-secondary leading-snug">
                       <span className="font-semibold text-brand-navy">
-                        Rebalancear con las aportaciones
+                        Rebalancear {portfolioA.name} con las aportaciones
                       </span>
                       <span className="block text-brand-tertiary mt-0.5">
                         El dinero nuevo se dirige a los activos rezagados.
@@ -770,29 +778,6 @@ export default function Home() {
                     </span>
                   </div>
 
-                  {bMonthlyContribution > 0 && (
-                    <label className="sm:col-span-2 flex items-start gap-2 cursor-pointer group">
-                      <input
-                        type="checkbox"
-                        checked={bContributionRebalance}
-                        onChange={(e) => setBContributionRebalance(e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <span className="relative inline-block w-9 h-5 bg-slate-200 rounded-full peer-checked:bg-emerald-600 transition-colors flex-shrink-0 mt-0.5">
-                        <span className="absolute top-[2px] left-[2px] w-4 h-4 bg-white rounded-full border border-slate-300 transition-transform peer-checked:translate-x-4" />
-                      </span>
-                      <span className="text-xs text-brand-secondary leading-snug">
-                        <span className="font-semibold text-brand-navy">
-                          Rebalancear B con las aportaciones
-                        </span>
-                        <span className="block text-brand-tertiary mt-0.5">
-                          El dinero nuevo se dirige a los activos rezagados.
-                          Sin ventas → cero impuestos en el camino.
-                        </span>
-                      </span>
-                    </label>
-                  )}
-
                   {bInitialInvestment <= 0 && bMonthlyContribution <= 0 && (
                     <p className="sm:col-span-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                       La cartera B no recibe dinero. Pon una inversión inicial o
@@ -800,6 +785,37 @@ export default function Home() {
                     </p>
                   )}
                 </div>
+              )}
+
+              {/* Rebalanceo por aportaciones de B — SIEMPRE disponible, aunque
+                  B herede los importes de A. Es lo que permite comparar la
+                  MISMA cartera con y sin dirigir el dinero nuevo a los
+                  rezagados, y ver cuánto IRPF te ahorras al no tener que
+                  vender. Si el interruptor viviera dentro de "B aporta de otra
+                  forma", habría que cambiarle los importes para poder tocarlo
+                  y la comparación ya no sería limpia. */}
+              {bEffectiveMonthly > 0 && (
+                <label className="mt-3 pt-3 border-t border-slate-200 flex items-start gap-2 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={bContributionRebalance}
+                    onChange={(e) => setBContributionRebalance(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <span className="relative inline-block w-9 h-5 bg-slate-200 rounded-full peer-checked:bg-emerald-600 transition-colors flex-shrink-0 mt-0.5">
+                    <span className="absolute top-[2px] left-[2px] w-4 h-4 bg-white rounded-full border border-slate-300 transition-transform peer-checked:translate-x-4" />
+                  </span>
+                  <span className="text-xs text-brand-secondary leading-snug">
+                    <span className="font-semibold text-brand-navy">
+                      Rebalancear {portfolioB.name} con las aportaciones
+                    </span>
+                    <span className="block text-brand-tertiary mt-0.5">
+                      El dinero nuevo se dirige a los activos rezagados. Sin
+                      ventas → cero impuestos en el camino. Actívalo solo aquí
+                      para comparar la misma cartera con y sin este efecto.
+                    </span>
+                  </span>
+                </label>
               )}
             </div>
 
