@@ -123,11 +123,26 @@ export function buildScaledSeries(
   const effectiveRate = pendingFinal / unrealizedFinal;
   const firstDate = ts[0]!.exactDate || ts[0]!.date;
 
+  // Aportaciones REALES de ESTA cartera. Se derivan del propio resultado en
+  // vez de usar los parámetros recibidos, porque esos son los globales (los de
+  // la cartera A): desde que cada cartera puede tener su propia inversión
+  // inicial y su propia aportación mensual, aplicárselos a la B falsearía su
+  // plusvalía latente y, con ella, el impuesto pendiente del modo "liquidar".
+  // Los parámetros quedan solo como respaldo por si el resultado no los trae.
+  const ownInitial = result.initialAmount ?? initialAmount;
+  const lastPoint = ts[ts.length - 1]!;
+  const lastDate = lastPoint.exactDate || lastPoint.date;
+  const spanMonths = Math.max(1, monthsBetween(firstDate, lastDate));
+  // Si lo aportado no supera a la inicial, esta cartera no tuvo aportaciones.
+  const ownMonthly = result.totalContributions > ownInitial
+    ? (result.totalContributions - ownInitial) / spanMonths
+    : 0;
+
   for (const p of ts) {
     const pDate = p.exactDate || p.date;
     const monthsElapsed = Math.max(0, monthsBetween(firstDate, pDate));
     // Aproximación de aportaciones acumuladas hasta el punto t
-    const contribsAtT = initialAmount + monthlyContribution * monthsElapsed;
+    const contribsAtT = ownInitial + ownMonthly * monthsElapsed;
     const unrealizedAtT = Math.max(0, p.value - contribsAtT);
     const pendingAtT = unrealizedAtT * effectiveRate;
     series.set(p.date, p.value - pendingAtT);

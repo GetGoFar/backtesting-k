@@ -718,13 +718,18 @@ export function MetricsTable({ results, isLoading, valueMode, onValueModeChange 
   // mostrar EXPLÍCITAMENTE el dinero aportado para que el alumno entienda que
   // el valor final NO es todo rentabilidad. El TWRR ya excluye el efecto de
   // las aportaciones, pero el contraste visual es clave para evitar confusión.
-  const totalContributed = (resultA ?? resultB)?.totalContributions ?? 0;
-  const initialAmount = results.config.initialAmount;
-  const monthly = results.config.monthlyContribution ?? 0;
-  const hasContributions = monthly > 0;
-  const totalMonthsContributed = hasContributions && monthly > 0
-    ? Math.round((totalContributed - initialAmount) / monthly)
-    : 0;
+  // Cada cartera puede tener su propia inversión inicial y su propia aportación
+  // mensual, así que el capital aportado se lee de CADA resultado. Un único
+  // número global mentiría en cuanto A y B aportan distinto (y con la aportación
+  // solo en B, el banner ni siquiera llegaba a mostrarse).
+  const contributionRows = [resultA, resultB].filter(
+    (r): r is BacktestResult => r != null
+  );
+  // Hay aportaciones si a alguna cartera le ha entrado dinero por encima de su
+  // inversión inicial. El margen de 0,01€ evita ruido de coma flotante.
+  const hasContributions = contributionRows.some(
+    (r) => r.totalContributions > r.initialAmount + 0.01
+  );
 
   return (
     <div className="space-y-6">
@@ -735,12 +740,37 @@ export function MetricsTable({ results, isLoading, valueMode, onValueModeChange 
             💼
           </div>
           <div className="flex-1 text-sm leading-snug">
-            <p className="font-semibold text-amber-900">
-              Has aportado en total <span className="tabular-nums">{formatEUR(totalContributed)}</span>{" "}
-              <span className="text-amber-700 font-normal">
-                ({formatEUR(initialAmount)} inicial + {formatEUR(monthly)} × {totalMonthsContributed} meses)
-              </span>
-            </p>
+            {contributionRows.length === 1 ? (
+              <p className="font-semibold text-amber-900">
+                Has aportado en total{" "}
+                <span className="tabular-nums">
+                  {formatEUR(contributionRows[0]!.totalContributions)}
+                </span>{" "}
+                <span className="text-amber-700 font-normal">
+                  ({formatEUR(contributionRows[0]!.initialAmount)} inicial +{" "}
+                  {formatEUR(
+                    Math.max(0, contributionRows[0]!.totalContributions - contributionRows[0]!.initialAmount)
+                  )}{" "}
+                  en aportaciones)
+                </span>
+              </p>
+            ) : (
+              <div className="space-y-0.5">
+                <p className="font-semibold text-amber-900">Capital aportado a cada cartera</p>
+                {contributionRows.map((r, i) => (
+                  <p key={i} className="text-amber-900">
+                    <span className="font-semibold">{r.portfolioName}:</span>{" "}
+                    <span className="tabular-nums font-semibold">
+                      {formatEUR(r.totalContributions)}
+                    </span>{" "}
+                    <span className="text-amber-700">
+                      ({formatEUR(r.initialAmount)} inicial +{" "}
+                      {formatEUR(Math.max(0, r.totalContributions - r.initialAmount))} en aportaciones)
+                    </span>
+                  </p>
+                ))}
+              </div>
+            )}
             <p className="text-xs text-amber-800/80 mt-1">
               <strong>Importante:</strong> las métricas de rentabilidad (CAGR, total)
               están calculadas como <strong>TWRR</strong> — encadenan los retornos diarios
