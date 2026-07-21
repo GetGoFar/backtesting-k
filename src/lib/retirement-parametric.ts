@@ -139,7 +139,7 @@ const SPAIN_IRPF_BRACKETS: Array<{ upTo: number; rate: number }> = [
   { upTo: 50000, rate: 0.21 },
   { upTo: 200000, rate: 0.23 },
   { upTo: 300000, rate: 0.27 },
-  { upTo: Infinity, rate: 0.30 },
+  { upTo: Infinity, rate: 0.28 },
 ];
 
 function spainIrpfTax(gainAnnual: number): number {

@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Carpeta de build. Por defecto ".next". Se puede sobreescribir con
+  // NEXT_DIST_DIR para correr una segunda instancia de dev (p.ej. el proveedor
+  // financialdata en otra carpeta/puerto) sin chocar con el lock de la primera.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   async headers() {
     return [
       {

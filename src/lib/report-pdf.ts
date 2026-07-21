@@ -368,8 +368,7 @@ function renderCover(pdf: jsPDF, result: BacktestResult, config: ReportConfig, o
     topRight: ["Anexo al informe", "Backtest de cartera", today],
     eyebrow: `Backtest de cartera${benchName ? ` · vs ${benchName}` : ""}`,
     title: "Backtest de tu cartera",
-    subtitle: `Comportamiento histórico de ${result.portfolioName}${otherName ? `, comparada con ${otherName}` : ""}, con datos reales de cada activo.` +
-      valueModeCoverNote(config.valueMode ?? "camino"),
+    subtitle: `Comportamiento histórico de ${result.portfolioName}${otherName ? `, comparada con ${otherName}` : ""}, con datos reales de cada activo.`,
     metaL: { label: "Preparado para", value: config.clientName || result.portfolioName },
     metaR: { label: "Periodo analizado", value: `${start} – ${end}` },
   });
@@ -703,7 +702,7 @@ function renderEvolution(ctx: RenderCtx, result: BacktestResult, benchmark?: Ben
   // Tabla
   const profit = result.finalValue - result.totalContributions;
   const tableBody: string[][] = [
-    ["Capital inicial aportado", fmtEUR(result.initialAmount ?? result.totalContributions)],
+    ["Capital inicial aportado", fmtEUR(ts[0]?.value ?? 0)],
     ["Total aportado en el periodo", fmtEUR(result.totalContributions)],
     ["Valor final", fmtEUR(result.finalValue)],
     ["Ganancia bruta", fmtEUR(profit)],
@@ -838,12 +837,13 @@ function renderTaxes(ctx: RenderCtx, result: BacktestResult, otherResult?: Backt
   // marcamos como tal en la tabla. Las métricas principales del informe NO
   // usan esta herencia (allí taxMode "none" = cero impuestos siempre).
   let pendingEsHipotetico = false;
-  if (ownMode === "none") {
-    // Fondo traspasable: al liquidar tributa IRPF sobre la plusvalía latente
-    // (régimen de la comparada si tributa, o IRPF del ahorro por defecto).
-    const regime = referenceTaxRegime(otherResult);
-    pending = computeTaxOnGain(result.fees.unrealizedGain ?? 0, regime.mode, regime.rate);
-    pendingEsHipotetico = pending > 0;
+  if (ownMode === "none" && otherResult) {
+    const otherMode = (otherResult.fees.taxMode ?? "none") as TaxMode;
+    const otherRate = otherResult.fees.taxRate ?? 0;
+    if (otherMode !== "none") {
+      pending = computeTaxOnGain(result.fees.unrealizedGain ?? 0, otherMode, otherRate);
+      pendingEsHipotetico = pending > 0;
+    }
   }
 
   // Bruto exacto del motor (contrafactual sin salidas fiscales, con el
@@ -862,17 +862,7 @@ function renderTaxes(ctx: RenderCtx, result: BacktestResult, otherResult?: Backt
   let bmLiquidar = 0;
   if (hasBmTax) {
     const bmPaid = bmFees!.totalTaxesPaid ?? 0;
-    // El benchmark se calcula sin impuestos (pendingTaxes 0). Para la fila "Neta
-    // al liquidar" le aplicamos el impuesto sobre su plusvalía latente con el
-    // régimen de la cartera que tributa, en vez de dejarlo en bruto.
-    let bmPending = bmFees!.pendingTaxes ?? 0;
-    if (bmPending <= 0) {
-      const regime = referenceTaxRegime(result, otherResult);
-      if (regime) {
-        const gain = bmFees!.unrealizedGain ?? Math.max(0, bmFinal! - bmFinal! / (1 + (benchmark!.benchmarkMetrics?.totalReturn ?? 0)));
-        if (gain > 0) bmPending = computeTaxOnGain(gain, regime.mode, regime.rate);
-      }
-    }
+    const bmPending = bmFees!.pendingTaxes ?? 0;
     bmBruto = bmFinal! + bmPaid;
     bmCamino = bmFinal!;
     bmLiquidar = bmFinal! - bmPending;
@@ -882,7 +872,7 @@ function renderTaxes(ctx: RenderCtx, result: BacktestResult, otherResult?: Backt
     ? [["Escenario", "Tu cartera", `${bmName} (referencia)`]]
     : [["Escenario", "Valor final"]];
   const liquidarLabel = pendingEsHipotetico
-    ? `3. Neta al liquidar (estimada)\nIRPF del ahorro sobre la plusvalía al reembolsar`
+    ? `3. Neta al liquidar (hipotético)\nSi tributaras como la cartera comparada`
     : `3. Neta al liquidar\nLo que de verdad te llevas al bolsillo`;
   const body = hasBmTax
     ? [
@@ -1100,28 +1090,13 @@ function heatColor(v: number, maxAbs: number): [number, number, number] {
 }
 
 /** Color para correlaciones: +1 rojo (se mueven juntos), 0 neutro, -1 verde. */
-/** Color de una celda de correlación: VERDE intenso = baja correlación (buena
- *  diversificación) → amarillo (~0,5) → ROJO = alta correlación (van de la mano).
- *  La diagonal y la correlación perfecta no dominan: lo que llama la atención es
- *  el verde de los pares que de verdad diversifican. */
 function corrColor(c: number): [number, number, number] {
-  const lerp = (a: number, b: number, t: number) => Math.round(a + (b - a) * t);
-  // Paradas: #16A34A verde, #FACC15 amarillo, #DC2626 rojo (tema de la app).
-  const G: [number, number, number] = [22, 163, 74];
-  const Y: [number, number, number] = [250, 204, 21];
-  const R: [number, number, number] = [220, 38, 38];
-  const x = Math.max(-0.2, Math.min(1, c));
-  if (x <= 0.5) {
-    const t = (x + 0.2) / 0.7; // −0,2..0,5 → 0..1 (verde→amarillo)
-    return [lerp(G[0], Y[0], t), lerp(G[1], Y[1], t), lerp(G[2], Y[2], t)];
+  if (c >= 0) {
+    const t = Math.max(0, Math.min(1, c));
+    return [Math.round(245 - t * (245 - 198)), Math.round(240 - t * (240 - 60)), Math.round(232 - t * (232 - 50))];
   }
-  const t = (x - 0.5) / 0.5; // 0,5..1 → 0..1 (amarillo→rojo)
-  return [lerp(Y[0], R[0], t), lerp(Y[1], R[1], t), lerp(Y[2], R[2], t)];
-}
-
-/** ¿El texto sobre este color debe ser blanco? (sobre verde/rojo saturados). */
-function corrTextWhite(c: number): boolean {
-  return c >= 0.78 || c <= 0.12; // rojo fuerte o verde fuerte
+  const t = Math.max(0, Math.min(1, -c));
+  return [Math.round(245 - t * (245 - 46)), Math.round(240 - t * (240 - 125)), Math.round(232 - t * (232 - 50))];
 }
 
 // 03b — Todas las métricas
@@ -1392,12 +1367,12 @@ function renderComposition(ctx: RenderCtx, result: BacktestResult) {
 }
 
 // 09b — Correlación entre activos
-function renderCorrelations(ctx: RenderCtx, matrix?: CorrelationMatrix, assetMetrics?: AssetMetrics[], portfolioVol?: number) {
+function renderCorrelations(ctx: RenderCtx, matrix?: CorrelationMatrix) {
   drawSectionHeader(ctx, "10", "Correlación entre activos");
   drawBody(ctx,
     "Diversificar no es tener muchos fondos: es tener fondos que NO se muevan a la vez. Dos " +
     "fondos con correlación 0,95 son, a efectos prácticos, el mismo fondo cobrándote dos comisiones. " +
-    "Verde intenso = se diversifican (correlación baja); rojo = van de la mano (correlación alta)."
+    "Verde = se diversifican; rojo = van de la mano."
   );
   if (!matrix || matrix.fundIds.length < 2) {
     drawBody(ctx, "Se necesitan al menos dos activos con histórico común para calcular correlaciones.", { italic: true });
@@ -1427,44 +1402,15 @@ function renderCorrelations(ctx: RenderCtx, matrix?: CorrelationMatrix, assetMet
     for (let j = 0; j < n; j++) {
       const c = matrix.matrix[i]?.[j] ?? 0;
       const x = ML + labelW + j * cellW;
-      if (i === j) {
-        // Diagonal (autocorrelación = 1): neutra, no debe robar atención.
-        ctx.pdf.setFillColor(235, 235, 235);
-        ctx.pdf.rect(x, ctx.y, cellW - 0.5, cellH - 0.5, "F");
-        ctx.pdf.setFontSize(5.5);
-        ctx.pdf.setTextColor(...RGB.gray);
-        ctx.pdf.text("—", x + cellW / 2, ctx.y + cellH / 2 + 1, { align: "center" });
-      } else {
-        ctx.pdf.setFillColor(...corrColor(c));
-        ctx.pdf.rect(x, ctx.y, cellW - 0.5, cellH - 0.5, "F");
-        ctx.pdf.setFontSize(5.5);
-        if (corrTextWhite(c)) ctx.pdf.setTextColor(255, 255, 255);
-        else ctx.pdf.setTextColor(...RGB.dark);
-        ctx.pdf.text(c.toFixed(2), x + cellW / 2, ctx.y + cellH / 2 + 1, { align: "center" });
-      }
+      ctx.pdf.setFillColor(...corrColor(c));
+      ctx.pdf.rect(x, ctx.y, cellW - 0.5, cellH - 0.5, "F");
+      ctx.pdf.setFontSize(5.5);
+      ctx.pdf.setTextColor(...RGB.dark);
+      ctx.pdf.text(c.toFixed(2), x + cellW / 2, ctx.y + cellH / 2 + 1, { align: "center" });
     }
     ctx.y += cellH;
   }
   ctx.y += 4;
-
-  // % de riesgo diversificable que elimina la cartera: cuánto baja la
-  // volatilidad real frente a la media ponderada de las volatilidades de los
-  // activos. Si todos fueran idénticos (corr=1) no se reduciría nada.
-  if (assetMetrics && assetMetrics.length >= 2 && portfolioVol && portfolioVol > 0) {
-    const withW = assetMetrics.filter((m) => (m.weight ?? 0) > 0 && m.volatility > 0);
-    const sumW = withW.reduce((s, m) => s + (m.weight ?? 0), 0);
-    if (sumW > 0) {
-      const weightedAvgVol = withW.reduce((s, m) => s + ((m.weight ?? 0) / sumW) * m.volatility, 0);
-      if (weightedAvgVol > 0) {
-        const reduccion = Math.max(0, 1 - portfolioVol / weightedAvgVol) * 100;
-        drawCTABox(ctx, "Riesgo que elimina la diversificación",
-          `La volatilidad real de la cartera es ${fmtPct(portfolioVol * 100).replace("+", "")}, frente a ${fmtPct(weightedAvgVol * 100).replace("+", "")} ` +
-          `que tendría la media ponderada de sus activos por separado. Es decir, combinar activos que no se mueven a la vez ` +
-          `elimina un ${reduccion.toFixed(0)} % del riesgo — diversificación que no cuesta rentabilidad esperada.`
-        );
-      }
-    }
-  }
 }
 
 // 10b — Métricas por activo
@@ -1560,7 +1506,7 @@ function renderComparison(ctx: RenderCtx, result: BacktestResult, benchmark?: Be
 function renderContributions(ctx: RenderCtx, result: BacktestResult) {
   drawSectionHeader(ctx, "14", "El poder de las aportaciones");
   const aportado = result.totalContributions;
-  const inicial = result.initialAmount ?? result.totalContributions;
+  const inicial = result.timeSeries[0]?.value ?? 0;
   const aportadoPeriodico = Math.max(0, aportado - inicial);
   const valorFinal = result.finalValue;
   const crecimiento = valorFinal - aportado;
@@ -1589,40 +1535,24 @@ function renderContributions(ctx: RenderCtx, result: BacktestResult) {
 // 14b — Historial de movimientos (rebalanceos)
 function renderRebalances(ctx: RenderCtx, result: BacktestResult) {
   drawSectionHeader(ctx, "15", "Historial de movimientos");
-  // En fondos traspasables (taxMode "none") el rebalanceo NO cristaliza la
-  // plusvalía: se traspasa de un fondo a otro sin pasar por Hacienda y el
-  // impuesto se difiere hasta el reembolso final. En ETFs/acciones sí se realiza.
-  const isFunds = (result.fees.taxMode ?? "none") === "none";
   drawBody(ctx,
     "Cada rebalanceo vende lo que ha subido y compra lo que ha bajado: disciplina automática " +
-    "que te obliga a hacer lo contrario de lo que pide el miedo. " +
-    (isFunds
-      ? "Al ser fondos traspasables, estos movimientos NO cristalizan la plusvalía: se difieren y solo tributan al reembolsar."
-      : "Como tributas en cada venta, también ves aquí el peaje fiscal de cada movimiento.")
+    "que te obliga a hacer lo contrario de lo que pide el miedo. Si tributas, también ves aquí el peaje."
   );
   const rb = result.rebalanceLog;
   if (rb.length === 0) { drawBody(ctx, "No hubo rebalanceos en el periodo (cartera sin rebalanceo o un solo activo).", { italic: true }); return; }
   const totalTax = rb.reduce((s, r) => s + r.taxPaid, 0);
-  const gainHeader = isFunds ? "Plusvalía movida (diferida)" : "Plusvalía cristalizada";
   const body = rb.slice(0, 24).map((r) => [
     r.date.substring(0, 7),
     fmtEUR(r.portfolioValueBefore),
     r.totalGain >= 0 ? fmtEUR(r.totalGain) : `-${fmtEUR(-r.totalGain)}`,
-    isFunds ? "diferido" : (r.taxPaid > 0 ? fmtEUR(r.taxPaid) : "—"),
+    r.taxPaid > 0 ? fmtEUR(r.taxPaid) : "—",
   ]);
-  drawTable(ctx, ["Fecha", "Valor cartera", gainHeader, "Impuesto"], body, {
+  drawTable(ctx, ["Fecha", "Valor cartera", "Plusvalía cristalizada", "Impuesto"], body, {
     1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right", fontStyle: "bold" },
   });
   if (rb.length > 24) drawBody(ctx, `(Mostrados los primeros 24 de ${rb.length} movimientos.)`, { size: 8, italic: true, color: RGB.gray });
-  if (isFunds) {
-    const latente = result.fees.unrealizedGain ?? 0;
-    drawBody(ctx,
-      `Ninguno de estos movimientos ha tributado: en fondos traspasables el impuesto se difiere hasta el reembolso. ` +
-      (latente > 0 ? `La plusvalía latente acumulada al final del periodo es ${fmtEUR(latente)} y solo cristalizaría (y tributaría) si vendieras. ` : "") +
-      "Justo por eso el traspaso fiscal de los fondos es oro: el dinero que no adelantas a Hacienda sigue componiendo.",
-      { size: 10, color: RGB.green }
-    );
-  } else if (totalTax > 0) {
+  if (totalTax > 0) {
     drawBody(ctx,
       `Peaje fiscal total por el camino: ${fmtEUR(totalTax)}. Cada euro que adelantas a Hacienda ` +
       "es un euro que deja de componer — por eso la fiscalidad diferida de los fondos traspasables es oro.",
@@ -1652,8 +1582,7 @@ function renderCompareCover(pdf: jsPDF, a: BacktestResult, b: BacktestResult, co
     topRight: ["Informe comparativo", "Backtest de cartera", today],
     eyebrow: `Comparador de carteras${benchName ? ` · vs ${benchName}` : ""}`,
     title: "Tus carteras, cara a cara",
-    subtitle: "Comportamiento histórico de las dos carteras sobre exactamente los mismos datos." +
-      valueModeCoverNote(config.valueMode ?? "camino"),
+    subtitle: "Comportamiento histórico de las dos carteras sobre exactamente los mismos datos.",
     extraLines: [
       { tag: "A", text: a.portfolioName, color: RGB.cream },
       { tag: "B", text: b.portfolioName, color: RGB.cream },
@@ -1917,136 +1846,6 @@ function renderCompareCosts(ctx: RenderCtx, a: BacktestResult, b: BacktestResult
   }
 }
 
-/** Calcula los 3 escenarios fiscales de una cartera. `other` se usa para el
- *  pendiente HIPOTÉTICO cuando la cartera no tributa por el camino (fondos
- *  traspasables) pero la comparada sí: así la comparación al liquidar es justa. */
-function taxScenarios(r: BacktestResult, other: BacktestResult) {
-  const paid = r.fees.totalTaxesPaid ?? 0;
-  const ownMode = (r.fees.taxMode ?? "none") as TaxMode;
-  let pending = r.fees.pendingTaxes ?? 0;
-  let hypo = false;
-  if (ownMode === "none") {
-    // Fondo traspasable: al liquidar tributa IRPF sobre la plusvalía latente
-    // (régimen de la cartera comparada si tributa, o IRPF del ahorro por defecto).
-    const regime = referenceTaxRegime(other);
-    pending = computeTaxOnGain(r.fees.unrealizedGain ?? 0, regime.mode, regime.rate);
-    hypo = pending > 0;
-  }
-  return {
-    bruto: r.grossFinalValue ?? (r.finalValue + paid),
-    camino: r.finalValue,
-    liquidar: r.finalValue - pending,
-    paid,
-    pending,
-    hypo,
-  };
-}
-
-/** Sección de impuestos COMPARATIVA — muestra los 3 escenarios (bruta, neta del
- *  camino y neta al liquidar) para AMBAS carteras (y el benchmark si lo hay).
- *  Antes el comparativo reutilizaba renderTaxes, que solo mostraba A vs índice. */
-function renderCompareTaxes(ctx: RenderCtx, a: BacktestResult, b: BacktestResult, benchmark?: BenchmarkComparison) {
-  drawSectionHeader(ctx, "08", "Cómo afectan los impuestos — A vs B");
-  drawBody(ctx,
-    "Hay tres rentabilidades que conviene distinguir, y aquí las ves para las dos carteras. " +
-    "La que de verdad importa es la NETA AL LIQUIDAR: el dinero que acaba en tu bolsillo " +
-    "después de pasar por Hacienda. Mirar solo el valor de hoy (neto del camino) puede engañar " +
-    "si una cartera lleva una mochila de impuestos latentes mayor que la otra."
-  );
-
-  const sa = taxScenarios(a, b);
-  const sb = taxScenarios(b, a);
-
-  const bmFees = benchmark?.benchmarkFees;
-  const bmFinal = benchmark?.benchmarkFinalValue;
-  const hasBm = !!bmFees && bmFinal != null;
-  const bmName = benchmark?.benchmarkName ?? "Ref.";
-  let bmBruto = 0, bmCamino = 0, bmLiquidar = 0;
-  if (hasBm) {
-    bmBruto = bmFinal! + (bmFees!.totalTaxesPaid ?? 0);
-    bmCamino = bmFinal!;
-    // El benchmark se calcula sin impuestos, así que su pendingTaxes es 0. Para
-    // la fila "Neta al liquidar" le aplicamos el impuesto sobre su plusvalía
-    // latente con el régimen de la cartera que tributa (igual que a las carteras).
-    let bmPending = bmFees!.pendingTaxes ?? 0;
-    if (bmPending <= 0) {
-      const regime = referenceTaxRegime(a, b);
-      if (regime) {
-        const gain = bmFees!.unrealizedGain ?? Math.max(0, bmFinal! - bmFinal! / (1 + (benchmark!.benchmarkMetrics?.totalReturn ?? 0)));
-        if (gain > 0) bmPending = computeTaxOnGain(gain, regime.mode, regime.rate);
-      }
-    }
-    bmLiquidar = bmFinal! - bmPending;
-  }
-
-  const anyHypo = sa.hypo || sb.hypo;
-  const liqLabel = `3. Neta al liquidar${anyHypo ? " (*)" : ""}\nLo que de verdad te llevas al bolsillo`;
-  // (nota explicativa del asterisco más abajo)
-  const head = hasBm
-    ? [["Escenario", `A · ${a.portfolioName.substring(0, 22)}`, `B · ${b.portfolioName.substring(0, 22)}`, bmName]]
-    : [["Escenario", `A · ${a.portfolioName.substring(0, 24)}`, `B · ${b.portfolioName.substring(0, 24)}`]];
-  const row = (label: string, va: number, vb: number, vbm: number) =>
-    hasBm ? [label, fmtEUR(va), fmtEUR(vb), fmtEUR(vbm)] : [label, fmtEUR(va), fmtEUR(vb)];
-  const body = [
-    row("1. Bruta (en el papel)\nAntes de cualquier impuesto", sa.bruto, sb.bruto, bmBruto),
-    row("2. Neta del camino\nLo que ves hoy en tu cuenta", sa.camino, sb.camino, bmCamino),
-    row(liqLabel, sa.liquidar, sb.liquidar, bmLiquidar),
-  ];
-
-  autoTable(ctx.pdf, {
-    startY: ctx.y,
-    margin: { left: ML, right: MR },
-    head,
-    body,
-    theme: "plain",
-    headStyles: { font: F_MONO, fontStyle: "bold", fontSize: 8, textColor: RGB.gray, cellPadding: { top: 1, right: 2, bottom: 2.6, left: 2 }, lineColor: RGB.dark, lineWidth: { bottom: 0.3 } },
-    bodyStyles: { fontSize: 9, textColor: RGB.dark, valign: "middle" },
-    columnStyles: hasBm
-      ? { 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right", fontStyle: "bold" }, 3: { halign: "right", fontStyle: "bold" } }
-      : { 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right", fontStyle: "bold" } },
-    didParseCell: (data) => {
-      // Color por columna: A navy, B rosa, benchmark púrpura.
-      if (data.column.index === 1) data.cell.styles.textColor = RGB.blueA;
-      if (data.column.index === 2) data.cell.styles.textColor = RGB.roseB;
-      if (data.column.index === 3 && hasBm) data.cell.styles.textColor = RGB.purple;
-      // Fila 3 (al liquidar) destacada: fondo de color por cartera, texto blanco.
-      if (data.section === "body" && data.row.index === 2) {
-        if (data.column.index === 1) { data.cell.styles.fillColor = RGB.blueA; data.cell.styles.textColor = RGB.white; }
-        else if (data.column.index === 2) { data.cell.styles.fillColor = RGB.roseB; data.cell.styles.textColor = RGB.white; }
-        else if (data.column.index === 3 && hasBm) { data.cell.styles.fillColor = RGB.purple; data.cell.styles.textColor = RGB.white; }
-      }
-    },
-  });
-  ctx.y = (ctx.pdf as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
-
-  if (anyHypo) {
-    drawBody(ctx,
-      "(*) Estimado: los fondos traspasables no tributan por el camino; su impuesto al liquidar se " +
-      "estima con el IRPF del ahorro sobre la plusvalía latente (el mismo régimen de la cartera que " +
-      "tributa, si la hay). Es la única forma justa de compararlas al liquidar.",
-      { size: 8.5, color: RGB.gray }
-    );
-  }
-
-  // Impuestos pagados y pendientes de CADA cartera, en prosa.
-  const linea = (nombre: string, s: ReturnType<typeof taxScenarios>) =>
-    s.paid > 0
-      ? `${nombre}: ${fmtEUR(s.paid)} pagados por el camino y ${fmtEUR(s.pending)} pendientes al liquidar.`
-      : s.pending > 0
-        ? `${nombre}: 0 € por el camino (traspaso fiscal) y ${fmtEUR(s.pending)}${s.hypo ? " hipotéticos" : ""} al liquidar.`
-        : `${nombre}: sin impacto fiscal relevante en el periodo.`;
-  drawBody(ctx, linea("Cartera A", sa), { size: 10, color: RGB.blueA });
-  drawBody(ctx, linea("Cartera B", sb), { size: 10, color: RGB.roseB });
-
-  // Veredicto al liquidar (la cifra que de verdad cuenta).
-  const ganaLiq = sa.liquidar >= sb.liquidar ? "A" : "B";
-  const difLiq = Math.abs(sa.liquidar - sb.liquidar);
-  drawCTABox(ctx, "Lo que de verdad te llevas",
-    `Después de Hacienda, la Cartera ${ganaLiq} deja ${fmtEUR(difLiq)} más en el bolsillo al liquidar. ` +
-    "La rentabilidad bruta es la de los folletos; la neta al liquidar es la única que mide tu dinero real."
-  );
-}
-
 function renderCompareConclusion(ctx: RenderCtx, a: BacktestResult, b: BacktestResult) {
   drawSectionHeader(ctx, "08", "Conclusiones");
   const ma = a.metrics, mb = b.metrics;
@@ -2063,127 +1862,6 @@ function renderCompareConclusion(ctx: RenderCtx, a: BacktestResult, b: BacktestR
     "habría ganado más mirando por el retrovisor, sino la que encaja con tu horizonte, tu estómago y " +
     "tus costes — y que por eso vas a poder mantener cuando vengan mal dadas, que vendrán."
   );
-}
-
-// -----------------------------------------------------------------------------
-// BASE DE LAS RENTABILIDADES PRINCIPALES (valor final / total / CAGR)
-//
-// El usuario elige expresar las cifras de cabecera en bruto, neto del camino o
-// neto al liquidar. Solo cambian las cifras de NIVEL (valor final, rentabilidad
-// total, CAGR); las métricas de riesgo (vol, Sharpe, drawdown) son del camino y
-// no se tocan. Para no reescribir cada sección, generamos COPIAS del resultado
-// con esas tres cifras recalculadas y las pasamos a las funciones de render.
-// -----------------------------------------------------------------------------
-
-type ValueMode = "bruto" | "camino" | "liquidar";
-
-function yearsOf(r: BacktestResult): number {
-  const ts = r.timeSeries;
-  if (ts && ts.length >= 2) {
-    const y =
-      (new Date(ts[ts.length - 1]!.date).getTime() - new Date(ts[0]!.date).getTime()) /
-      (365.25 * 24 * 3600 * 1000);
-    if (y > 0) return y;
-  }
-  return r.metrics.cagr !== 0
-    ? Math.log(1 + r.metrics.totalReturn) / Math.log(1 + r.metrics.cagr)
-    : 1;
-}
-
-/** Valor final según la base elegida (con pendiente hipotético al liquidar si
- *  la cartera no tributa por el camino pero la comparada sí). */
-function displayFinalValue(r: BacktestResult, mode: ValueMode, other?: BacktestResult): number {
-  if (mode === "bruto") return r.grossFinalValue ?? r.finalValue + (r.fees.totalTaxesPaid ?? 0);
-  if (mode === "camino") return r.finalValue;
-  let pending = r.fees.pendingTaxes ?? 0;
-  if ((r.fees.taxMode ?? "none") === "none") {
-    // Fondos traspasables: al liquidar tributan IRPF sobre la plusvalía latente.
-    // Régimen = el de la cartera comparada si tributa, o IRPF del ahorro por defecto.
-    const regime = referenceTaxRegime(other);
-    pending = computeTaxOnGain(r.fees.unrealizedGain ?? 0, regime.mode, regime.rate);
-  }
-  return r.finalValue - pending;
-}
-
-/** Devuelve una copia del resultado con valor final, rentabilidad total y CAGR
- *  expresados en la base elegida. El resto (riesgo, series, fees) intacto. */
-function applyValueMode(r: BacktestResult, mode: ValueMode, other?: BacktestResult): BacktestResult {
-  if (mode === "camino") return r;
-  const fv = displayFinalValue(r, mode, other);
-  const initial = r.finalValue / (1 + r.metrics.totalReturn);
-  const years = yearsOf(r);
-  const totalReturn = initial > 0 ? fv / initial - 1 : 0;
-  const cagr = initial > 0 && years > 0 ? Math.pow(fv / initial, 1 / years) - 1 : totalReturn;
-  // Escalamos la serie temporal por el mismo factor para que el gráfico de
-  // evolución (y su eje Y) acabe en el valor de la base elegida, sin mostrar el
-  // bruto/camino cuando se pidió "al liquidar". El escalado es uniforme: no
-  // altera ratios (heatmap mensual) ni fechas.
-  const scale = r.finalValue > 0 ? fv / r.finalValue : 1;
-  const timeSeries = scale === 1 ? r.timeSeries : r.timeSeries.map((p) => ({ ...p, value: p.value * scale }));
-  return { ...r, finalValue: fv, timeSeries, metrics: { ...r.metrics, totalReturn, cagr } };
-}
-
-/** Régimen fiscal de referencia para el impuesto AL LIQUIDAR del benchmark.
- *  El benchmark se calcula SIN impuestos (taxMode "none"), así que no tiene
- *  impuesto pendiente propio. Para mostrarlo "al liquidar" de forma homogénea
- *  con las carteras, le aplicamos el régimen de la primera cartera que tribute.
- *  Si ninguna tributa, devuelve null y el benchmark no se ajusta (coherente:
- *  las carteras tampoco cambian al liquidar). */
-function referenceTaxRegime(...portfolios: Array<BacktestResult | undefined | null>): { mode: TaxMode; rate: number } {
-  for (const p of portfolios) {
-    const tm = (p?.fees.taxMode ?? "none") as TaxMode;
-    if (tm !== "none") return { mode: tm, rate: p?.fees.taxRate ?? 0 };
-  }
-  // Por defecto: IRPF del ahorro español. "Al liquidar" significa "después de
-  // Hacienda" — un índice de referencia (benchmark) y los fondos traspasables
-  // tributan IRPF al reembolsar aunque no se haya marcado ninguna cartera con
-  // impuestos. Así la base "al liquidar" es coherente para todas las series.
-  return { mode: "spain-irpf", rate: 0 };
-}
-
-/** Ajuste equivalente para el benchmark (para que la comparación sea homogénea). */
-function applyValueModeBenchmark(bm: BenchmarkComparison | undefined, mode: ValueMode, regime?: { mode: TaxMode; rate: number } | null): BenchmarkComparison | undefined {
-  if (!bm || mode === "camino" || bm.benchmarkFinalValue == null || !bm.benchmarkMetrics) return bm;
-  const m = bm.benchmarkMetrics;
-  const fv0 = bm.benchmarkFinalValue;
-  let fv: number;
-  if (mode === "bruto") {
-    fv = fv0 + (bm.benchmarkFees?.totalTaxesPaid ?? 0);
-  } else {
-    // AL LIQUIDAR: el benchmark se calculó sin impuestos, su pendingTaxes es 0.
-    // Le aplicamos el impuesto sobre su plusvalía latente con el régimen de
-    // referencia para que no aparezca en bruto frente a las carteras netas.
-    let pending = bm.benchmarkFees?.pendingTaxes ?? 0;
-    if (pending <= 0 && regime && regime.mode !== "none") {
-      const gain = bm.benchmarkFees?.unrealizedGain ?? Math.max(0, fv0 * (m.totalReturn / (1 + m.totalReturn)));
-      if (gain > 0) pending = computeTaxOnGain(gain, regime.mode, regime.rate);
-    }
-    fv = fv0 - pending;
-  }
-  const initial = fv0 / (1 + m.totalReturn);
-  const years = m.cagr !== 0 ? Math.log(1 + m.totalReturn) / Math.log(1 + m.cagr) : 1;
-  const totalReturn = initial > 0 ? fv / initial - 1 : 0;
-  const cagr = initial > 0 && years > 0 ? Math.pow(fv / initial, 1 / years) - 1 : totalReturn;
-  // Escalamos también la serie del benchmark para que su línea en el gráfico de
-  // evolución acabe en el valor neto (no en el bruto) cuando se elige "al liquidar".
-  const scale = fv0 > 0 ? fv / fv0 : 1;
-  const benchmarkTimeSeries = (bm.benchmarkTimeSeries && scale !== 1)
-    ? bm.benchmarkTimeSeries.map((p) => ({ ...p, value: p.value * scale }))
-    : bm.benchmarkTimeSeries;
-  return { ...bm, benchmarkFinalValue: fv, benchmarkTimeSeries, benchmarkMetrics: { ...m, totalReturn, cagr } };
-}
-
-function valueModeLabel(mode: ValueMode): string {
-  return mode === "bruto" ? "Rentab. brutas" : mode === "liquidar" ? "Rentab. al liquidar" : "";
-}
-
-/** Nota descriptiva para la portada (vacía en el modo por defecto "camino"). */
-function valueModeCoverNote(mode: ValueMode): string {
-  return mode === "bruto"
-    ? " Rentabilidades principales en BRUTO (antes de impuestos)."
-    : mode === "liquidar"
-      ? " Rentabilidades principales NETAS AL LIQUIDAR (después de impuestos)."
-      : "";
 }
 
 // -----------------------------------------------------------------------------
@@ -2205,13 +1883,7 @@ export function generateReportPDF(
   // El benchmark es global (A y B comparten benchmark). Se obtiene del que lo tenga.
   const benchmark = result.benchmark ?? other?.benchmark;
   const benchScore = computeBenchmarkScore(benchmark);
-  // Base elegida para las cifras de cabecera (valor final / total / CAGR).
-  // `result`/`benchmark` originales se conservan para la sección de impuestos.
-  const mode: ValueMode = config.valueMode ?? "camino";
-  const dResult = applyValueMode(result, mode, other ?? undefined);
-  const dBenchmark = applyValueModeBenchmark(benchmark, mode, referenceTaxRegime(result, other));
-  const mLabel = valueModeLabel(mode);
-  const subtitle = `${result.portfolioName} · Informe de cartera` + (mLabel ? ` · ${mLabel}` : "");
+  const subtitle = `${result.portfolioName} · Informe de cartera`;
 
   const pdf = new jsPDF({
     format: "a4",
@@ -2226,34 +1898,25 @@ export function generateReportPDF(
     const a = results.resultA;
     const b = results.resultB;
     const bm = a.benchmark ?? b.benchmark;
-    // Copias en la base elegida (bruto/camino/liquidar) para las cifras de
-    // cabecera; los ORIGINALES (a, b, bm) se reservan para la sección de
-    // impuestos, que siempre muestra los tres escenarios.
-    const mode: ValueMode = config.valueMode ?? "camino";
-    const aD = applyValueMode(a, mode, b);
-    const bD = applyValueMode(b, mode, a);
-    const bmD = applyValueModeBenchmark(bm, mode, referenceTaxRegime(a, b));
-    const mLabel = valueModeLabel(mode);
-    const compSubtitle = "Comparativa de carteras · El Proyecto K" + (mLabel ? ` · ${mLabel}` : "");
+    const compSubtitle = "Comparativa de carteras · El Proyecto K";
     const cctx: RenderCtx = { pdf, pageNum: 0, totalPages: 0, y: MT + 8, subtitle: compSubtitle };
 
-    renderCompareCover(pdf, aD, bD, config, bm?.benchmarkName);
+    renderCompareCover(pdf, a, b, config, bm?.benchmarkName);
 
     const compTaxes =
       (a.fees.taxMode != null && a.fees.taxMode !== "none") ||
       (b.fees.taxMode != null && b.fees.taxMode !== "none");
 
     const compSections: Array<(c: RenderCtx) => void> = [
-      (c) => renderCompareHero(c, aD, bD),
-      (c) => renderCompareMetrics(c, aD, bD, bmD),
-      (c) => renderCompareEvolution(c, aD, bD, bmD),
-      (c) => renderCompareAnnual(c, aD, bD),
-      (c) => renderCompareDrawdown(c, aD, bD),
-      (c) => renderCompareRolling(c, aD, bD),
-      (c) => renderCompareCosts(c, aD, bD),
-      // Impuestos: ORIGINALES, para mostrar bruta / camino / liquidar de ambas.
-      ...(compTaxes ? [(c: RenderCtx) => renderCompareTaxes(c, a, b, bm)] : []),
-      (c) => renderCompareConclusion(c, aD, bD),
+      (c) => renderCompareHero(c, a, b),
+      (c) => renderCompareMetrics(c, a, b, bm),
+      (c) => renderCompareEvolution(c, a, b, bm),
+      (c) => renderCompareAnnual(c, a, b),
+      (c) => renderCompareDrawdown(c, a, b),
+      (c) => renderCompareRolling(c, a, b),
+      (c) => renderCompareCosts(c, a, b),
+      ...(compTaxes ? [(c: RenderCtx) => renderTaxes(c, a, b, bm)] : []),
+      (c) => renderCompareConclusion(c, a, b),
       (c) => renderDisclaimer(c),
     ];
 
@@ -2296,7 +1959,7 @@ export function generateReportPDF(
   for (const id of selected) {
     if (id === "cover") {
       // Portada en la primera página existente (no addPage)
-      renderCover(pdf, dResult, config, otherName, benchName);
+      renderCover(pdf, result, config, otherName, benchName);
       coverDone = true;
     } else {
       // Para las demás secciones, nueva página
@@ -2315,21 +1978,20 @@ export function generateReportPDF(
       ctx.y = MT + 8;
 
       if (id === "score") renderScore(ctx, score, benchScore, benchName);
-      else if (id === "summary") renderSummary(ctx, dResult, score);
-      else if (id === "metricsFull") renderMetricsFull(ctx, dResult, dBenchmark);
-      else if (id === "evolution") renderEvolution(ctx, dResult, dBenchmark);
-      else if (id === "annualReturns") renderAnnualReturns(ctx, dResult);
-      else if (id === "monthlyHeatmap") renderMonthlyHeatmap(ctx, dResult);
-      else if (id === "crisis") renderCrisis(ctx, dResult, dBenchmark);
-      else if (id === "topDrawdowns") renderTopDrawdowns(ctx, dResult);
-      else if (id === "rolling") renderRolling(ctx, dResult);
-      else if (id === "histogram") renderHistogram(ctx, dResult);
-      // Impuestos: ORIGINALES (muestra los tres escenarios).
+      else if (id === "summary") renderSummary(ctx, result, score);
+      else if (id === "metricsFull") renderMetricsFull(ctx, result, benchmark);
+      else if (id === "evolution") renderEvolution(ctx, result, benchmark);
+      else if (id === "annualReturns") renderAnnualReturns(ctx, result);
+      else if (id === "monthlyHeatmap") renderMonthlyHeatmap(ctx, result);
+      else if (id === "crisis") renderCrisis(ctx, result, benchmark);
+      else if (id === "topDrawdowns") renderTopDrawdowns(ctx, result);
+      else if (id === "rolling") renderRolling(ctx, result);
+      else if (id === "histogram") renderHistogram(ctx, result);
       else if (id === "taxes") renderTaxes(ctx, result, other ?? undefined, benchmark);
-      else if (id === "comparison") renderComparison(ctx, dResult, dBenchmark);
-      else if (id === "stress") renderStress(ctx, dResult, dBenchmark);
-      else if (id === "composition") renderComposition(ctx, dResult);
-      else if (id === "correlations") renderCorrelations(ctx, results.correlationMatrix, results.assetMetrics, dResult.metrics.volatility);
+      else if (id === "comparison") renderComparison(ctx, result, benchmark);
+      else if (id === "stress") renderStress(ctx, result, benchmark);
+      else if (id === "composition") renderComposition(ctx, result);
+      else if (id === "correlations") renderCorrelations(ctx, results.correlationMatrix);
       else if (id === "assetMetrics") renderAssetMetricsSection(ctx, results.assetMetrics);
       else if (id === "contributions") renderContributions(ctx, result);
       else if (id === "rebalances") renderRebalances(ctx, result);

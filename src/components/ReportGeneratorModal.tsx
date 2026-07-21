@@ -40,8 +40,6 @@ export function ReportGeneratorModal({ open, onClose, results }: ReportGenerator
   const [primaryPortfolio, setPrimaryPortfolio] = useState<"a" | "b">(hasA ? "a" : "b");
   // Con dos carteras, el informe es COMPARATIVO por defecto (no hay que elegir una).
   const [comparative, setComparative] = useState<boolean>(hasA && hasB);
-  // Base de las rentabilidades principales del informe (valor final / CAGR).
-  const [valueMode, setValueMode] = useState<"bruto" | "camino" | "liquidar">("camino");
   const [clientName, setClientName] = useState("");
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +82,6 @@ export function ReportGeneratorModal({ open, onClose, results }: ReportGenerator
         primaryPortfolio,
         comparative: hasA && hasB && comparative,
         clientName: clientName.trim() || undefined,
-        valueMode,
       };
 
       // Carga dinámica del generador de PDF (lazy: solo cuando el usuario
@@ -185,39 +182,6 @@ export function ReportGeneratorModal({ open, onClose, results }: ReportGenerator
               )}
             </div>
           )}
-
-          {/* Base de las rentabilidades principales */}
-          <div>
-            <label className="block text-xs font-semibold text-brand-navy uppercase tracking-wider mb-2">
-              Rentabilidades principales
-            </label>
-            <div className="flex gap-2">
-              {([
-                ["bruto", "Brutas", "Antes de impuestos"],
-                ["camino", "Neta del camino", "Lo que ves hoy"],
-                ["liquidar", "Al liquidar", "Tras Hacienda"],
-              ] as const).map(([mode, title, sub]) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setValueMode(mode)}
-                  className={`flex-1 px-3 py-2 rounded-lg border transition-colors text-left ${
-                    valueMode === mode
-                      ? "bg-brand-coral text-white border-brand-coral"
-                      : "bg-white text-brand-navy border-slate-200 hover:border-brand-coral"
-                  }`}
-                >
-                  <span className="block text-sm font-medium leading-tight">{title}</span>
-                  <span className={`block text-[11px] ${valueMode === mode ? "text-white/80" : "text-brand-tertiary"}`}>{sub}</span>
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-brand-tertiary mt-2">
-              Define sobre qué base se muestran el valor final y la rentabilidad (CAGR) en todo el
-              informe. El riesgo (volatilidad, Sharpe, caídas) no cambia, y la sección de impuestos
-              sigue mostrando los tres escenarios.
-            </p>
-          </div>
 
           {/* Cliente opcional */}
           <div>

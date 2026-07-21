@@ -273,16 +273,4 @@ export interface ReportConfig {
   clientName?: string;
   /** Fecha del informe (default: hoy) */
   reportDate?: string;
-  /**
-   * Base sobre la que se expresan las RENTABILIDADES PRINCIPALES (valor final,
-   * rentabilidad total y CAGR) en todo el informe:
-   *  - "bruto":    antes de impuestos (rentabilidad de folleto).
-   *  - "camino":   neta del camino — lo que ves hoy en cuenta (default).
-   *  - "liquidar": neta al liquidar — lo que de verdad te llevas tras Hacienda
-   *                (incluye el impuesto pendiente; hipotético si la cartera no
-   *                tributa por el camino pero la comparada sí).
-   * Las métricas de riesgo (volatilidad, Sharpe, drawdown…) no cambian: son del
-   * camino. La sección de impuestos siempre muestra los tres escenarios.
-   */
-  valueMode?: "bruto" | "camino" | "liquidar";
 }

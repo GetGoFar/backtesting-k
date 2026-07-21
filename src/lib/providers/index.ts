@@ -10,12 +10,14 @@
 import type { DataProvider } from "./types";
 import { eodhdProvider } from "./eodhd";
 import { twelveDataProvider } from "./twelvedata";
+import { financialDataProvider } from "./financialdata";
 
 export type { DataProvider, FetchPricesArgs } from "./types";
 
 const PROVIDERS: Record<string, DataProvider> = {
   eodhd: eodhdProvider,
   twelvedata: twelveDataProvider,
+  financialdata: financialDataProvider,
 };
 
 /** Devuelve el proveedor de datos activo según DATA_PROVIDER (default: eodhd).

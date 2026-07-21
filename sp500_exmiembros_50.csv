@@ -1,0 +1,51 @@
+﻿Empresa,Ticker_EODHD,Bolsa,Anio_salida_SP500,Que_paso
+Enron,ENRNQ,NYSE,2001,Fraude contable y quiebra
+WorldCom,MCWEQ,NASDAQ,2002,Fraude contable y quiebra
+Compaq Computer,CPQ,NYSE,2002,Comprada por HP
+Gillette,G_old,NYSE,2005,Comprada por Procter & Gamble
+Dow Jones & Co,DJ,NASDAQ,2007,Comprada por News Corp
+Lehman Brothers,LEH,NYSE,2008,Quiebra (mayor bancarrota de EEUU)
+Bear Stearns,BSC_old,NYSE,2008,Comprada por JPMorgan (rescate)
+Wachovia,WB_old2,NYSE,2008,Comprada por Wells Fargo (rescate)
+Countrywide Financial,CFC,NYSE,2008,Comprada por Bank of America
+National City,NCC,NYSE,2008,Comprada por PNC
+Circuit City Stores,CCTYQ,NYSE,2008,Hundimiento y quiebra
+Anheuser-Busch,BUD_old,NYSE,2008,Comprada por InBev (paso a no-EEUU)
+Merrill Lynch,MER,NYSE,2009,Comprada por Bank of America (rescate)
+Wyeth,WYE,OTCMKTS,2009,Comprada por Pfizer
+Eastman Kodak,EK,NASDAQ,2010,Salida por bajo valor; quiebra en 2012
+Sun Microsystems,JAVA_old,NYSE,2010,Comprada por Oracle
+Burlington Northern Santa Fe,BNI,NYSE,2010,Comprada por Berkshire Hathaway
+Genzyme,GENZ_old,NASDAQ,2011,Comprada por Sanofi
+Sears Holdings,SHLDQ,PINK,2012,Salida por bajo float; quiebra en 2018
+Dell (antiguo),DELL_old,NASDAQ,2013,Privatizada (LBO Michael Dell/Silver Lake)
+H.J. Heinz,HNZ,NYSE,2013,Privatizada por Berkshire/3G
+Forest Laboratories,FRX_old,NYSE,2014,Comprada por Actavis
+DIRECTV,DTV_old,NASDAQ,2015,Comprada por AT&T
+Covidien,COV,NYSE,2015,Comprada por Medtronic
+EMC Corporation,EMC_old,NYSE,2016,Comprada por Dell
+SanDisk,SNDK_old,NASDAQ,2016,Comprada por Western Digital
+Broadcom Corp (antiguo),BRCM,NASDAQ,2016,Comprada por Avago (renombrada Broadcom)
+Precision Castparts,PCP,NYSE,2016,Comprada por Berkshire Hathaway
+Yahoo,YHOO,NASDAQ,2017,Negocio a Verizon; resto -> Altaba
+St. Jude Medical,STJ,NYSE,2017,Comprada por Abbott
+Reynolds American,RAI,NYSE,2017,Comprada por British American Tobacco
+Whole Foods Market,WFM,NASDAQ,2017,Comprada por Amazon
+Time Warner,TWX,NYSE,2018,Comprada por AT&T
+Rockwell Collins,COL,NYSE,2018,Comprada por United Technologies
+Red Hat,RHT,NYSE,2019,Comprada por IBM
+Twenty-First Century Fox,TFCF,NASDAQ,2019,Activos comprados por Disney
+Viacom,VIAB,NASDAQ,2019,Fusion con CBS (ViacomCBS)
+Celgene,CELG,NASDAQ,2019,Comprada por Bristol-Myers Squibb
+Anadarko Petroleum,APC_old,NASDAQ,2019,Comprada por Occidental
+Allergan,AGN,NYSE,2020,Comprada por AbbVie
+Alexion Pharmaceuticals,ALXN,NASDAQ,2021,Comprada por AstraZeneca
+Tiffany & Co,TIF,NYSE,2021,Comprada por LVMH
+Xilinx,XLNX,NASDAQ,2022,Comprada por AMD
+Nuance Communications,NUAN,NASDAQ,2022,Comprada por Microsoft
+Cerner,CERN,NASDAQ,2022,Comprada por Oracle
+Citrix Systems,CTXS,NASDAQ,2022,Privatizada (Vista/Elliott)
+SVB Financial (Silicon Valley Bank),SIVB,NASDAQ,2023,Quiebra bancaria (intervencion FDIC)
+First Republic Bank,FRC,NYSE,2023,Quiebra bancaria (a JPMorgan)
+Activision Blizzard,ATVI,NASDAQ,2023,Comprada por Microsoft
+Pioneer Natural Resources,PXD,NYSE,2024,Comprada por ExxonMobil

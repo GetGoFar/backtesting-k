@@ -46,3 +46,6 @@ commit_msg.txt
 
 # TypeScript build info (regenerado en cada build)
 tsconfig.tsbuildinfo
+
+# build dir de la instancia dev:fd (financialdata)
+.next-fd

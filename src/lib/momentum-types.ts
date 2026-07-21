@@ -109,7 +109,7 @@ export interface MomentumConfig {
    * una estrategia de alta rotación.
    *  - "none" (default): sin impuestos (rentabilidad bruta).
    *  - "flat": tipo fijo `taxRate` sobre cada plusvalía realizada.
-   *  - "spain-irpf": tramos progresivos del ahorro (19/21/23/27/30%),
+   *  - "spain-irpf": tramos progresivos del ahorro (19/21/23/27/28%),
    *    acumulando la base por año natural.
    */
   taxMode?: "none" | "flat" | "spain-irpf";
