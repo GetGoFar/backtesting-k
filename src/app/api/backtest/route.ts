@@ -292,6 +292,46 @@ function validateConfig(config: BacktestConfig): string | null {
     }
   }
 
+  // Validar los parámetros de aportación PROPIOS de cada cartera (opcionales).
+  // A diferencia del global, aquí SÍ se admite una inicial de 0€: es lo que
+  // permite comparar "todo de golpe" contra "empezar de cero y aportar". Lo que
+  // se exige es que la cartera reciba dinero por algún lado.
+  for (const [etiqueta, cartera] of [
+    ["A", config.portfolioA],
+    ["B", config.portfolioB],
+  ] as const) {
+    if (!cartera) continue;
+
+    const inicial = cartera.initialAmount;
+    if (inicial !== undefined && inicial !== null) {
+      if (typeof inicial !== "number" || Number.isNaN(inicial) || inicial < 0) {
+        return `La inversión inicial de la cartera ${etiqueta} debe ser un número mayor o igual a 0.`;
+      }
+      if (inicial > 100000000) {
+        return `La inversión inicial de la cartera ${etiqueta} no puede superar 100 millones de euros.`;
+      }
+    }
+
+    const aportacion = cartera.monthlyContribution;
+    if (aportacion !== undefined && aportacion !== null) {
+      if (typeof aportacion !== "number" || Number.isNaN(aportacion) || aportacion < 0) {
+        return `La aportación mensual de la cartera ${etiqueta} debe ser un número mayor o igual a 0.`;
+      }
+      if (aportacion > 1000000) {
+        return `La aportación mensual de la cartera ${etiqueta} no puede superar 1 millón de euros.`;
+      }
+    }
+
+    // Con los valores EFECTIVOS (propio si lo hay, global si no), la cartera
+    // tiene que recibir dinero: sin capital inicial ni aportaciones no hay
+    // nada que simular y el backtest saldría plano en 0.
+    const inicialEfectiva = inicial ?? config.initialAmount;
+    const aportacionEfectiva = aportacion ?? config.monthlyContribution ?? 0;
+    if (inicialEfectiva <= 0 && aportacionEfectiva <= 0) {
+      return `La cartera ${etiqueta} no recibe dinero: con inversión inicial 0€ necesita una aportación mensual mayor que 0.`;
+    }
+  }
+
   return null;
 }
 
