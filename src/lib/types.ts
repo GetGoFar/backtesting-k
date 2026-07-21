@@ -423,8 +423,18 @@ export interface Metrics {
   sharpe: number;
   /** Ratio de Sortino */
   sortino: number;
-  /** Máximo drawdown (decimal negativo, ej: -0.25 para -25%) */
+  /** Máximo drawdown del SALDO (decimal negativo, ej: -0.25 para -25%).
+   *  Money-weighted: mide la caída del patrimonio real, aportaciones incluidas.
+   *  Responde a "¿cuánto cayó mi dinero?". OJO: con aportaciones periódicas el
+   *  dinero nuevo tapa la caída y esta cifra sale artificialmente suave, así que
+   *  NO es comparable entre carteras con distinto calendario de aportaciones. */
   maxDrawdown: number;
+  /** Máximo drawdown TIME-WEIGHTED (decimal negativo).
+   *  Se mide sobre la serie de retornos encadenados (crecimiento de 1€), con el
+   *  efecto de las aportaciones eliminado — la misma base que el CAGR (TWRR).
+   *  Responde a "¿cuánto cayó la ESTRATEGIA?" y sí es comparable entre carteras
+   *  aunque aporten de forma distinta. Sin aportaciones, coincide con maxDrawdown. */
+  maxDrawdownTWR: number;
   /** Mejor mes (decimal, ej: 0.08 para +8%) */
   bestMonth: number;
   /** Peor mes (decimal, ej: -0.12 para -12%) */
@@ -774,7 +784,9 @@ export const METRIC_TOOLTIPS: Readonly<Record<keyof Metrics, string>> = {
   sortino:
     "Similar al Sharpe, pero solo penaliza la volatilidad negativa (caídas).",
   maxDrawdown:
-    "Máxima caída desde un pico hasta el siguiente valle. El peor momento para haber invertido.",
+    "Máxima caída del PATRIMONIO desde un pico hasta el siguiente valle: cuánto llegó a bajar tu dinero. Si haces aportaciones periódicas, el dinero nuevo que entra durante una caída amortigua el descenso del saldo, así que esta cifra sale más suave de lo que fue el golpe real — y NO es comparable entre carteras que aporten de forma distinta. Para eso está el Max DD time-weighted.",
+  maxDrawdownTWR:
+    "Máxima caída de la ESTRATEGIA, calculada sobre los retornos encadenados (crecimiento de 1€) igual que el CAGR, con el efecto de las aportaciones eliminado. Responde a 'cuánto llegó a caer esta cartera', independientemente de cuándo metiste el dinero, y es la cifra comparable entre carteras y contra un índice. Se calcula con datos DIARIOS, mientras que el Max DD del patrimonio usa los cierres del periodo mostrado (normalmente mensuales): por eso ésta suele ser más profunda incluso sin aportaciones, porque el peor día siempre supera al peor cierre de mes.",
   bestMonth: "Mejor rentabilidad mensual obtenida durante el periodo.",
   worstMonth: "Peor rentabilidad mensual sufrida durante el periodo.",
   positiveMonthsRatio: "Porcentaje de meses con rentabilidad positiva.",

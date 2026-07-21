@@ -1409,9 +1409,33 @@ function calculateMetrics(
   const downsideDeviation = calculatePeriodDownsideDeviation(volatilityReturns, periodsPerYear);
   const sortino = downsideDeviation > 0 ? (cagr - RISK_FREE_RATE) / downsideDeviation : 0;
 
-  // Max Drawdown: desde los valores del periodo seleccionado
+  // Max Drawdown MONEY-WEIGHTED: sobre los valores del periodo seleccionado.
   // En diario captura el peor día, en mensual el peor cierre de mes, etc.
   const maxDrawdown = calculateMaxDrawdown(periodValues);
+
+  // Max Drawdown TIME-WEIGHTED: sobre el crecimiento de 1€ reconstruido
+  // encadenando los mismos retornos que alimentan el TWRR. Al no intervenir el
+  // saldo, las aportaciones no enmascaran la caída.
+  //
+  // Por qué hace falta: el drawdown del saldo miente cuando entra dinero nuevo.
+  // Una cartera que aporta cada mes durante un crash apenas ve bajar su
+  // patrimonio —lo aportado compensa lo perdido— y aparenta un riesgo mucho
+  // menor del real. Midiendo sobre los retornos encadenados, dos carteras con
+  // los mismos activos dan el mismo drawdown aunque aporten de forma distinta,
+  // que es lo que hace justa la comparación.
+  //
+  // Nota: los tramos sin dinero invertido (p.ej. una cartera que empieza en 0€)
+  // aportan retorno 0, así que dejan la curva plana y no inventan caídas.
+  let maxDrawdownTWR = maxDrawdown;
+  if (contributionAdjustedDailyReturns && contributionAdjustedDailyReturns.length > 0) {
+    const growthOfOne: number[] = [1];
+    let acc = 1;
+    for (const r of contributionAdjustedDailyReturns) {
+      acc *= 1 + r;
+      growthOfOne.push(acc);
+    }
+    maxDrawdownTWR = calculateMaxDrawdown(growthOfOne);
+  }
 
   // Best/worst period
   const bestMonth = displayReturns.length > 0 ? Math.max(...displayReturns) : 0;
@@ -1438,6 +1462,7 @@ function calculateMetrics(
     sharpe,
     sortino,
     maxDrawdown,
+    maxDrawdownTWR,
     bestMonth,
     worstMonth,
     positiveMonthsRatio,

@@ -317,6 +317,19 @@ function buildMetricsConfig(
     isHero: true,
   },
   {
+    // Drawdown TIME-WEIGHTED: la caída de la estrategia, sin el efecto
+    // amortiguador de las aportaciones. Es la cifra que SÍ se puede comparar
+    // entre carteras que aportan de forma distinta (el Max DD de arriba mide
+    // el patrimonio y con aportaciones sale artificialmente suave).
+    key: "maxDrawdownTWR",
+    label: "Max DD estrategia (diario)",
+    getValue: (r) => r.metrics.maxDrawdownTWR,
+    format: (v) => formatPct(v, 1),
+    higherIsBetter: true,
+    tooltip:
+      "Máxima caída de la ESTRATEGIA: se mide sobre los retornos encadenados (crecimiento de 1€), la misma base que el CAGR, con el efecto de las aportaciones eliminado. Es la cifra comparable entre carteras que aportan de forma distinta y contra un índice — el 'Max Drawdown' de arriba mide tu PATRIMONIO y, si aportas cada mes, el dinero nuevo amortigua la caída y sale más suave de lo que fue el golpe. OJO, hay una segunda diferencia: esta se calcula con datos DIARIOS (capta el suelo real intramensual) y la de arriba con cierres del periodo mostrado, normalmente mensuales. Por eso, aun sin aportaciones, esta suele ser más profunda: el peor día siempre es peor que el peor cierre de mes.",
+  },
+  {
     key: "totalReturn",
     label: "Rentabilidad total",
     getValue: (r) => totalReturnByMode(r, valueMode),
