@@ -147,21 +147,39 @@ export async function runBacktest(
   const bandAbs = config.rebalanceBandAbsolute ?? 0;
   // Rebalanceo con aportaciones: redirige el dinero nuevo a activos rezagados
   const contributionRebalance = config.contributionRebalance ?? false;
+
+  // -------------------------------------------------------------------------
+  // Parámetros de APORTACIÓN POR CARTERA
+  // -------------------------------------------------------------------------
+  // Cada cartera puede llevar su propia inversión inicial y aportación mensual;
+  // si no las define, hereda las globales. Esto permite comparar estilos de
+  // aportación distintos sobre el MISMO periodo: p.ej. A invirtiendo 100.000€
+  // de golpe (lump sum) contra B empezando de cero y aportando 1.000€/mes (DCA).
+  // Las fechas siguen siendo comunes a propósito: si cada cartera corriera un
+  // periodo distinto, el eje del gráfico y la correlación A-B dejarían de tener
+  // sentido.
+  const initialAmountA = config.portfolioA?.initialAmount ?? config.initialAmount;
+  const initialAmountB = config.portfolioB?.initialAmount ?? config.initialAmount;
+  const contributionA = config.portfolioA?.monthlyContribution ?? config.monthlyContribution ?? 0;
+  const contributionB = config.portfolioB?.monthlyContribution ?? config.monthlyContribution ?? 0;
+  const contribRebalanceA = config.portfolioA?.contributionRebalance ?? contributionRebalance;
+  const contribRebalanceB = config.portfolioB?.contributionRebalance ?? contributionRebalance;
+
   const resultAPromise = config.portfolioA
     ? runPortfolioBacktest(
         config.portfolioA,
         effectiveStartDate,
         effectiveEndDate,
-        config.initialAmount,
+        initialAmountA,
         config.rebalanceFrequency,
-        config.monthlyContribution ?? 0,
+        contributionA,
         displayGranularity,
         engineWarnings,
         taxRateA,
         taxModeA,
         bandRel,
         bandAbs,
-        contributionRebalance
+        contribRebalanceA
       )
     : Promise.resolve(null);
 
@@ -170,16 +188,16 @@ export async function runBacktest(
         config.portfolioB,
         effectiveStartDate,
         effectiveEndDate,
-        config.initialAmount,
+        initialAmountB,
         config.rebalanceFrequency,
-        config.monthlyContribution ?? 0,
+        contributionB,
         displayGranularity,
         engineWarnings,
         taxRateB,
         taxModeB,
         bandRel,
         bandAbs,
-        contributionRebalance
+        contribRebalanceB
       )
     : Promise.resolve(null);
 

@@ -147,6 +147,18 @@ export interface Portfolio {
   /** Banda ABSOLUTA de drift específica de esta cartera (decimal, ej: 0.05 = 5pp).
    *  Si undefined, se usa el valor global. 0 = desactivada. */
   rebalanceBandAbsolute?: number;
+  /** Inversión inicial específica de esta cartera en EUR. Si undefined, se usa
+   *  la global de BacktestConfig. Permite comparar estilos de aportación
+   *  (p.ej. A con 100.000€ de golpe vs B empezando de cero y aportando).
+   *  Puede ser 0, siempre que esta cartera tenga aportación mensual > 0. */
+  initialAmount?: number;
+  /** Aportación mensual específica de esta cartera en EUR. Si undefined, se
+   *  usa la global de BacktestConfig. */
+  monthlyContribution?: number;
+  /** Dirigir las aportaciones a los activos rezagados, específico de esta
+   *  cartera. Si undefined, se usa el valor global. Solo tiene efecto si la
+   *  aportación mensual efectiva es > 0. */
+  contributionRebalance?: boolean;
 }
 
 // -----------------------------------------------------------------------------

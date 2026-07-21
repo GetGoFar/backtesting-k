@@ -241,6 +241,15 @@ export default function Home() {
   // Rebalanceo con aportaciones: dirige el dinero nuevo a activos rezagados.
   // Solo se activa si hay aportación mensual > 0.
   const [contributionRebalance, setContributionRebalance] = useState(false);
+  // Parámetros de aportación PROPIOS de la cartera B. Por defecto B usa los
+  // mismos que A (los de arriba); al activar el interruptor se independizan y
+  // se puede comparar estilos de aportación distintos sobre el mismo periodo
+  // (p.ej. A mete 100.000€ de golpe y B empieza de cero aportando 1.000€/mes).
+  // Las fechas siguen siendo comunes a las dos a propósito.
+  const [bUsesOwnParams, setBUsesOwnParams] = useState(false);
+  const [bInitialInvestment, setBInitialInvestment] = useState(10000);
+  const [bMonthlyContribution, setBMonthlyContribution] = useState(0);
+  const [bContributionRebalance, setBContributionRebalance] = useState(false);
   const [displayGranularity, setDisplayGranularity] =
     useState<DisplayGranularity>("monthly");
   const [useCommonDateRange, setUseCommonDateRange] = useState(true);
@@ -405,6 +414,12 @@ export default function Home() {
             ? portfolioB.rebalanceBandRelativePct / 100 : undefined,
           rebalanceBandAbsolute: portfolioB.rebalanceBandAbsolutePct > 0
             ? portfolioB.rebalanceBandAbsolutePct / 100 : undefined,
+          // Aportaciones propias de B. Si no están activadas se omiten y el
+          // motor hereda las globales, que son las de A.
+          initialAmount: bUsesOwnParams ? bInitialInvestment : undefined,
+          monthlyContribution: bUsesOwnParams ? bMonthlyContribution : undefined,
+          contributionRebalance:
+            bUsesOwnParams && bMonthlyContribution > 0 ? bContributionRebalance : undefined,
         };
       }
 
@@ -679,6 +694,113 @@ export default function Home() {
                   </label>
                 )}
               </div>
+            </div>
+
+            {/* === APORTACIONES PROPIAS DE LA CARTERA B ===
+                Por defecto B replica los parámetros de A (arriba). Al activarlo
+                se independizan, que es lo que permite comparar estilos de
+                aportación: "todo de golpe" contra "poco a poco". El periodo
+                sigue siendo común, para que la comparación sea justa. */}
+            <div className="mt-4 sm:mt-6 rounded-xl border border-slate-200 bg-slate-50/60 p-3 sm:p-4">
+              <label className="flex items-start gap-2 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={bUsesOwnParams}
+                  onChange={(e) => setBUsesOwnParams(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <span className="relative inline-block w-9 h-5 bg-slate-200 rounded-full peer-checked:bg-emerald-600 transition-colors flex-shrink-0 mt-0.5">
+                  <span className="absolute top-[2px] left-[2px] w-4 h-4 bg-white rounded-full border border-slate-300 transition-transform peer-checked:translate-x-4" />
+                </span>
+                <span className="text-xs text-brand-secondary leading-snug">
+                  <span className="font-semibold text-brand-navy">
+                    La cartera B aporta de otra forma
+                  </span>
+                  <span className="block text-brand-tertiary mt-0.5">
+                    {bUsesOwnParams
+                      ? "B usa sus propios importes. El periodo sigue siendo el mismo para las dos."
+                      : "Ahora B usa los mismos importes que A. Actívalo para comparar, por ejemplo, invertir de golpe frente a aportar cada mes."}
+                  </span>
+                </span>
+              </label>
+
+              {bUsesOwnParams && (
+                <div className="mt-3 sm:mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-brand-navy mb-1.5">
+                      Inversión inicial (B)
+                    </label>
+                    <div className="relative">
+                      <NumberInput
+                        value={bInitialInvestment}
+                        onChange={(v) => setBInitialInvestment(v)}
+                        min={0}
+                        max={10000000}
+                        emptyValue={0}
+                        className="w-full px-3 py-2 pr-12 text-sm sm:text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral transition-colors"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-tertiary text-xs sm:text-sm">
+                        EUR
+                      </span>
+                    </div>
+                    <span className="block text-[11px] text-brand-tertiary mt-1">
+                      A: {initialInvestment.toLocaleString("es-ES")} € · puede ser 0 si B aporta cada mes
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-brand-navy mb-1.5">
+                      Aportación mensual (B)
+                    </label>
+                    <div className="relative">
+                      <NumberInput
+                        value={bMonthlyContribution}
+                        onChange={(v) => setBMonthlyContribution(v)}
+                        min={0}
+                        max={100000}
+                        emptyValue={0}
+                        className="w-full px-3 py-2 pr-12 text-sm sm:text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral transition-colors"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-tertiary text-xs sm:text-sm">
+                        EUR
+                      </span>
+                    </div>
+                    <span className="block text-[11px] text-brand-tertiary mt-1">
+                      A: {monthlyContribution.toLocaleString("es-ES")} €/mes
+                    </span>
+                  </div>
+
+                  {bMonthlyContribution > 0 && (
+                    <label className="sm:col-span-2 flex items-start gap-2 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={bContributionRebalance}
+                        onChange={(e) => setBContributionRebalance(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <span className="relative inline-block w-9 h-5 bg-slate-200 rounded-full peer-checked:bg-emerald-600 transition-colors flex-shrink-0 mt-0.5">
+                        <span className="absolute top-[2px] left-[2px] w-4 h-4 bg-white rounded-full border border-slate-300 transition-transform peer-checked:translate-x-4" />
+                      </span>
+                      <span className="text-xs text-brand-secondary leading-snug">
+                        <span className="font-semibold text-brand-navy">
+                          Rebalancear B con las aportaciones
+                        </span>
+                        <span className="block text-brand-tertiary mt-0.5">
+                          El dinero nuevo se dirige a los activos rezagados.
+                          Sin ventas → cero impuestos en el camino.
+                        </span>
+                      </span>
+                    </label>
+                  )}
+
+                  {bInitialInvestment <= 0 && bMonthlyContribution <= 0 && (
+                    <p className="sm:col-span-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      La cartera B no recibe dinero. Pon una inversión inicial o
+                      una aportación mensual mayor que 0.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Granularidad de datos */}
