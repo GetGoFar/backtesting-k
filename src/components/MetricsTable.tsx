@@ -331,6 +331,7 @@ function buildMetricsConfig(
     format: formatRatio,
     higherIsBetter: true,
     tooltip: tooltips.sharpe,
+    isHero: true,
   },
   {
     key: "sortino",
@@ -754,8 +755,11 @@ export function MetricsTable({ results, isLoading, valueMode, onValueModeChange 
           ahora en la página, encima del gráfico, para que controle tanto las
           curvas como las hero stats con un solo click. */}
 
-      {/* === HERO STATS GRID === */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {/* === HERO STATS GRID ===
+          5 hero stats (Valor final, CAGR, Volatilidad, Max DD, Sharpe). En
+          pantallas anchas caben las 5 en una fila; por debajo se reparten en
+          3+2 / 2+2+1 para que ninguna tarjeta quede demasiado estrecha. */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
         {heroMetrics.map((metric) => (
           <HeroStatCard
             key={metric.key}
