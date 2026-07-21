@@ -27,7 +27,24 @@ Tests con Vitest, colocados junto al código (`src/lib/*.test.ts`): `backtest-en
 
 ### ⚠️ Entorno del agente Claude (Windows) — importante
 
-- **El repo vive dentro de OneDrive** (`C:\Users\goovi\OneDrive\Documentos\Claude\backtesting-k`). OneDrive **trunca ficheros fuente** (los corta a media línea → errores de sintaxis que rompen todo el build) y provoca `Error UNKNOWN: read` (errno -4094) al arrancar `next dev`. **Si un backtest "no compila" o "no sale nada", sospechar corrupción PRIMERO**: `git diff <fichero-con-error>` normalmente muestra solo cola truncada → recuperar con `git checkout HEAD -- <fichero>`. (Recomendación abierta: mover el repo a `C:\dev\backtesting-k`, fuera de OneDrive.)
+- **El repo YA NO está en OneDrive**: vive en `C:\dev\backtesting-k` (mudado
+  jul-2026). La copia antigua en `OneDrive\Documentos\Claude\backtesting-k` está
+  obsoleta — no editarla. Lo de abajo se conserva por si alguien vuelve a
+  trabajar sobre una copia sincronizada.
+- **`npm` no funciona a secas**: la política de ejecución de PowerShell bloquea
+  `npm.ps1`. Usar **`npm.cmd`**. Node vive en `C:\Program Files\nodejs` y puede
+  no estar en el PATH del agente: `$env:PATH = "C:\Program Files\nodejs;$env:PATH"`
+  antes de instalar (los scripts de post-instalación de esbuild/sharp llaman a
+  `node` y fallan sin eso).
+- **La API NO está tras el muro de acceso, la UI sí.** Para verificar cálculos,
+  `POST http://localhost:3007/api/backtest` directamente — es la única forma de
+  ejercitar el motor sin código de acceso. `GET /api/funds` lista fondos válidos.
+- **Verificar un despliegue**: NO usar `curl` contra backtesting-k.vercel.app
+  (devuelve ~14 bytes, no la página → falso negativo silencioso). Usar el
+  navegador y comprobar que el **CSS global** contiene una clase nueva del
+  cambio (Tailwind solo emite las que se usan). Estado real de los deploys:
+  Vercel vía `claude-in-chrome`, vercel.com/consultoria-9043s-projects/backtesting-k.
+- **El repo vivía dentro de OneDrive** (`C:\Users\goovi\OneDrive\Documentos\Claude\backtesting-k`). OneDrive **trunca ficheros fuente** (los corta a media línea → errores de sintaxis que rompen todo el build) y provoca `Error UNKNOWN: read` (errno -4094) al arrancar `next dev`. **Si un backtest "no compila" o "no sale nada", sospechar corrupción PRIMERO**: `git diff <fichero-con-error>` normalmente muestra solo cola truncada → recuperar con `git checkout HEAD -- <fichero>`. (Recomendación abierta: mover el repo a `C:\dev\backtesting-k`, fuera de OneDrive.)
 - **No hay `node`/`npm` en el PATH del agente** ni el preview puede arrancarlos (`spawn npm ENOENT`). Para type-check usar el node de Adobe:
   `& "C:\Program Files\Adobe\Adobe Creative Cloud Experience\libs\node.exe" node_modules\typescript\bin\tsc --noEmit`
 
@@ -67,9 +84,56 @@ Herramientas (page + engine):
 - **Fondos:** catálogo en `lib/fund-database.ts`; NAVs de fondos españoles sin ticker en `src/data/spanish-funds.csv`. La Liga usa `src/data/liga-fondos.csv` y los CSV de ex-miembros del S&P en la raíz.
 - **Contexto de request:** `lib/request-context.ts` (`runWithContext`) propaga la fuente de datos por la petición.
 
+## ⏳ Pendiente abierto: periodos sin exposición contaminan 6 métricas
+
+**Diagnosticado, no verificado ni arreglado.** Cuando una cartera empieza con
+inversión inicial 0 € (comparación DCA vs lump sum), los días previos a la
+primera aportación entran en `volatilityReturns` como retornos del **0 %**. Un
+0 % no es una observación neutra: se desvía de la media positiva de la serie y
+**añade varianza**.
+
+Síntoma medido (mismo fondo VWCE, 2019-2024, solo cambia el estilo de aportación):
+
+| | Volatilidad | Sharpe |
+|---|---|---|
+| Todo de golpe (10.000 €) | 13,40 % | 0,829 |
+| Desde cero (0 € + 500 €/mes) | **13,59 %** | **0,810** |
+
+Con TWR deberían ser **iguales**. La dirección del error confirma la hipótesis:
+si los ceros fueran inocuos, B saldría *menos* volátil; sale *más*.
+
+Afecta a todo lo calculado sobre `volatilityReturns` en `calculateMetrics`:
+**volatilidad, Sharpe, Sortino, skewness, curtosis, VaR y CVaR**. NO afecta a
+`maxDrawdownTWR` (los ceros dejan la curva plana) ni al CAGR.
+
+**Arreglo propuesto:** excluir de la serie de retornos los periodos sin capital
+invertido — no son "días planos", son días en los que la estrategia no existía.
+Criterio de éxito: A y B deben converger igual que ya hizo el drawdown TWR
+(divergencia 14,77 pp → 0,11 pp).
+
+**Verificar así** (sin pasar por el muro de acceso, que bloquea la UI pero NO la
+API): `npm run dev -- -p 3007` y `POST /api/backtest` con dos carteras del mismo
+fondo, una con `initialAmount: 0` + `monthlyContribution`, otra con capital
+inicial. Comparar `metrics.volatility` y `metrics.sharpe`.
+
 ## Invariantes de cálculo (no romper)
 
 - **CAGR TWRR:** el motor calcula CAGR por *time-weighted return*, no punto a punto.
+- **Dos Max Drawdown, no uno.** `maxDrawdown` mide el PATRIMONIO (money-weighted):
+  con aportaciones el dinero nuevo amortigua la caída y sale artificialmente
+  suave (−19,14 % vs −4,37 % para el mismo fondo). `maxDrawdownTWR` mide la
+  ESTRATEGIA sobre el crecimiento de 1€ encadenado, y es el comparable entre
+  carteras. Ojo al presentarlos juntos: además del money/time-weighted hay una
+  **segunda diferencia**, el TWR usa datos DIARIOS y el otro los cierres del
+  periodo mostrado (normalmente mensuales), así que el TWR sale más profundo
+  incluso sin aportaciones. Está documentado en el tooltip; no decir que
+  "coinciden".
+- **Aportaciones por cartera:** `Portfolio` admite `initialAmount`,
+  `monthlyContribution` y `contributionRebalance` propios; si son `undefined`
+  hereda los globales de `BacktestConfig`. Las **fechas son comunes a propósito**
+  (con periodos distintos el eje del gráfico y la correlación A-B no significan
+  nada). El motor no cambió por dentro: `simulatePortfolioDaily` ya los recibía
+  como parámetros.
 - **Modos de valoración (`ValueMode`): `bruto` / `camino` (neta del camino) / `liquidar`.** El selector de la UI reescala la serie de patrimonio y las métricas. La serie por modo se construye en `lib/value-mode-series.ts` (`buildScaledSeries`), extraída de `PerformanceChart` para reutilizarla.
 - **⚠️ CAGR por modo duplicado — mantener en sync:** la lógica `cagrByMode` vive en **`components/MetricsTable.tsx`** (KPI de cabecera "CAGR al liquidar") y está **replicada** en `lib/value-mode-series.ts` (`cagrByMode`, usada por `HorizonReturnsTable` fila "Desde inicio"). Ambas deben coincidir: ancla en `metrics.cagr`, escala por `scaleFactor`, anualiza sobre años exactos (días/365.25). Si cambias una, cambia la otra, o "Desde inicio" dejará de cuadrar con el KPI.
 - **Rebalanceo por bandas:** la UI pasa el ancho de banda en % (p.ej. 50) y `page.tsx` lo convierte a decimal (`/100 → 0.5`) antes del motor. `checkBandsBreached` usa banda **relativa** (`|drift|/target > banda`).
