@@ -12,15 +12,23 @@ import { _testing } from "./backtest-engine";
 
 const {
   calculateCAGR,
-  calculateVolatility,
-  calculateDownsideDeviation,
+  calculatePeriodVolatility,
+  calculatePeriodDownsideDeviation,
   calculateMaxDrawdown,
   calculateMetrics,
   calculateRollingReturnSeries,
   rebalancePortfolio,
-  shouldRebalance,
+  shouldRebalanceByDate,
   sumPositions,
 } = _testing;
+
+// Estos tests se escribieron con retornos MENSUALES. El motor generalizó la
+// volatilidad y la downside deviation a cualquier periodicidad (reciben ahora
+// los periodos por año), así que aquí las fijamos a 12 para conservar el
+// significado original de cada caso.
+const calculateVolatility = (returns: number[]) => calculatePeriodVolatility(returns, 12);
+const calculateDownsideDeviation = (returns: number[]) =>
+  calculatePeriodDownsideDeviation(returns, 12);
 
 // -----------------------------------------------------------------------------
 // Tests de CAGR
@@ -193,7 +201,7 @@ describe("calculateRollingReturnSeries", () => {
       value *= 1.008;
     }
 
-    const result = calculateRollingReturnSeries(timeSeries, 12);
+    const result = calculateRollingReturnSeries(timeSeries, 12, 1);
 
     // Debería tener 12 puntos (24 - 12 = 12)
     expect(result.length).toBe(12);
@@ -208,7 +216,7 @@ describe("calculateRollingReturnSeries", () => {
       { date: "2020-02", value: 105 },
     ];
 
-    const result = calculateRollingReturnSeries(timeSeries, 12);
+    const result = calculateRollingReturnSeries(timeSeries, 12, 1);
     expect(result.length).toBe(0);
   });
 
@@ -222,7 +230,7 @@ describe("calculateRollingReturnSeries", () => {
     }
 
     // Rolling de 36 meses sobre 60 meses = 24 resultados
-    const result = calculateRollingReturnSeries(timeSeries, 36);
+    const result = calculateRollingReturnSeries(timeSeries, 36, 3);
     expect(result.length).toBe(24);
   });
 });
@@ -310,11 +318,15 @@ describe("Backtest con retornos conocidos", () => {
 
     // Calcular métricas
     const metrics = calculateMetrics(
-      values,
-      monthlyReturns,
-      initialValue,
+      values, // periodValues
+      monthlyReturns, // volatilityReturns (anualiza según granularidad)
+      monthlyReturns, // displayReturns (mejor/peor mes, % meses positivos)
+      initialValue, // totalContributions: sin aportaciones periódicas, solo la inicial
       finalValue,
-      years
+      years,
+      "monthly", // granularidad -> volatilidad ×√12
+      initialValue, // dailyInitialValue
+      monthlyReturns // retornos ya ajustados por aportaciones -> TWRR encadenado
     );
 
     // Sharpe = (CAGR - risk_free) / volatility
@@ -386,23 +398,29 @@ describe("Rebalanceo de cartera", () => {
     expect(newFundBValue).toBeCloseTo(5250, 2); // 50% de 10500
   });
 
-  it("shouldRebalance detecta correctamente cuándo rebalancear", () => {
-    // Rebalanceo mensual
-    expect(shouldRebalance(1, 0, "monthly")).toBe(true);
-    expect(shouldRebalance(2, 1, "monthly")).toBe(true);
+  it("shouldRebalanceByDate detecta correctamente cuándo rebalancear", () => {
+    // El motor pasó de contar índices de mes a comparar FECHAS reales: se
+    // rebalancea al cruzar la frontera de mes / trimestre / año, no cada N
+    // periodos. Por eso los casos se expresan como (fechaActual, fechaPrevia).
 
-    // Rebalanceo trimestral
-    expect(shouldRebalance(2, 0, "quarterly")).toBe(false);
-    expect(shouldRebalance(3, 0, "quarterly")).toBe(true);
-    expect(shouldRebalance(6, 3, "quarterly")).toBe(true);
+    // Mensual: al cambiar de mes
+    expect(shouldRebalanceByDate("2020-02-03", "2020-01-31", "monthly")).toBe(true);
+    expect(shouldRebalanceByDate("2020-03-02", "2020-02-28", "monthly")).toBe(true);
+    // ...pero no dentro del mismo mes
+    expect(shouldRebalanceByDate("2020-01-31", "2020-01-02", "monthly")).toBe(false);
 
-    // Rebalanceo anual
-    expect(shouldRebalance(11, 0, "annual")).toBe(false);
-    expect(shouldRebalance(12, 0, "annual")).toBe(true);
-    expect(shouldRebalance(24, 12, "annual")).toBe(true);
+    // Trimestral: solo al cambiar de trimestre
+    expect(shouldRebalanceByDate("2020-03-02", "2020-01-02", "quarterly")).toBe(false); // Q1 -> Q1
+    expect(shouldRebalanceByDate("2020-04-01", "2020-01-02", "quarterly")).toBe(true); // Q1 -> Q2
+    expect(shouldRebalanceByDate("2020-07-01", "2020-04-01", "quarterly")).toBe(true); // Q2 -> Q3
 
-    // Sin rebalanceo
-    expect(shouldRebalance(100, 0, "none")).toBe(false);
+    // Anual: solo al cambiar de año
+    expect(shouldRebalanceByDate("2020-12-01", "2020-01-02", "annual")).toBe(false);
+    expect(shouldRebalanceByDate("2021-01-04", "2020-12-31", "annual")).toBe(true);
+    expect(shouldRebalanceByDate("2022-01-03", "2021-12-31", "annual")).toBe(true);
+
+    // Sin rebalanceo: nunca, por lejos que queden las fechas
+    expect(shouldRebalanceByDate("2030-01-01", "2020-01-01", "none")).toBe(false);
   });
 
   it("rebalanceo con cartera desequilibrada 70/30", () => {
@@ -629,11 +647,15 @@ describe("calculateMetrics - Integración", () => {
     const years = 1;
 
     const metrics = calculateMetrics(
-      values,
-      monthlyReturns,
-      initialValue,
+      values, // periodValues
+      monthlyReturns, // volatilityReturns (anualiza según granularidad)
+      monthlyReturns, // displayReturns (mejor/peor mes, % meses positivos)
+      initialValue, // totalContributions: sin aportaciones periódicas, solo la inicial
       finalValue,
-      years
+      years,
+      "monthly", // granularidad -> volatilidad ×√12
+      initialValue, // dailyInitialValue
+      monthlyReturns // retornos ya ajustados por aportaciones -> TWRR encadenado
     );
 
     // Verificar que todas las métricas son números válidos

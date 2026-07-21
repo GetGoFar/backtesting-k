@@ -2989,3 +2989,27 @@ function calculateWeightedTer(
 
   return totalWeight > 0 ? totalTer / totalWeight : 0;
 }
+
+// =============================================================================
+// EXPORTS PARA TESTS
+// =============================================================================
+//
+// Funciones internas del motor expuestas EXCLUSIVAMENTE para los tests
+// unitarios (src/lib/backtest-engine.test.ts). No usar desde la app: son
+// detalle de implementación y pueden cambiar de firma sin aviso.
+//
+// Se agrupan en `_testing` (en vez de exportarlas sueltas) para que quede
+// evidente en los imports que se está tocando la tripa del motor.
+// `shouldRebalanceByDate` vive en date-utils y se re-exporta aquí para que el
+// test tenga un único punto de entrada.
+export const _testing = {
+  calculateCAGR,
+  calculatePeriodVolatility,
+  calculatePeriodDownsideDeviation,
+  calculateMaxDrawdown,
+  calculateMetrics,
+  calculateRollingReturnSeries,
+  rebalancePortfolio,
+  shouldRebalanceByDate,
+  sumPositions,
+};
