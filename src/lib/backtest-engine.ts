@@ -358,6 +358,40 @@ export async function runBacktest(
 }
 
 // -----------------------------------------------------------------------------
+// Detección de fondos de BAJA FRECUENCIA
+// -----------------------------------------------------------------------------
+// Algunos fondos (los españoles cargados por CSV) traen datos MENSUALES, no
+// diarios. En modo de análisis "diario" sus ~12 puntos/año se anualizarían con
+// ×√252 (como si fueran diarios) en vez de ×√12, disparando la volatilidad a
+// cifras absurdas (medido: un fondo con 20,6% real salía a 94,4% = 20,6×√21).
+//
+// No hay campo de frecuencia en el fondo, así que se mide directamente sobre la
+// serie: puntos por año. Diario ≈ 252, semanal ≈ 52, mensual ≈ 12. Umbral 150,
+// que separa con holgura el diario real (incluso disperso) de cualquier serie
+// sub-diaria. Devuelve los fundId afectados para poder avisar por su nombre.
+function detectLowFrequencyFundIds(
+  activeHoldings: PortfolioHolding[],
+  fundPrices: Map<string, Map<string, number>>
+): string[] {
+  const lowFreq: string[] = [];
+  for (const holding of activeHoldings) {
+    const prices = fundPrices.get(holding.fundId);
+    if (!prices || prices.size < 3) continue;
+    const dates = Array.from(prices.keys()).sort();
+    const first = dates[0]!;
+    const last = dates[dates.length - 1]!;
+    // Las fechas pueden ser YYYY-MM (mensual) o YYYY-MM-DD (diario)
+    const toDate = (d: string) => new Date(d.length === 7 ? `${d}-01` : d);
+    const spanYears =
+      (toDate(last).getTime() - toDate(first).getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+    if (spanYears <= 0) continue;
+    const pointsPerYear = prices.size / spanYears;
+    if (pointsPerYear < 150) lowFreq.push(holding.fundId);
+  }
+  return lowFreq;
+}
+
+// -----------------------------------------------------------------------------
 // Backtest de una cartera individual
 // -----------------------------------------------------------------------------
 
@@ -552,6 +586,15 @@ async function runPortfolioBacktest(
       })()
     : portfolio.holdings;
 
+  // Detectar fondos de baja frecuencia AHORA, con las fechas todavía NATIVAS.
+  // Tiene que ser antes de findCommonDailyDateRange: esa función hace forward-fill
+  // in situ sobre fundPrices, y si un fondo mensual va mezclado con uno diario,
+  // se rellenaría a ~250 puntos/año y perdería su firma de baja frecuencia.
+  const lowFreqFundIds =
+    displayGranularity === "daily"
+      ? detectLowFrequencyFundIds(activeHoldings, fundPrices)
+      : [];
+
   // 2. Encontrar el rango de fechas diarias (unión + forward-fill + intersección)
   const { commonDates, intersectionDates, startDay, endDay } = findCommonDailyDateRange(
     fundPrices,
@@ -651,21 +694,62 @@ async function runPortfolioBacktest(
   const periodReturns = aggregateDailyReturns(simulation.dailyReturns, displayGranularity);
   const periodValues = timeSeries.map((p) => p.value);
 
+  // Granularidad de las ESTADÍSTICAS, separada de la de VISUALIZACIÓN.
+  // Si se pide análisis diario pero alguna cartera lleva un fondo de baja
+  // frecuencia (datos mensuales por CSV), calcular la volatilidad/Sharpe/etc. en
+  // diario los anualizaría con ×√252 sobre puntos mensuales → cifras absurdas
+  // (un 20% real saldría al 94%). En ese caso las estadísticas caen a mensual,
+  // aunque el gráfico y el drawdown sigan en diario (ahí el diario no engaña:
+  // un fondo mensual simplemente tiene la curva escalonada, sin inventar caídas).
+  // (lowFreqFundIds se calculó ARRIBA, antes del forward-fill de fundPrices.)
+  const forceMonthlyStats = lowFreqFundIds.length > 0;
+  const statsGranularity: DisplayGranularity = forceMonthlyStats ? "monthly" : displayGranularity;
+
+  if (forceMonthlyStats && warnings) {
+    const nombres = lowFreqFundIds
+      .map((id) => getFundById(id)?.shortName ?? id)
+      .join(", ");
+    warnings.push({
+      type: "data_quality",
+      severity: "warning",
+      message:
+        `En "${portfolio.name}", la volatilidad, el Sharpe y las métricas de ` +
+        `distribución se han calculado en base MENSUAL (no diaria) porque ` +
+        `${lowFreqFundIds.length === 1 ? "el fondo" : "los fondos"} ${nombres} ` +
+        `${lowFreqFundIds.length === 1 ? "solo tiene" : "solo tienen"} datos ` +
+        `mensuales. En diario esas métricas se dispararían de forma artificial. ` +
+        `El gráfico y el drawdown sí usan la máxima resolución disponible.`,
+    });
+  }
+
   // Para diario: filtrar retornos "limpios" (solo días donde TODOS los fondos cotizaron)
   // Evita artefactos del forward-fill (0% un día → salto doble al siguiente por festivos
   // de bolsas diferentes), que inflan artificialmente la volatilidad medida.
   let volatilityReturns: number[];
-  if (displayGranularity === "daily") {
-    const cleanDailyReturns = simulation.dailyReturns.filter((r, i) => {
+  if (statsGranularity === "daily") {
+    // El día previo se busca por FECHA, no por índice: `dailyReturns` puede tener
+    // menos entradas que `dailyTimeSeries` (los días sin capital invertido no
+    // generan retorno), y indexar en paralelo desalineaba las series y filtraba
+    // por el día equivocado en toda cartera que empiece desde cero.
+    const dayIndexByDate = new Map(simulation.dailyTimeSeries.map((p, i) => [p.date, i]));
+    const cleanDailyReturns = simulation.dailyReturns.filter((r) => {
       if (!intersectionDates.has(r.date)) return false;
-      if (i === 0) return true;
-      const prevDate = simulation.dailyTimeSeries[i]?.date;
+      const idx = dayIndexByDate.get(r.date);
+      if (idx === undefined) return false;
+      if (idx === 0) return true;
+      const prevDate = simulation.dailyTimeSeries[idx - 1]?.date;
       return prevDate ? intersectionDates.has(prevDate) : false;
     });
     volatilityReturns = cleanDailyReturns.map((r) => r.returnValue);
   } else {
-    // Mensual/trimestral: el forward-fill no afecta a nivel de periodo agregado
-    volatilityReturns = periodReturns.map((r) => r.returnValue);
+    // Mensual/trimestral: el forward-fill no afecta a nivel de periodo agregado.
+    // Se agrega a la granularidad de ESTADÍSTICAS (que puede diferir de la de
+    // visualización si se forzó mensual por un fondo de baja frecuencia).
+    const statsReturns =
+      statsGranularity === displayGranularity
+        ? periodReturns
+        : aggregateDailyReturns(simulation.dailyReturns, statsGranularity);
+    volatilityReturns = statsReturns.map((r) => r.returnValue);
   }
 
   // Para CAGR: usar el valor inicial real (día 1) y final real (último día)
@@ -679,12 +763,12 @@ async function runPortfolioBacktest(
 
   const metrics = calculateMetrics(
     periodValues,                                  // valores del periodo para max drawdown
-    volatilityReturns,                             // retornos limpios para volatilidad
-    periodReturns.map((r) => r.returnValue),       // retornos del periodo para best/worst
+    volatilityReturns,                             // retornos para volatilidad (granularidad de stats)
+    volatilityReturns,                             // best/worst y % positivos, misma base que la volatilidad
     simulation.totalContributions,
     finalValue,
     years,
-    displayGranularity,
+    statsGranularity,                              // anualización acorde a la frecuencia REAL de los datos
     dailyInitialValue,
     allDailyReturnsForTWRR
   );
@@ -879,6 +963,9 @@ function simulatePortfolioDaily(
   for (let i = 1; i < dates.length; i++) {
     const currentDate = dates[i]!;
     const previousDate = dates[i - 1]!;
+    // Capital nuevo inyectado HOY. Se descuenta del valor final del día antes de
+    // medir el retorno: es dinero aportado, no rentabilidad generada.
+    let contributionToday = 0;
 
     // Para cada posición, calcular el retorno diario
     for (const holding of holdings) {
@@ -928,6 +1015,7 @@ function simulatePortfolioDaily(
     // Aportación mensual: aplicar en el primer día hábil de cada nuevo mes
     if (monthlyContribution > 0 && isNewMonth(currentDate, previousDate)) {
       totalContributions += monthlyContribution;
+      contributionToday = monthlyContribution;
       if (contributionRebalance) {
         // Rebalanceo con aportaciones: dirigir el dinero a los activos por
         // debajo del peso objetivo. Nunca se vende → cero plusvalías realizadas,
@@ -1014,12 +1102,18 @@ function simulatePortfolioDaily(
       grossDailyTimeSeries.push({ date: currentDate, value: sumPositions(grossPositions) });
     }
 
-    // Calcular retorno diario de la cartera (ajustado por aportaciones)
+    // Retorno diario TIME-WEIGHTED: mide la ESTRATEGIA, no el patrimonio.
+    // La aportación se aplica DESPUÉS del crecimiento del día, así que el capital
+    // nuevo se resta del valor final (no se suma al inicial): sumarlo al
+    // denominador diluía el retorno por P/(P+C) y, con poco capital acumulado, lo
+    // aplastaba casi a cero — inyectando varianza falsa en volatilidad, Sharpe,
+    // Sortino, skew, curtosis, VaR y CVaR de cualquier cartera con aportaciones.
+    // Restarlo del numerador conserva el coste fiscal del rebalanceo del día.
+    // Los días sin capital invertido no generan observación (guard > 0): no son
+    // retornos del 0 %, es que la estrategia todavía no existía.
     const previousTotalValue = dailyTimeSeries[dailyTimeSeries.length - 2]?.value ?? 0;
     if (previousTotalValue > 0) {
-      const adjustedPrevious = previousTotalValue +
-        (monthlyContribution > 0 && isNewMonth(currentDate, previousDate) ? monthlyContribution : 0);
-      const portReturn = (portfolioValue / adjustedPrevious) - 1;
+      const portReturn = ((portfolioValue - contributionToday) / previousTotalValue) - 1;
       dailyReturns.push({ date: currentDate, returnValue: portReturn });
     }
   }
@@ -3046,6 +3140,7 @@ function calculateWeightedTer(
 // `shouldRebalanceByDate` vive en date-utils y se re-exporta aquí para que el
 // test tenga un único punto de entrada.
 export const _testing = {
+  simulatePortfolioDaily,
   calculateCAGR,
   calculatePeriodVolatility,
   calculatePeriodDownsideDeviation,
