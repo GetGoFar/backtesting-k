@@ -41,9 +41,9 @@ describe("inferirBenchmark", () => {
     const r = inferirBenchmark("Santander Acciones Latinoamericanas", "");
     expect(r.benchmark.ticker).toBe("AEEM.PA");
   });
-  it("RF → Vanguard EUR Gov Bond", () => {
+  it("RF → iShares Core EUR Gov Bond", () => {
     const r = inferirBenchmark("Santander Renta Fija Privada", "Renta Fija EUR");
-    expect(r.benchmark.ticker).toBe("VGEA.AS");
+    expect(r.benchmark.ticker).toBe("IEGA.AS");
   });
   it("Default sin región específica → MSCI World", () => {
     const r = inferirBenchmark("Santander Sostenible Acciones A", "RV Global");

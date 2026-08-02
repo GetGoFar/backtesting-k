@@ -132,6 +132,51 @@ describe("proyectarDineroQuemado (alfa por ventana)", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Helpers para tests de ALFA DE JENSEN
+// ---------------------------------------------------------------------------
+// `calcularAlfa` no mide la resta de rentabilidades, sino el alfa de Jensen:
+//     alfa = CAGR_fondo − beta × CAGR_bench
+// Eso obliga a generar series con VOLATILIDAD real. Con series perfectamente
+// suaves (crecimiento constante), la beta degenera al cociente de los ritmos de
+// crecimiento y absorbe toda la diferencia de rentabilidad, dejando el alfa en
+// ~0 sea cual sea el fondo. Un test montado sobre series suaves no mide nada.
+
+/** Serie diaria con vaivén DETERMINISTA (nada de Math.random: sería flaky). */
+function generarSerieVolatil(
+  nav0: number,
+  cagrAnual: number,
+  fechaIni: string,
+  fechaFin: string,
+): NavPoint[] {
+  const ini = new Date(fechaIni + "T00:00:00Z");
+  const fin = new Date(fechaFin + "T00:00:00Z");
+  const dias = Math.round((fin.getTime() - ini.getTime()) / (24 * 3600 * 1000));
+  const cagrDiario = Math.pow(1 + cagrAnual, 1 / 365.25) - 1;
+  const out: NavPoint[] = [];
+  let nav = nav0;
+  for (let i = 0; i <= dias; i++) {
+    const d = new Date(ini.getTime() + i * 24 * 3600 * 1000);
+    out.push({ date: d.toISOString().slice(0, 10), nav });
+    const vaiven = 0.005 * Math.sin(i * 0.7) + 0.003 * Math.cos(i * 0.23);
+    nav = nav * (1 + cagrDiario + vaiven);
+  }
+  return out;
+}
+
+/**
+ * Fondo que REPLICA al benchmark con una deriva anual constante (comisiones si
+ * es negativa, habilidad si es positiva). Al compartir los mismos vaivenes,
+ * beta ≈ 1, y con beta ≈ 1 el alfa de Jensen se reduce a la diferencia de
+ * rentabilidad — que es justo lo que la Liga quiere medir.
+ */
+function conDeriva(bench: NavPoint[], derivaAnual: number): NavPoint[] {
+  return bench.map((p, i) => ({
+    date: p.date,
+    nav: p.nav * Math.pow(1 + derivaAnual, i / 365.25),
+  }));
+}
+
 describe("calcularAlfa", () => {
   // Helper: genera serie de NAVs con CAGR fijo (composición diaria proporcional)
   function generarSerie(
@@ -162,20 +207,51 @@ describe("calcularAlfa", () => {
     expect(r!.alfaPct).toBeCloseTo(0, 4);
   });
 
-  it("alfa negativa si fondo rinde menos que benchmark", () => {
-    const f = generarSerie(100, 0.04, "2018-01-01", "2025-01-01"); // 4%
-    const b = generarSerie(100, 0.07, "2018-01-01", "2025-01-01"); // 7%
+  it("alfa ≈ -3% si el fondo replica al índice pero se deja 3% anual", () => {
+    // El caso típico de la Liga: fondo bancario que sigue al índice y pierde
+    // la diferencia en comisiones.
+    const b = generarSerieVolatil(100, 0.07, "2018-01-01", "2025-01-01");
+    const f = conDeriva(b, -0.03);
     const r = calcularAlfa(f, b);
     expect(r).not.toBeNull();
-    expect(r!.alfaPct).toBeCloseTo(-3, 1);
+    // Replica al índice → beta ≈ 1 (es lo que hace interpretable el alfa).
+    // Rango en vez de toBeCloseTo: la beta real ronda 0,995 porque la deriva
+    // se compone sobre meses de distinta longitud; sigue siendo "replica".
+    expect(r!.beta).toBeGreaterThan(0.98);
+    expect(r!.beta).toBeLessThan(1.02);
+    // Con beta ≈ 1, el alfa de Jensen ≈ la deriva anual
+    expect(r!.alfaPct).toBeLessThan(-2.8);
+    expect(r!.alfaPct).toBeGreaterThan(-3.5);
   });
 
-  it("alfa positiva si fondo bate al benchmark", () => {
-    const f = generarSerie(100, 0.10, "2018-01-01", "2025-01-01");
-    const b = generarSerie(100, 0.07, "2018-01-01", "2025-01-01");
+  it("alfa ≈ +2% si el fondo replica al índice y le saca 2% anual", () => {
+    const b = generarSerieVolatil(100, 0.07, "2018-01-01", "2025-01-01");
+    const f = conDeriva(b, 0.02);
     const r = calcularAlfa(f, b);
     expect(r).not.toBeNull();
-    expect(r!.alfaPct).toBeGreaterThan(0);
+    expect(r!.beta).toBeGreaterThan(0.98);
+    expect(r!.beta).toBeLessThan(1.02);
+    expect(r!.alfaPct).toBeGreaterThan(1.7);
+    expect(r!.alfaPct).toBeLessThan(2.5);
+  });
+
+  it("con más beta, batir al índice NO garantiza alfa positiva", () => {
+    // Un fondo apalancado 1,5× sobre el índice gana más en bruto, pero el alfa
+    // de Jensen descuenta ese riesgo extra: la rentabilidad de más viene de la
+    // beta, no de la habilidad. Es la diferencia con la resta simple.
+    const b = generarSerieVolatil(100, 0.07, "2018-01-01", "2025-01-01");
+    const f: NavPoint[] = [];
+    let nav = 100;
+    for (let i = 0; i < b.length; i++) {
+      f.push({ date: b[i]!.date, nav });
+      if (i + 1 < b.length) {
+        const rBench = b[i + 1]!.nav / b[i]!.nav - 1;
+        nav = nav * (1 + 1.5 * rBench);
+      }
+    }
+    const r = calcularAlfa(f, b);
+    expect(r).not.toBeNull();
+    expect(r!.beta).toBeGreaterThan(1.3); // el motor detecta el riesgo extra
   });
 
   it("usa solo el rango común de fechas", () => {
@@ -293,9 +369,12 @@ describe("generarSnapshot", () => {
   };
 
   it("calcula dq y asigna categorías a partir de NAVs mockeados", async () => {
-    const serieMala = generarSerieFija(0.04, "2018-01-01", "2025-01-01"); // 4%
-    const serieBuena = generarSerieFija(0.08, "2018-01-01", "2025-01-01"); // 8%
-    const serieBench = generarSerieFija(0.07, "2018-01-01", "2025-01-01"); // 7%
+    // Ambos fondos REPLICAN al índice (beta ≈ 1) y se diferencian solo por su
+    // deriva anual. Con series suaves la beta absorbería esa diferencia y el
+    // alfa saldría ~0 para los dos — ver helpers de alfa de Jensen arriba.
+    const serieBench = generarSerieVolatil(100, 0.07, "2018-01-01", "2025-01-01");
+    const serieMala = conDeriva(serieBench, -0.03); // replica el índice, -3%/año
+    const serieBuena = conDeriva(serieBench, 0.01); // replica el índice, +1%/año
 
     const fetcher = async (sim: string): Promise<NavPoint[]> => {
       if (sim === "ES0000000001.EUFUND") return serieMala;
@@ -316,8 +395,9 @@ describe("generarSnapshot", () => {
     const malo = snap.fondos.find((f) => f.isin === "ES0000000001")!;
     const bueno = snap.fondos.find((f) => f.isin === "ES0000000002")!;
 
-    expect(malo.alfa).toBeCloseTo(-3, 1);     // 4% - 7%
-    expect(bueno.alfa).toBeCloseTo(1, 1);     // 8% - 7%
+    // Alfa de Jensen con beta ≈ 1 → ≈ la deriva de cada fondo
+    expect(malo.alfa).toBeCloseTo(-3, 0);
+    expect(bueno.alfa).toBeCloseTo(1, 0);
     expect(malo.dq5).toBeGreaterThan(0);
     expect(bueno.dq5).toBeLessThan(0);
 
