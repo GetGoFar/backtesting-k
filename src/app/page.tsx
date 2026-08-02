@@ -826,11 +826,13 @@ export default function Home() {
               </label>
               <div className="flex flex-wrap gap-2">
                 {[
-                  // "Diario" eliminado: el ruido del forward-fill multi-bolsa
-                  // y los datos EUFUND de baja frecuencia en histórico temprano
-                  // inflaban artificialmente la volatilidad diaria.
-                  // Internamente seguimos usando datos diarios para gráficos
-                  // y drawdowns, solo las métricas estadísticas usan mensual/trimestral.
+                  // "Diario" reactivado (jul-2026). El problema histórico era que
+                  // los fondos de baja frecuencia (CSV mensual) anualizaban sus
+                  // ~12 puntos/año con ×√252 → volatilidades absurdas (94%). Ahora
+                  // el motor detecta esos fondos y, en diario, cae a base mensual
+                  // SOLO para las estadísticas (volatilidad/Sharpe/distribución),
+                  // avisando en pantalla; el gráfico y el drawdown sí van en diario.
+                  { value: "daily", label: "Diario" },
                   { value: "monthly", label: "Mensual" },
                   { value: "quarterly", label: "Trimestral" },
                 ].map((option) => (
