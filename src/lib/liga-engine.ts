@@ -22,6 +22,7 @@ import { promises as fs } from "fs";
 import { join } from "path";
 import Papa from "papaparse";
 import { obtenerAlfasMorningstar } from "./morningstar-alfa";
+import { evaluarFrescura } from "./data-freshness";
 
 // -----------------------------------------------------------------------------
 // Tipos
@@ -98,6 +99,11 @@ export interface ResultadoFondo {
   anosObservados: number | null; // años cubiertos por la ventana 5y
   stale: boolean;               // true si se reusan valores de referencia
   error?: string;               // descripción si stale
+  // --- Frescura del NAV ---
+  /** true si lleva >30 días sin publicar NAV: fondo fusionado o cerrado. */
+  datosObsoletos?: boolean;
+  /** Días naturales desde el último NAV, medidos al generar el snapshot. */
+  diasSinNav?: number | null;
   // --- Comparación con snapshot anterior ---
   tendencia: Tendencia;
   dq5Anterior: number | null;   // dq5 que tenía en el snapshot anterior (debug/UI)
@@ -109,6 +115,8 @@ export interface SnapshotLiga {
   totalFondos: number;
   fondosOk: number;
   fondosStale: number;
+  /** Fondos cuyo NAV lleva >30 días sin actualizarse (fusionados/cerrados). */
+  fondosObsoletos?: number;
   inversionRef: number;          // siempre 100000
   fondos: ResultadoFondo[];
 }
@@ -691,13 +699,25 @@ export async function generarSnapshot(
   const stale = resultados.filter((r) => r.stale);
   const fondosOrdenados = [...conDatos, ...stale];
 
+  // Frescura: un fondo fusionado o cerrado sigue devolviendo histórico, pero
+  // congelado. Sin marcarlo compite en el ranking contra fondos con datos de
+  // esta semana, sobre una ventana que termina meses antes. Se mide contra el
+  // instante de generación, no el de lectura, para que el dato no "envejezca"
+  // solo por consultar el snapshot más tarde.
+  const generadoEn = new Date();
+  const conFrescura = fondosOrdenados.map((f) => {
+    const fr = evaluarFrescura(f.fechaFin, generadoEn);
+    return { ...f, datosObsoletos: fr.obsoleto, diasSinNav: f.fechaFin ? fr.diasSinActualizar : null };
+  });
+
   return {
-    generadoEn: new Date().toISOString(),
+    generadoEn: generadoEn.toISOString(),
     totalFondos: fondos.length,
     fondosOk: conDatos.length,
     fondosStale: stale.length,
+    fondosObsoletos: conFrescura.filter((f) => f.datosObsoletos).length,
     inversionRef: INVERSION_REF,
-    fondos: fondosOrdenados,
+    fondos: conFrescura,
   };
 }
 

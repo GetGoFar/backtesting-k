@@ -21,6 +21,7 @@ import { runBacktest } from "./backtest-engine";
 import { registrarFondoAdHoc } from "./fund-database";
 import { getPresetById } from "./portfolio-presets";
 import type { BacktestConfig, BacktestResult } from "./types";
+import { evaluarFrescura, type FrescuraDatos } from "./data-freshness";
 
 const PRESET_K10 = "k-inbestme-10";
 const INVERSION_INICIAL = 10_000;
@@ -56,6 +57,8 @@ export interface InformeFondo {
   kpiK10: InformeKpi;
   correlacion: number;
   rangoFechas: { inicio: string; fin: string };
+  /** Aviso si el fondo dejó de publicar NAV (fusionado/cerrado). null si está al día. */
+  frescura: FrescuraDatos;
   anosCubiertos: number;
   // Datos para los charts adicionales
   rentabilidadesAnuales: RentabilidadAnual[];
@@ -194,6 +197,11 @@ export async function generarInformeFondo(
   const ms = new Date(fechaFin + "T00:00:00Z").getTime() - new Date(fechaIni + "T00:00:00Z").getTime();
   const anosCubiertos = ms / (DIAS_POR_ANO * 24 * 3600 * 1000);
 
+  // ¿La serie del fondo sigue viva? Si dejó de publicar NAV, el informe compara
+  // un periodo que terminó hace meses y hay que decirlo: quien lo recibe no
+  // puede deducirlo de un gráfico que simplemente se acaba antes.
+  const frescura = evaluarFrescura(fechaFin);
+
   // 7) Rentabilidades anuales: combinar las dos carteras por año
   const mapaA = new Map(res.a.annualReturns.map((r) => [r.year, r.returnPct]));
   const mapaB = new Map(res.b.annualReturns.map((r) => [r.year, r.returnPct]));
@@ -238,6 +246,7 @@ export async function generarInformeFondo(
     kpiK10: toKpi(res.b, anosCubiertos, factorK10),
     correlacion,
     rangoFechas: { inicio: fechaIni, fin: fechaFin },
+    frescura,
     anosCubiertos,
     rentabilidadesAnuales,
     drawdowns,
