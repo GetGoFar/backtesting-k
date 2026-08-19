@@ -180,8 +180,17 @@ export async function generarInformeFondo(
   }
 
   // 6) Rango y años cubiertos
-  const fechaIni = res.commonDateRange?.start || fechasA[0] || inicioIso;
-  const fechaFin = res.commonDateRange?.end || fechasA[fechasA.length - 1] || finIso;
+  //    Se toman de la SERIE MOSTRADA, no de res.commonDateRange. Dos motivos:
+  //    a) El FINAL del "rango común" del motor se calcula sobre la UNIÓN de
+  //       fechas (el inicio sí es intersección). Si el fondo dejó de publicar
+  //       NAV —fusionado o cerrado— devuelve la última fecha de la K10, no
+  //       la del fondo, y el informe rotulaba un periodo que no existe.
+  //    b) Ambas series se rebasan a 10.000 € en fechasA[0], así que el
+  //       crecimiento 10.000 -> valorFinal cubre exactamente fechasA[0..fin].
+  //       Anualizar sobre otro periodo falsea el CAGR de toKpi (medido en un
+  //       fondo con datos parados: 0,38 pp por debajo del real).
+  const fechaIni = fechasA[0] || res.commonDateRange?.start || inicioIso;
+  const fechaFin = fechasA[fechasA.length - 1] || res.commonDateRange?.end || finIso;
   const ms = new Date(fechaFin + "T00:00:00Z").getTime() - new Date(fechaIni + "T00:00:00Z").getTime();
   const anosCubiertos = ms / (DIAS_POR_ANO * 24 * 3600 * 1000);
 
