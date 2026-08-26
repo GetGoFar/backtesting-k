@@ -13,8 +13,11 @@
 // real. Con "Added by API" el email sale en cuanto enrolamos al user.
 //
 // Tags que aplicamos:
-//   - "calculadora-DQ"   -> ya no dispara nada, sólo segmentación retrospectiva
-//   - "fondo-{ISIN}"     -> Pablo puede segmentar por fondo origen
+//   - "liga"   -> tag ÚNICA y fija de este funnel. NO añadir tags dinámicas
+//                 (una por ISIN, por campaña, etc.): Beehiiv tiene un límite
+//                 duro de 100 tags por publicación y se agota en semanas.
+//                 El fondo de origen ya queda en los custom fields de abajo,
+//                 que es donde se segmenta por fondo concreto.
 //
 // Custom fields (ya existen en la publicación):
 //   - first_name      -> nombre del usuario
@@ -35,6 +38,9 @@ const BEEHIIV_PUBLICATION_ID = "pub_39dfba72-1988-4f94-82e0-17bfe1d3d34e";
 // Trigger: "Added by API". Enrolamos al subscriber con un POST a
 // /publications/{pub}/automations/{aut}/journeys tras crearlo.
 const BEEHIIV_AUTOMATION_INFORME = "aut_50384733-839d-49b1-a914-c0f9603b9d6d";
+// Tag única del funnel de la liga / calculadora Dinero Quemado.
+// Debe ser una constante: ver la nota sobre el límite de 100 tags de Beehiiv.
+const LEAD_TAG = "liga";
 
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -152,11 +158,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   // Aplicar tags (en una segunda llamada porque la API de POST subscriptions
   // no acepta tags en el body — sólo en endpoint dedicado).
-  // Tag "calculadora-DQ" sirve para análisis/segmentación retrospectiva.
-  // Tag "fondo-{ISIN}" segmenta por fondo origen.
+  // OJO: tag fija y única. Beehiiv limita a 100 tags por publicación, así que
+  // aquí NUNCA se interpola nada (ISIN, campaña, fecha...) en el nombre.
+  // Para segmentar por fondo concreto se usa el custom field fondo_isin.
   if (subscriptionId) {
-    const tags: string[] = ["calculadora-DQ"];
-    if (isin) tags.push(`fondo-${isin}`);
+    const tags: string[] = [LEAD_TAG];
 
     try {
       await fetch(
