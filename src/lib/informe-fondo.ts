@@ -96,8 +96,14 @@ export async function generarInformeFondo(
   isin: string,
   nombreFondo: string,
 ): Promise<InformeFondo | null> {
-  // 1) Registrar el fondo del usuario como ad-hoc en fund-database
-  registrarFondoAdHoc(isin, nombreFondo);
+  // 1) Registrar el fondo del usuario como ad-hoc en fund-database.
+  //    IMPORTANTE: usamos el id que DEVUELVE la función, no `adhoc-${isin}`
+  //    hardcoded. Si el fondo ya está curado en la BD (p. ej. Azvalor
+  //    Internacional), registrarFondoAdHoc devuelve la ficha existente con su
+  //    id real (`rf-...`) SIN crear un `adhoc-...`; usar el id hardcoded haría
+  //    que el motor no encontrara el fondo y el informe fallara con
+  //    "datos insuficientes" pese a haber histórico de sobra.
+  const fondoRef = registrarFondoAdHoc(isin, nombreFondo);
 
   // 2) Cargar el preset K10 Sectorial
   const k10Preset = getPresetById(PRESET_K10);
@@ -117,7 +123,7 @@ export async function generarInformeFondo(
   const config: BacktestConfig = {
     portfolioA: {
       name: nombreFondo,
-      holdings: [{ fundId: `adhoc-${isin}`, weight: 100 }],
+      holdings: [{ fundId: fondoRef.id, weight: 100 }],
       // El TER del fondo ya está descontado en su valor liquidativo (EODHD),
       // así que no aplicamos comisión adicional. Solo IRPF al liquidar.
       taxMode: "spain-irpf",
