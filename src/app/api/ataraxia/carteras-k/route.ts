@@ -13,6 +13,8 @@
 //        comparar: otra familia (mismo perfil) o un benchmark de la tool
 //                  (msci-world, sp500-eur, global-60-40…) o un ISIN (el fondo del
 //                  miembro, resuelto en la base local o en EODHD) para comparar en el tramo común
+//        satelite_pct: si viene (1-50), el comparador NO se compara aparte: se AÑADE a la
+//                  cartera K con ese peso (el resto se reescala) y se compara K vs K+satélite
 //        familia: "k-inbestme" (K Sectorial UCITS, con Utilities — la oficial)
 //                 "k-geografica-ucit" (K Geográfica UCITS)
 //                 "k-sectorial-usa" | "k-geografica-usa" (simulación larga con
@@ -190,7 +192,7 @@ export function GET(): NextResponse {
 export async function POST(request: NextRequest): Promise<NextResponse> {
   return runWithContext({ dataSource: "eodhd" }, async () => {
     try {
-      let body: { familia?: string; perfil?: number; startDate?: string; endDate?: string; periodo?: Periodo; comparar?: string };
+      let body: { familia?: string; perfil?: number; startDate?: string; endDate?: string; periodo?: Periodo; comparar?: string; satelite_pct?: number };
       try {
         body = await request.json();
       } catch {
@@ -248,7 +250,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         const local = !fondoB.id.startsWith("eodhd-");
         presetB = { name: fondoB.shortName || fondoB.name, description: `Fondo del miembro · ISIN ${fondoB.isin}`, holdings: [local ? { fundId: fondoB.id, weight: 100 } : { fundId: fondoB.id, weight: 100, fund: fondoB }] };
       }
-      const famBInfo = famB ?? (bench ? { nombre: bench.name, nota: `Índice de referencia (${bench.description}). ETFs UCITS reales.`, simulada: false }
+      // Modo satélite: "¿y si añado un 20 % de este ETF?" → B = K reescalada al 80 % + 20 % del activo.
+      const satPct = Number(body.satelite_pct);
+      const esSatelite = presetB && Number.isFinite(satPct) && satPct >= 1 && satPct <= 50 && !famB;
+      if (esSatelite && presetB) {
+        const resto = 1 - satPct / 100;
+        const base = preset.holdings.map((h) => ({ fundId: h.fundId, weight: Math.round(h.weight * resto * 1000) / 1000 }));
+        const sat = presetB.holdings.map((h) => ({ ...h, weight: Math.round(h.weight * (satPct / 100) * 1000) / 1000 }));
+        presetB = { name: `${preset.name} + ${satPct}% ${presetB.name}`, description: `Cartera K con un ${satPct}% de satélite (${presetB.name}); el resto reescalado.`, holdings: [...base, ...sat] };
+      }
+      const famBInfo = esSatelite && presetB ? { nombre: presetB.name, nota: `Escenario: la misma Cartera K del perfil con un ${satPct}% del activo indicado como satélite y el resto reescalado en proporción. Sirve para ver qué cambia en rentabilidad, volatilidad, caída máxima y Sharpe.`, simulada: false }
+        : famB ?? (bench ? { nombre: bench.name, nota: `Índice de referencia (${bench.description}). ETFs UCITS reales.`, simulada: false }
         : fondoB ? { nombre: `${fondoB.shortName || fondoB.name} (${fondoB.isin})`, nota: `Fondo indicado por el miembro (ISIN ${fondoB.isin}). Precios de EODHD; comisiones del fondo incluidas en su valor liquidativo.`, simulada: false } : null);
 
       const fechaOk = (s?: string) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
@@ -305,6 +317,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         pedido: { startDate, endDate },
         reglas: "Rebalanceo anual, con el TER de los fondos incluido, sin comisiones de transacción ni custodia, bruto de impuestos. Rentabilidades pasadas no garantizan rentabilidades futuras.",
         resultado: resumen(result.a, result.commonDateRange?.start),
+        // Correlación entre las dos carteras (rentabilidades mensuales, tramo común) y,
+        // si el comparador es un solo fondo/índice, su correlación con cada pieza de la cartera K.
+        correlacion: presetB && result.b && typeof result.correlation === "number" ? Math.round(result.correlation * 100) / 100 : null,
+        correlaciones_por_activo: (() => {
+          const cm = result.correlationMatrix;
+          if (!presetB || !cm || presetB.holdings.length !== 1 || esSatelite) return null;
+          const idB = presetB.holdings[0]?.fundId;
+          const j = cm.fundIds.indexOf(idB ?? "");
+          if (j < 0) return null;
+          return preset.holdings.map((h) => {
+            const i = cm.fundIds.indexOf(h.fundId);
+            const f = getFundById(h.fundId);
+            return { activo: f?.shortName || f?.name || h.fundId, peso_pct: h.weight, correlacion: i >= 0 && cm.matrix[i]?.[j] !== undefined ? Math.round((cm.matrix[i]![j] as number) * 100) / 100 : null };
+          });
+        })(),
+        satelite: esSatelite ? { peso_pct: satPct } : null,
         comparado: presetB && famBInfo && result.b ? {
           familia: comparar, cartera: famBInfo.nombre, simulada: famBInfo.simulada, nota: famBInfo.nota,
           preset: presetB.name, descripcion: presetB.description ?? null, resultado: resumen(result.b, result.commonDateRange?.start),
