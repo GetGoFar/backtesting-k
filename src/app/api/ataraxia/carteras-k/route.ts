@@ -214,9 +214,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Comparador opcional: otra familia con el MISMO perfil, en el tramo común de datos.
       const comparar = body.comparar ? String(body.comparar).toLowerCase() : "";
       const famB = comparar ? FAMILIAS[comparar] : null;
-      if (comparar && !famB) {
-        return NextResponse.json({ error: "Comparador inválido", message: `Usa una de: ${Object.keys(FAMILIAS).join(", ")}.` }, { status: 400 });
-      }
       const esUSA = (f: string) => /-usa$/.test(f);
       // Comparador: familia (mismo perfil) o benchmark de la tool (índice / cartera clásica, ETFs UCITS).
       const bench = comparar && !famB ? getBenchmarkById(comparar as BenchmarkId) : undefined;
