@@ -11,7 +11,8 @@
 //   POST /api/ataraxia/carteras-k
 //        { familia, perfil, startDate?, endDate?, periodo?, comparar? }
 //        comparar: otra familia (mismo perfil) o un benchmark de la tool
-//                  (msci-world, sp500-eur, global-60-40…) para comparar en el tramo común
+//                  (msci-world, sp500-eur, global-60-40…) o un ISIN (el fondo del
+//                  miembro, resuelto en la base local o en EODHD) para comparar en el tramo común
 //        familia: "k-inbestme" (K Sectorial UCITS, con Utilities — la oficial)
 //                 "k-geografica-ucit" (K Geográfica UCITS)
 //                 "k-sectorial-usa" | "k-geografica-usa" (simulación larga con
@@ -30,11 +31,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runBacktest } from "@/lib/backtest-engine";
 import { getPresetById } from "@/lib/portfolio-presets";
-import { getFundById } from "@/lib/fund-database";
+import { getFundById, getFundByIsin } from "@/lib/fund-database";
 import { getAllBenchmarks, getBenchmarkById } from "@/lib/benchmarks";
 import type { BenchmarkId } from "@/lib/types";
 import { runWithContext } from "@/lib/request-context";
-import type { BacktestConfig, BacktestResult } from "@/lib/types";
+import type { BacktestConfig, BacktestResult, Fund, PortfolioHolding } from "@/lib/types";
 
 const BACKTEST_TIMEOUT_MS = 60000;
 
@@ -72,6 +73,35 @@ const FAMILIAS: Record<string, { nombre: string; nota: string; simulada: boolean
 };
 
 type Periodo = "ytd" | "1y" | "3y" | "5y" | "10y" | "max";
+
+// --- Fondo del miembro por ISIN: base local primero; si no, búsqueda en EODHD ---
+const EODHD_API_TOKEN = process.env.EODHD_API_TOKEN || "";
+const EX_SUFFIX: Record<string, string> = { AS: ".AS", PA: ".PA", XETRA: ".DE", F: ".F", LSE: ".L", L: ".L", MI: ".MI", MC: ".MC", BR: ".BR", ST: ".ST", US: "", EUFUND: ".EUFUND" };
+const EX_PREF = ["XETRA", "AS", "MI", "PA", "LSE", "L", "MC", "BR", "ST", "F", "EUFUND", "US"];
+type EodhdHit = { Code?: string; Exchange?: string; Name?: string; ISIN?: string; Currency?: string };
+const ES_ISIN = (s: string) => /^[A-Z]{2}[A-Z0-9]{9}\d$/.test(s);
+
+async function fondoPorIsin(isin: string): Promise<Fund | null> {
+  const local = getFundByIsin(isin);
+  if (local) return local;
+  if (!EODHD_API_TOKEN || EODHD_API_TOKEN === "demo") return null;
+  try {
+    const res = await fetch(`https://eodhd.com/api/search/${encodeURIComponent(isin)}?api_token=${EODHD_API_TOKEN}&limit=30`, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    const data = (await res.json()) as EodhdHit[];
+    if (!Array.isArray(data) || !data.length) return null;
+    const exact = data.filter((r) => r?.ISIN === isin);
+    const pool = (exact.length ? exact : data).sort((a, b) => {
+      const ia = EX_PREF.indexOf(a?.Exchange ?? ""), ib = EX_PREF.indexOf(b?.Exchange ?? "");
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+    const best = pool[0];
+    if (!best?.Code || !best?.Exchange) return null;
+    const name = best.Name || isin;
+    return { id: `eodhd-${isin}`, name, shortName: name.length > 40 ? name.slice(0, 37) + "…" : name, isin,
+      ticker: `${best.Code}${EX_SUFFIX[best.Exchange] ?? "." + best.Exchange}`, ter: 0, category: "RV Global", type: "active", currency: best.Currency || "EUR" };
+  } catch { return null; }
+}
 
 function iso(d: Date): string {
   return d.toISOString().substring(0, 10);
@@ -190,9 +220,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const esUSA = (f: string) => /-usa$/.test(f);
       // Comparador: familia (mismo perfil) o benchmark de la tool (índice / cartera clásica, ETFs UCITS).
       const bench = comparar && !famB ? getBenchmarkById(comparar as BenchmarkId) : undefined;
-      if (comparar && !famB && !bench) {
+      const isinB = comparar && !famB && !bench && ES_ISIN(comparar.toUpperCase()) ? comparar.toUpperCase() : null;
+      const fondoB = isinB ? await fondoPorIsin(isinB) : null;
+      if (isinB && !fondoB) {
+        return NextResponse.json({ error: "ISIN no encontrado", message: `No encuentro datos históricos para el ISIN ${isinB}.` }, { status: 404 });
+      }
+      if (comparar && !famB && !bench && !isinB) {
         return NextResponse.json(
-          { error: "Comparador inválido", message: `Usa una familia (${Object.keys(FAMILIAS).join(", ")}) o un benchmark (${getAllBenchmarks().map((b) => b.id).join(", ")}).` },
+          { error: "Comparador inválido", message: `Usa una familia (${Object.keys(FAMILIAS).join(", ")}), un benchmark (${getAllBenchmarks().map((b) => b.id).join(", ")}) o un ISIN.` },
           { status: 400 }
         );
       }
@@ -202,15 +237,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           { status: 400 }
         );
       }
-      let presetB: { name: string; description?: string; holdings: { fundId: string; weight: number }[] } | undefined;
+      let presetB: { name: string; description?: string; holdings: PortfolioHolding[] } | undefined;
       if (famB) {
         const pb = getPresetById(`${comparar}-${perfil}`);
         if (!pb) return NextResponse.json({ error: "Sin preset", message: `No existe ${comparar}-${perfil}.` }, { status: 404 });
         presetB = pb;
       } else if (bench) {
         presetB = { name: bench.name, description: bench.description, holdings: bench.composition.map((c) => ({ fundId: c.fundId, weight: c.weight })) };
+      } else if (fondoB) {
+        const local = !fondoB.id.startsWith("eodhd-");
+        presetB = { name: fondoB.shortName || fondoB.name, description: `Fondo del miembro · ISIN ${fondoB.isin}`, holdings: [local ? { fundId: fondoB.id, weight: 100 } : { fundId: fondoB.id, weight: 100, fund: fondoB }] };
       }
-      const famBInfo = famB ?? (bench ? { nombre: bench.name, nota: `Índice de referencia (${bench.description}). ETFs UCITS reales.`, simulada: false } : null);
+      const famBInfo = famB ?? (bench ? { nombre: bench.name, nota: `Índice de referencia (${bench.description}). ETFs UCITS reales.`, simulada: false }
+        : fondoB ? { nombre: `${fondoB.shortName || fondoB.name} (${fondoB.isin})`, nota: `Fondo indicado por el miembro (ISIN ${fondoB.isin}). Precios de EODHD; comisiones del fondo incluidas en su valor liquidativo.`, simulada: false } : null);
 
       const fechaOk = (s?: string) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
       let startDate: string, endDate: string;
