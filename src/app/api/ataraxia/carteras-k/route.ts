@@ -18,9 +18,9 @@
 //        perfil: 1-10
 //        periodo: "ytd" | "1y" | "3y" | "5y" | "10y" | "max" (si no hay fechas)
 //
-// Reglas fijas (decisión de Pablo, sept 2026): rebalanceo anual, bruto de
-// impuestos, sin comisiones de transacción, 10.000 € iniciales, sin
-// aportaciones. Devuelve un resumen compacto (no la serie completa) pensado
+// Reglas fijas (decisión de Pablo, sept 2026): rebalanceo anual, con el TER de
+// los fondos incluido, sin comisiones de transacción ni custodia, bruto de
+// impuestos, 10.000 € iniciales, sin aportaciones. Devuelve un resumen compacto (no la serie completa) pensado
 // para que un modelo de lenguaje lo redacte sin calcular nada.
 // =============================================================================
 
@@ -124,6 +124,8 @@ function resumen(r: BacktestResult) {
       })),
     valor_final_de_10000: Math.round(r.finalValue),
     ter_medio_pct: Math.round(r.fees.weightedTer * 100) / 100,
+    // Serie mensual (fecha YYYY-MM, valor de 10.000 €) para pintar la evolución en la portada.
+    serie: ts.map((p) => [String(p.date).slice(0, 7), Math.round(p.value)]),
   };
 }
 
@@ -133,7 +135,7 @@ export function GET(): NextResponse {
     return { id, ...f, perfiles };
   });
   return NextResponse.json({
-    reglas: "Rebalanceo anual, bruto de impuestos, sin comisiones de transacción, 10.000 € iniciales, sin aportaciones. Rentabilidades pasadas no garantizan rentabilidades futuras.",
+    reglas: "Rebalanceo anual, con el TER de los fondos incluido, sin comisiones de transacción ni custodia, bruto de impuestos, 10.000 € iniciales, sin aportaciones. Rentabilidades pasadas no garantizan rentabilidades futuras.",
     periodos: ["ytd", "1y", "3y", "5y", "10y", "max"],
     familias,
   });
@@ -217,7 +219,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         preset: preset.name,
         descripcion: preset.description,
         pedido: { startDate, endDate },
-        reglas: "Rebalanceo anual, bruto de impuestos, sin comisiones de transacción. Rentabilidades pasadas no garantizan rentabilidades futuras.",
+        reglas: "Rebalanceo anual, con el TER de los fondos incluido, sin comisiones de transacción ni custodia, bruto de impuestos. Rentabilidades pasadas no garantizan rentabilidades futuras.",
         resultado: resumen(result.a),
         composicion,
         avisos: result.warnings,
