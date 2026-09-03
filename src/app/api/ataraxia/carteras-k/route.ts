@@ -122,11 +122,14 @@ const pct = (x: number | null | undefined, dec = 1) =>
   x === null || x === undefined || !Number.isFinite(x) ? null : Math.round(x * 100 * 10 ** dec) / 10 ** dec;
 
 /** Resumen compacto para el modelo: solo cifras ya calculadas, en porcentaje. */
-function resumen(r: BacktestResult) {
+function resumen(r: BacktestResult, inicioReal?: string) {
   const ts = r.timeSeries;
   const m = r.metrics;
+  // La serie es mensual y su primer punto es el CIERRE del primer mes; el backtest
+  // arranca el primer día de ese mes con 10.000 €. "inicio" es ese arranque real.
+  const primerMes = String(ts[0]?.date ?? "").slice(0, 7);
   return {
-    inicio: ts[0]?.exactDate ?? ts[0]?.date ?? null,
+    inicio: inicioReal ?? (primerMes ? `${primerMes}-01` : null),
     fin: ts[ts.length - 1]?.exactDate ?? ts[ts.length - 1]?.date ?? null,
     meses: ts.length,
     rentabilidad_total_pct: pct(m.totalReturn),
@@ -301,10 +304,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         descripcion: preset.description,
         pedido: { startDate, endDate },
         reglas: "Rebalanceo anual, con el TER de los fondos incluido, sin comisiones de transacción ni custodia, bruto de impuestos. Rentabilidades pasadas no garantizan rentabilidades futuras.",
-        resultado: resumen(result.a),
+        resultado: resumen(result.a, result.commonDateRange?.start),
         comparado: presetB && famBInfo && result.b ? {
           familia: comparar, cartera: famBInfo.nombre, simulada: famBInfo.simulada, nota: famBInfo.nota,
-          preset: presetB.name, descripcion: presetB.description ?? null, resultado: resumen(result.b),
+          preset: presetB.name, descripcion: presetB.description ?? null, resultado: resumen(result.b, result.commonDateRange?.start),
         } : null,
         composicion,
         avisos: result.warnings,
