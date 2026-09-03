@@ -127,6 +127,8 @@ function resumen(r: BacktestResult) {
     ter_medio_pct: Math.round(r.fees.weightedTer * 100) / 100,
     // Serie mensual (fecha YYYY-MM, valor de 10.000 €) para pintar la evolución en la portada.
     serie: ts.map((p) => [String(p.date).slice(0, 7), Math.round(p.value)]),
+    // Rentabilidad de cada mes (YYYY-MM, %), derivada de la serie: permite responder "¿y agosto de 2026?".
+    rentabilidad_por_mes: ts.slice(1).map((p, i) => [String(p.date).slice(0, 7), Math.round((p.value / ts[i].value - 1) * 1000) / 10]),
   };
 }
 
