@@ -15,7 +15,8 @@
 //                 "k-geografica-ucit" (K Geográfica UCITS)
 //                 "k-sectorial-usa" | "k-geografica-usa" (simulación larga con
 //                   activos USA; para preguntas de 2000/2008)
-//                 "indexa-usa" (roboadvisor tradicional: sin oro, misma RF)
+//                 "indexa" (roboadvisor tradicional UCITS: sin oro, misma RF)
+//                 "indexa-usa" (idem, simulación larga USA)
 //        perfil: 1-10
 //        periodo: "ytd" | "1y" | "3y" | "5y" | "10y" | "max" (si no hay fechas)
 //
@@ -54,6 +55,11 @@ const FAMILIAS: Record<string, { nombre: string; nota: string; simulada: boolean
     nombre: "Cartera K Geográfica (simulación USA)",
     nota: "Simulación con fondos USA de histórico largo. No es la cartera real.",
     simulada: true,
+  },
+  indexa: {
+    nombre: "Roboadvisor tradicional (UCITS)",
+    nota: "Cartera tipo roboadvisor con ETFs UCITS reales (proxies de los fondos de Indexa Capital): sin oro y misma renta fija para todos los perfiles. Comparable con las Carteras K UCITS.",
+    simulada: false,
   },
   "indexa-usa": {
     nombre: "Roboadvisor tradicional (simulación USA)",
@@ -176,6 +182,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const famB = comparar ? FAMILIAS[comparar] : null;
       if (comparar && !famB) {
         return NextResponse.json({ error: "Comparador inválido", message: `Usa una de: ${Object.keys(FAMILIAS).join(", ")}.` }, { status: 400 });
+      }
+      const esUSA = (f: string) => /-usa$/.test(f);
+      if (comparar && esUSA(comparar) !== esUSA(familia)) {
+        return NextResponse.json(
+          { error: "Comparación incoherente", message: "No se mezclan carteras UCITS reales con simulaciones USA: compara UCITS con UCITS o USA con USA." },
+          { status: 400 }
+        );
       }
       const presetB = comparar ? getPresetById(`${comparar}-${perfil}`) : undefined;
       if (comparar && !presetB) {
