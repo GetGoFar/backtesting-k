@@ -10,7 +10,8 @@
 //   GET  /api/ataraxia/carteras-k            -> lista de familias y perfiles
 //   POST /api/ataraxia/carteras-k
 //        { familia, perfil, startDate?, endDate?, periodo?, comparar? }
-//        comparar: otra familia (mismo perfil) para comparar en el tramo común
+//        comparar: otra familia (mismo perfil) o un benchmark de la tool
+//                  (msci-world, sp500-eur, global-60-40…) para comparar en el tramo común
 //        familia: "k-inbestme" (K Sectorial UCITS, con Utilities — la oficial)
 //                 "k-geografica-ucit" (K Geográfica UCITS)
 //                 "k-sectorial-usa" | "k-geografica-usa" (simulación larga con
@@ -30,6 +31,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { runBacktest } from "@/lib/backtest-engine";
 import { getPresetById } from "@/lib/portfolio-presets";
 import { getFundById } from "@/lib/fund-database";
+import { getAllBenchmarks, getBenchmarkById } from "@/lib/benchmarks";
+import type { BenchmarkId } from "@/lib/types";
 import { runWithContext } from "@/lib/request-context";
 import type { BacktestConfig, BacktestResult } from "@/lib/types";
 
@@ -147,6 +150,7 @@ export function GET(): NextResponse {
     reglas: "Rebalanceo anual, con el TER de los fondos incluido, sin comisiones de transacción ni custodia, bruto de impuestos, 10.000 € iniciales, sin aportaciones. Rentabilidades pasadas no garantizan rentabilidades futuras.",
     periodos: ["ytd", "1y", "3y", "5y", "10y", "max"],
     familias,
+    benchmarks: getAllBenchmarks().map((b) => ({ id: b.id, nombre: b.name, descripcion: b.description })),
   });
 }
 
@@ -184,16 +188,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         return NextResponse.json({ error: "Comparador inválido", message: `Usa una de: ${Object.keys(FAMILIAS).join(", ")}.` }, { status: 400 });
       }
       const esUSA = (f: string) => /-usa$/.test(f);
-      if (comparar && esUSA(comparar) !== esUSA(familia)) {
+      // Comparador: familia (mismo perfil) o benchmark de la tool (índice / cartera clásica, ETFs UCITS).
+      const bench = comparar && !famB ? getBenchmarkById(comparar as BenchmarkId) : undefined;
+      if (comparar && !famB && !bench) {
         return NextResponse.json(
-          { error: "Comparación incoherente", message: "No se mezclan carteras UCITS reales con simulaciones USA: compara UCITS con UCITS o USA con USA." },
+          { error: "Comparador inválido", message: `Usa una familia (${Object.keys(FAMILIAS).join(", ")}) o un benchmark (${getAllBenchmarks().map((b) => b.id).join(", ")}).` },
           { status: 400 }
         );
       }
-      const presetB = comparar ? getPresetById(`${comparar}-${perfil}`) : undefined;
-      if (comparar && !presetB) {
-        return NextResponse.json({ error: "Sin preset", message: `No existe ${comparar}-${perfil}.` }, { status: 404 });
+      if (comparar && esUSA(comparar) !== esUSA(familia)) {
+        return NextResponse.json(
+          { error: "Comparación incoherente", message: "No se mezclan carteras UCITS reales con simulaciones USA: compara UCITS con UCITS o USA con USA. Los benchmarks son UCITS." },
+          { status: 400 }
+        );
       }
+      let presetB: { name: string; description?: string; holdings: { fundId: string; weight: number }[] } | undefined;
+      if (famB) {
+        const pb = getPresetById(`${comparar}-${perfil}`);
+        if (!pb) return NextResponse.json({ error: "Sin preset", message: `No existe ${comparar}-${perfil}.` }, { status: 404 });
+        presetB = pb;
+      } else if (bench) {
+        presetB = { name: bench.name, description: bench.description, holdings: bench.composition.map((c) => ({ fundId: c.fundId, weight: c.weight })) };
+      }
+      const famBInfo = famB ?? (bench ? { nombre: bench.name, nota: `Índice de referencia (${bench.description}). ETFs UCITS reales.`, simulada: false } : null);
 
       const fechaOk = (s?: string) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
       let startDate: string, endDate: string;
@@ -249,9 +266,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         pedido: { startDate, endDate },
         reglas: "Rebalanceo anual, con el TER de los fondos incluido, sin comisiones de transacción ni custodia, bruto de impuestos. Rentabilidades pasadas no garantizan rentabilidades futuras.",
         resultado: resumen(result.a),
-        comparado: presetB && famB && result.b ? {
-          familia: comparar, cartera: famB.nombre, simulada: famB.simulada, nota: famB.nota,
-          preset: presetB.name, descripcion: presetB.description, resultado: resumen(result.b),
+        comparado: presetB && famBInfo && result.b ? {
+          familia: comparar, cartera: famBInfo.nombre, simulada: famBInfo.simulada, nota: famBInfo.nota,
+          preset: presetB.name, descripcion: presetB.description ?? null, resultado: resumen(result.b),
         } : null,
         composicion,
         avisos: result.warnings,
