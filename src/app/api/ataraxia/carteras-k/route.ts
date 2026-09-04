@@ -280,7 +280,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       const config: BacktestConfig = {
         portfolioA: { name: preset.name, holdings: preset.holdings.map((h) => ({ fundId: h.fundId, weight: h.weight })) },
-        portfolioB: presetB ? { name: presetB.name, holdings: presetB.holdings.map((h) => ({ fundId: h.fundId, weight: h.weight })) } : undefined,
+        portfolioB: presetB ? { name: presetB.name, holdings: presetB.holdings.map((h) => ({ fundId: h.fundId, weight: h.weight, fund: h.fund })) } : undefined,
         startDate,
         endDate,
         initialAmount: 10000,
