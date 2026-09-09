@@ -1623,6 +1623,32 @@ const LNE_PRESETS: PortfolioPreset[] = [
   },
 ];
 
+// Cartera de la edición de septiembre 2026: las empresas que los alumnos
+// eligieron en la pregunta "¿una sola empresa para 10 años?", equiponderadas.
+// Solo las que tienen datos de cotización (OpenAI descartada: no cotiza).
+const EDICION_SEP26_PRESETS: PortfolioPreset[] = [
+  {
+    id: "cartera-edicion-sep26",
+    name: "Edición Sep26",
+    description:
+      "Equiponderada (~9,09% cada una) de las 11 empresas que sugirieron los alumnos de la edición de septiembre 2026: Apple, Coca-Cola, Alphabet/Google, Microsoft, NVIDIA, Berkshire Hathaway, Walmart, Philip Morris, Glencore, Strategy (MicroStrategy) y BYD. Se ignoró OpenAI por no cotizar. El histórico común lo limita la acción más joven.",
+    type: "index",
+    holdings: [
+      { fundId: "stock-aapl", weight: 9.0909 },
+      { fundId: "stock-ko", weight: 9.0909 },
+      { fundId: "stock-googl", weight: 9.0909 },
+      { fundId: "stock-msft", weight: 9.0909 },
+      { fundId: "stock-nvda", weight: 9.0909 },
+      { fundId: "stock-brk-a", weight: 9.0909 },
+      { fundId: "stock-wmt", weight: 9.0909 },
+      { fundId: "stock-pm", weight: 9.0909 },
+      { fundId: "stock-glen", weight: 9.0909 },
+      { fundId: "stock-mstr", weight: 9.0909 },
+      { fundId: "stock-byd", weight: 9.0909 },
+    ],
+  },
+];
+
 const ALL_PRESETS: PortfolioPreset[] = [
   ...K_INBESTME_PRESETS,
   ...K_SECTORIAL_USA_PRESETS,
@@ -1644,6 +1670,7 @@ const ALL_PRESETS: PortfolioPreset[] = [
   ...RF_PRESETS,
   ...LNE_PRESETS,
   ...MOMENTUM_CARTERA_PRESETS,
+  ...EDICION_SEP26_PRESETS,
 ];
 
 // Mapa para búsqueda rápida por ID
