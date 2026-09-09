@@ -581,33 +581,11 @@ const K_GEOGRAFICA_USA_PRESETS: PortfolioPreset[] = [
 ];
 
 // -----------------------------------------------------------------------------
-// Cartera de los participantes de las primeras ediciones del Taller K.
-// 10 acciones individuales equiponderadas (10% cada una). Mezcla USD/EUR —
-// el motor no convierte FX, las cifras quedarán en una mezcla de divisas. Útil
-// como caso pedagógico para enseñar stock-picking, concentración y
-// survivorship bias.
+// Nota: las carteras de las ediciones del Taller K (participantes de las
+// primeras ediciones, Edición Sep26 y las siguientes) viven agrupadas más abajo
+// en EDICIONES_TALLER_PRESETS. Comparten el prefijo de id "edicion-taller-"
+// para que el desplegable las agrupe en la sección "Ediciones Taller".
 // -----------------------------------------------------------------------------
-
-const PARTICIPANTES_PRIMERAS_PRESETS: PortfolioPreset[] = [
-  {
-    id: "participantes-primeras-ediciones",
-    name: "Cartera Participantes Primeras Ediciones",
-    description: "10 acciones equiponderadas (10% c/u): AAPL, NVDA, AMZN, TSLA, GOOGL, KO, BRK-A, MSFT (USD) + ITX, LVMH (EUR)",
-    type: "index",
-    holdings: [
-      { fundId: "stock-aapl",  weight: 10 },
-      { fundId: "stock-nvda",  weight: 10 },
-      { fundId: "stock-amzn",  weight: 10 },
-      { fundId: "stock-tsla",  weight: 10 },
-      { fundId: "stock-googl", weight: 10 },
-      { fundId: "stock-ko",    weight: 10 },
-      { fundId: "stock-brk-a", weight: 10 },
-      { fundId: "stock-msft",  weight: 10 },
-      { fundId: "stock-itx",   weight: 10 },
-      { fundId: "stock-mc",    weight: 10 },
-    ],
-  },
-];
 
 // -----------------------------------------------------------------------------
 // Carteras Indexa Capital UCITS (1-10) — Cartera mediana (10k-100k)
@@ -1623,12 +1601,60 @@ const LNE_PRESETS: PortfolioPreset[] = [
   },
 ];
 
-// Cartera de la edición de septiembre 2026: las empresas que los alumnos
-// eligieron en la pregunta "¿una sola empresa para 10 años?", equiponderadas.
-// Solo las que tienen datos de cotización (OpenAI descartada: no cotiza).
-const EDICION_SEP26_PRESETS: PortfolioPreset[] = [
+// -----------------------------------------------------------------------------
+// EDICIONES DEL TALLER K — carteras con las acciones que los alumnos de cada
+// edición eligieron en el quiz de admisión ("¿una sola empresa para 10 años?"),
+// equiponderadas. Solo se incluyen las EMPRESAS COTIZADAS con datos; se ignoran
+// las respuestas que no son una acción concreta (criptos, ETFs, oro, empresas
+// no cotizadas como OpenAI/SpaceX/Anthropic, o entradas de prueba).
+//
+// CONVENCIÓN: cada edición usa el prefijo de id "edicion-taller-<slug>". Para
+// añadir una edición nueva basta con meter aquí otro preset con ese prefijo: el
+// desplegable lo agrupa solo bajo la sección "Ediciones Taller" (ver
+// PortfolioBuilder → edicionesTallerPresets).
+//
+// Ojo divisas: mezclan USD/EUR/CHF/GBP/HKD y el motor NO convierte FX, así que
+// las cifras quedan en una mezcla de divisas. Son casos pedagógicos
+// (stock-picking, concentración, survivorship bias), no carteras recomendadas.
+// -----------------------------------------------------------------------------
+const EDICIONES_TALLER_PRESETS: PortfolioPreset[] = [
   {
-    id: "cartera-edicion-sep26",
+    id: "edicion-taller-primeras",
+    name: "Cartera Participantes Primeras Ediciones",
+    description: "10 acciones equiponderadas (10% c/u): AAPL, NVDA, AMZN, TSLA, GOOGL, KO, BRK-A, MSFT (USD) + ITX, LVMH (EUR)",
+    type: "index",
+    holdings: [
+      { fundId: "stock-aapl",  weight: 10 },
+      { fundId: "stock-nvda",  weight: 10 },
+      { fundId: "stock-amzn",  weight: 10 },
+      { fundId: "stock-tsla",  weight: 10 },
+      { fundId: "stock-googl", weight: 10 },
+      { fundId: "stock-ko",    weight: 10 },
+      { fundId: "stock-brk-a", weight: 10 },
+      { fundId: "stock-msft",  weight: 10 },
+      { fundId: "stock-itx",   weight: 10 },
+      { fundId: "stock-mc",    weight: 10 },
+    ],
+  },
+  {
+    id: "edicion-taller-jul26",
+    name: "Edición Jul26",
+    description:
+      "Equiponderada (12,5% cada una) de las 8 empresas cotizadas que sugirieron los alumnos de la edición de julio 2026: Alphabet/Google, Amazon, Apple, Coca-Cola, NVIDIA, Berkshire Hathaway, Iberdrola y Nestlé. Se ignoraron las respuestas que no son una acción concreta: Bitcoin, un ETF del S&P 500, oro, SpaceX y Anthropic (sin cotizar) y una entrada de prueba. El histórico común arranca en ago-2004 (salida a bolsa de Alphabet/Google).",
+    type: "index",
+    holdings: [
+      { fundId: "stock-googl",     weight: 12.5 },
+      { fundId: "stock-amzn",      weight: 12.5 },
+      { fundId: "stock-aapl",      weight: 12.5 },
+      { fundId: "stock-ko",        weight: 12.5 },
+      { fundId: "stock-nvda",      weight: 12.5 },
+      { fundId: "stock-brk-a",     weight: 12.5 },
+      { fundId: "stock-iberdrola", weight: 12.5 },
+      { fundId: "stock-nestle",    weight: 12.5 },
+    ],
+  },
+  {
+    id: "edicion-taller-sep26",
     name: "Edición Sep26",
     description:
       "Equiponderada (~9,09% cada una) de las 11 empresas que sugirieron los alumnos de la edición de septiembre 2026: Apple, Coca-Cola, Alphabet/Google, Microsoft, NVIDIA, Berkshire Hathaway, Walmart, Philip Morris, Glencore, Strategy (MicroStrategy) y BYD. Se ignoró OpenAI por no cotizar. El histórico común lo limita la acción más joven.",
@@ -1656,7 +1682,7 @@ const ALL_PRESETS: PortfolioPreset[] = [
   ...K_GEOGRAFICA_UCIT_PRESETS,
   ...INDEXA_PRESETS,
   ...INDEXA_USA_PRESETS,
-  ...PARTICIPANTES_PRIMERAS_PRESETS,
+  ...EDICIONES_TALLER_PRESETS,
   ...BANK_PRESETS,
   ...BANCA_PRIVADA_PRESETS,
   ...ALTERNATIVOS_CANIGUERAL_PRESETS,
@@ -1670,7 +1696,6 @@ const ALL_PRESETS: PortfolioPreset[] = [
   ...RF_PRESETS,
   ...LNE_PRESETS,
   ...MOMENTUM_CARTERA_PRESETS,
-  ...EDICION_SEP26_PRESETS,
 ];
 
 // Mapa para búsqueda rápida por ID

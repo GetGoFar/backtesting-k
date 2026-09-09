@@ -830,7 +830,7 @@ const INDEXED_FUNDS: Fund[] = [
     terSource: "curated",
     terConfirmed: true,
   },
-  // --- Acciones sugeridas por alumnos (usadas p.ej. en la cartera "Edición Sep26") ---
+  // --- Acciones sugeridas por alumnos del Taller K (carteras "Ediciones Taller": Sep26, Jul26, …) ---
   {
     id: "stock-wmt",
     name: "Walmart Inc.",
@@ -897,6 +897,20 @@ const INDEXED_FUNDS: Fund[] = [
     category: "RV Emergentes",
     type: "index",
     currency: "HKD",
+    distributing: true,
+    terSource: "curated",
+    terConfirmed: true,
+  },
+  {
+    id: "stock-nestle",
+    name: "Nestlé S.A.",
+    shortName: "Nestlé (NESN.SW)",
+    isin: "CH0038863350",
+    ticker: "NESN.SW",
+    ter: 0,
+    category: "RV Europa",
+    type: "index",
+    currency: "CHF",
     distributing: true,
     terSource: "curated",
     terConfirmed: true,

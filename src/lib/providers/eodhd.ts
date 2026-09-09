@@ -42,6 +42,7 @@ function tickerToEODHD(ticker: string): string {
     ".MC": ".MC", // Madrid (same)
     ".BR": ".BR", // Brussels (same)
     ".ST": ".ST", // Stockholm (same)
+    ".SW": ".SW", // SIX Swiss Exchange (same) — p.ej. Nestlé NESN.SW
   };
 
   for (const [inputSuffix, eodhSuffix] of Object.entries(exchangeMap)) {
