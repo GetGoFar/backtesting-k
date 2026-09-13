@@ -276,7 +276,16 @@
 		window._epkOrigApplyFilters = window.applyFilters;
 		window.applyFilters = function () {
 			var ret = window._epkOrigApplyFilters.apply( this, arguments );
-			if ( window._ligaZonaActiva ) {
+			// La restricción por zona SOLO se aplica cuando NO hay un filtro de
+			// búsqueda/TER/gestora/tipo activo. Al filtrar queremos buscar en
+			// TODAS las zonas (si no, una coincidencia en otra zona quedaría
+			// oculta por la pestaña activa). Sin filtro, respetamos la pestaña.
+			var q = ( ( document.getElementById( 'fund-search' ) || {} ).value || '' ).trim();
+			var ter = ( document.getElementById( 'ter-filter' ) || {} ).value || '';
+			var gest = ( document.getElementById( 'gestora-filter' ) || {} ).value || '';
+			var tip = !! document.querySelector( '.type-btn.active:not([data-type="all"])' );
+			var filtroActivo = !! ( q || ter || gest || tip );
+			if ( ! filtroActivo && window._ligaZonaActiva ) {
 				filtrarFilasPorZona( window._ligaZonaActiva.min, window._ligaZonaActiva.max );
 			}
 			return ret;
