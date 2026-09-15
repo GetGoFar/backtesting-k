@@ -48,6 +48,9 @@ const RUTAS_GATED = new Set([
   "/cartera-seguimiento",
 ]);
 
+/** Herramientas que NO se sirven dentro de un iframe (modo campus / Ataraxia). */
+const SOLO_FUERA_DEL_MARCO = new Set(["/momentum", "/kray", "/equivalente", "/jubilacion"]);
+
 /** Prefijos gated: estáticos de /public que también exigen la cookie.
  *  /cartera-core = app Cartera Core K, embebida en elproyectok.com/campus/cartera/ */
 const PREFIJOS_GATED = ["/cartera-core"];
@@ -81,6 +84,18 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   if (RUTAS_PUBLICAS_EXACTAS.has(pathname)) return NextResponse.next();
   for (const prefijo of RUTAS_PUBLICAS_PREFIJO) {
     if (pathname.startsWith(prefijo)) return NextResponse.next();
+  }
+
+  // 2a. Dentro de un marco (Campus, Ataraxia) solo existe el backtest: las demás
+  //     herramientas se devuelven a la portada. Se mira Sec-Fetch-Dest, que el navegador
+  //     pone en las cargas de un iframe; el uso directo (pestaña propia) no cambia.
+  //     Las páginas /cartera-* son del Campus y también van en marco: no se tocan.
+  const dest = req.headers.get("sec-fetch-dest");
+  if ((dest === "iframe" || dest === "frame") && SOLO_FUERA_DEL_MARCO.has(pathname)) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/";
+    url.search = "?campus=1";
+    return NextResponse.redirect(url);
   }
 
   // 2. Si es una ruta gated → chequear cookie

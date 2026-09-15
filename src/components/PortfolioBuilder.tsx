@@ -1207,7 +1207,8 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                 </div>
               )}
 
-              {/* Carteras Tradicionales (Indexadas) */}
+              {/* Carteras Tradicionales (Indexadas). En modo campus la lista queda vacía: sin cabecera. */}
+              {indexPresets.length > 0 && (
               <div className="p-2 border-b border-slate-100">
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-2 py-1">
                   Carteras Tradicionales
@@ -1232,6 +1233,7 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                   </button>
                 ))}
               </div>
+              )}
 
               {/* Banca Privada */}
               {bancaPrivadaPresets.length > 0 && (
@@ -1475,7 +1477,8 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                 </div>
               )}
 
-              {/* Carteras Bancarias */}
+              {/* Carteras Bancarias. En modo campus la lista queda vacía: sin cabecera. */}
+              {activePresets.length > 0 && (
               <div className="p-2">
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-2 py-1">
                   Carteras Bancarias (Activas)
@@ -1500,6 +1503,7 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                   </button>
                 ))}
               </div>
+              )}
             </div>
           )}
         </div>

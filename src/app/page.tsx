@@ -2,7 +2,7 @@
 
 import { KMark } from "@/components/KMark";
 
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { PortfolioBuilder } from "@/components/PortfolioBuilder";
 import { NumberInput } from "@/components/NumberInput";
@@ -200,6 +200,11 @@ interface PortfolioState {
 }
 
 export default function Home() {
+  // Modo campus (embebida en el Campus o en Ataraxia): solo la herramienta de backtest,
+  // sin las pestañas Momentum / K-Ray / Equivalente / Jubilación (decisión de Pablo,
+  // 15-sep-2026). Se lee tras montar para no discrepar con el HTML del servidor.
+  const [campus, setCampus] = useState(false);
+  useEffect(() => { setCampus(isCampusMode()); }, []);
   // Referencias para scroll
   const resultsRef = useRef<HTMLDivElement>(null);
 
@@ -495,11 +500,12 @@ export default function Home() {
               </div>
             </a>
 
-            {/* Pestañas Backtest / Momentum / K-Ray */}
+            {/* Pestañas Backtest / Momentum / K-Ray. En modo campus, solo Backtest. */}
             <nav className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
               <span className="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md bg-white text-brand-navy shadow-sm">
                 Backtest
               </span>
+              {!campus && (<>
               <a
                 href="/momentum"
                 className="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md transition-colors text-brand-secondary hover:bg-white hover:text-brand-navy"
@@ -524,6 +530,7 @@ export default function Home() {
               >
                 Jubilación
               </a>
+              </>)}
             </nav>
 
             <a
