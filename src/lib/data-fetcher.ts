@@ -118,6 +118,15 @@ export async function getDailyPrices(
     distributing: isDistributing,
   });
 
+  // Tramo inicial no fiable en el proveedor (ver Fund.dataFrom): fuera ANTES
+  // de validar y cachear.
+  if (prices.length > 0 && fund?.dataFrom) {
+    const from = fund.dataFrom;
+    const before = prices.length;
+    prices = prices.filter((p) => p.date >= from);
+    console.log(`[DataFetcher] ${fundId}: descartadas ${before - prices.length} filas anteriores a ${from} (dataFrom)`);
+  }
+
   // Símbolos FOREX (pares de divisas y metales spot como XAUUSD): EODHD publica
   // filas de sábado/domingo (apertura asiática) que no son sesiones bursátiles.
   // Se descartan ANTES de validar y cachear (ver CACHE_VERSION v25).

@@ -94,6 +94,10 @@ export interface Fund {
   /** Términos extra por los que el buscador local debe encontrar el fondo
    *  (p.ej. "forex", "tipo de cambio" para un par de divisas). */
   keywords?: string[];
+  /** Primer día FIABLE de la serie (YYYY-MM-DD). Las filas anteriores se
+   *  descartan al descargar: el proveedor tiene datos erróneos antes de esa
+   *  fecha (p.ej. SXR8.DE en USD en vez de EUR hasta oct-2010). */
+  dataFrom?: string;
   /**
    * Cuando este fondo es un "activo virtual" derivado de una estrategia
    * momentum guardada, contiene el snapshot mensual de su curva de equity

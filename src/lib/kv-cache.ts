@@ -100,7 +100,8 @@ async function getRedis(): Promise<import("@upstash/redis").Redis | null> {
 // v25 = Los símbolos .FOREX (pares de divisas y oro spot XAUUSD) descartan las
 //       filas de sábado/domingo que publica EODHD. Invalida la serie del oro
 //       cacheada con fines de semana (desde 2017 traía ~50 domingos al año).
-const CACHE_VERSION = "v25";
+// v26 = Fund.dataFrom: recorte del tramo inicial erróneo de SXR8.DE (2010 en USD).
+const CACHE_VERSION = "v26";
 
 function makeKey(fundId: string): string {
   return `${CACHE_VERSION}:prices:${fundId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
