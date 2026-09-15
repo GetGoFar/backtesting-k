@@ -27,6 +27,7 @@ import { getAllBenchmarks } from "@/lib/benchmarks";
 import { getFundById } from "@/lib/fund-database";
 import { getAllPresets } from "@/lib/portfolio-presets";
 import { isCampusMode, isCampusPreset } from "@/lib/campus-client";
+import { usePresetsPrivados } from "@/lib/presets-privados-client";
 import { fetchWithSource } from "@/lib/data-source";
 import { setLastBacktestPortfolios } from "@/lib/last-backtest-portfolios";
 
@@ -205,6 +206,8 @@ export default function Home() {
   // 15-sep-2026). Se lee tras montar para no discrepar con el HTML del servidor.
   const [campus, setCampus] = useState(false);
   useEffect(() => { setCampus(isCampusMode()); }, []);
+  // Carteras privadas (clientes): por red y solo a Pablo; el desplegable del benchmark las lista al llegar.
+  usePresetsPrivados();
   // Referencias para scroll
   const resultsRef = useRef<HTMLDivElement>(null);
 

@@ -20,7 +20,16 @@ export interface AccessCode {
   label: string;
 }
 
+// Entrada de los socios de Ataraxia sin código: /api/acceso/ataraxia comprueba el token que firma
+// el portal de Ataraxia con ATARAXIA_LAB_SECRET y emite la cookie con el hash de este código, que
+// se deriva del propio secreto y nunca se publica ni se teclea. Sin secreto, la entrada no existe.
+const SECRETO_ATARAXIA = (process.env.ATARAXIA_LAB_SECRET || "").trim();
+const CODIGO_ATARAXIA: AccessCode[] = SECRETO_ATARAXIA.length >= 16
+  ? [{ code: "ataraxia:" + SECRETO_ATARAXIA, label: "ataraxia" }]
+  : [];
+
 export const ACCESS_CODES: ReadonlyArray<AccessCode> = [
+  ...CODIGO_ATARAXIA,
   // Códigos publicados a suscriptores (históricos)
   { code: "proyectok", label: "general" },
   { code: "proyectok2025", label: "general-2025" },

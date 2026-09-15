@@ -16,6 +16,7 @@ import Link from "next/link";
 import { AccessGate } from "@/components/AccessGate";
 import { fetchWithSource } from "@/lib/data-source";
 import { getAllPresets } from "@/lib/portfolio-presets";
+import { usePresetsPrivados } from "@/lib/presets-privados-client";
 import { getFundById } from "@/lib/fund-database";
 import { formatEUR, formatPct, formatNumber } from "@/lib/formatters";
 import type { Portfolio } from "@/lib/types";
@@ -109,7 +110,8 @@ export default function JubilacionPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const presets = useMemo(() => getAllPresets(), []);
+  const nPrivados = usePresetsPrivados(); // carteras privadas por red (solo Pablo): al llegar, la lista se rehace
+  const presets = useMemo(() => getAllPresets(), [nPrivados]);
 
   const canRun = useMemo(() => {
     return presetAccum && presetDist && config.initialCapital >= 0;

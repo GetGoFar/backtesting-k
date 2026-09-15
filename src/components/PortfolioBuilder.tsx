@@ -9,6 +9,7 @@ import { getAllPresets } from "@/lib/portfolio-presets";
 import { getFundById } from "@/lib/fund-database";
 import { saveWorkingPortfolio, loadWorkingPortfolio } from "@/lib/working-portfolio";
 import { isCampusMode, isCampusPreset } from "@/lib/campus-client";
+import { usePresetsPrivados } from "@/lib/presets-privados-client";
 
 // Tipo interno para manejar allocaciones con datos completos del fondo
 export interface FundAllocation {
@@ -166,6 +167,8 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
   // las del RoboAdvisor Clásico: se ocultan las de clientes de consultoría (p.ej. "Cartera PC"),
   // banca privada, BBVA, etc., que un alumno no debe ver. El uso personal
   // directo de la app (sin ?campus=1) sigue viendo todos los presets.
+  // Las carteras privadas llegan por red (solo al código personal de Pablo); al llegar, repinta.
+  usePresetsPrivados();
   const allPresets = getAllPresets();
   const presets = isCampusMode()
     ? allPresets.filter((p) => isCampusPreset(p.id))
