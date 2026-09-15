@@ -514,7 +514,7 @@ const INDEXED_FUNDS: Fund[] = [
   // cambio y se usa tal cual, sin convertir a EUR (su rentabilidad es la
   // variación del par). `currency` es la divisa cotizada (EURUSD → USD).
   // TER 0 (índice, no producto). El data-fetcher descarta las filas de fin de
-  // semana que EODHD publica para los pares (ver lib/forex.ts).
+  // semana que EODHD publica para todo .FOREX, oro spot incluido (lib/forex.ts).
   // ---------------------------------------------------------------------------
   {
     id: "fx-eurusd",

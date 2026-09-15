@@ -16,7 +16,7 @@ import { getFundById } from "./fund-database";
 import { getCachedPrices, setCachedPrices } from "./kv-cache";
 import { validatePriceData, cleanPriceData } from "./data-validator";
 import { getProvider } from "./providers";
-import { isCurrencyPairTicker, dropWeekendRows } from "./forex";
+import { isForexTicker, dropWeekendRows } from "./forex";
 import type { DailyPrice, MonthlyPrice } from "./types";
 
 /** El proveedor (y el CSV) no tienen ninguna serie para este activo. Las rutas
@@ -118,10 +118,10 @@ export async function getDailyPrices(
     distributing: isDistributing,
   });
 
-  // Pares de divisas: EODHD publica filas de sábado/domingo (apertura asiática)
-  // que no son sesiones bursátiles. Se descartan ANTES de validar y cachear.
-  // Solo pares (EURUSD.FOREX…); los metales spot (XAUUSD.FOREX) no se tocan.
-  if (prices.length > 0 && isCurrencyPairTicker(ticker)) {
+  // Símbolos FOREX (pares de divisas y metales spot como XAUUSD): EODHD publica
+  // filas de sábado/domingo (apertura asiática) que no son sesiones bursátiles.
+  // Se descartan ANTES de validar y cachear (ver CACHE_VERSION v25).
+  if (prices.length > 0 && isForexTicker(ticker)) {
     const before = prices.length;
     prices = dropWeekendRows(prices);
     console.log(`[DataFetcher] ${ticker}: descartadas ${before - prices.length} filas de fin de semana`);

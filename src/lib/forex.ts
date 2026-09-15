@@ -8,7 +8,8 @@
 // serie constante de 1). Su rentabilidad es la variación del par.
 //
 // Los metales spot de EODHD (XAUUSD, XAGUSD…) también cuelgan de .FOREX pero
-// NO son pares de divisas: se tratan como hasta ahora (oro spot intacto).
+// NO son pares de divisas (no se convierten ni se etiquetan como tales). Lo
+// que sí comparten con los pares es la limpieza de fines de semana.
 // =============================================================================
 
 import type { DailyPrice } from "./types";
@@ -76,6 +77,12 @@ export function isCurrencyPairTicker(ticker: string | undefined): boolean {
   return currencyPairCode(ticker) !== null;
 }
 
+/** true para cualquier símbolo del exchange FOREX de EODHD: pares de divisas
+ *  y metales spot (XAUUSD.FOREX). Todos cotizan sin sesión de fin de semana. */
+export function isForexTicker(ticker: string | undefined): boolean {
+  return !!ticker && /\.FOREX$/i.test(ticker);
+}
+
 /** Divisa cotizada del par (EURUSD → USD, USDJPY → JPY). */
 export function quoteCurrencyOf(code: string): string {
   return code.slice(3, 6).toUpperCase();
@@ -102,9 +109,10 @@ export function shortCurrencyPairName(code: string): string {
 /**
  * Elimina las filas de sábado y domingo. EODHD publica para los pares una
  * cotización de domingo (apertura asiática) casi todas las semanas y, en
- * algunos tramos, también de sábado. Para un backtest con calendario bursátil
- * (252 sesiones/año, forward-fill contra ETFs) esas filas sobran: inflan el
- * número de observaciones y meterían días sin sesión en la unión de fechas.
+ * algunos tramos, también de sábado; para el oro spot, desde 2017. Para un
+ * backtest con calendario bursátil (252 sesiones/año, forward-fill contra
+ * ETFs) esas filas sobran: inflan el número de observaciones y meterían días
+ * sin sesión en la unión de fechas.
  */
 export function dropWeekendRows(prices: DailyPrice[]): DailyPrice[] {
   return prices.filter((p) => {
