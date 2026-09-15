@@ -97,7 +97,10 @@ async function getRedis(): Promise<import("@upstash/redis").Redis | null> {
 //       refrescar el ÚLTIMO tramo de datos: con TTL de 30 días, una serie
 //       cacheada se quedaba "anclada" en su último día (p.ej. el backtest se
 //       quedaba en 12-jun aunque ya hubiera datos posteriores).
-const CACHE_VERSION = "v24";
+// v25 = Los símbolos .FOREX (pares de divisas y oro spot XAUUSD) descartan las
+//       filas de sábado/domingo que publica EODHD. Invalida la serie del oro
+//       cacheada con fines de semana (desde 2017 traía ~50 domingos al año).
+const CACHE_VERSION = "v25";
 
 function makeKey(fundId: string): string {
   return `${CACHE_VERSION}:prices:${fundId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
