@@ -488,7 +488,8 @@ export default function Home() {
       <header className="sticky top-0 z-50 bg-brand-bg/95 backdrop-blur-md border-b border-brand-border">
         <div className="px-4 sm:px-6 py-3">
           <div className="flex items-center justify-between max-w-[1800px] mx-auto">
-            <a href="https://elproyectok.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 group ml-14 lg:ml-0">
+            {/* En modo campus el logo no es un enlace: la herramienta se queda dentro del marco (Ataraxia / Campus). */}
+            <a href={campus ? undefined : "https://elproyectok.com"} target={campus ? undefined : "_blank"} rel="noopener noreferrer" className="flex items-center gap-3 group ml-14 lg:ml-0">
               <div className="w-10 h-10 rounded-xl gradient-k flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow">
                 <KMark className="h-6 w-auto text-white" />
               </div>
@@ -533,6 +534,7 @@ export default function Home() {
               </>)}
             </nav>
 
+            {!campus && (
             <a
               href="https://elproyectok.com"
               target="_blank"
@@ -544,6 +546,7 @@ export default function Home() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
               </svg>
             </a>
+            )}
           </div>
         </div>
       </header>
