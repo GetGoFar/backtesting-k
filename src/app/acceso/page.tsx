@@ -70,7 +70,7 @@ function AccessForm() {
           </div>
           <h1 className="text-2xl font-bold text-brand-navy">Backtesting Tool</h1>
           <p className="text-sm text-brand-tertiary mt-1">
-            Herramienta exclusiva para suscriptores
+            Herramienta para socios de Ataraxia
           </p>
         </div>
 
@@ -92,7 +92,7 @@ function AccessForm() {
                   setCode(e.target.value);
                   setError(null);
                 }}
-                placeholder="Introduce el código de tu newsletter..."
+                placeholder="Código de acceso"
                 className={`w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 transition-colors ${
                   error
                     ? "border-red-300 focus:ring-red-300 bg-red-50"
@@ -129,14 +129,14 @@ function AccessForm() {
 
           <div className="mt-6 pt-4 border-t border-slate-100 text-center">
             <p className="text-xs text-brand-tertiary">
-              ¿No tienes el código?{" "}
+              Los socios de Ataraxia entran desde su curso, sin código.{" "}
               <a
-                href="https://elproyectok.com"
+                href="https://elproyectok.com/producto/membresia-ataraxia-k/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-brand-coral hover:underline font-medium"
               >
-                Suscríbete a la newsletter
+                ¿Aún no eres socio?
               </a>
             </p>
           </div>

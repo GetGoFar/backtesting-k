@@ -30,12 +30,10 @@ const CODIGO_ATARAXIA: AccessCode[] = SECRETO_ATARAXIA.length >= 16
 
 export const ACCESS_CODES: ReadonlyArray<AccessCode> = [
   ...CODIGO_ATARAXIA,
-  // Códigos publicados a suscriptores (históricos)
-  { code: "proyectok", label: "general" },
-  { code: "proyectok2025", label: "general-2025" },
-  { code: "elproyectok", label: "general-alt" },
   // Código PERSONAL de Pablo — no compartir
   { code: "pablo-k-2026", label: "pablo" },
-  // Código para alumnos del taller (rotar por edición si se quiere)
-  { code: "taller-k-2026", label: "taller" },
+  // RETIRADOS el 15-sep-2026 (decisión de Pablo: la herramienta es solo para socios de
+  // Ataraxia, que entran con su pase, y para él): "proyectok", "proyectok2025" y
+  // "elproyectok" (suscriptores de la newsletter) y "taller-k-2026" (alumnos del Taller).
+  // Al quitarlos, las cookies que los usaban dejan de valer y /acceso pide de nuevo.
 ];
