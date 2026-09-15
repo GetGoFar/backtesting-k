@@ -29,6 +29,7 @@ export function GET(): NextResponse {
     .filter(
       (f) =>
         !f.bank &&
+        f.category !== "Divisas" && // pares de divisas: no son método, fuera del copiloto
         ((f.type === "index" && !f.id.startsWith("stock-")) ||
           isInCampusWhitelist(f.isin) ||
           isInCampusFundIds(f.id))

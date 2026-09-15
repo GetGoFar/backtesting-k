@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getAllFunds,
   getFundsByType,
+  filterFundsByQuery,
 } from "@/lib/fund-database";
 import type { Fund, FundType } from "@/lib/types";
 import {
@@ -67,15 +68,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // Aplicar búsqueda si se especifica
     if (searchParam && searchParam.trim() !== "") {
-      const searchLower = searchParam.toLowerCase().trim();
-      funds = funds.filter(
-        (fund) =>
-          fund.name.toLowerCase().includes(searchLower) ||
-          fund.shortName.toLowerCase().includes(searchLower) ||
-          fund.isin.toLowerCase().includes(searchLower) ||
-          fund.category.toLowerCase().includes(searchLower) ||
-          fund.bank?.toLowerCase().includes(searchLower)
-      );
+      funds = filterFundsByQuery(funds, searchParam);
     }
 
     return NextResponse.json({

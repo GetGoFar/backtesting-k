@@ -12,6 +12,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFundByIsin } from "@/lib/fund-database";
 import { isInCampusWhitelist, isCampusRequest } from "@/lib/campus-whitelist";
+import {
+  parseCurrencyPairQuery,
+  describeCurrencyPair,
+  quoteCurrencyOf,
+  isMetalCode,
+} from "@/lib/forex";
 
 const EODHD_API_TOKEN = process.env.EODHD_API_TOKEN || "";
 const EODHD_BASE_URL = "https://eodhd.com/api";
@@ -143,11 +149,21 @@ function buildTicker(code: string, exchange: string): string {
  *  quedamos con el símbolo principal. Si parece búsqueda libre, lo dejamos. */
 function normalizeSearchQuery(raw: string): string {
   const q = raw.trim();
+  // Par de divisas en cualquier formato ("EUR/USD", "EUR USD", "EURUSD=X",
+  // "EURUSD.FOREX") → código canónico que EODHD sí encuentra ("EURUSD").
+  // Con la barra sin normalizar, /search devolvía HTML (no JSON) y nada salía.
+  const pair = parseCurrencyPairQuery(q);
+  if (pair) return pair;
   const tickerWithSuffix = /^([A-Z0-9\-]+)\.([A-Z]+)$/i;
   const m = q.match(tickerWithSuffix);
   if (m && m[1]) return m[1].toUpperCase();
   if (/^[A-Z0-9\-]+$/i.test(q) && q.length <= 10) return q.toUpperCase();
   return q;
+}
+
+/** Par de divisas (o metal spot) del exchange FOREX de EODHD. */
+function isCurrencyResult(r: EODHDSearchResult): boolean {
+  return r.Type === "Currency" && r.Exchange === "FOREX";
 }
 
 // -----------------------------------------------------------------------------
@@ -167,13 +183,16 @@ async function searchEODHD(query: string): Promise<EODHDSearchResult[]> {
     }
     const data: EODHDSearchResult[] = await response.json();
     if (!Array.isArray(data)) return [];
+    // Divisas: EODHD las devuelve con Type "Currency" en el exchange FOREX;
+    // antes este filtro las descartaba y ningún par salía en el buscador.
     return data.filter(
       (r) =>
         r.Type === "ETF" ||
         r.Type === "Fund" ||
         r.Type === "FUND" ||
         r.Type === "Common Stock" ||
-        r.Exchange === "EUFUND"
+        r.Exchange === "EUFUND" ||
+        isCurrencyResult(r)
     );
   } catch (error) {
     console.error("[EODHD Search] Error:", error);
@@ -218,6 +237,30 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     const mapped = visibleResults.map((r) => {
       const isStock = r.Type === "Common Stock";
+      const isCurrency = isCurrencyResult(r);
+      if (isCurrency) {
+        // Par de divisas: es un tipo de cambio, no un producto. Sin TER, sin
+        // ISIN. `currency` = divisa cotizada (EURUSD → USD). NUNCA se devuelve
+        // previousClose ni ningún precio (licencia Internal Use de EODHD).
+        const code = r.Code.toUpperCase();
+        // Los metales spot (XAUUSD, XAGUSD…) cuelgan del mismo exchange pero
+        // no son pares: se etiquetan aparte y el front los categoriza como oro.
+        const isMetal = isMetalCode(code);
+        const name = (isMetal ? null : describeCurrencyPair(code)) ?? r.Name;
+        return {
+          symbol: buildTicker(r.Code, r.Exchange),
+          name,
+          shortName: name.length > 50 ? name.substring(0, 47) + "..." : name,
+          exchange: r.Exchange,
+          type: "CURRENCY",
+          typeDisplay: isMetal ? "Metal spot" : "Divisa",
+          isin: null as string | null,
+          ter: 0 as number | null,
+          currency: code.length === 6 ? quoteCurrencyOf(code) : r.Currency || "USD",
+          isStock: false,
+          isCurrency: true,
+        };
+      }
       return {
         symbol: buildTicker(r.Code, r.Exchange),
         name: r.Name,
@@ -235,6 +278,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         ter: isStock ? 0 : (null as number | null),
         currency: r.Currency || "EUR",
         isStock,
+        isCurrency: false,
       };
     });
 
@@ -245,7 +289,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // Cada uno se intenta sólo si los anteriores no han dado fruto.
     const enriched = await Promise.all(
       mapped.map(async (result) => {
-        if (result.isStock) return result;
+        if (result.isStock || result.isCurrency) return result;
 
         // 1) Lookup en BD local por ISIN (instantáneo, sin red)
         if (result.isin) {

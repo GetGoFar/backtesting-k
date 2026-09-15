@@ -31,6 +31,7 @@ export type FundCategory =
   | "RF USD Corp"
   | "RF Flexible"
   | "Oro"
+  | "Divisas"
   | "Alternativo"
   | "Momentum";
 
@@ -81,6 +82,9 @@ export interface Fund {
   terSource?: "curated" | "morningstar" | "user" | "estimated";
   /** Si el TER esta verificado como correcto */
   terConfirmed?: boolean;
+  /** Términos extra por los que el buscador local debe encontrar el fondo
+   *  (p.ej. "forex", "tipo de cambio" para un par de divisas). */
+  keywords?: string[];
   /**
    * Cuando este fondo es un "activo virtual" derivado de una estrategia
    * momentum guardada, contiene el snapshot mensual de su curva de equity
