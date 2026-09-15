@@ -487,7 +487,9 @@ export default function Home() {
   return (
     <AccessGate>
     <div className="min-h-screen flex flex-col">
-      {/* Header — estilo elproyectok.com */}
+      {/* Header — estilo elproyectok.com. En modo campus (dentro de Ataraxia / Campus) no se pinta: el
+          portal que la embebe ya tiene su cabecera y esta quedaba duplicada. */}
+      {!campus && (
       <header className="sticky top-0 z-50 bg-brand-bg/95 backdrop-blur-md border-b border-brand-border">
         <div className="px-4 sm:px-6 py-3">
           <div className="flex items-center justify-between max-w-[1800px] mx-auto">
@@ -553,6 +555,7 @@ export default function Home() {
           </div>
         </div>
       </header>
+      )}
 
       {/* Layout: sidebar + main */}
       <div className="flex flex-1 w-full">
