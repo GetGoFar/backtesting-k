@@ -5,7 +5,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runBacktest } from "@/lib/backtest-engine";
 import { getFundById } from "@/lib/fund-database";
-import { runWithContext } from "@/lib/request-context";
+import { runWithContext, type RequestContext } from "@/lib/request-context";
+import { isDisplayCurrency, displayCurrencyName } from "@/lib/display-currency";
+import type { FxConversionNote } from "@/lib/fx-convert";
 import type { BacktestConfig, Portfolio, PortfolioHolding, BacktestWarning, DisplayGranularity } from "@/lib/types";
 
 // Timeout máximo para el backtest (60 segundos — datos diarios requieren más tiempo)
@@ -38,7 +40,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // Fuente de precios: SIEMPRE EODHD. El toggle Yahoo se eliminó porque
   // confundía. Envolvemos el handler en el contexto igualmente para que
   // getDailyPrices y resto del pipeline funcionen sin cambios.
-  return runWithContext({ dataSource: "eodhd" }, async () => {
+  // La divisa objetivo se fija DESPUÉS de parsear el body: el contexto es el
+  // mismo objeto durante todo el request, así que basta con mutarlo.
+  const fxNotes: FxConversionNote[] = [];
+  const ctx: RequestContext = { dataSource: "eodhd", fxNotes };
+  return runWithContext(ctx, async () => {
   try {
     // Parsear el body
     let config: BacktestConfig;
@@ -62,6 +68,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (!config.displayGranularity) {
       config.displayGranularity = "monthly";
     }
+
+    // Divisa de los resultados. Sin campo (clientes antiguos, campus, copiloto)
+    // → "native": cada activo en su divisa, sin convertir, como siempre.
+    if (config.displayCurrency !== undefined && !isDisplayCurrency(config.displayCurrency)) {
+      return NextResponse.json(
+        {
+          error: "Validación fallida",
+          message: `displayCurrency inválida: '${String(config.displayCurrency)}'. Valores: EUR, USD, GBP, CHF, JPY, XAU, native.`,
+        },
+        { status: 400 }
+      );
+    }
+    config.displayCurrency = config.displayCurrency ?? "native";
+    ctx.displayCurrency = config.displayCurrency;
 
     // Validar estructura básica
     const validationError = validateConfig(config);
@@ -150,6 +170,40 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       warnings.push(...result.warnings);
     }
 
+    // Conversiones de divisa realizadas (una nota por activo convertido; el
+    // mismo activo puede convertirse varias veces en el request → dedupe).
+    if (config.displayCurrency !== "native" && fxNotes.length > 0) {
+      const seen = new Map<string, FxConversionNote>();
+      for (const n of fxNotes) if (!seen.has(n.fundId)) seen.set(n.fundId, n);
+      const notes = Array.from(seen.values());
+      const nombre = (id: string) =>
+        getFundById(id)?.shortName ??
+        [config.portfolioA, config.portfolioB]
+          .flatMap((p) => p?.holdings ?? [])
+          .find((h) => h.fundId === id)?.fund?.shortName ??
+        id;
+      const lista = notes.map((n) => `${nombre(n.fundId)} (${n.from})`).join(", ");
+      warnings.push({
+        type: "currency",
+        severity: "info",
+        message:
+          `Resultados en ${displayCurrencyName(config.displayCurrency)}: ` +
+          `convertido con el tipo de cambio de cada día ${lista}.`,
+      });
+      for (const n of notes) {
+        if (n.droppedDays > 0 && n.nativeFirstDate && n.convertedFirstDate) {
+          warnings.push({
+            type: "currency",
+            severity: "warning",
+            message:
+              `${nombre(n.fundId)}: sin tipo de cambio ${n.from}→${n.to} antes de ` +
+              `${n.convertedFirstDate}; la serie (que empieza en ${n.nativeFirstDate}) ` +
+              `se recorta a esa fecha.`,
+          });
+        }
+      }
+    }
+
     return NextResponse.json({
       resultA: result.a,
       resultB: result.b,
@@ -160,6 +214,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         rebalanceFrequency: config.rebalanceFrequency,
         monthlyContribution: config.monthlyContribution ?? 0,
         displayGranularity: config.displayGranularity,
+        displayCurrency: config.displayCurrency,
         benchmarkId: config.benchmarkId ?? null,
       },
       effectiveDateRange: effectiveStart && effectiveEnd ? {

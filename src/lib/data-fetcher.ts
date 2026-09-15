@@ -181,7 +181,7 @@ export async function getMonthlyPrices(
 /**
  * Agrega precios diarios a mensuales: último precio de cada mes.
  */
-function aggregateDailyToMonthly(daily: DailyPricesResult): MonthlyPricesResult {
+export function aggregateDailyToMonthly(daily: DailyPricesResult): MonthlyPricesResult {
   const priceMap = new Map<string, number>();
   const exactDatesMap = new Map<string, string>();
 

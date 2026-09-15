@@ -199,3 +199,46 @@ el All-World, 10.000 € y 300 €/mes") a carteras del comparador y enlaza aqu�
   prompt del bot se cachee. El bot lo descarga en caliente y guarda una copia
   (`lib/catalogo.snapshot.json`, se refresca con `scripts/actualizar-catalogo.js`).
   Si añades fondos o presets, el copiloto los ve solo.
+
+## Divisa de los resultados (`displayCurrency`, sep-2026)
+
+El comparador puede calcular todo en **EUR, USD, GBP, CHF, JPY, oro (XAU,
+onzas) o "native"** (cada activo en su divisa de cotización, sin convertir; es
+el comportamiento histórico y el default de la API cuando el campo no viene:
+campus, copiloto y clientes antiguos no cambian). La UI arranca en EUR.
+
+- **Cómo:** `lib/fx-convert.ts`. Cada activo se convierte desde la divisa de su
+  cotización con el tipo de cambio de cada día, como un fondo al calcular su
+  NAV: `precio_B = precio_A × usdPor(A) / usdPor(B)`. Pivote USD. Tipos de
+  cambio de EODHD `XXX.FOREX` (= unidades de XXX por 1 USD; EUR desde 1975 con
+  ECU sintético antes de 1999, JPY/CHF/CAD desde 1971, **GBP solo desde 2000**)
+  y `XAUUSD.FOREX` (USD por onza, desde 1979). Días sin tipo de cambio
+  disponible se descartan (la serie empieza más tarde) y se avisa.
+- **Dónde:** la divisa objetivo viaja en el `RequestContext`
+  (`displayCurrency`); el motor carga precios con `getDailyPricesIn` /
+  `getMonthlyPricesIn` (holdings, rango efectivo, métricas por activo,
+  benchmark). Momentum, Kray, Equivalente y Jubilación siguen en nativo.
+  Las conversiones dejan notas (`fxNotes`) que `/api/backtest` vuelca en avisos
+  `type: "currency"`.
+- **Reglas:** un par de divisas (`EURUSD.FOREX`, categoría "Divisas") NUNCA se
+  convierte (la serie ES el tipo de cambio). Los metales spot sí (oro en EUR =
+  XAUUSD / EURUSD). GBX/GBp (peniques, LSE) se divide por 100.
+- **`Fund.currency` es la divisa de la COTIZACIÓN descargada** (la del
+  listing: `IS3S.DE` cotiza en EUR aunque el fondo sea USD), no la divisa base
+  del fondo. Auditada contra EODHD en sep-2026 (`scripts` no; fue ad hoc): al
+  añadir un fondo, comprobar el `Currency` del listing en `/search`.
+- **Cifras en la UI:** `formatEUR` (nombre histórico) formatea en la divisa
+  activa vía `setDisplayCurrency` (estado de módulo que fija `page.tsx` al
+  recibir resultados); en oro imprime "12,5 oz". Los literales "€" sueltos de
+  algunos componentes/PDF no se han tocado.
+- **Validado (sep-2026):** SPY→EUR y SPY→XAU coinciden punto a punto con el
+  cálculo directo sobre las series crudas; SPY en EUR da CAGR 14,02 % vs 13,84 %
+  del iShares S&P 500 UCITS EUR (2015-2026; la diferencia es TER + retención
+  de dividendos); oro spot en EUR 12,09 % vs 11,88 % del Invesco Physical Gold.
+- ⚠️ **Pendiente de datos (no de código):** la auditoría destapó ISIN de los
+  presets BBVA que en EODHD son OTRO fondo (`bbvac-amundi-eur-liquidity`
+  LU0568621618 = Amundi Cash USD; `bbvar-vontobel-us-equity` LU0136412771 =
+  Ethna Aktiv; `bbvar-amundi-us-equity` LU1883320993 = Amundi Global Equity
+  Sustainable Income; `bbvar-gs-japan-equity` LU0234572450 = GS Global EM;
+  `bbvaa-bnp-euro-govt` LU0823411888 = BNP Consumer Innovators USD). Descargan
+  el NAV equivocado; hay que corregir los ISIN.
