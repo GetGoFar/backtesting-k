@@ -41,6 +41,10 @@ const INDEXED_FUNDS: Fund[] = [
     shortName: "iShares S&P500 Acc",
     isin: "IE00B5BMR087",
     ticker: "SXR8.DE", // Xetra — datos desde 2010 (VUAA.DE solo desde 2020)
+    // EODHD sirve mayo–oct 2010 en USD (no en EUR) y luego salta a EUR el
+    // 1-nov-2010: −25 % ficticio que hundía el CAGR del benchmark S&P 500 (EUR)
+    // en ~1,5 pp/año. Se descarta ese tramo.
+    dataFrom: "2010-11-01",
     ter: 0.07,
     category: "RV EEUU",
     type: "index",
@@ -1708,9 +1712,9 @@ const BBVA_CAPITAL_FUNDS: Fund[] = [
   },
   {
     id: "bbvac-amundi-eur-liquidity",
-    name: "Amundi Funds Euro Liquidity Rated SRI",
-    shortName: "Amundi EUR Liquidity",
-    isin: "LU0568621618",
+    name: "Amundi Funds Cash EUR A2 EUR (C)",
+    shortName: "Amundi Cash EUR",
+    isin: "LU0568620560", // corregido sep-2026: el ISIN anterior era otro fondo en EODHD
     ter: 0.20,
     category: "RF EUR",
     type: "active",
@@ -1952,9 +1956,9 @@ const BBVA_INVERSION_RV_FUNDS: Fund[] = [
   },
   {
     id: "bbvar-vontobel-us-equity",
-    name: "Vontobel Fund - US Equity",
+    name: "Vontobel Fund - US Equity B USD",
     shortName: "Vontobel US Equity",
-    isin: "LU0136412771",
+    isin: "LU0035765741", // corregido sep-2026: el ISIN anterior era otro fondo en EODHD
     ter: 1.65,
     category: "RV EEUU",
     type: "active",
@@ -1963,13 +1967,13 @@ const BBVA_INVERSION_RV_FUNDS: Fund[] = [
   },
   {
     id: "bbvar-amundi-us-equity",
-    name: "Amundi Funds US Equity",
-    shortName: "Amundi US Equity",
-    isin: "LU1883320993",
+    name: "Amundi Funds Pioneer US Equity Research A EUR (C)",
+    shortName: "Amundi US Equity Research",
+    isin: "LU1883859230", // corregido sep-2026: el ISIN anterior era otro fondo en EODHD
     ter: 1.30,
     category: "RV EEUU",
     type: "active",
-    currency: "USD",
+    currency: "EUR",
     terSource: "estimated",
   },
   {
@@ -1986,9 +1990,9 @@ const BBVA_INVERSION_RV_FUNDS: Fund[] = [
   },
   {
     id: "bbvar-gs-japan-equity",
-    name: "Goldman Sachs Japan Equity Portfolio",
+    name: "Goldman Sachs Japan Equity Portfolio Base Acc JPY",
     shortName: "GS Japan Equity",
-    isin: "LU0234572450",
+    isin: "LU0234695293", // corregido sep-2026: el ISIN anterior era otro fondo en EODHD
     ter: 1.40,
     category: "RV Japón",
     type: "active",
@@ -2100,9 +2104,9 @@ const BBVA_ACUMULACION_FUNDS: Fund[] = [
   },
   {
     id: "bbvaa-bnp-euro-govt",
-    name: "BNP Paribas Euro Government Bond",
+    name: "BNP Paribas Funds Euro Government Bond Classic Cap",
     shortName: "BNP Euro Government Bond",
-    isin: "LU0823411888",
+    isin: "LU0111548326", // corregido sep-2026: el ISIN anterior era otro fondo en EODHD
     ter: 0.45,
     category: "RF EUR Gov",
     type: "active",
