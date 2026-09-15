@@ -86,11 +86,13 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   // 2. Si es una ruta gated → chequear cookie
   if (RUTAS_GATED.has(pathname) || PREFIJOS_GATED.some((p) => pathname.startsWith(p))) {
     const cookie = req.cookies.get("epk-access");
+    // `next` conserva la query (p. ej. ?campus=1): si se perdía, tras el login la app
+    // arrancaba sin modo campus aunque el iframe (Ataraxia, campus) lo hubiera pedido.
     if (!cookie?.value) {
       // Sin cookie → al login
       const url = req.nextUrl.clone();
       url.pathname = "/acceso";
-      url.searchParams.set("next", pathname);
+      url.searchParams.set("next", pathname + req.nextUrl.search);
       return NextResponse.redirect(url);
     }
     const validHashes = await getValidHashes();
@@ -98,7 +100,7 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
       // Cookie inválida → al login con flag de error
       const url = req.nextUrl.clone();
       url.pathname = "/acceso";
-      url.searchParams.set("next", pathname);
+      url.searchParams.set("next", pathname + req.nextUrl.search);
       url.searchParams.set("error", "1");
       const res = NextResponse.redirect(url);
       // Borrar las dos variantes posibles de la cookie: la identidad de una
