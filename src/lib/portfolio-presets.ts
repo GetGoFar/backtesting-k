@@ -588,15 +588,18 @@ const K_GEOGRAFICA_USA_PRESETS: PortfolioPreset[] = [
 // -----------------------------------------------------------------------------
 
 // -----------------------------------------------------------------------------
-// Carteras Indexa Capital UCITS (1-10) — Cartera mediana (10k-100k)
-// Proxies ETF de los fondos Vanguard Ins Plus que usa Indexa
+// Carteras "RoboAdvisor Clásico" UCITS (1-10): réplica con ETFs de un roboadvisor
+// tradicional (sin oro, misma RF para todos los perfiles). De cara al usuario nunca se
+// nombra la marca (decisión de Pablo, sep-2026, por prudencia legal); los ids siguen
+// siendo indexa-N para no romper la API de Ataraxia ni los enlaces guardados.
+// Proxies ETF de los fondos Vanguard Ins Plus que usa el roboadvisor de referencia
 // Fuente: https://indexacapital.com/es/esp/model
 // -----------------------------------------------------------------------------
 
 const INDEXA_PRESETS: PortfolioPreset[] = [
   {
     id: "indexa-1",
-    name: "Indexa 1/10",
+    name: "RoboAdvisor Clásico 1/10",
     description: "10% RV / 90% RF — Muy conservadora",
     type: "index",
     holdings: [
@@ -613,7 +616,7 @@ const INDEXA_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "indexa-2",
-    name: "Indexa 2/10",
+    name: "RoboAdvisor Clásico 2/10",
     description: "20% RV / 80% RF — Conservadora",
     type: "index",
     holdings: [
@@ -631,7 +634,7 @@ const INDEXA_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "indexa-3",
-    name: "Indexa 3/10",
+    name: "RoboAdvisor Clásico 3/10",
     description: "30% RV / 70% RF — Moderada-conservadora",
     type: "index",
     holdings: [
@@ -651,7 +654,7 @@ const INDEXA_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "indexa-4",
-    name: "Indexa 4/10",
+    name: "RoboAdvisor Clásico 4/10",
     description: "40% RV / 60% RF — Moderada",
     type: "index",
     holdings: [
@@ -671,7 +674,7 @@ const INDEXA_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "indexa-5",
-    name: "Indexa 5/10",
+    name: "RoboAdvisor Clásico 5/10",
     description: "50% RV / 50% RF — Equilibrada",
     type: "index",
     holdings: [
@@ -691,7 +694,7 @@ const INDEXA_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "indexa-6",
-    name: "Indexa 6/10",
+    name: "RoboAdvisor Clásico 6/10",
     description: "60% RV / 40% RF — Moderada-agresiva",
     type: "index",
     holdings: [
@@ -711,7 +714,7 @@ const INDEXA_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "indexa-7",
-    name: "Indexa 7/10",
+    name: "RoboAdvisor Clásico 7/10",
     description: "70% RV / 30% RF — Agresiva",
     type: "index",
     holdings: [
@@ -731,7 +734,7 @@ const INDEXA_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "indexa-8",
-    name: "Indexa 8/10",
+    name: "RoboAdvisor Clásico 8/10",
     description: "80% RV / 20% RF — Muy agresiva",
     type: "index",
     holdings: [
@@ -751,7 +754,7 @@ const INDEXA_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "indexa-9",
-    name: "Indexa 9/10",
+    name: "RoboAdvisor Clásico 9/10",
     description: "90% RV / 10% RF — Máxima agresividad con RF",
     type: "index",
     holdings: [
@@ -769,7 +772,7 @@ const INDEXA_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "indexa-10",
-    name: "Indexa 10/10",
+    name: "RoboAdvisor Clásico 10/10",
     description: "100% RV — Máxima agresividad",
     type: "index",
     holdings: [
@@ -784,8 +787,8 @@ const INDEXA_PRESETS: PortfolioPreset[] = [
 ];
 
 // -----------------------------------------------------------------------------
-// Carteras Indexa USA ETFs (USD) — Réplica desde Portfoliovisualizer
-// Mismas asignaciones porcentuales que Indexa 1-10, pero ejecutadas con
+// Carteras "RoboAdvisor Clásico" USA ETFs (USD) — Réplica desde Portfoliovisualizer
+// Mismas asignaciones porcentuales que RoboAdvisor Clásico 1-10, pero ejecutadas con
 // fondos USA (mutual funds Vanguard) en lugar de UCITS europeos.
 // Sirve para comparar a largo plazo (≥1990s) con datos de EODHD.
 // SPY (S&P 500 ETF) — VEURX (Europa) — VEIEX (Emergentes) — EWJ (Japón) —
@@ -795,7 +798,7 @@ const INDEXA_PRESETS: PortfolioPreset[] = [
 const INDEXA_USA_PRESETS: PortfolioPreset[] = [
   {
     id: "indexa-usa-1",
-    name: "Indexa USA 1/10",
+    name: "RoboAdvisor Clásico USA 1/10",
     description: "10% RV / 90% RF — Muy conservadora (USD)",
     type: "index",
     holdings: [
@@ -806,7 +809,7 @@ const INDEXA_USA_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "indexa-usa-2",
-    name: "Indexa USA 2/10",
+    name: "RoboAdvisor Clásico USA 2/10",
     description: "20% RV / 80% RF — Conservadora (USD)",
     type: "index",
     holdings: [
@@ -818,7 +821,7 @@ const INDEXA_USA_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "indexa-usa-3",
-    name: "Indexa USA 3/10",
+    name: "RoboAdvisor Clásico USA 3/10",
     description: "30% RV / 70% RF — Moderada-conservadora (USD)",
     type: "index",
     holdings: [
@@ -832,7 +835,7 @@ const INDEXA_USA_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "indexa-usa-4",
-    name: "Indexa USA 4/10",
+    name: "RoboAdvisor Clásico USA 4/10",
     description: "40% RV / 60% RF — Moderada (USD)",
     type: "index",
     holdings: [
@@ -846,7 +849,7 @@ const INDEXA_USA_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "indexa-usa-5",
-    name: "Indexa USA 5/10",
+    name: "RoboAdvisor Clásico USA 5/10",
     description: "50% RV / 50% RF — Equilibrada (USD)",
     type: "index",
     holdings: [
@@ -860,7 +863,7 @@ const INDEXA_USA_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "indexa-usa-6",
-    name: "Indexa USA 6/10",
+    name: "RoboAdvisor Clásico USA 6/10",
     description: "60% RV / 40% RF — Moderada-agresiva (USD)",
     type: "index",
     holdings: [
@@ -874,7 +877,7 @@ const INDEXA_USA_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "indexa-usa-7",
-    name: "Indexa USA 7/10",
+    name: "RoboAdvisor Clásico USA 7/10",
     description: "70% RV / 30% RF — Agresiva (USD)",
     type: "index",
     holdings: [
@@ -888,7 +891,7 @@ const INDEXA_USA_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "indexa-usa-8",
-    name: "Indexa USA 8/10",
+    name: "RoboAdvisor Clásico USA 8/10",
     description: "80% RV / 20% RF — Muy agresiva (USD)",
     type: "index",
     holdings: [
@@ -902,7 +905,7 @@ const INDEXA_USA_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "indexa-usa-9",
-    name: "Indexa USA 9/10",
+    name: "RoboAdvisor Clásico USA 9/10",
     description: "90% RV / 10% RF — Máxima agresividad con RF (USD)",
     type: "index",
     holdings: [
@@ -916,7 +919,7 @@ const INDEXA_USA_PRESETS: PortfolioPreset[] = [
   },
   {
     id: "indexa-usa-10",
-    name: "Indexa USA 10/10",
+    name: "RoboAdvisor Clásico USA 10/10",
     description: "100% RV — Máxima agresividad (USD)",
     type: "index",
     holdings: [

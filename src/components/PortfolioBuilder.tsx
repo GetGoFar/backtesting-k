@@ -162,8 +162,8 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
     });
   }, []);
 
-  // En el campus (embebido con ?campus=1) solo se muestran las carteras K e
-  // Indexa: se ocultan las de clientes de consultoría (p.ej. "Cartera PC"),
+  // En el campus (embebido con ?campus=1 o dentro de un iframe) solo se muestran las carteras K y
+  // las del RoboAdvisor Clásico: se ocultan las de clientes de consultoría (p.ej. "Cartera PC"),
   // banca privada, BBVA, etc., que un alumno no debe ver. El uso personal
   // directo de la app (sin ?campus=1) sigue viendo todos los presets.
   const allPresets = getAllPresets();
@@ -1123,10 +1123,10 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                 </div>
               </div>
 
-              {/* Carteras Indexa Capital (1-10) */}
+              {/* Carteras RoboAdvisor Clásico (1-10) — ids indexa-N */}
               <div className="p-2 border-b border-slate-100">
                 <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider px-2 py-1">
-                  Indexa Capital (1-10) <span className="text-[10px] font-normal text-emerald-400">· EUR</span>
+                  RoboAdvisor Clásico (1-10) <span className="text-[10px] font-normal text-emerald-400">· EUR</span>
                 </p>
                 <div className="grid grid-cols-2 gap-1">
                   {indexaPresets.map((preset) => (
@@ -1148,11 +1148,11 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                 </div>
               </div>
 
-              {/* Carteras Indexa USA ETFs (1-10) — réplica desde Portfoliovisualizer */}
+              {/* Carteras RoboAdvisor Clásico USA ETFs (1-10) — réplica desde Portfoliovisualizer */}
               {indexaUSAPresets.length > 0 && (
                 <div className="p-2 border-b border-slate-100">
                   <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider px-2 py-1">
-                    Indexa USA ETFs (1-10) <span className="text-[10px] font-normal text-rose-400">· USD</span>
+                    RoboAdvisor Clásico USA ETFs (1-10) <span className="text-[10px] font-normal text-rose-400">· USD</span>
                   </p>
                   <div className="grid grid-cols-2 gap-1">
                     {indexaUSAPresets.map((preset) => (
@@ -1831,7 +1831,7 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                 <span className="text-slate-600">Comisión de gestión:</span>
                 <span
                   className="text-slate-400 cursor-help"
-                  title="Comisión adicional del gestor/robo-advisor/banco sobre el total de la cartera (se descuenta mensualmente del valor). Ejemplos: Inbestme ~0.40%, Indexa ~0.44%, Banco ~0.50-1.00%"
+                  title="Comisión adicional del gestor/robo-advisor/banco sobre el total de la cartera (se descuenta mensualmente del valor). Ejemplos: Inbestme ~0.40%, roboadvisor clásico ~0.44%, Banco ~0.50-1.00%"
                 >
                   <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />

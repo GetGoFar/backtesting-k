@@ -9,14 +9,26 @@
 // servidor (campus-whitelist.ts + /api/funds + /api/search).
 // =============================================================================
 
-/** ¿La app va embebida en el campus? Lee el flag de la URL (?campus=1) o de
- *  sessionStorage (persistido por FundSearch al primer render). SSR-safe y
- *  sin efectos secundarios: se puede llamar durante el render. */
+/** ¿La app va embebida (campus, Ataraxia)? Tres señales, cualquiera vale:
+ *   1. el flag de la URL (?campus=1);
+ *   2. estar dentro de un iframe (window.self !== window.top): el uso personal
+ *      de Pablo es siempre la app abierta directamente, así que "dentro de un
+ *      marco" = "un alumno o un socio la está viendo", aunque el flag se haya
+ *      perdido por el camino (p. ej. tras pasar por /acceso);
+ *   3. sessionStorage (persistido al primer render para sobrevivir a la
+ *      navegación SPA).
+ *  SSR-safe: se puede llamar durante el render. */
 export function isCampusMode(): boolean {
   if (typeof window === "undefined") return false;
   try {
     const p = new URLSearchParams(window.location.search);
-    if (p.get("campus") === "1" || p.get("campus") === "true") return true;
+    const flag = p.get("campus") === "1" || p.get("campus") === "true";
+    let enMarco = false;
+    try { enMarco = window.self !== window.top; } catch { enMarco = true; }
+    if (flag || enMarco) {
+      try { sessionStorage.setItem("k-campus", "1"); } catch { /* sin storage */ }
+      return true;
+    }
     return sessionStorage.getItem("k-campus") === "1";
   } catch {
     return false;
@@ -24,7 +36,7 @@ export function isCampusMode(): boolean {
 }
 
 /** Prefijos de id de las ÚNICAS familias de carteras visibles en el campus:
- *  todas las Carteras K y todas las de Indexa. Cualquier otro preset
+ *  todas las Carteras K y todas las del RoboAdvisor Clásico. Cualquier otro preset
  *  (clientes de consultoría, banca, BBVA, CaixaBank, etc.) queda oculto. */
 export const CAMPUS_PRESET_PREFIXES = [
   "k-inbestme-",

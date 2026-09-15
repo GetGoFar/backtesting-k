@@ -63,13 +63,13 @@ const FAMILIAS: Record<string, { nombre: string; nota: string; simulada: boolean
     simulada: true,
   },
   indexa: {
-    nombre: "Roboadvisor tradicional (UCITS)",
-    nota: "Cartera tipo roboadvisor con ETFs UCITS reales (proxies de los fondos de Indexa Capital): sin oro y misma renta fija para todos los perfiles. Comparable con las Carteras K UCITS.",
+    nombre: "RoboAdvisor Clásico (UCITS)",
+    nota: "Cartera tipo roboadvisor clásico, replicada con ETFs UCITS reales: sin oro y misma renta fija para todos los perfiles. No es la cartera oficial de ningún roboadvisor concreto ni se debe nombrar ninguna marca. Comparable con las Carteras K UCITS.",
     simulada: false,
   },
   "indexa-usa": {
-    nombre: "Roboadvisor tradicional (simulación USA)",
-    nota: "Cartera tipo roboadvisor: sin oro y misma renta fija para todos los perfiles. Simulación con fondos USA de histórico largo.",
+    nombre: "RoboAdvisor Clásico (simulación USA)",
+    nota: "Cartera tipo roboadvisor clásico: sin oro y misma renta fija para todos los perfiles. Simulación con fondos USA de histórico largo. No se debe nombrar ninguna marca.",
     simulada: true,
   },
 };

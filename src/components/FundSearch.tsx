@@ -25,22 +25,9 @@ interface FundSearchProps {
   excludeIds?: string[];
 }
 
-/** Detecta si la app va embebida en el campus (?campus=1). Se persiste en
- *  sessionStorage para que sobreviva a la navegación SPA. No afecta al uso
- *  personal directo de la app (otra pestaña = sessionStorage independiente). */
-function isCampusMode(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    const p = new URLSearchParams(window.location.search);
-    if (p.get("campus") === "1" || p.get("campus") === "true") {
-      sessionStorage.setItem("k-campus", "1");
-      return true;
-    }
-    return sessionStorage.getItem("k-campus") === "1";
-  } catch {
-    return false;
-  }
-}
+// El modo campus (?campus=1, dentro de un iframe, o ya persistido) lo decide
+// una sola función para toda la app: lib/campus-client.ts.
+import { isCampusMode } from "@/lib/campus-client";
 
 export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
   const [query, setQuery] = useState("");

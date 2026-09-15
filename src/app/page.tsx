@@ -903,7 +903,7 @@ export default function Home() {
               </select>
               <p className="mt-1.5 text-xs text-brand-tertiary">
                 Si lo seleccionas, se calcularán alpha de Jensen, beta, tracking error, information ratio y capture ratios vs el benchmark.
-                Puedes usar tanto índices clásicos como cualquier cartera preconfigurada (K Inbestme, K Sectorial USA, Indexa, banca, etc.).
+                Puedes usar tanto índices clásicos como cualquier cartera preconfigurada (K Inbestme, K Sectorial USA, RoboAdvisor Clásico, banca, etc.).
               </p>
 
               {/* Buscador de fondo/ETF/acción a medida como benchmark.
