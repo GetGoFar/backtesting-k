@@ -17,7 +17,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 function AccessForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") ?? "/";
+  // Solo rutas relativas de esta app (nunca "//otro.dominio" ni "https://...").
+  const rawNext = searchParams.get("next") ?? "/";
+  const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";
 
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);

@@ -30,6 +30,10 @@ import { isCampusMode, isCampusPreset } from "@/lib/campus-client";
 import { usePresetsPrivados } from "@/lib/presets-privados-client";
 import { fetchWithSource } from "@/lib/data-source";
 import { setLastBacktestPortfolios } from "@/lib/last-backtest-portfolios";
+import { readKopilotoLink, KOPILOTO_PARAM } from "@/lib/kopiloto-link";
+
+/** Lo que el PortfolioBuilder acepta como importación (copia A↔B o enlace del Kopiloto). */
+type ImportPayload = NonNullable<React.ComponentProps<typeof PortfolioBuilder>["importData"]>;
 
 // Función para obtener el mes actual en formato YYYY-MM
 function getCurrentMonth(): string {
@@ -295,8 +299,8 @@ export default function Home() {
   // Copiar (duplicar) una cartera en la otra. El padre guarda el estado de
   // origen y lo inyecta en el builder destino vía `importData`; el `nonce`
   // (incrementado en cada clic) es lo que dispara la importación en el builder.
-  const [importToA, setImportToA] = useState<(PortfolioState & { nonce: number }) | null>(null);
-  const [importToB, setImportToB] = useState<(PortfolioState & { nonce: number }) | null>(null);
+  const [importToA, setImportToA] = useState<ImportPayload | null>(null);
+  const [importToB, setImportToB] = useState<ImportPayload | null>(null);
   const copyNonce = useRef(0);
   const handleCopyAToB = useCallback(() => {
     if (portfolioA.holdings.length === 0) return;
@@ -306,6 +310,61 @@ export default function Home() {
     if (portfolioB.holdings.length === 0) return;
     setImportToA({ ...portfolioB, nonce: ++copyNonce.current });
   }, [portfolioB]);
+
+  // --- Enlace profundo desde el Kopiloto de ATARAXIA (/?k=<base64url JSON>) ---
+  // El copiloto traduce una petición en lenguaje natural a carteras + parámetros
+  // y enlaza aquí. Al montar: se precargan en los builders (misma vía que
+  // "Copiar a A/B"), se ajustan importes/fechas/benchmark, se limpia la URL y,
+  // si lo pide, se lanza el backtest en cuanto los builders den por válidas
+  // EXACTAMENTE las carteras importadas (no las que restauren del localStorage).
+  const [kopilotoNotice, setKopilotoNotice] = useState<string[] | null>(null);
+  const kopilotoPending = useRef<{ a: string | null; b: string | null } | null>(null);
+  useEffect(() => {
+    const link = readKopilotoLink(window.location.search);
+    if (!link) return;
+    const base = {
+      taxMode: "none" as const,
+      taxRate: 0.21,
+      rebalanceBandRelativePct: 0,
+      rebalanceBandAbsolutePct: 0,
+      keepName: true,
+    };
+    if (link.a) setImportToA({ ...base, ...link.a, nonce: ++copyNonce.current });
+    if (link.b) setImportToB({ ...base, ...link.b, nonce: ++copyNonce.current });
+    if (link.initial !== undefined) setInitialInvestment(link.initial);
+    if (link.monthly !== undefined) setMonthlyContribution(link.monthly);
+    if (link.start) setStartDate(link.start);
+    if (link.end) setEndDate(link.end);
+    if (link.benchmark) {
+      setBenchmarkSelection(link.benchmark);
+      setCustomBenchmarkFund(null);
+    }
+    const sig = (p: { holdings: PortfolioHolding[] } | null) =>
+      p ? p.holdings.map((h) => h.fundId).join("|") : null;
+    kopilotoPending.current = link.run ? { a: sig(link.a), b: sig(link.b) } : null;
+    setKopilotoNotice(link.warnings);
+    // Quitar el parámetro de la URL: al recargar, el socio se queda con lo que
+    // haya editado (el builder lo autoguarda), no con la cartera original.
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete(KOPILOTO_PARAM);
+      window.history.replaceState(null, "", url.toString());
+    } catch {
+      /* no-op */
+    }
+  }, []);
+
+  useEffect(() => {
+    const pending = kopilotoPending.current;
+    if (!pending) return;
+    const sigOf = (p: PortfolioState) => p.holdings.map((h) => h.fundId).join("|");
+    const okA = pending.a === null || (portfolioA.isValid && sigOf(portfolioA) === pending.a);
+    const okB = pending.b === null || (portfolioB.isValid && sigOf(portfolioB) === pending.b);
+    if (!okA || !okB) return;
+    kopilotoPending.current = null;
+    void handleRunBacktest();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [portfolioA, portfolioB]);
 
   // Validar que las carteras están completas
   const hasHoldingsA = portfolioA.holdings.length > 0;
@@ -574,6 +633,39 @@ export default function Home() {
             comisiones en tu patrimonio.
           </p>
         </div>
+
+        {/* Aviso: carteras precargadas desde el Kopiloto de ATARAXIA */}
+        {kopilotoNotice && (
+          <div className="mb-6 p-4 bg-white border border-brand-border rounded-lg flex items-start gap-3">
+            <span className="text-xl leading-none mt-0.5" aria-hidden="true">🧭</span>
+            <div className="flex-1 text-sm">
+              <p className="font-medium text-brand-navy">Carteras cargadas desde el Kopiloto de ATARAXIA</p>
+              <p className="text-brand-secondary mt-1">
+                Revisa los pesos y los parámetros; si el backtest no ha arrancado solo, pulsa «Ejecutar backtest».
+              </p>
+              {kopilotoNotice.length > 0 && (
+                <ul className="mt-2 list-disc pl-5 text-amber-700">
+                  {kopilotoNotice.map((w) => (
+                    <li key={w}>{w}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <button
+              onClick={() => setKopilotoNotice(null)}
+              className="text-brand-tertiary hover:text-brand-navy p-1"
+              aria-label="Cerrar aviso"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fillRule="evenodd"
+                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
+          </div>
+        )}
 
         {/* Error Banner */}
         {error && (

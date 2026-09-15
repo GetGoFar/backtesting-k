@@ -84,37 +84,53 @@ Herramientas (page + engine):
 - **Fondos:** catálogo en `lib/fund-database.ts`; NAVs de fondos españoles sin ticker en `src/data/spanish-funds.csv`. La Liga usa `src/data/liga-fondos.csv` y los CSV de ex-miembros del S&P en la raíz.
 - **Contexto de request:** `lib/request-context.ts` (`runWithContext`) propaga la fuente de datos por la petición.
 
-## ⏳ Pendiente abierto: periodos sin exposición contaminan 6 métricas
+## ✅ Resuelto (jul-2026): el estilo de aportación contaminaba 6 métricas
 
-**Diagnosticado, no verificado ni arreglado.** Cuando una cartera empieza con
-inversión inicial 0 € (comparación DCA vs lump sum), los días previos a la
-primera aportación entran en `volatilityReturns` como retornos del **0 %**. Un
-0 % no es una observación neutra: se desvía de la media positiva de la serie y
-**añade varianza**.
+**La hipótesis original era falsa y quedó descartada por test.** Se creía que los
+días previos a la primera aportación entraban como retornos del **0 %**. No es
+así: el guard `previousTotalValue > 0` de `simulatePortfolioDaily` ya los omite
+(test *"no registra retornos de días sin capital invertido"*). La causa real era
+otra.
 
-Síntoma medido (mismo fondo VWCE, 2019-2024, solo cambia el estilo de aportación):
+**Causa real: el retorno del día de aportación se diluía.** La aportación se
+aplica DESPUÉS del crecimiento del día, pero el retorno se calculaba como
+`valorFinal / (valorPrevio + aportación)`. Sumar el capital nuevo al denominador
+encoge el retorno por un factor `P/(P+C)`: con poco capital acumulado lo aplasta
+casi a cero (medido: 0,000875 donde tocaba 0,001769, **la mitad**). Cada mes
+inyectaba así una observación falsa en la serie time-weighted.
 
-| | Volatilidad | Sharpe |
+**Arreglo:** restar el capital nuevo del NUMERADOR, no sumarlo al denominador —
+`(valorFinal − aportaciónHoy) / valorPrevio`. Es el tratamiento TWR estándar de
+un flujo de caja a cierre y conserva el coste fiscal del rebalanceo del día.
+
+**Segundo defecto, del mismo origen:** el filtro de "días limpios" de
+`volatilityReturns` indexaba `dailyTimeSeries` con el índice de `dailyReturns`.
+Como `dailyReturns` es más corto en cuanto se omite un día sin capital, las dos
+series se desalineaban y el filtro comparaba contra la fecha equivocada en toda
+cartera que empezara desde cero. Ahora el día previo se busca por **fecha**.
+
+Verificado contra la API con VWCE 2019-2024 (mismo fondo, solo cambia el estilo).
+Con las ventanas de exposición **alineadas**, la convergencia es exacta:
+
+| | divergencia antes | divergencia después |
 |---|---|---|
-| Todo de golpe (10.000 €) | 13,40 % | 0,829 |
-| Desde cero (0 € + 500 €/mes) | **13,59 %** | **0,810** |
+| Volatilidad | −0,039 pp | **0,0000 pp** |
+| Skewness | +0,695 pp | **0,0000 pp** |
+| Max Drawdown TWR | −0,114 pp | **0,0000 pp** |
 
-Con TWR deberían ser **iguales**. La dirección del error confirma la hipótesis:
-si los ceros fueran inocuos, B saldría *menos* volátil; sale *más*.
-
-Afecta a todo lo calculado sobre `volatilityReturns` en `calculateMetrics`:
-**volatilidad, Sharpe, Sortino, skewness, curtosis, VaR y CVaR**. NO afecta a
-`maxDrawdownTWR` (los ceros dejan la curva plana) ni al CAGR.
-
-**Arreglo propuesto:** excluir de la serie de retornos los periodos sin capital
-invertido — no son "días planos", son días en los que la estrategia no existía.
-Criterio de éxito: A y B deben converger igual que ya hizo el drawdown TWR
-(divergencia 14,77 pp → 0,11 pp).
+**Matiz que queda abierto (decisión de producto, no bug):** una cartera que
+empieza con 0 € anualiza su CAGR sobre la ventana completa, incluidos los días
+previos a su primera aportación, en los que no existía. Con VWCE eso deja ~7 días
+muertos y un residuo de **−0,045 pp de CAGR** (y el Sharpe/Sortino que derivan de
+él). Corregirlo obligaría a anualizar A y B sobre ventanas distintas, lo que rompe
+la comparabilidad que buscan las fechas comunes. Sin decidir.
 
 **Verificar así** (sin pasar por el muro de acceso, que bloquea la UI pero NO la
 API): `npm run dev -- -p 3007` y `POST /api/backtest` con dos carteras del mismo
 fondo, una con `initialAmount: 0` + `monthlyContribution`, otra con capital
-inicial. Comparar `metrics.volatility` y `metrics.sharpe`.
+inicial. Ojo: `effectiveDateRange` recorta `startDate` a la vida del fondo (VWCE
+empieza en 2019-07-25), así que para comparar ventanas hay que mirar ese campo,
+no el `startDate` enviado.
 
 ## Invariantes de cálculo (no romper)
 
@@ -128,6 +144,10 @@ inicial. Comparar `metrics.volatility` y `metrics.sharpe`.
   periodo mostrado (normalmente mensuales), así que el TWR sale más profundo
   incluso sin aportaciones. Está documentado en el tooltip; no decir que
   "coinciden".
+- **Retorno diario = time-weighted.** Mide la ESTRATEGIA, no el patrimonio. El
+  capital aportado se RESTA del valor final del día; nunca se suma al valor
+  inicial (ver sección de arriba: sumarlo diluía el retorno por `P/(P+C)`). Los
+  días sin capital invertido no generan observación — no son retornos del 0 %.
 - **Aportaciones por cartera:** `Portfolio` admite `initialAmount`,
   `monthlyContribution` y `contributionRebalance` propios; si son `undefined`
   hereda los globales de `BacktestConfig`. Las **fechas son comunes a propósito**
@@ -152,3 +172,30 @@ inicial. Comparar `metrics.volatility` y `metrics.sharpe`.
 ## Disclaimer (siempre visible)
 
 "Esta herramienta tiene fines exclusivamente educativos. Las rentabilidades pasadas no garantizan resultados futuros. Los datos de fondos bancarios pueden no reflejar valores liquidativos exactos. Consulta siempre el folleto informativo de cada fondo. El Proyecto K no es una entidad de asesoramiento financiero regulada."
+
+## Enlace profundo desde el Kopiloto de ATARAXIA (`/?k=…`)
+
+El copiloto de la membresía (repo `ataraxia-bot`, `lib/backtest.js`) traduce
+peticiones en lenguaje natural ("compara 60 % MSCI World y 40 % bonos euro con
+el All-World, 10.000 € y 300 €/mes") a carteras del comparador y enlaza aquí.
+
+- **Contrato:** `/?k=<base64url(JSON)>`, versión `v: 1`, definido y validado en
+  `src/lib/kopiloto-link.ts` (tests en `kopiloto-link.test.ts`). Cada cartera
+  (`a`/`b`) es o un `preset` (id de `portfolio-presets`) o `holdings`
+  `[{fundId, weight}]`; además `initial`, `monthly`, `start`/`end` (`YYYY-MM`),
+  `benchmark` (`bm:<id>` | `preset:<id>`) y `run` (lanza el backtest al cargar).
+  Todo lo que no valide se descarta con aviso, nunca rompe.
+- **Carga:** `page.tsx` lo lee en un `useEffect` al montar y lo inyecta en los
+  `PortfolioBuilder` por la misma vía que "Copiar a A/B" (`importData` + `nonce`,
+  con `keepName` para no añadir "(copia)"). Auto-run solo cuando los builders
+  reportan EXACTAMENTE los holdings importados (no los restaurados del
+  localStorage). Después limpia el parámetro de la URL con `replaceState`.
+- **Muro de acceso:** `middleware.ts` conserva el query string en `?next=`
+  (antes se perdía y el código de acceso devolvía a `/` a secas); `/acceso`
+  solo acepta destinos relativos.
+- **Catálogo para el copiloto:** `GET /api/kopiloto/catalogo` (público) devuelve
+  fondos (universo del campus + todo indexado sin banco, sin `stock-*`),
+  presets visibles en el campus y benchmarks, ordenado por id para que el
+  prompt del bot se cachee. El bot lo descarga en caliente y guarda una copia
+  (`lib/catalogo.snapshot.json`, se refresca con `scripts/actualizar-catalogo.js`).
+  Si añades fondos o presets, el copiloto los ve solo.

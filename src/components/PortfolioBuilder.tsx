@@ -53,6 +53,8 @@ interface PortfolioBuilderProps {
     rebalanceBandAbsolutePct: number;
     /** Se incrementa en cada clic de "Copiar"; dispara la importación */
     nonce: number;
+    /** Conservar el nombre tal cual (enlace del Kopiloto) en vez de añadir "(copia)". */
+    keepName?: boolean;
   } | null;
   /** Llamado al pulsar "Copiar a la otra cartera" (el padre hace la copia). */
   onCopyToOther?: () => void;
@@ -240,7 +242,7 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
     setShowPresetDropdown(false);
     // Nombre "(copia)" + marcado como manual para que el auto-nombre no lo pise.
     setNameManuallyEdited(true);
-    setName(`${importData.name} (copia)`);
+    setName(importData.keepName ? importData.name : `${importData.name} (copia)`);
     setManagementFee(importData.managementFee);
     setTaxMode(importData.taxMode);
     setTaxRatePct(importData.taxRate * 100); // decimal → %
