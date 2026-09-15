@@ -41,6 +41,15 @@ export type RebalanceFrequency = "monthly" | "quarterly" | "annual" | "none";
 /** Granularidad de visualización de datos */
 export type DisplayGranularity = "daily" | "monthly" | "quarterly";
 
+/**
+ * Divisa (o unidad de cuenta) en la que se calculan y muestran los resultados.
+ * Cada activo se convierte desde la divisa de su cotización con el tipo de
+ * cambio de cada día (ver lib/fx-convert.ts). "XAU" = onzas de oro: el oro
+ * como unidad de cuenta. "native" = sin convertir, cada activo en su divisa
+ * (comportamiento histórico de la app).
+ */
+export type DisplayCurrency = "EUR" | "USD" | "GBP" | "CHF" | "JPY" | "XAU" | "native";
+
 // -----------------------------------------------------------------------------
 // Fondos
 // -----------------------------------------------------------------------------
@@ -189,6 +198,8 @@ export interface BacktestConfig {
   useCommonDateRange?: boolean;
   /** Granularidad de visualización: daily, monthly (default), quarterly */
   displayGranularity?: DisplayGranularity;
+  /** Divisa/unidad de los resultados (default en la API: "native"). */
+  displayCurrency?: DisplayCurrency;
   /** Benchmark a comparar (opcional). Si se incluye, se calcula alpha/beta/IR/etc. */
   benchmarkId?: BenchmarkId | null;
   /** Benchmark a medida (alternativa a benchmarkId). Permite usar cualquier
@@ -631,7 +642,8 @@ export interface BacktestWarning {
     | "asset_excluded"
     | "data_quality"
     | "data_gap"
-    | "data_missing";
+    | "data_missing"
+    | "currency";
   /** Mensaje descriptivo */
   message: string;
   /** Severidad: info < warning < error */
@@ -718,6 +730,8 @@ export interface BacktestResponse {
   assetMetrics?: AssetMetrics[];
   /** Granularidad de visualización utilizada */
   displayGranularity?: DisplayGranularity;
+  /** Divisa/unidad de los resultados (default en la API: "native"). */
+  displayCurrency?: DisplayCurrency;
 }
 
 // -----------------------------------------------------------------------------

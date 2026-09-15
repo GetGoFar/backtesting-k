@@ -41,7 +41,8 @@ import type {
 } from "./types";
 import { getFundById } from "./fund-database";
 import { getBenchmarkById } from "./benchmarks";
-import { getDailyPrices, getMonthlyPrices } from "./data-fetcher";
+import { getDailyPrices } from "./data-fetcher";
+import { getDailyPricesIn, getMonthlyPricesIn } from "./fx-convert";
 import { getExcludedAssetWarnings, getTerWarnings } from "./data-warnings";
 import { runMomentum } from "./momentum-engine";
 import type { MomentumConfig } from "./momentum-types";
@@ -538,7 +539,9 @@ async function runPortfolioBacktest(
   const fetchResults = await Promise.allSettled(
     holdingsWithFunds.map(async ({ holding, fund }) => {
       if (!fund) throw new Error(`Fondo no encontrado: ${holding.fundId}`);
-      const { prices } = await getDailyPrices(holding.fundId, fund.ticker, fund.isin);
+      // Precios en la divisa objetivo del request (EUR, USD, oro…); con
+      // "native" es la serie tal cual. Ver lib/fx-convert.ts.
+      const { prices } = await getDailyPricesIn(holding.fundId, fund.ticker, fund.isin, fund.currency);
       return { holding, fund, prices };
     })
   );
@@ -2602,7 +2605,9 @@ async function findCommonDateRangeForPortfolios(
     if (!fund) continue;
 
     try {
-      const { prices } = await getDailyPrices(holding.fundId, fund.ticker, fund.isin);
+      // Misma divisa que la simulación: la conversión puede recortar el inicio
+      // (no hay tipo de cambio antes de cierta fecha) y el rango debe reflejarlo.
+      const { prices } = await getDailyPricesIn(holding.fundId, fund.ticker, fund.isin, fund.currency);
       if (prices.size > 0) {
         allDateSets.push(new Set(prices.keys()));
         console.log(`[BacktestEngine] ${fund.shortName}: ${prices.size} días disponibles`);
@@ -2784,7 +2789,7 @@ async function getHoldingDailySeries(
     }
   }
   const fund = getFundById(holding.fundId) || holding.fund;
-  const { prices } = await getDailyPrices(holding.fundId, fund?.ticker, fund?.isin);
+  const { prices } = await getDailyPricesIn(holding.fundId, fund?.ticker, fund?.isin, fund?.currency);
   return prices;
 }
 
@@ -2804,7 +2809,7 @@ async function getHoldingMonthlySeries(
     }
   }
   const fund = getFundById(holding.fundId) || holding.fund;
-  const { prices } = await getMonthlyPrices(holding.fundId, fund?.ticker, fund?.isin);
+  const { prices } = await getMonthlyPricesIn(holding.fundId, fund?.ticker, fund?.isin, fund?.currency);
   return prices;
 }
 

@@ -19,10 +19,13 @@ import type {
   BacktestResponse,
   RebalanceFrequency,
   DisplayGranularity,
+  DisplayCurrency,
   PortfolioHolding,
   BacktestWarning,
   Fund,
 } from "@/lib/types";
+import { DISPLAY_CURRENCY_OPTIONS, currencyUnitLabel, displayCurrencyName } from "@/lib/display-currency";
+import { setDisplayCurrency as setFormatterCurrency } from "@/lib/formatters";
 import { getAllBenchmarks } from "@/lib/benchmarks";
 import { getFundById } from "@/lib/fund-database";
 import { getAllPresets } from "@/lib/portfolio-presets";
@@ -268,6 +271,10 @@ export default function Home() {
   const bEffectiveMonthly = bUsesOwnParams ? bMonthlyContribution : monthlyContribution;
   const [displayGranularity, setDisplayGranularity] =
     useState<DisplayGranularity>("monthly");
+  // Divisa/unidad de los resultados: cada activo se convierte con el tipo de
+  // cambio de cada día (EUR por defecto; "XAU" mide todo en onzas de oro).
+  const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>("EUR");
+  const currencyUnit = currencyUnitLabel(displayCurrency);
   const [useCommonDateRange, setUseCommonDateRange] = useState(true);
   // Benchmark: puede ser un id predefinido ("bm:msci-world"), un preset
   // ("preset:k-inbestme-6"), o un fondo a medida vía buscador.
@@ -411,6 +418,7 @@ export default function Home() {
         // como fallback para el benchmark.
         rebalanceFrequency: "annual",
         displayGranularity,
+        displayCurrency,
         useCommonDateRange,
         contributionRebalance: monthlyContribution > 0 ? contributionRebalance : undefined,
       };
@@ -510,6 +518,8 @@ export default function Home() {
         throw new Error(data.message || data.error || "Error al ejecutar el backtest");
       }
 
+      // Las cifras (formatEUR) se etiquetan con la divisa que usó el motor.
+      setFormatterCurrency((data as BacktestResponse)?.config?.displayCurrency);
       setResults(data);
 
       // Guardar las carteras ejecutadas en localStorage para que /kray pueda
@@ -763,7 +773,7 @@ export default function Home() {
                     className="w-full px-3 py-2 pr-12 text-sm sm:text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral transition-colors"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-tertiary text-xs sm:text-sm">
-                    EUR
+                    {currencyUnit}
                   </span>
                 </div>
               </div>
@@ -783,7 +793,7 @@ export default function Home() {
                     className="w-full px-3 py-2 pr-12 text-sm sm:text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-coral/30 focus:border-brand-coral transition-colors"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-tertiary text-xs sm:text-sm">
-                    EUR
+                    {currencyUnit}
                   </span>
                 </div>
                 {/* Toggle: rebalanceo con aportaciones */}
@@ -959,6 +969,36 @@ export default function Home() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Divisa de los resultados */}
+            <div className="mt-4 sm:mt-6">
+              <label className="block text-sm font-medium text-brand-navy mb-2 sm:mb-3">
+                Divisa de los resultados
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {DISPLAY_CURRENCY_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    title={option.title}
+                    onClick={() => setDisplayCurrency(option.value)}
+                    className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-all ${
+                      displayCurrency === option.value
+                        ? "bg-brand-coral text-white shadow-md"
+                        : "bg-slate-100 text-brand-secondary hover:bg-slate-200"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-brand-tertiary mt-2">
+                {displayCurrency === "native"
+                  ? "Cada activo en su divisa de cotización, sin convertir: mezclar divisas distorsiona el resultado."
+                  : displayCurrency === "XAU"
+                    ? "Todos los activos medidos en onzas de oro con el precio spot de cada día: el oro como unidad de cuenta."
+                    : `Cada activo se convierte a ${displayCurrencyName(displayCurrency)} con el tipo de cambio de cada día, como hace un fondo al calcular su valor liquidativo.`}
+              </p>
             </div>
 
             {/* Opción de fecha común */}
@@ -1317,7 +1357,8 @@ export default function Home() {
                     Periodo analizado: <strong className="text-brand-secondary">{formatDateForDisplay(results.effectiveDateRange.startDate)}</strong> — <strong className="text-brand-secondary">{formatDateForDisplay(results.effectiveDateRange.endDate)}</strong>
                   </span>
                   <span>
-                    Último dato: {formatDateForDisplay(results.effectiveDateRange.endDate)}
+                    Cifras en <strong className="text-brand-secondary">{displayCurrencyName(results.config?.displayCurrency)}</strong>
+                    {" · "}Último dato: {formatDateForDisplay(results.effectiveDateRange.endDate)}
                   </span>
                 </div>
               )}

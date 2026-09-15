@@ -235,7 +235,7 @@ const INDEXED_FUNDS: Fund[] = [
     ter: 0.10,
     category: "RF EUR Gov Corto",
     type: "index",
-    currency: "USD",
+    currency: "EUR", // divisa de la COTIZACIÓN descargada (auditoría EODHD sep-2026)
     terSource: "curated",
     terConfirmed: true,
   },
@@ -1040,7 +1040,7 @@ const INDEXED_FUNDS: Fund[] = [
     ter: 0,
     category: "RV Europa",
     type: "index",
-    currency: "GBP",
+    currency: "GBX", // divisa de la COTIZACIÓN descargada (auditoría EODHD sep-2026)
     distributing: true,
     terSource: "curated",
     terConfirmed: true,
@@ -2288,7 +2288,7 @@ const PABLO_FUNDS: Fund[] = [
     ter: 0.3,
     category: "RV Global",
     type: "index",
-    currency: "USD",
+    currency: "EUR", // divisa de la COTIZACIÓN descargada (auditoría EODHD sep-2026)
     terSource: "curated",
   },
   {
@@ -2312,7 +2312,7 @@ const PABLO_FUNDS: Fund[] = [
     ter: 0.20,
     category: "RV Emergentes",
     type: "index",
-    currency: "USD",
+    currency: "EUR", // divisa de la COTIZACIÓN descargada (auditoría EODHD sep-2026)
     terSource: "curated",
   },
   {
@@ -2349,7 +2349,7 @@ const PABLO_FUNDS: Fund[] = [
     ter: 0.20,
     category: "RV EEUU",
     type: "index",
-    currency: "USD",
+    currency: "EUR", // divisa de la COTIZACIÓN descargada (auditoría EODHD sep-2026)
     terSource: "curated",
   },
   {
@@ -2373,7 +2373,7 @@ const PABLO_FUNDS: Fund[] = [
     ter: 0.75,
     category: "Alternativo",
     type: "index",
-    currency: "USD",
+    currency: "EUR", // divisa de la COTIZACIÓN descargada (auditoría EODHD sep-2026)
     terSource: "estimated",
   },
   // --- Fondos UCITS (.EUFUND) ---
@@ -2420,7 +2420,7 @@ const PABLO_FUNDS: Fund[] = [
     ter: 1.05,
     category: "RF Flexible",
     type: "active",
-    currency: "USD",
+    currency: "EUR", // divisa de la COTIZACIÓN descargada (auditoría EODHD sep-2026)
     terSource: "estimated",
   },
   {
@@ -2621,7 +2621,7 @@ const PABLO_CASTRO_FUNDS: Fund[] = [
     ter: 0.17,
     category: "RV Global",
     type: "index",
-    currency: "USD",
+    currency: "EUR", // divisa de la COTIZACIÓN descargada (auditoría EODHD sep-2026)
     terSource: "curated",
   },
   {

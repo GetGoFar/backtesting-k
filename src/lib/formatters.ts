@@ -4,15 +4,36 @@
 // Formato español: punto para miles, coma para decimales
 // Ejemplo: 1.234.567,89 €
 
+import type { DisplayCurrency } from "./types";
+
+// Divisa/unidad en la que se muestran las cifras monetarias. La fija la página
+// al recibir los resultados (config.displayCurrency). Estado de módulo: vale
+// para toda la pestaña, que solo muestra un backtest a la vez. "native" y
+// undefined conservan el € histórico (símbolo meramente indicativo).
+let displayCurrency: DisplayCurrency = "EUR";
+
+export function setDisplayCurrency(c: DisplayCurrency | undefined): void {
+  displayCurrency = c ?? "EUR";
+}
+
+export function getDisplayCurrency(): DisplayCurrency {
+  return displayCurrency;
+}
+
 /**
- * Formatea un número como moneda EUR en formato español
+ * Formatea una cifra monetaria en la divisa de visualización activa, formato
+ * español (históricamente siempre EUR, de ahí el nombre). En oro: "12,5 oz".
  * @param value - Valor a formatear
  * @param decimals - Número de decimales (default: 0)
  */
 export function formatEUR(value: number, decimals = 0): string {
+  if (displayCurrency === "XAU") {
+    return `${formatNumber(value, decimals)} oz`;
+  }
+  const iso = displayCurrency === "native" ? "EUR" : displayCurrency;
   return new Intl.NumberFormat("es-ES", {
     style: "currency",
-    currency: "EUR",
+    currency: iso,
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   }).format(value);

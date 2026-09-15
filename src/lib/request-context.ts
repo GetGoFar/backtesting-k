@@ -17,10 +17,16 @@
 // =============================================================================
 
 import { AsyncLocalStorage } from "async_hooks";
+import type { DisplayCurrency } from "./types";
+import type { FxConversionNote } from "./fx-convert";
 
 export interface RequestContext {
   /** Fuente de precios. Sólo EODHD; el campo se mantiene por compat. */
   dataSource?: "eodhd";
+  /** Divisa/unidad en la que se convierten los precios (default "native"). */
+  displayCurrency?: DisplayCurrency;
+  /** Conversiones realizadas durante el request (la ruta las vuelca en avisos). */
+  fxNotes?: FxConversionNote[];
 }
 
 const storage = new AsyncLocalStorage<RequestContext>();
