@@ -508,6 +508,164 @@ const INDEXED_FUNDS: Fund[] = [
     terSource: "curated",
     terConfirmed: true,
   },
+  // ---------------------------------------------------------------------------
+  // Pares de divisas (FOREX) — tipo de cambio spot de EODHD (<PAR>.FOREX).
+  // NO son activos cotizados en la moneda del final: la serie ES el tipo de
+  // cambio y se usa tal cual, sin convertir a EUR (su rentabilidad es la
+  // variación del par). `currency` es la divisa cotizada (EURUSD → USD).
+  // TER 0 (índice, no producto). El data-fetcher descarta las filas de fin de
+  // semana que EODHD publica para los pares (ver lib/forex.ts).
+  // ---------------------------------------------------------------------------
+  {
+    id: "fx-eurusd",
+    name: "Euro / Dólar (EURUSD)",
+    shortName: "EUR/USD",
+    isin: "EURUSD",
+    ticker: "EURUSD.FOREX",
+    ter: 0,
+    category: "Divisas",
+    type: "index",
+    currency: "USD",
+    distributing: true,
+    terSource: "curated",
+    terConfirmed: true,
+    keywords: ["EUR USD", "EUR/USD", "forex", "fx", "tipo de cambio"],
+  },
+  {
+    id: "fx-gbpusd",
+    name: "Libra / Dólar (GBPUSD)",
+    shortName: "GBP/USD",
+    isin: "GBPUSD",
+    ticker: "GBPUSD.FOREX",
+    ter: 0,
+    category: "Divisas",
+    type: "index",
+    currency: "USD",
+    distributing: true,
+    terSource: "curated",
+    terConfirmed: true,
+    keywords: ["GBP USD", "GBP/USD", "forex", "fx", "tipo de cambio"],
+  },
+  {
+    id: "fx-usdjpy",
+    name: "Dólar / Yen (USDJPY)",
+    shortName: "USD/JPY",
+    isin: "USDJPY",
+    ticker: "USDJPY.FOREX",
+    ter: 0,
+    category: "Divisas",
+    type: "index",
+    currency: "JPY",
+    distributing: true,
+    terSource: "curated",
+    terConfirmed: true,
+    keywords: ["USD JPY", "USD/JPY", "forex", "fx", "tipo de cambio"],
+  },
+  {
+    id: "fx-usdchf",
+    name: "Dólar / Franco suizo (USDCHF)",
+    shortName: "USD/CHF",
+    isin: "USDCHF",
+    ticker: "USDCHF.FOREX",
+    ter: 0,
+    category: "Divisas",
+    type: "index",
+    currency: "CHF",
+    distributing: true,
+    terSource: "curated",
+    terConfirmed: true,
+    keywords: ["USD CHF", "USD/CHF", "forex", "fx", "tipo de cambio"],
+  },
+  {
+    id: "fx-eurgbp",
+    name: "Euro / Libra (EURGBP)",
+    shortName: "EUR/GBP",
+    isin: "EURGBP",
+    ticker: "EURGBP.FOREX",
+    ter: 0,
+    category: "Divisas",
+    type: "index",
+    currency: "GBP",
+    distributing: true,
+    terSource: "curated",
+    terConfirmed: true,
+    keywords: ["EUR GBP", "EUR/GBP", "forex", "fx", "tipo de cambio"],
+  },
+  {
+    id: "fx-eurjpy",
+    name: "Euro / Yen (EURJPY)",
+    shortName: "EUR/JPY",
+    isin: "EURJPY",
+    ticker: "EURJPY.FOREX",
+    ter: 0,
+    category: "Divisas",
+    type: "index",
+    currency: "JPY",
+    distributing: true,
+    terSource: "curated",
+    terConfirmed: true,
+    keywords: ["EUR JPY", "EUR/JPY", "forex", "fx", "tipo de cambio"],
+  },
+  {
+    id: "fx-eurchf",
+    name: "Euro / Franco suizo (EURCHF)",
+    shortName: "EUR/CHF",
+    isin: "EURCHF",
+    ticker: "EURCHF.FOREX",
+    ter: 0,
+    category: "Divisas",
+    type: "index",
+    currency: "CHF",
+    distributing: true,
+    terSource: "curated",
+    terConfirmed: true,
+    keywords: ["EUR CHF", "EUR/CHF", "forex", "fx", "tipo de cambio"],
+  },
+  {
+    id: "fx-audusd",
+    name: "Dólar australiano / Dólar (AUDUSD)",
+    shortName: "AUD/USD",
+    isin: "AUDUSD",
+    ticker: "AUDUSD.FOREX",
+    ter: 0,
+    category: "Divisas",
+    type: "index",
+    currency: "USD",
+    distributing: true,
+    terSource: "curated",
+    terConfirmed: true,
+    keywords: ["AUD USD", "AUD/USD", "forex", "fx", "tipo de cambio"],
+  },
+  {
+    id: "fx-usdcad",
+    name: "Dólar / Dólar canadiense (USDCAD)",
+    shortName: "USD/CAD",
+    isin: "USDCAD",
+    ticker: "USDCAD.FOREX",
+    ter: 0,
+    category: "Divisas",
+    type: "index",
+    currency: "CAD",
+    distributing: true,
+    terSource: "curated",
+    terConfirmed: true,
+    keywords: ["USD CAD", "USD/CAD", "forex", "fx", "tipo de cambio"],
+  },
+  {
+    id: "fx-nzdusd",
+    name: "Dólar neozelandés / Dólar (NZDUSD)",
+    shortName: "NZD/USD",
+    isin: "NZDUSD",
+    ticker: "NZDUSD.FOREX",
+    ter: 0,
+    category: "Divisas",
+    type: "index",
+    currency: "USD",
+    distributing: true,
+    terSource: "curated",
+    terConfirmed: true,
+    keywords: ["NZD USD", "NZD/USD", "forex", "fx", "tipo de cambio"],
+  },
   {
     id: "vanguard-vustx",
     name: "Vanguard Long-Term Treasury Investor",
@@ -3247,22 +3405,58 @@ export function registrarFondoAdHoc(isin: string, name: string): Fund {
 }
 
 /**
+ * ¿Coincide el fondo con la búsqueda? Mira nombre, nombre corto, ISIN,
+ * categoría, banco, ticker y `keywords`. La consulta completa se busca como
+ * subcadena y, si no aparece, se acepta cuando TODAS sus palabras aparecen
+ * por separado ("EUR USD" encuentra "Euro / Dólar (EURUSD)").
+ */
+export function fundMatchesQuery(
+  fund: Fund,
+  query: string,
+  allowTokens: boolean = true
+): boolean {
+  const q = query.toLowerCase().trim();
+  if (q === "") return true;
+  const haystack = [
+    fund.name,
+    fund.shortName,
+    fund.isin,
+    fund.category,
+    fund.bank ?? "",
+    fund.ticker ?? "",
+    ...(fund.keywords ?? []),
+  ]
+    .join(" ")
+    .toLowerCase();
+  if (haystack.includes(q)) return true;
+  if (!allowTokens) return false;
+  const tokens = q.split(/\s+/).filter((t) => t.length > 0);
+  return tokens.length > 1 && tokens.every((t) => haystack.includes(t));
+}
+
+/**
+ * Filtra `funds` por la consulta y ordena: primero los que contienen la
+ * consulta completa, después los que solo coinciden palabra a palabra.
+ * ("EUR USD" → EUR/USD antes que los bonos USD cubiertos a EUR.)
+ */
+export function filterFundsByQuery(funds: Fund[], query: string): Fund[] {
+  if (!query || query.trim() === "") return funds;
+  const strong = funds.filter((fund) => fundMatchesQuery(fund, query, false));
+  const strongIds = new Set(strong.map((fund) => fund.id));
+  const weak = funds.filter(
+    (fund) => !strongIds.has(fund.id) && fundMatchesQuery(fund, query, true)
+  );
+  return [...strong, ...weak];
+}
+
+/**
  * Obtiene la lista de fondos, opcionalmente filtrada por query de búsqueda
  */
 export function searchFunds(query?: string): Fund[] {
   if (!query || query.trim() === "") {
     return ALL_FUNDS;
   }
-
-  const lowerQuery = query.toLowerCase().trim();
-  return ALL_FUNDS.filter(
-    (fund) =>
-      fund.name.toLowerCase().includes(lowerQuery) ||
-      fund.shortName.toLowerCase().includes(lowerQuery) ||
-      fund.isin.toLowerCase().includes(lowerQuery) ||
-      fund.category.toLowerCase().includes(lowerQuery) ||
-      fund.bank?.toLowerCase().includes(lowerQuery)
-  );
+  return filterFundsByQuery(ALL_FUNDS, query);
 }
 
 /**

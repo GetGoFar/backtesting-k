@@ -5,7 +5,7 @@
 // Acepta fondos locales (por fundId) y fondos externos (por ticker + isin).
 
 import { NextRequest, NextResponse } from "next/server";
-import { getDailyPrices } from "@/lib/data-fetcher";
+import { getDailyPrices, NoPriceDataError } from "@/lib/data-fetcher";
 import { runWithContext } from "@/lib/request-context";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -38,6 +38,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         months: uniqueMonths.size,
       });
     } catch (error) {
+      // Sin serie en el proveedor (ticker inexistente, p.ej. ZZZQQQ.FOREX):
+      // 404 con rango vacío, no un 500 ni el rango de otro activo.
+      if (error instanceof NoPriceDataError) {
+        return NextResponse.json(
+          { error: error.message, firstDate: null, lastDate: null, months: 0 },
+          { status: 404 }
+        );
+      }
       console.error("[API /data-range] Error:", error);
       const msg = error instanceof Error ? error.message : "Error desconocido";
       return NextResponse.json({ error: msg }, { status: 500 });

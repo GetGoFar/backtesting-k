@@ -48,6 +48,7 @@ const RECOMMENDED_BY_CATEGORY: Record<FundCategory, string> = {
   "RF USD Corp": "indexa-us-corp-hedged",
   "RF Flexible": "vanguard-global",     // sin equivalente directo
   "Oro": "ishares-gold",
+  "Divisas": "vanguard-global",         // un tipo de cambio no tiene equivalente indexado
   "Alternativo": "vanguard-global",     // sin equivalente directo
   "Momentum": "vanguard-global",        // estrategia momentum: el "equivalente" pasivo es indexar global
 };

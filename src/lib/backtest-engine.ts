@@ -2294,6 +2294,7 @@ function calculatePortfolioAllocation(holdings: PortfolioHolding[]): PortfolioAl
   const familyOf = (category: string | undefined): string => {
     if (!category) return "Otros"; // p.ej. estrategias de momentum (sin categoría)
     if (category === "Oro") return "Oro";
+    if (category === "Divisas") return "Divisas";
     if (category === "Alternativo") return "Alternativos";
     if (category.startsWith("RV")) return "Renta Variable";
     if (category.startsWith("RF")) return "Renta Fija";

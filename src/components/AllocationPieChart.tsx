@@ -24,6 +24,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Renta Variable": "#1d4ed8",
   "Renta Fija": "#64748b",
   "Oro": "#eab308",
+  "Divisas": "#0d9488",
   "Alternativos": "#a855f7",
   // Tipo gestión
   "Indexada": "#1d4ed8",

@@ -18,6 +18,8 @@ interface ExternalSearchResult {
   currency?: string;
   /** Marca si es una acción individual (sin TER, divisa puede ser USD) */
   isStock?: boolean;
+  /** Marca si es un par de divisas (tipo de cambio; sin TER ni ISIN) */
+  isCurrency?: boolean;
 }
 
 interface FundSearchProps {
@@ -110,10 +112,50 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
 
   const handleSelectExternal = (result: ExternalSearchResult) => {
     const isStock = !!result.isStock || result.type === "STOCK";
-    const hasTer = !isStock && result.ter != null && result.ter > 0;
+    const isCurrency = !!result.isCurrency || result.type === "CURRENCY";
+    const hasTer = !isStock && !isCurrency && result.ter != null && result.ter > 0;
     // Usar ISIN real de Morningstar si está disponible, si no el símbolo
     const realIsin = result.isin && /^[A-Z]{2}[A-Z0-9]{10}$/.test(result.isin) ? result.isin : null;
     const currency = (result.currency || "EUR").toUpperCase();
+    if (isCurrency) {
+      // Par de divisas: la serie ES el tipo de cambio. Se usa tal cual, sin
+      // convertir a EUR; su rentabilidad es la variación del par.
+      const code = result.symbol.replace(/\.FOREX$/i, "").toUpperCase();
+      const isMetal = result.typeDisplay === "Metal spot";
+      const ok = window.confirm(
+        isMetal
+          ? `"${result.shortName}" es el precio spot del metal en ${currency}.\n\n` +
+            `Los precios se mantienen en ${currency}, sin convertir a EUR ` +
+            `(igual que el oro spot preconfigurado).\n\n¿Continuar añadiéndolo?`
+          : `"${result.shortName}" es un tipo de cambio, no un fondo.\n\n` +
+            `Su rentabilidad en el backtest será la variación del par ` +
+            `(${code.slice(0, 3)} frente a ${code.slice(3, 6)}); no se convierte a EUR.\n\n` +
+            `¿Continuar añadiéndolo?`
+      );
+      if (!ok) return;
+      onSelect({
+        id: `eodhd-${result.symbol.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
+        name: result.name,
+        shortName: result.shortName,
+        isin: code,
+        ticker: result.symbol,
+        ter: 0,
+        category: isMetal ? (code.startsWith("XAU") ? "Oro" : "Alternativo") : "Divisas",
+        type: "index",
+        currency,
+        distributing: true,
+        terSource: "curated",
+        terConfirmed: true,
+        keywords: isMetal
+          ? ["spot", "metal"]
+          : [`${code.slice(0, 3)} ${code.slice(3, 6)}`, "forex", "fx", "tipo de cambio"],
+      });
+      setQuery("");
+      setLocalResults([]);
+      setExternalResults([]);
+      setIsOpen(false);
+      return;
+    }
     // Para acciones americanas (USD) avisamos al usuario una sola vez antes de
     // añadirlas. No convertimos a EUR: los precios se mantienen en USD y el
     // backtest los trata numéricamente (el "€" del UI será solo simbólico).
@@ -244,8 +286,12 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
               <ul>
                 {externalResults.map((result) => {
                   const isStock = result.isStock || result.type === "STOCK";
+                  const isCurrency = !!result.isCurrency || result.type === "CURRENCY";
                   const currency = (result.currency || "EUR").toUpperCase();
-                  const isForeignCurrency = currency !== "EUR";
+                  // Un par de divisas no "cotiza en otra moneda": es el tipo de
+                  // cambio en sí, así que no lleva el aviso ⚠ ni línea de TER.
+                  const isForeignCurrency = currency !== "EUR" && !isCurrency;
+                  const noTer = isStock || isCurrency;
                   return (
                   <li
                     key={result.symbol}
@@ -258,7 +304,7 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
                           ? "bg-purple-100 text-purple-700"
                           : "bg-indigo-100 text-indigo-700"
                       }`}>
-                        {isStock ? "Acción" : result.type}
+                        {isStock ? "Acción" : isCurrency ? result.typeDisplay || "Divisa" : result.type}
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm text-slate-900">
@@ -283,20 +329,20 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
                               </span>
                             </>
                           )}
-                          {!isForeignCurrency && result.typeDisplay && !isStock && (
+                          {!isForeignCurrency && result.typeDisplay && !noTer && (
                             <>
                               <span className="text-slate-300">•</span>
                               <span>{result.typeDisplay}</span>
                             </>
                           )}
                           {/* TER solo para fondos/ETFs, no para acciones */}
-                          {!isStock && result.ter != null && (
+                          {!noTer && result.ter != null && (
                             <>
                               <span className="text-slate-300">•</span>
                               <span className="text-emerald-600 font-medium">TER: {result.ter}%</span>
                             </>
                           )}
-                          {!isStock && result.ter == null && (
+                          {!noTer && result.ter == null && (
                             <>
                               <span className="text-slate-300">•</span>
                               <span className="text-amber-500">TER: ~0.2% (est.)</span>

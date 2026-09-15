@@ -16,7 +16,17 @@ import { getFundById } from "./fund-database";
 import { getCachedPrices, setCachedPrices } from "./kv-cache";
 import { validatePriceData, cleanPriceData } from "./data-validator";
 import { getProvider } from "./providers";
+import { isCurrencyPairTicker, dropWeekendRows } from "./forex";
 import type { DailyPrice, MonthlyPrice } from "./types";
+
+/** El proveedor (y el CSV) no tienen ninguna serie para este activo. Las rutas
+ *  lo distinguen de un fallo técnico: es un 404, no un 500. */
+export class NoPriceDataError extends Error {
+  constructor(fundId: string, name?: string) {
+    super(`No hay datos disponibles para: ${fundId}${name ? ` (${name})` : ""}`);
+    this.name = "NoPriceDataError";
+  }
+}
 
 // Ruta al CSV de fondos españoles
 const SPANISH_FUNDS_CSV = join(process.cwd(), "src", "data", "spanish-funds.csv");
@@ -73,7 +83,15 @@ export async function getDailyPrices(
   // Cache key (segmentado por fuente — sólo EODHD ahora, pero mantenemos
   // el prefijo "::eodhd" para que no colisione con entradas viejas en cache
   // que se generaron con Yahoo cuando el toggle existía).
-  const cacheKey = `${fundId}::eodhd`;
+  //
+  // Para un fondo que NO está en la BD, el id no identifica la serie (varias
+  // llamadas pueden compartir "dynamic-fund" con tickers distintos), así que
+  // la clave lleva también ticker e ISIN. Antes, la primera serie cacheada
+  // bajo "dynamic-fund" se servía para CUALQUIER ticker posterior, existiera
+  // o no (/api/data-range devolvía el rango del oro para ZZZQQQ.FOREX).
+  const cacheKey = fund
+    ? `${fundId}::eodhd`
+    : `${fundId}::${ticker ?? ""}::${effectiveIsin ?? ""}::eodhd`;
 
   // 1. Intentar cache (memoria -> Redis)
   const cached = await getCachedPrices(cacheKey);
@@ -100,6 +118,15 @@ export async function getDailyPrices(
     distributing: isDistributing,
   });
 
+  // Pares de divisas: EODHD publica filas de sábado/domingo (apertura asiática)
+  // que no son sesiones bursátiles. Se descartan ANTES de validar y cachear.
+  // Solo pares (EURUSD.FOREX…); los metales spot (XAUUSD.FOREX) no se tocan.
+  if (prices.length > 0 && isCurrencyPairTicker(ticker)) {
+    const before = prices.length;
+    prices = dropWeekendRows(prices);
+    console.log(`[DataFetcher] ${ticker}: descartadas ${before - prices.length} filas de fin de semana`);
+  }
+
   // CSV de fondos bancarios españoles — última red de seguridad SOLO para
   // fondos que no existen en ninguna API online (EODHD no tiene los .EUFUND
   // de banca, requieren add-on premium).
@@ -113,8 +140,7 @@ export async function getDailyPrices(
   }
 
   if (prices.length === 0) {
-    const name = fund?.name || fundId;
-    throw new Error(`No hay datos disponibles para: ${fundId} (${name})`);
+    throw new NoPriceDataError(fundId, fund?.name);
   }
 
   // 4. Validar y limpiar datos
