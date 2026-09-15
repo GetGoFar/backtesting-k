@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
+import { logAxisTicks } from "@/lib/log-ticks";
 import type { BacktestResponse, BacktestResult, RebalanceEvent } from "@/lib/types";
 import type { ValueMode } from "./MetricsTable";
 import { computeTaxOnGain, type TaxMode } from "@/lib/tax-utils";
@@ -557,6 +558,9 @@ export function PerformanceChart({ results, isLoading, valueMode = "camino" }: P
               axisLine={{ stroke: "#e2e8f0" }}
               tickLine={{ stroke: "#e2e8f0" }}
               scale={yScale}
+              // En log, marcas propias: las de d3 dejan el eje sin marcas por encima
+              // de 10.000 cuando la serie abarca menos de una década (ver lib/log-ticks).
+              ticks={yScale === "log" ? logAxisTicks(Math.max(1, minValue * 0.9), maxValue * 1.1) : undefined}
               domain={
                 yScale === "log"
                   ? [

@@ -15,6 +15,7 @@ import {
   Tooltip as RechartsTooltip,
   Legend,
 } from "recharts";
+import { logAxisTicks } from "@/lib/log-ticks";
 import { formatEUR, formatPct, formatNumber } from "@/lib/formatters";
 import type { MomentumResponse, MomentumRebalance } from "@/lib/momentum-types";
 import { AnnualReturnsHeatmap, type HeatmapColumn } from "./AnnualReturnsHeatmap";
@@ -443,6 +444,9 @@ export function MomentumResultsView({ results, idSuffix = "" }: Props) {
                 tickFormatter={(v) => formatEUR(v as number)}
                 width={70}
                 scale={yScale}
+                // En log, marcas propias: las de d3 dejan el eje sin marcas por encima
+                // de 10.000 cuando la serie abarca menos de una década (ver lib/log-ticks).
+                ticks={yScale === "log" ? logAxisTicks(Math.max(1, minValue * 0.9), maxValue * 1.1) : undefined}
                 domain={
                   yScale === "log"
                     ? [Math.max(1, minValue * 0.9), maxValue * 1.1]
