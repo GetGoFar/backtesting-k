@@ -98,66 +98,68 @@ export function KrayResultsView({ results }: Props) {
       {/* Fundamentales de EODHD (beta): TER, duración y TIR de la RF, valoración de la bolsa, ficha por ETF */}
       {results.fundamentales && <KrayFundamentales datos={results.fundamentales} />}
 
-      {/* Asset class */}
-      {results.byAssetClass.length > 0 && (
-        <SliceSection
-          id="section-asset-class"
-          title="Por clase de activo"
-          description="Cuánto de la cartera es RV (equity), RF (bond), efectivo y otros — agregando lo que cada fondo lleva por dentro."
-          slices={results.byAssetClass}
-          coverage={coveredPct}
-        />
-      )}
+      {/* Composición: cuatro anillos, dos por fila */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {results.byAssetClass.length > 0 && (
+          <SliceSection
+            id="section-asset-class"
+            title="Clase de activo"
+            description="Bolsa, renta fija, efectivo, materias primas… sumando lo que cada fondo lleva por dentro."
+            slices={results.byAssetClass}
+            coverage={coveredPct}
+            limit={6}
+          />
+        )}
+        {results.bySector.length > 0 && (
+          <SliceSection
+            id="section-sectors"
+            title="Sectores"
+            description="Exposición real a tecnología, salud, energía… ponderando todos los fondos."
+            slices={results.bySector}
+            coverage={coveredPct}
+          />
+        )}
+        {results.byRegion.length > 0 && (
+          <SliceSection
+            id="section-regions"
+            title="Regiones"
+            description="Dónde está invertida la cartera: Norteamérica, Europa, emergentes…"
+            slices={results.byRegion}
+            coverage={coveredPct}
+          />
+        )}
+        {results.byCountry.length > 0 && (
+          <SliceSection
+            id="section-countries"
+            title="Países"
+            description="Concentración por país. En una cartera global, Estados Unidos suele pesar mucho."
+            slices={results.byCountry}
+            coverage={coveredPct}
+            limit={9}
+          />
+        )}
+      </div>
 
-      {/* Sectores */}
-      {results.bySector.length > 0 && (
-        <SliceSection
-          id="section-sectors"
-          title="Composición sectorial"
-          description="Suma ponderada de los sectores que llevan TODOS los fondos por dentro. Útil para ver tu exposición real a Tech, Salud, Energía, etc."
-          slices={results.bySector}
-          coverage={coveredPct}
-        />
-      )}
-
-      {/* Regiones */}
-      {results.byRegion.length > 0 && (
-        <SliceSection
-          id="section-regions"
-          title="Composición por región"
-          description="Continente / región del mundo donde está expuesta la cartera (US, Europa Desarrollada, Emergentes Asia, etc.)."
-          slices={results.byRegion}
-          coverage={coveredPct}
-        />
-      )}
-
-      {/* Países */}
-      {results.byCountry.length > 0 && (
-        <SliceSection
-          id="section-countries"
-          title="Composición por país"
-          description="Países individuales. La mayoría de carteras globales tienen un peso enorme en US — útil para detectar concentración por país."
-          slices={results.byCountry}
-          coverage={coveredPct}
-          limit={15}
-        />
-      )}
-
-      {/* Top 10 holdings */}
+      {/* Top 10 posiciones: anillo (qué parte de la cartera son) + tabla */}
       {results.topHoldings.length > 0 && (
         <section
           id="section-top-holdings"
           className="scroll-mt-24 bg-white rounded-2xl border border-slate-100 shadow-sm p-6"
         >
-          <h3 className="text-lg font-semibold text-brand-navy font-serif mb-1">
-            Top 10 posiciones agregadas
-          </h3>
+          <div className="flex items-baseline justify-between gap-3 mb-1">
+            <h3 className="text-lg font-semibold text-brand-navy font-serif">Top 10 posiciones</h3>
+            <span className="text-xs text-brand-tertiary">
+              {pct(results.topHoldings.reduce((sum, h) => sum + h.totalWeight, 0), 1)} de la cartera
+            </span>
+          </div>
           <p className="text-xs text-brand-tertiary mb-4">
-            Las 10 acciones / activos con MAYOR peso en tu cartera, sumando
-            su aportación en cada fondo. Si ves Apple aquí con 4%, eso significa
-            que entre todos los fondos que la llevan, te expones a Apple un 4% del total.
+            Las diez empresas o activos con más peso real, sumando lo que aportan desde cada fondo.
+            Solo se conocen las diez mayores posiciones de cada fondo, así que es el suelo de la exposición, no el techo.
           </p>
-          <HoldingsTable holdings={results.topHoldings} />
+          <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6 items-start">
+            <HoldingsDonut holdings={results.topHoldings} />
+            <HoldingsTable holdings={results.topHoldings} />
+          </div>
         </section>
       )}
 
@@ -257,7 +259,8 @@ function SliceSection({
   coverage: number;
   limit?: number;
 }) {
-  // Quesito: las `limit` categorías mayores con su color y el resto agrupado en "Otros".
+  // Tarjeta de media fila: anillo a la izquierda, leyenda compacta a la derecha. Las `limit` categorías
+  // mayores con color propio; el resto, agrupado en "Otros".
   const positivas = slices.filter((x) => x.weight > 0);
   const visible = positivas.slice(0, limit);
   const rest = positivas.slice(limit);
@@ -270,17 +273,18 @@ function SliceSection({
   return (
     <section
       id={id}
-      className="scroll-mt-24 bg-white rounded-2xl border border-slate-100 shadow-sm p-6"
+      className="scroll-mt-24 bg-white rounded-2xl border border-slate-100 shadow-sm p-5 sm:p-6 flex flex-col"
     >
-      <h3 className="text-lg font-semibold text-brand-navy font-serif mb-1">
-        {title}
-      </h3>
-      <p className="text-xs text-brand-tertiary mb-4">{description}</p>
-      <div className="grid grid-cols-1 sm:grid-cols-[260px_1fr] gap-6 items-center">
-        <div className="h-60 relative">
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-base font-semibold text-brand-navy font-serif">{title}</h3>
+        <span className="text-[10px] uppercase tracking-wider text-brand-tertiary whitespace-nowrap">{positivas.length} categorías</span>
+      </div>
+      <p className="text-[11px] text-brand-tertiary mt-0.5 mb-3 leading-snug">{description}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-[190px_1fr] gap-4 items-center flex-1">
+        <div className="h-48 relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={105} innerRadius={62} paddingAngle={1.5} stroke="#fff" strokeWidth={2} isAnimationActive={false}>
+              <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={88} innerRadius={56} paddingAngle={1.5} stroke="#fff" strokeWidth={2} isAnimationActive={false}>
                 {data.map((d) => (
                   <Cell key={d.name} fill={d.color} />
                 ))}
@@ -292,34 +296,60 @@ function SliceSection({
             </PieChart>
           </ResponsiveContainer>
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-2xl font-semibold font-serif text-brand-navy">{pct(total, 0)}</span>
-            <span className="text-[10px] uppercase tracking-wider text-brand-tertiary">de la cartera</span>
+            <span className="text-xl font-semibold font-serif text-brand-navy leading-none">{pct(total, 0)}</span>
+            <span className="text-[9px] uppercase tracking-wider text-brand-tertiary mt-1">cubierto</span>
           </div>
         </div>
-        <div className="space-y-1.5">
+        <div className="min-w-0">
           {data.map((d) => (
-            <div key={d.name} className="flex items-center gap-3 py-1 border-b border-slate-50 last:border-b-0">
-              <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
-              <span className="text-sm font-medium text-brand-navy flex-1 truncate">{d.name}</span>
-              {d.fondos > 0 && (
-                <span className="text-[10px] text-brand-tertiary hidden sm:inline">{d.fondos} fondo{d.fondos === 1 ? "" : "s"}</span>
-              )}
-              <span className="text-sm font-mono font-semibold text-brand-navy w-20 text-right">{pct(d.value, 2)}</span>
+            <div key={d.name} className="flex items-center gap-2.5 py-1 border-b border-slate-50 last:border-b-0">
+              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
+              <span className="text-xs font-medium text-brand-navy flex-1 truncate" title={d.name}>{d.name}</span>
+              <span className="text-xs font-mono font-semibold text-brand-navy w-16 text-right">{pct(d.value, 1)}</span>
               {showAdjusted && (
-                <span className="text-[10px] font-mono text-brand-tertiary w-14 text-right hidden sm:inline" title="Ajustado al peso cubierto por datos">
-                  {pct((d.value / coverage) * 100, 1)}
+                <span className="text-[10px] font-mono text-brand-tertiary w-12 text-right hidden md:inline" title="Sobre la parte de la cartera con datos">
+                  {pct((d.value / coverage) * 100, 0)}
                 </span>
               )}
             </div>
           ))}
           {showAdjusted && (
-            <p className="text-[10px] text-brand-tertiary italic pt-1">
-              La segunda cifra reparte el {pct(coverage, 0)} de la cartera con datos como si fuera el 100 %.
+            <p className="text-[10px] text-brand-tertiary italic pt-1.5 hidden md:block">
+              Segunda cifra: reparto del {pct(coverage, 0)} con datos como si fuera el total.
             </p>
           )}
         </div>
       </div>
     </section>
+  );
+}
+
+/** Anillo del top 10: cada posición con su color y, en gris, el resto de la cartera. */
+function HoldingsDonut({ holdings }: { holdings: KrayHolding[] }) {
+  const top = holdings.slice(0, 10);
+  const sumaTop = top.reduce((sum, h) => sum + h.totalWeight, 0);
+  const data = top.map((h, i) => ({ name: h.name, value: h.totalWeight, color: BAR_COLORS[i % BAR_COLORS.length] ?? "#94a3b8" }));
+  if (sumaTop < 100) data.push({ name: "Resto de la cartera", value: 100 - sumaTop, color: "#e2e8f0" });
+  return (
+    <div className="h-60 relative">
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart>
+          <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={108} innerRadius={70} paddingAngle={1} stroke="#fff" strokeWidth={2} isAnimationActive={false}>
+            {data.map((d) => (
+              <Cell key={d.name} fill={d.color} />
+            ))}
+          </Pie>
+          <RechartsTooltip
+            contentStyle={{ backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "12px" }}
+            formatter={(value: number, name: string) => [pct(value, 2), name]}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+        <span className="text-2xl font-semibold font-serif text-brand-navy leading-none">{pct(sumaTop, 1)}</span>
+        <span className="text-[9px] uppercase tracking-wider text-brand-tertiary mt-1">en las 10 mayores</span>
+      </div>
+    </div>
   );
 }
 
@@ -352,7 +382,9 @@ function HoldingsTable({ holdings }: { holdings: KrayHolding[] }) {
               key={`${h.name}-${idx}`}
               className="border-b border-slate-100 hover:bg-slate-50/50"
             >
-              <td className="py-2 px-3 text-xs font-mono text-brand-tertiary">{idx + 1}</td>
+              <td className="py-2 px-3 text-xs font-mono text-brand-tertiary">
+                <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: BAR_COLORS[idx % BAR_COLORS.length] }} />{idx + 1}</span>
+              </td>
               <td className="py-2 px-3 text-xs">
                 <div className="font-medium text-brand-navy">{h.name}</div>
                 {h.code && (
