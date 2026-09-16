@@ -78,7 +78,7 @@ export function KrayFundamentales({ datos }: { datos: Datos }) {
         <h3 className="text-lg font-semibold text-brand-navy font-serif mb-1">Ficha de cada ETF</h3>
         <p className="text-xs text-brand-tertiary mb-4">
           Lo que EODHD sabe de cada pieza: coste, patrimonio, índice que replica, estrellas Morningstar, rentabilidades anualizadas y volatilidad.
-          Para los fondos sin ficha, el TER de nuestra base.
+          Los fondos de inversión americanos traen ficha (sin índice, volatilidad ni duración: en su lugar, la categoría); los europeos no tienen ficha en EODHD y salen con el TER de nuestra base.
         </p>
         <div className="overflow-x-auto -mx-2">
           <table className="w-full text-xs min-w-[900px]">
@@ -108,7 +108,7 @@ export function KrayFundamentales({ datos }: { datos: Datos }) {
                   <td className="py-2 px-2 text-right font-mono">{n(f.weight, 2, " %")}</td>
                   <td className="py-2 px-2 text-right font-mono">{n(f.ter, 2, " %")}</td>
                   <td className="py-2 px-2 text-right font-mono">{millones(f.aum)}</td>
-                  <td className="py-2 px-2 max-w-[220px] truncate" title={f.indice ?? ""}>{f.indice ?? "—"}</td>
+                  <td className="py-2 px-2 max-w-[220px] truncate" title={f.indice ?? f.categoria ?? ""}>{f.indice ?? (f.categoria ? <span className="text-brand-tertiary">{f.categoria}</span> : "—")}</td>
                   <td className="py-2 px-2 text-center text-amber-500 whitespace-nowrap" title={f.categoria ?? ""}>{estrellas(f.estrellas)}</td>
                   <td className="py-2 px-2 text-right font-mono">{n(f.rentab?.a1, 1, " %")}</td>
                   <td className="py-2 px-2 text-right font-mono">{n(f.rentab?.a3, 1, " %")}</td>

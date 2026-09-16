@@ -179,6 +179,26 @@ interface EodhdFundamentalsResponse {
     HoldingsTopDate?: string;
   };
   MutualFund_Data?: {
+    // --- Ficha de un fondo de inversión (americano; los europeos vienen vacíos) ---
+    Fund_Category?: string;
+    Fund_Style?: string;
+    Portfolio_Net_Assets?: number | string;
+    Morning_Star_Rating?: number | string | null;
+    Morning_Star_Risk_Rating?: number | string | null;
+    Morning_Star_Category?: string | null;
+    Inception_Date?: string;
+    Domicile?: string;
+    /** Rentabilidad por dividendo, en fracción (0.0469 = 4,69 %). */
+    Yield?: number | string | null;
+    /** Pese al nombre, son rentabilidades anualizadas (%) a 1, 3 y 5 años. */
+    Yield_YTD?: number | string | null;
+    Yield_1Year_YTD?: number | string | null;
+    Yield_3Year_YTD?: number | string | null;
+    Yield_5Year_YTD?: number | string | null;
+    /** Gastos corrientes en %. */
+    Expense_Ratio?: number | string;
+    /** Ratios de la cartera de acciones: { "0": { Name, Stock_Portfolio, Category_Average }, … }. */
+    Value_Growth?: Record<string, { Name?: string; Stock_Portfolio?: number | string | null; Category_Average?: number | string | null }>;
     Asset_Allocation?: EodhdWeightObject;
     Equity_Holdings?: EodhdHoldingsObject;
     Bond_Holdings?: EodhdHoldingsObject;
@@ -828,7 +848,7 @@ export async function getFundComposition(args: {
     holdings = parseHoldings(mf.Equity_Holdings).slice(0, 10);
   }
 
-  const ficha = etf ? fichaDe(etf, usedTicker) : undefined;
+  const ficha = etf ? fichaDe(etf, usedTicker) : mf ? fichaDeFondo(mf, usedTicker) : undefined;
 
   const composition: FundComposition = {
     isin: raw.General?.ISIN ?? args.isin ?? "",
@@ -926,6 +946,40 @@ function fichaDe(etf: NonNullable<EodhdFundamentalsResponse["ETF_Data"]>, listad
     // Un ETF de bolsa trae el bloque Fixed_Income a ceros: solo cuenta si hay duración de verdad.
     rf: rf && rf.duracion ? rf : undefined,
     valor: valor && valor.per ? valor : undefined,
+  };
+  return limpia(ficha);
+}
+
+/** Ficha de un fondo de inversión (bloque MutualFund_Data: fondos americanos). No trae índice, gestora,
+ *  volatilidad ni duración; las rentabilidades vienen en campos llamados "Yield_…" pese a ser retornos. */
+function fichaDeFondo(mf: NonNullable<EodhdFundamentalsResponse["MutualFund_Data"]>, listado?: string): FichaFundamental | undefined {
+  const vg = Object.values(mf.Value_Growth ?? {});
+  const ratio = (nombre: string) => num(vg.find((x) => x && x.Name === nombre)?.Stock_Portfolio);
+  const valor = limpia({
+    per: ratio("Price/Prospective Earnings"),
+    pb: ratio("Price/Book"),
+    ps: ratio("Price/Sales"),
+    pcf: ratio("Price/Cash Flow"),
+    dividendo: ratio("Dividend-Yield Factor"),
+  });
+  const rentab = limpia({
+    ytd: num(mf.Yield_YTD),
+    a1: num(mf.Yield_1Year_YTD),
+    a3: num(mf.Yield_3Year_YTD),
+    a5: num(mf.Yield_5Year_YTD),
+  });
+  const y = num(mf.Yield);
+  const ficha: FichaFundamental = {
+    listado,
+    domicilio: mf.Domicile || undefined,
+    lanzamiento: mf.Inception_Date || undefined,
+    ter: num(mf.Expense_Ratio),
+    aum: num(mf.Portfolio_Net_Assets),
+    estrellas: num(mf.Morning_Star_Rating),
+    categoria: (mf.Morning_Star_Category || mf.Fund_Category || undefined) ?? undefined,
+    rentab,
+    // Un fondo de bolsa trae sus ratios; uno de bonos, no. El yield del fondo hace de "dividendo" si no hay ratios.
+    valor: valor && valor.per ? valor : y !== undefined ? { dividendo: y < 1 ? y * 100 : y } : undefined,
   };
   return limpia(ficha);
 }
