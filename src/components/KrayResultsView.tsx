@@ -16,6 +16,7 @@
 // =============================================================================
 
 import { useState } from "react";
+import { KrayFundamentales } from "@/components/KrayFundamentales";
 import type { KrayResult, KraySlice, KrayHolding, KrayDuplicate } from "@/lib/kray-types";
 import { formatNumber } from "@/lib/formatters";
 
@@ -92,6 +93,9 @@ export function KrayResultsView({ results }: Props) {
           />
         </div>
       </section>
+
+      {/* Fundamentales de EODHD (beta): TER, duración y TIR de la RF, valoración de la bolsa, ficha por ETF */}
+      {results.fundamentales && <KrayFundamentales datos={results.fundamentales} />}
 
       {/* Asset class */}
       {results.byAssetClass.length > 0 && (

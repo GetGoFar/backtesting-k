@@ -20,7 +20,7 @@ const EODHD_API_TOKEN = process.env.EODHD_API_TOKEN || "";
 const EODHD_BASE_URL = "https://eodhd.com/api";
 
 // Versión de cache — bump cuando cambiemos parseo o queramos invalidar
-const FUNDAMENTALS_CACHE_VERSION = "f-v1";
+const FUNDAMENTALS_CACHE_VERSION = "f-v2"; // v2: lleva la ficha de fundamentales (16-sep-2026)
 const FUNDAMENTALS_TTL_SECONDS = 90 * 24 * 60 * 60; // 90 días
 
 // -----------------------------------------------------------------------------
@@ -40,9 +40,39 @@ export interface FundHolding {
   assetsPercent: number;
 }
 
+/** La ficha de fundamentales de un ETF, tal como la da EODHD (ETF_Data). Todo opcional:
+ *  los fondos bancarios europeos no la tienen, y algún ETF viene a medias. */
+export interface FichaFundamental {
+  /** Listing de EODHD que respondió (p. ej. "SXR8.XETRA" o "XBLC.LSE"). */
+  listado?: string;
+  gestora?: string;
+  domicilio?: string;
+  indice?: string;
+  lanzamiento?: string;
+  /** Gastos corrientes en % (Ongoing_Charge; si no, NetExpenseRatio). */
+  ter?: number;
+  /** Patrimonio en la divisa del fondo. */
+  aum?: number;
+  /** Rotación anual de la cartera (0-1). */
+  rotacion?: number;
+  estrellas?: number;
+  sostenibilidad?: number;
+  categoria?: string;
+  rentab?: { ytd?: number; a1?: number; a3?: number; a5?: number; a10?: number };
+  vol1?: number;
+  vol3?: number;
+  sharpe3?: number;
+  /** Solo en ETFs de renta fija. Duración en años, TIR y cupón en %. */
+  rf?: { duracion?: number; duracionMod?: number; vencimiento?: number; cupon?: number; ytm?: number; precio?: number };
+  /** Solo en ETFs de bolsa. Ratios de la cartera del ETF. */
+  valor?: { per?: number; pb?: number; ps?: number; pcf?: number; dividendo?: number };
+}
+
 export interface FundComposition {
   /** ISIN del fondo / ETF. */
   isin: string;
+  /** Ficha de fundamentales (solo ETFs con datos en EODHD). */
+  ficha?: FichaFundamental;
   /** Nombre completo. */
   name: string;
   /** Tipo: "ETF" | "FUND" | otros. */
@@ -124,6 +154,22 @@ interface EodhdFundamentalsResponse {
     Name?: string;
     Asset_Class?: string;
     Net_Expense_Ratio?: number | string;
+    // --- Ficha (16-sep-2026): coste, tamaño, índice, RF, valoración, Morningstar, rentabilidades ---
+    Company_Name?: string;
+    Domicile?: string;
+    Index_Name?: string;
+    Inception_Date?: string;
+    Ongoing_Charge?: number | string;
+    TotalAssets?: number | string;
+    AnnualHoldingsTurnover?: number | string;
+    Yield?: number | string | null;
+    Fixed_Income?: Record<string, { "Fund_%"?: number | string; Relative_to_Category?: number | string } | number | string>;
+    Valuations_Growth?: {
+      Valuations_Rates_Portfolio?: Record<string, number | string>;
+      Growth_Rates_Portfolio?: Record<string, number | string>;
+    };
+    MorningStar?: { Ratio?: number | string; Category_Benchmark?: string; Sustainability_Ratio?: number | string };
+    Performance?: Record<string, number | string>;
     Holdings?: EodhdHoldingsObject;
     Top_10_Holdings?: EodhdHoldingsObject;
     Sector_Weights?: EodhdWeightObject;
@@ -782,8 +828,11 @@ export async function getFundComposition(args: {
     holdings = parseHoldings(mf.Equity_Holdings).slice(0, 10);
   }
 
+  const ficha = etf ? fichaDe(etf, usedTicker) : undefined;
+
   const composition: FundComposition = {
     isin: raw.General?.ISIN ?? args.isin ?? "",
+    ficha,
     name: etf?.Name ?? raw.General?.Name ?? args.fundId,
     type: raw.General?.Type ?? (etf ? "ETF" : mf ? "FUND" : undefined),
     assetClass: etf?.Asset_Class,
@@ -815,6 +864,70 @@ export async function getFundComposition(args: {
 
   memCache.set(memKey(cacheIdent), { data: composition, ts: Date.now() });
   return composition;
+}
+
+// --- La ficha de fundamentales de un ETF ---------------------------------------------------------
+function num(v: unknown): number | undefined {
+  if (v === null || v === undefined || v === "") return undefined;
+  const x = typeof v === "number" ? v : parseFloat(String(v));
+  return Number.isFinite(x) ? x : undefined;
+}
+function fundPct(v: unknown): number | undefined {
+  if (v && typeof v === "object") return num((v as { "Fund_%"?: unknown })["Fund_%"]);
+  return num(v);
+}
+function limpia<T extends object>(o: T): T | undefined {
+  return Object.values(o).some((x) => x !== undefined) ? o : undefined;
+}
+
+function fichaDe(etf: NonNullable<EodhdFundamentalsResponse["ETF_Data"]>, listado?: string): FichaFundamental | undefined {
+  const fi = etf.Fixed_Income ?? {};
+  const val = etf.Valuations_Growth?.Valuations_Rates_Portfolio ?? {};
+  const perf = etf.Performance ?? {};
+  const ms = etf.MorningStar;
+  const rf = limpia({
+    duracion: fundPct(fi["EffectiveDuration"]),
+    duracionMod: fundPct(fi["ModifiedDuration"]),
+    vencimiento: fundPct(fi["EffectiveMaturity"]),
+    cupon: fundPct(fi["Coupon"]),
+    ytm: fundPct(fi["YieldToMaturity"]),
+    precio: fundPct(fi["Price"]),
+  });
+  const valor = limpia({
+    per: num(val["Price/Prospective Earnings"]),
+    pb: num(val["Price/Book"]),
+    ps: num(val["Price/Sales"]),
+    pcf: num(val["Price/Cash Flow"]),
+    dividendo: num(val["Dividend-Yield Factor"]),
+  });
+  const rentab = limpia({
+    ytd: num(perf["Returns_YTD"]),
+    a1: num(perf["Returns_1Y"]),
+    a3: num(perf["Returns_3Y"]),
+    a5: num(perf["Returns_5Y"]),
+    a10: num(perf["Returns_10Y"]),
+  });
+  const ficha: FichaFundamental = {
+    listado,
+    gestora: etf.Company_Name || undefined,
+    domicilio: etf.Domicile || undefined,
+    indice: etf.Index_Name || undefined,
+    lanzamiento: etf.Inception_Date || undefined,
+    ter: num(etf.Ongoing_Charge) ?? num(etf.Net_Expense_Ratio),
+    aum: num(etf.TotalAssets),
+    rotacion: num(etf.AnnualHoldingsTurnover),
+    estrellas: num(ms?.Ratio),
+    sostenibilidad: num(ms?.Sustainability_Ratio),
+    categoria: ms?.Category_Benchmark ? String(ms.Category_Benchmark).trim() : undefined,
+    rentab,
+    vol1: num(perf["1y_Volatility"]),
+    vol3: num(perf["3y_Volatility"]),
+    sharpe3: num(perf["3y_SharpRatio"]),
+    // Un ETF de bolsa trae el bloque Fixed_Income a ceros: solo cuenta si hay duración de verdad.
+    rf: rf && rf.duracion ? rf : undefined,
+    valor: valor && valor.per ? valor : undefined,
+  };
+  return limpia(ficha);
 }
 
 /**

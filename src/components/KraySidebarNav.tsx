@@ -20,6 +20,8 @@ interface NavItem {
 const ALL: NavItem[] = [
   { id: "section-portfolio", label: "Cartera analizada", group: "config", icon: "🎯" },
   { id: "section-overview", label: "Resumen", group: "results", icon: "📋" },
+  { id: "section-fundamentales", label: "Fundamentales (beta)", group: "results", icon: "🔬" },
+  { id: "section-fichas", label: "Ficha de cada ETF", group: "results", icon: "🪪" },
   { id: "section-asset-class", label: "Clase de activo", group: "results", icon: "🧮" },
   { id: "section-sectors", label: "Sectores", group: "results", icon: "🏭" },
   { id: "section-regions", label: "Regiones", group: "results", icon: "🌍" },

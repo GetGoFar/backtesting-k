@@ -82,8 +82,48 @@ export interface KrayWarning {
 }
 
 /** Resultado completo del análisis K-Ray. */
+/** Ficha de un fondo en Radiografía K: lo que EODHD sabe de él (ver FichaFundamental). */
+export interface KrayFicha {
+  fundId: string;
+  fundName: string;
+  weight: number;
+  isin?: string;
+  /** true si EODHD devolvió ficha; false = fondo bancario u otro sin datos (solo peso y TER de la base). */
+  conDatos: boolean;
+  listado?: string;
+  ter?: number;
+  aum?: number;
+  gestora?: string;
+  indice?: string;
+  domicilio?: string;
+  lanzamiento?: string;
+  rotacion?: number;
+  estrellas?: number;
+  sostenibilidad?: number;
+  categoria?: string;
+  rentab?: { ytd?: number; a1?: number; a3?: number; a5?: number; a10?: number };
+  vol1?: number;
+  vol3?: number;
+  sharpe3?: number;
+  rf?: { duracion?: number; duracionMod?: number; vencimiento?: number; cupon?: number; ytm?: number; precio?: number };
+  valor?: { per?: number; pb?: number; ps?: number; pcf?: number; dividendo?: number };
+}
+
+/** Fundamentales agregados de la cartera (beta, 16-sep-2026). Ponderados por peso del fondo. */
+export interface KrayFundamentales {
+  /** TER medio ponderado (%) sobre los fondos con TER (ficha de EODHD o base propia). */
+  costes: { terMedio: number | null; pesoConTer: number };
+  /** Parte de renta fija: ponderado por peso × porcentaje de bonos del fondo. null si nada tiene datos. */
+  rentaFija: { peso: number; duracion: number | null; ytm: number | null; vencimiento: number | null; cupon: number | null } | null;
+  /** Parte de bolsa: PER, P/VC y P/ventas en media armónica; dividendo en media aritmética. */
+  valoracion: { peso: number; per: number | null; pb: number | null; ps: number | null; dividendo: number | null } | null;
+  fichas: KrayFicha[];
+}
+
 export interface KrayResult {
   portfolioName: string;
+  /** Fundamentales de EODHD (beta). Ausente si ningún fondo tiene ficha. */
+  fundamentales?: KrayFundamentales;
   /** Suma TOTAL de pesos analizados (debería ser ~100 si todo OK). */
   totalCoverage: number;
   /** Pesos NO cubiertos: fondos sin datos EODHD. */
