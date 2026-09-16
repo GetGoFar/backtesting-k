@@ -32,8 +32,8 @@ function estrellas(k: number | undefined): string {
   return "★".repeat(Math.max(0, Math.min(5, Math.round(k))));
 }
 
-function Kpi({ label, value, hint, color }: { label: string; value: string; hint?: string; color?: "emerald" | "amber" | "sky" }) {
-  const col = color === "emerald" ? "text-emerald-700" : color === "amber" ? "text-amber-700" : color === "sky" ? "text-sky-700" : "text-brand-navy";
+function Kpi({ label, value, hint, color }: { label: string; value: string; hint?: string; color?: "emerald" | "amber" | "sky" | "red" }) {
+  const col = color === "emerald" ? "text-emerald-700" : color === "amber" ? "text-amber-700" : color === "sky" ? "text-sky-700" : color === "red" ? "text-red-700" : "text-brand-navy";
   return (
     <div className="rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-tertiary">{label}</p>
@@ -44,7 +44,10 @@ function Kpi({ label, value, hint, color }: { label: string; value: string; hint
 }
 
 export function KrayFundamentales({ datos }: { datos: Datos }) {
-  const { costes, rentaFija, valoracion, fichas } = datos;
+  const { costes, rentaFija, valoracion, fichas, saqueo } = datos;
+  const is = saqueo.indice;
+  const isTexto = is === null ? "—" : !Number.isFinite(is) ? "∞" : n(is, 1, " %");
+  const isColor: "emerald" | "amber" | "red" | undefined = is === null ? undefined : !Number.isFinite(is) || is > 25 ? "red" : is > 10 ? "amber" : "emerald";
   const conFicha = fichas.filter((f) => f.conDatos).length;
 
   return (
@@ -60,9 +63,16 @@ export function KrayFundamentales({ datos }: { datos: Datos }) {
         <p className="text-xs text-brand-tertiary mb-4">
           Datos de EODHD por ETF, ponderados por su peso en la cartera. {conFicha} de {fichas.length} fondos con ficha.
           Los ratios de valoración se agregan con media armónica (como Morningstar); la renta fija, sobre la parte de bonos de cada fondo.
+          El Índice de Saqueo es la fórmula de la app: TER medio entre la rentabilidad esperada (mín(volatilidad, 15 %) × 0,75). Los fondos europeos toman su TER de la ficha pública de FT.
         </p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
           <Kpi label="TER medio" value={n(costes.terMedio, 2, " %")} hint={`sobre el ${n(costes.pesoConTer, 0)} % con dato`} color="emerald" />
+          <Kpi
+            label="Índice de Saqueo"
+            value={isTexto}
+            hint={saqueo.vol === null ? "falta la volatilidad" : `vol. ${n(saqueo.vol * 100, 1, " %")} ${saqueo.volFuente === "backtest" ? "del backtest" : "media EODHD (aprox.)"}`}
+            color={isColor}
+          />
           <Kpi label="Duración RF" value={rentaFija ? n(rentaFija.duracion, 1, " años") : "—"} hint={rentaFija ? `bonos: ${n(rentaFija.peso, 0)} % de la cartera` : "sin renta fija con datos"} color="amber" />
           <Kpi label="TIR de la RF" value={rentaFija ? n(rentaFija.ytm, 2, " %") : "—"} hint={rentaFija && rentaFija.cupon !== null ? `cupón medio ${n(rentaFija.cupon, 2, " %")}` : undefined} color="amber" />
           <Kpi label="PER (bolsa)" value={valoracion ? n(valoracion.per, 1) : "—"} hint={valoracion ? `bolsa: ${n(valoracion.peso, 0)} % de la cartera` : "sin bolsa con datos"} color="sky" />
@@ -94,6 +104,7 @@ export function KrayFundamentales({ datos }: { datos: Datos }) {
                 <th className="text-right py-2 px-2 font-semibold">3 años</th>
                 <th className="text-right py-2 px-2 font-semibold">5 años</th>
                 <th className="text-right py-2 px-2 font-semibold">Vol. 3a</th>
+                <th className="text-right py-2 px-2 font-semibold" title="Índice de Saqueo del fondo: TER / (min(vol 3a, 15 %) × 0,75)">I. Saqueo</th>
                 <th className="text-right py-2 px-2 font-semibold">Dur. / PER</th>
               </tr>
             </thead>
@@ -103,10 +114,10 @@ export function KrayFundamentales({ datos }: { datos: Datos }) {
                   <td className="py-2 px-2">
                     <span className="font-medium text-brand-navy">{f.fundName}</span>
                     {f.isin && <span className="block text-[10px] font-mono text-brand-tertiary">{f.isin}{f.listado ? ` · ${f.listado}` : ""}</span>}
-                    {!f.conDatos && <span className="block text-[10px] text-amber-700">sin ficha en EODHD</span>}
+                    {!f.conDatos && <span className="block text-[10px] text-amber-700">sin ficha en EODHD ni FT</span>}
                   </td>
                   <td className="py-2 px-2 text-right font-mono">{n(f.weight, 2, " %")}</td>
-                  <td className="py-2 px-2 text-right font-mono">{n(f.ter, 2, " %")}</td>
+                  <td className="py-2 px-2 text-right font-mono" title={f.listado === "FT" ? "gastos corrientes según FT" : undefined}>{n(f.ter, 2, " %")}{f.listado === "FT" ? <span className="text-[9px] text-brand-tertiary ml-0.5">FT</span> : null}</td>
                   <td className="py-2 px-2 text-right font-mono">{millones(f.aum)}</td>
                   <td className="py-2 px-2 max-w-[220px] truncate" title={f.indice ?? f.categoria ?? ""}>{f.indice ?? (f.categoria ? <span className="text-brand-tertiary">{f.categoria}</span> : "—")}</td>
                   <td className="py-2 px-2 text-center text-amber-500 whitespace-nowrap" title={f.categoria ?? ""}>{estrellas(f.estrellas)}</td>
@@ -114,6 +125,7 @@ export function KrayFundamentales({ datos }: { datos: Datos }) {
                   <td className="py-2 px-2 text-right font-mono">{n(f.rentab?.a3, 1, " %")}</td>
                   <td className="py-2 px-2 text-right font-mono">{n(f.rentab?.a5, 1, " %")}</td>
                   <td className="py-2 px-2 text-right font-mono">{n(f.vol3, 1, " %")}</td>
+                  <td className={`py-2 px-2 text-right font-mono ${f.saqueo === undefined ? "" : !Number.isFinite(f.saqueo) || f.saqueo > 25 ? "text-red-700" : f.saqueo > 10 ? "text-amber-700" : "text-emerald-700"}`}>{f.saqueo === undefined ? "—" : !Number.isFinite(f.saqueo) ? "∞" : n(f.saqueo, 1, " %")}</td>
                   <td className="py-2 px-2 text-right font-mono">
                     {f.rf?.duracion !== undefined ? `${n(f.rf.duracion, 1)} a · TIR ${n(f.rf.ytm, 2, " %")}` : f.valor?.per !== undefined ? `PER ${n(f.valor.per, 1)}` : "—"}
                   </td>

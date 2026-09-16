@@ -103,6 +103,7 @@ export default function KrayPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: currentPortfolio.name,
+          volatilidad: currentPortfolio.volatility, // la real del backtest, para el Índice de Saqueo
           // IMPORTANTE: incluir el snapshot `fund` para holdings dinámicos
           // (prefijo eodhd-) — sin él el motor no sabe el ISIN/ticker y no
           // puede llamar al fallback de FT.com para UCITS europeos.

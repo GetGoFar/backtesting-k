@@ -16,6 +16,7 @@
 // =============================================================================
 
 import { useState } from "react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
 import { KrayFundamentales } from "@/components/KrayFundamentales";
 import type { KrayResult, KraySlice, KrayHolding, KrayDuplicate } from "@/lib/kray-types";
 import { formatNumber } from "@/lib/formatters";
@@ -247,7 +248,7 @@ function SliceSection({
   description,
   slices,
   coverage,
-  limit = 10,
+  limit = 8,
 }: {
   id: string;
   title: string;
@@ -256,17 +257,14 @@ function SliceSection({
   coverage: number;
   limit?: number;
 }) {
-  const visible = slices.slice(0, limit);
-  const rest = slices.slice(limit);
-  const restWeight = rest.reduce((s, x) => s + x.weight, 0);
-
-  // Normalizar barras: cada barra ocupa proporcionalmente al máximo (no a 100)
-  // para que se vean bien aunque el sector más grande sea 30 %.
-  const maxWeight = visible.length > 0 ? visible[0]!.weight : 1;
-
-  // Coverage helper: peso del sector sobre lo CUBIERTO (no sobre 100). Útil
-  // para que la suma de sectores cuadre cuando no toda la cartera tiene datos.
-  // Si coverage es muy bajo, mostramos también el % "ajustado a cubierto".
+  // Quesito: las `limit` categorías mayores con su color y el resto agrupado en "Otros".
+  const positivas = slices.filter((x) => x.weight > 0);
+  const visible = positivas.slice(0, limit);
+  const rest = positivas.slice(limit);
+  const restWeight = rest.reduce((sum, x) => sum + x.weight, 0);
+  const data = visible.map((x, i) => ({ name: x.label, value: x.weight, color: BAR_COLORS[i % BAR_COLORS.length] ?? "#94a3b8", fondos: x.contributors.length }));
+  if (restWeight > 0) data.push({ name: `Otros (${rest.length})`, value: restWeight, color: "#cbd5e1", fondos: 0 });
+  const total = data.reduce((sum, x) => sum + x.value, 0);
   const showAdjusted = coverage > 0 && coverage < 99;
 
   return (
@@ -278,47 +276,48 @@ function SliceSection({
         {title}
       </h3>
       <p className="text-xs text-brand-tertiary mb-4">{description}</p>
-      <div className="space-y-1.5">
-        {visible.map((s, i) => {
-          const adjusted = coverage > 0 ? (s.weight / coverage) * 100 : 0;
-          const barWidth = (s.weight / maxWeight) * 100;
-          return (
-            <div key={s.label} className="group">
-              <div className="flex items-center gap-3 mb-0.5">
-                <div className="w-3 h-3 rounded flex-shrink-0" style={{ backgroundColor: BAR_COLORS[i % BAR_COLORS.length] }} />
-                <span className="text-sm font-medium text-brand-navy flex-1 truncate">
-                  {s.label}
+      <div className="grid grid-cols-1 sm:grid-cols-[260px_1fr] gap-6 items-center">
+        <div className="h-60 relative">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={105} innerRadius={62} paddingAngle={1.5} stroke="#fff" strokeWidth={2} isAnimationActive={false}>
+                {data.map((d) => (
+                  <Cell key={d.name} fill={d.color} />
+                ))}
+              </Pie>
+              <RechartsTooltip
+                contentStyle={{ backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "12px" }}
+                formatter={(value: number, name: string) => [pct(value, 2), name]}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <span className="text-2xl font-semibold font-serif text-brand-navy">{pct(total, 0)}</span>
+            <span className="text-[10px] uppercase tracking-wider text-brand-tertiary">de la cartera</span>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          {data.map((d) => (
+            <div key={d.name} className="flex items-center gap-3 py-1 border-b border-slate-50 last:border-b-0">
+              <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
+              <span className="text-sm font-medium text-brand-navy flex-1 truncate">{d.name}</span>
+              {d.fondos > 0 && (
+                <span className="text-[10px] text-brand-tertiary hidden sm:inline">{d.fondos} fondo{d.fondos === 1 ? "" : "s"}</span>
+              )}
+              <span className="text-sm font-mono font-semibold text-brand-navy w-20 text-right">{pct(d.value, 2)}</span>
+              {showAdjusted && (
+                <span className="text-[10px] font-mono text-brand-tertiary w-14 text-right hidden sm:inline" title="Ajustado al peso cubierto por datos">
+                  {pct((d.value / coverage) * 100, 1)}
                 </span>
-                <span className="text-sm font-mono font-semibold text-brand-navy">
-                  {pct(s.weight, 2)}
-                </span>
-                {showAdjusted && (
-                  <span
-                    className="text-[10px] font-mono text-brand-tertiary w-16 text-right hidden sm:inline"
-                    title="Ajustado al peso CUBIERTO por datos"
-                  >
-                    {pct(adjusted, 1)} aj.
-                  </span>
-                )}
-              </div>
-              <div className="h-2 bg-slate-100 rounded overflow-hidden ml-6">
-                <div
-                  className="h-full transition-all"
-                  style={{
-                    width: `${barWidth}%`,
-                    backgroundColor: BAR_COLORS[i % BAR_COLORS.length],
-                  }}
-                />
-              </div>
+              )}
             </div>
-          );
-        })}
-        {rest.length > 0 && (
-          <p className="text-xs text-brand-tertiary mt-3 italic">
-            +{rest.length} categoría{rest.length === 1 ? "" : "s"} más con un
-            peso combinado de {pct(restWeight, 2)}.
-          </p>
-        )}
+          ))}
+          {showAdjusted && (
+            <p className="text-[10px] text-brand-tertiary italic pt-1">
+              La segunda cifra reparte el {pct(coverage, 0)} de la cartera con datos como si fuera el 100 %.
+            </p>
+          )}
+        </div>
       </div>
     </section>
   );

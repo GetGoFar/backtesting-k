@@ -14,7 +14,7 @@
 // =============================================================================
 
 import { getFundById } from "./fund-database";
-import { getFundCompositionFromFT } from "./ft-fundamentals";
+import { getFundCompositionFromFT, getFtOngoingCharge } from "./ft-fundamentals";
 
 const EODHD_API_TOKEN = process.env.EODHD_API_TOKEN || "";
 const EODHD_BASE_URL = "https://eodhd.com/api";
@@ -241,8 +241,12 @@ function parseWeights(
     }
     if (!value || typeof value !== "object") continue;
 
-    // ¿Formato plano ETF? Tiene "Equity_%" o "Relative_to_Category" directo.
+    // ¿Formato plano ETF? Sectores y regiones traen "Equity_%"; el reparto de activos (Asset_Allocation)
+    // trae "Net_Assets_%" (y "Long_%"/"Short_%"). Hasta el 16-sep-2026 solo se leía el primero, y por eso
+    // la clase de activo de los ETFs salía vacía en K-Ray.
     const v = (value as Record<string, unknown>)["Equity_%"] ??
+      (value as Record<string, unknown>)["Net_Assets_%"] ??
+      (value as Record<string, unknown>)["Long_%"] ??
       (value as Record<string, unknown>)["Relative_to_Category"];
     if (typeof v === "number") {
       result[key] = v;
@@ -754,6 +758,9 @@ export async function getFundComposition(args: {
   if (!raw && args.isin && /^[A-Z]{2}/.test(args.isin)) {
     const ftComp = await getFundCompositionFromFT(args.isin, args.fundId);
     if (ftComp) {
+      // Ficha mínima para un fondo europeo: los gastos corrientes que publica FT (EODHD no los tiene).
+      const ter = await getFtOngoingCharge(args.isin);
+      if (ter !== undefined) ftComp.ficha = { listado: "FT", ter };
       memCache.set(memKey(cacheIdent), { data: ftComp, ts: Date.now() });
       console.log(
         `[EODHD-fundamentals] Fallback FT.com OK para ${args.fundId} (${args.isin})`
@@ -771,8 +778,11 @@ export async function getFundComposition(args: {
   }
 
   if (!raw) {
+    // Sin composición en ningún sitio: al menos el TER de FT, si el ISIN es europeo.
+    const terFT = args.isin && /^[A-Z]{2}/.test(args.isin) ? await getFtOngoingCharge(args.isin) : undefined;
     const empty: FundComposition = {
       isin: args.isin ?? "",
+      ficha: terFT !== undefined ? { listado: "FT", ter: terFT } : undefined,
       name: args.fundId,
       sectorWeights: {},
       worldRegions: {},

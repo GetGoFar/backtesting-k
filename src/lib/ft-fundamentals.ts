@@ -292,6 +292,45 @@ function extractFundName(html: string, isin: string): string {
  * Devuelve null si la página no se puede descargar o no contiene tablas de
  * holdings (caso típico: ISIN no reconocido por FT, o fondo retirado).
  */
+// --- Gastos corrientes (TER) de un fondo europeo, desde la ficha "summary" de FT -------------------
+// EODHD no tiene fundamentales de los fondos de inversión europeos, pero FT publica sus gastos
+// corrientes ("Ongoing charge") en markets.ft.com/data/funds/tearsheet/summary?s=<ISIN>. Es lo que hace
+// falta para el TER medio y el Índice de Saqueo de una cartera con fondos bancarios.
+const FT_SUMMARY_URL = "https://markets.ft.com/data/funds/tearsheet/summary";
+const ocCache = new Map<string, { v: number | undefined; ts: number }>();
+
+export async function getFtOngoingCharge(isin: string): Promise<number | undefined> {
+  if (!isin) return undefined;
+  const c = ocCache.get(isin);
+  if (c && Date.now() - c.ts < MEM_TTL_MS) return c.v;
+  let v: number | undefined;
+  try {
+    const res = await fetch(`${FT_SUMMARY_URL}?s=${encodeURIComponent(isin)}`, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
+        Accept: "text/html,application/xhtml+xml",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (res.ok) {
+      const html = await res.text();
+      const i = html.indexOf("Ongoing charge");
+      if (i >= 0) {
+        const m = html.slice(i, i + 600).match(/<td[^>]*>\s*([\d.,]+)\s*%\s*<\/td>/);
+        if (m && m[1]) {
+          const n = parseFloat(m[1].replace(",", "."));
+          if (Number.isFinite(n) && n >= 0 && n < 20) v = n;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`[FT-fundamentals] Ongoing charge de ${isin}:`, err);
+  }
+  ocCache.set(isin, { v, ts: Date.now() });
+  return v;
+}
+
 export async function getFundCompositionFromFT(
   isin: string,
   fallbackName?: string

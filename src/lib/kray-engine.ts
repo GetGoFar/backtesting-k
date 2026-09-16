@@ -95,6 +95,27 @@ class Ponderado {
   armonica(): number | null { return this.peso > 0 && this.sumaInv > 0 ? this.peso / this.sumaInv : null; }
 }
 
+/** Índice de Saqueo (la fórmula de la app, AssetMetricsTable): TER / (min(vol, 15 %) × 0,75), en %.
+ *  ter en % (0.20), vol en decimal (0.12). Infinity = comisiones sin rentabilidad esperada. */
+export function indiceSaqueo(ter: number, vol: number): number | null {
+  if (!Number.isFinite(ter) || !Number.isFinite(vol)) return null;
+  const esperada = Math.min(vol * 100, 15) * 0.75;
+  if (esperada <= 0.01) return Infinity;
+  return (ter / esperada) * 100;
+}
+
+/** Las clases de activo, en cinco cajones: lo que viene por región (RV EEUU, RF Reino Unido…) o de FT
+ *  se junta en Renta Variable / Renta Fija; los pesos negativos (posiciones cortas) no restan. */
+function claseSimple(label: string): string {
+  const l = label.toLowerCase();
+  if (/^rv\b|renta variable|equity|stock|accion/.test(l)) return "Renta Variable";
+  if (/^rf\b|renta fija|bond|fixed|obligaci|treasury/.test(l)) return "Renta Fija";
+  if (/efectivo|cash|liquidez|money market/.test(l)) return "Efectivo";
+  if (/materias primas|commodit|oro|gold|metal/.test(l)) return "Materias Primas";
+  if (/inmobiliario|real estate|property|reit/.test(l)) return "Inmobiliario";
+  return "Otros";
+}
+
 export async function runKray(input: KrayInput): Promise<KrayResult> {
   const portfolioName = input.name ?? "Cartera";
   const holdings = input.holdings.filter((h) => h.weight > 0);
@@ -168,6 +189,7 @@ export async function runKray(input: KrayInput): Promise<KrayResult> {
   const ter = new Ponderado();            // TER medio (aritmética)
   const rfDur = new Ponderado(), rfYtm = new Ponderado(), rfVenc = new Ponderado(), rfCup = new Ponderado();
   const per = new Ponderado(), pb = new Ponderado(), ps = new Ponderado(), dy = new Ponderado();
+  const vol3 = new Ponderado();           // volatilidad a 3 años de EODHD, para el saqueo si no hay backtest
   let pesoRF = 0, pesoRV = 0;
 
   for (const { holding, composition } of compositions) {
@@ -187,8 +209,10 @@ export async function runKray(input: KrayInput): Promise<KrayResult> {
       domicilio: fi?.domicilio, lanzamiento: fi?.lanzamiento, rotacion: fi?.rotacion, estrellas: fi?.estrellas,
       sostenibilidad: fi?.sostenibilidad, categoria: fi?.categoria, rentab: fi?.rentab, vol1: fi?.vol1, vol3: fi?.vol3,
       sharpe3: fi?.sharpe3, rf: fi?.rf, valor: fi?.valor,
+      saqueo: terFondo !== undefined && fi?.vol3 !== undefined ? (indiceSaqueo(terFondo, fi.vol3 / 100) ?? undefined) : undefined,
     });
     if (terFondo !== undefined) ter.add(holding.weight, terFondo);
+    if (fi?.vol3 !== undefined) vol3.add(holding.weight, fi.vol3 / 100);
     if (fi) {
       // Qué parte del fondo es bonos y qué parte bolsa, según su propio reparto de activos. Si el reparto no
       // lo dice pero la ficha trae duración (o PER), se toma el fondo entero como bonos (o como bolsa).
@@ -293,8 +317,17 @@ export async function runKray(input: KrayInput): Promise<KrayResult> {
     }
 
     // --- Asset allocation ---
-    for (const [klass, pct] of Object.entries(composition.assetAllocation)) {
-      const label = translateAssetClass(klass);
+    // Reparto de activos del fondo: solo posiciones largas, y si suman más de 100 (fondos con derivados o
+    // apalancados, como los de volatilidad) se reescala a 100 para que la cartera no pese más que ella misma.
+    const largos = Object.entries(composition.assetAllocation).filter(([, v]) => v > 0);
+    const sumaLargos = largos.reduce((a, [, v]) => a + v, 0);
+    const escala = sumaLargos > 100 ? 100 / sumaLargos : 1;
+    const esMateriaPrima = /\b(gold|oro|silver|plata|platinum|palladium|commodit|materias primas|metal)\b/i.test(fundName);
+    for (const [klass, pctBruto] of largos) {
+      const pct = pctBruto * escala;
+      let label = claseSimple(translateAssetClass(klass));
+      // EODHD deja el oro físico como "Other" al 100 %: es materia prima.
+      if (label === "Otros" && esMateriaPrima) label = "Materias Primas";
       const contribution = (fundWeight * pct) / 100;
       addToCategory(assetTotals, assetContribs, label, contribution, {
         fundId: holding.fundId,
@@ -364,6 +397,12 @@ export async function runKray(input: KrayInput): Promise<KrayResult> {
   const fundamentales: KrayFundamentales | undefined = fichas.some((f) => f.conDatos)
     ? {
         costes: { terMedio: ter.media(), pesoConTer: ter.peso },
+        saqueo: (() => {
+          const terM = ter.media();
+          const volReal = typeof input.volatilidad === "number" && input.volatilidad > 0 ? input.volatilidad : null;
+          const vol = volReal ?? vol3.media();
+          return { indice: terM !== null && vol !== null ? indiceSaqueo(terM, vol) : null, vol, volFuente: vol === null ? null : volReal !== null ? "backtest" : "eodhd" };
+        })(),
         rentaFija: pesoRF > 0 ? { peso: pesoRF, duracion: rfDur.media(), ytm: rfYtm.media(), vencimiento: rfVenc.media(), cupon: rfCup.media() } : null,
         valoracion: pesoRV > 0 ? { peso: pesoRV, per: per.armonica(), pb: pb.armonica(), ps: ps.armonica(), dividendo: dy.media() } : null,
         fichas,

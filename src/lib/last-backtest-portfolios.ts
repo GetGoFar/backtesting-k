@@ -19,6 +19,8 @@ const STORAGE_KEY = "epk-last-backtest-portfolios";
 export interface SavedBacktestPortfolio {
   name: string;
   holdings: PortfolioHolding[];
+  /** Volatilidad anualizada del backtest (decimal, 0.12 = 12 %). K-Ray la usa para el Índice de Saqueo. */
+  volatility?: number;
 }
 
 export interface LastBacktestPortfolios {

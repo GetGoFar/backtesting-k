@@ -25,6 +25,8 @@ export interface KrayInput {
   name?: string;
   /** Composición de la cartera a analizar. */
   holdings: KrayInputHolding[];
+  /** Volatilidad anualizada real de la cartera (decimal), si viene del backtest. Para el Índice de Saqueo. */
+  volatilidad?: number;
 }
 
 /** Una porción de un breakdown (sector, país, región, asset class). */
@@ -107,12 +109,17 @@ export interface KrayFicha {
   sharpe3?: number;
   rf?: { duracion?: number; duracionMod?: number; vencimiento?: number; cupon?: number; ytm?: number; precio?: number };
   valor?: { per?: number; pb?: number; ps?: number; pcf?: number; dividendo?: number };
+  /** Índice de Saqueo del fondo (%), con su TER y su volatilidad a 3 años de EODHD. */
+  saqueo?: number;
 }
 
 /** Fundamentales agregados de la cartera (beta, 16-sep-2026). Ponderados por peso del fondo. */
 export interface KrayFundamentales {
   /** TER medio ponderado (%) sobre los fondos con TER (ficha de EODHD o base propia). */
   costes: { terMedio: number | null; pesoConTer: number };
+  /** Índice de Saqueo de la cartera: TER medio / (min(vol, 15 %) × 0,75), en %. `volFuente` dice de dónde
+   *  sale la volatilidad: la real del backtest, o la media ponderada de las vol. a 3 años de EODHD. */
+  saqueo: { indice: number | null; vol: number | null; volFuente: "backtest" | "eodhd" | null };
   /** Parte de renta fija: ponderado por peso × porcentaje de bonos del fondo. null si nada tiene datos. */
   rentaFija: { peso: number; duracion: number | null; ytm: number | null; vencimiento: number | null; cupon: number | null } | null;
   /** Parte de bolsa: PER, P/VC y P/ventas en media armónica; dividendo en media aritmética. */

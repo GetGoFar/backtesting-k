@@ -525,12 +525,13 @@ export default function Home() {
       // Guardar las carteras ejecutadas en localStorage para que /kray pueda
       // auto-cargarlas sin que el usuario tenga que re-seleccionarlas.
       try {
+        const resp = data as BacktestResponse;
         setLastBacktestPortfolios({
           portfolioA: portfolioA.isValid
-            ? { name: portfolioA.name, holdings: portfolioA.holdings }
+            ? { name: portfolioA.name, holdings: portfolioA.holdings, volatility: resp.resultA?.metrics?.volatility }
             : undefined,
           portfolioB: portfolioB.isValid
-            ? { name: portfolioB.name, holdings: portfolioB.holdings }
+            ? { name: portfolioB.name, holdings: portfolioB.holdings, volatility: resp.resultB?.metrics?.volatility }
             : undefined,
           savedAt: Date.now(),
         });
