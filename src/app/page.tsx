@@ -1364,7 +1364,9 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Acción: Generar informe PDF */}
+              {/* Acción: Generar informe PDF. En modo campus (alumnos, Ataraxia) no se ofrece: el informe
+                  está por pulir para esa versión (decisión de Pablo, 18-sep-2026). */}
+              {!campus && (
               <div className="flex justify-end">
                 <button
                   type="button"
@@ -1379,6 +1381,7 @@ export default function Home() {
                   Generar informe PDF
                 </button>
               </div>
+              )}
 
               {/* 1. Card destacado de comisiones */}
               <div id="section-summary" className="scroll-mt-24">
@@ -1645,8 +1648,8 @@ export default function Home() {
             </div>
           )}
 
-          {/* Modal generador de informe PDF */}
-          {results && (
+          {/* Modal generador de informe PDF (nunca en modo campus) */}
+          {results && !campus && (
             <ReportGeneratorModal
               open={reportModalOpen}
               onClose={() => setReportModalOpen(false)}
