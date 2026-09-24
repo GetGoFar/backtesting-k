@@ -44,6 +44,12 @@ Tests con Vitest, colocados junto al código (`src/lib/*.test.ts`): `backtest-en
   navegador y comprobar que el **CSS global** contiene una clase nueva del
   cambio (Tailwind solo emite las que se usan). Estado real de los deploys:
   Vercel vía `claude-in-chrome`, vercel.com/consultoria-9043s-projects/backtesting-k.
+- **Los previews necesitan `EODHD_API_TOKEN` en el ámbito Preview.** Las
+  variables de Vercel se dan por entorno; si la clave está solo en Production,
+  cada deploy de rama sale mudo: la búsqueda devuelve `[]` y los precios
+  también, así que parece un problema de datos. Desde sep-2026 la app lo dice
+  en alto (`lib/eodhd-config.ts` → aviso en `/api/search`, `/api/data-range` y
+  `/api/backtest`) en vez de fallar en silencio.
 - **¿Está una ruta de API en producción?** `curl -s -o /dev/null -w "%{http_code}"
   -X POST https://backtesting-k.vercel.app/api/<ruta> -d '{}'`: **404** = no está
   desplegada; **400/405** = sí está (validó el body). Es la forma rápida de

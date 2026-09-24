@@ -7,6 +7,7 @@ import { runBacktest } from "@/lib/backtest-engine";
 import { getFundById } from "@/lib/fund-database";
 import { runWithContext, type RequestContext } from "@/lib/request-context";
 import { isDisplayCurrency, displayCurrencyName } from "@/lib/display-currency";
+import { hayClaveEodhd, MENSAJE_SIN_CLAVE } from "@/lib/eodhd-config";
 import type { FxConversionNote } from "@/lib/fx-convert";
 import type { BacktestConfig, Portfolio, PortfolioHolding, BacktestWarning, DisplayGranularity } from "@/lib/types";
 
@@ -98,6 +99,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Normalizar pesos si no suman exactamente 100% y recopilar avisos
     const warnings: BacktestWarning[] = [];
 
+    // Sin clave no hay precios de nada: se dice una vez y claro, en lugar de
+    // dejar que cada activo falle por su cuenta como si no tuviera histórico.
+    if (!hayClaveEodhd()) {
+      warnings.push({ type: "data_missing", severity: "error", message: MENSAJE_SIN_CLAVE });
+    }
+
     if (config.portfolioA) {
       const normalizedA = normalizeWeights(config.portfolioA);
       if (normalizedA.normalized) {
@@ -133,6 +140,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Verificar que obtuvimos resultados
     if (!result.a && !result.b) {
+      // Sin clave no hay precios de NADA, y "verifica que los fondos tengan
+      // datos históricos" manda a buscar donde no es. Se dice lo que pasa.
+      if (!hayClaveEodhd()) {
+        return NextResponse.json(
+          { error: "Falta la clave de datos", message: MENSAJE_SIN_CLAVE },
+          { status: 503 }
+        );
+      }
       return NextResponse.json(
         {
           error: "Sin datos suficientes",
