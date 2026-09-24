@@ -92,8 +92,111 @@ import {
   type SavedMomentumStrategy,
 } from "@/lib/saved-momentum-strategies";
 
+/** La ruta /api/ter acepta 30 fondos por petición; las carteras largas se trocean. */
+const MAX_FONDOS_POR_PETICION_TER = 30;
+/** Intentos por fondo antes de rendirse. Un 500 o un corte de red no debe dejar el
+ *  fondo huérfano para siempre, pero tampoco puede convertirse en un bucle: al
+ *  teclear un peso, `handleWeightChange` reescribe `allocations` en CADA pulsación. */
+const MAX_INTENTOS_TER = 2;
+
 export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: PortfolioBuilderProps) {
   const [allocations, setAllocations] = useState<FundAllocation[]>([]);
+
+  // --- TER automático: EODHD si es ETF, Financial Times si es fondo ----------
+  // Regla acordada: RELLENAR SOLO LO QUE FALTA. Un TER curado y confirmado no se
+  // toca nunca — los de fund-database están revisados a mano y la fuente
+  // automática se equivoca a veces (VWCE: EODHD dice 0,14 % y el real es 0,22 %).
+  // Se rellenan los que no tienen valor, los marcados como no confirmados y los
+  // "estimated". Cada fondo se pregunta una vez y, si la ruta falla, una más.
+  const [terFuentes, setTerFuentes] = useState<Record<string, { fuente: "eodhd" | "ft"; listado?: string }>>({});
+  /** Fondos que ya han vuelto de la ruta, con dato o sin él: no se repreguntan. */
+  const terResueltos = useRef<Set<string>>(new Set());
+  /** Fondos con petición EN VUELO. Sin esto, cada re-render dentro de la ventana
+   *  de 1-2 s de la petición lanzaría otra igual (teclear un peso son varias). */
+  const terEnVuelo = useRef<Set<string>>(new Set());
+  /** Intentos por fondo, para acotar los reintentos cuando la ruta falla. */
+  const terIntentos = useRef<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    // Acciones sueltas, pares de divisas y estrategias momentum no tienen TER.
+    const faltan = allocations
+      .map((a) => a.fund)
+      .filter(
+        (f) =>
+          !terResueltos.current.has(f.id) &&
+          !terEnVuelo.current.has(f.id) &&
+          (terIntentos.current.get(f.id) ?? 0) < MAX_INTENTOS_TER &&
+          !f.id.startsWith("stock-") &&
+          !f.id.startsWith("momentum-") &&
+          f.category !== "Divisas" &&
+          (!f.ter || f.terConfirmed === false || f.terSource === "estimated")
+      );
+    if (faltan.length === 0) return;
+    for (const f of faltan) {
+      terIntentos.current.set(f.id, (terIntentos.current.get(f.id) ?? 0) + 1);
+      terEnVuelo.current.add(f.id);
+    }
+
+    // OJO — este efecto NO cancela su petición al volver a ejecutarse, y es a
+    // propósito. Antes lo hacía y el TER no llegaba casi nunca: el fondo entra
+    // con peso 0, tecleas el peso, `handleWeightChange` reescribe `allocations`
+    // en cada pulsación, el efecto se re-ejecutaba, su cleanup descartaba la
+    // respuesta en vuelo (que tarda 1-2 s) y el fondo ya estaba marcado como
+    // pedido, así que no se volvía a preguntar nunca.
+    // No hace falta protegerse de respuestas tardías: las dos escrituras de
+    // estado son funcionales y `sigueFaltando` se reevalúa sobre el estado
+    // ACTUAL, de modo que un TER escrito a mano mientras llegaba la respuesta
+    // sigue mandando. Y un setState tras desmontar es un no-op en React 18.
+    void (async () => {
+      for (let i = 0; i < faltan.length; i += MAX_FONDOS_POR_PETICION_TER) {
+        const tanda = faltan.slice(i, i + MAX_FONDOS_POR_PETICION_TER);
+        try {
+          const res = await fetch("/api/ter", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              fondos: tanda.map((f) => ({ fundId: f.id, ticker: f.ticker, isin: f.isin })),
+            }),
+          });
+          if (!res.ok) continue; // queda un intento más para esta tanda
+          const data = (await res.json()) as {
+            resultados?: Array<{ fundId: string; ter?: number; fuente?: "eodhd" | "ft"; listado?: string }>;
+          };
+          const resultados = data.resultados ?? [];
+          // Han contestado: con dato o sin él, no se vuelven a preguntar.
+          for (const r of resultados) terResueltos.current.add(r.fundId);
+          // Un TER de 0 % no existe en un fondo real: es "sin dato", y escribirlo
+          // dejaría la caja aparentemente vacía y marcada como confirmada.
+          const conTer = resultados.filter((r) => typeof r.ter === "number" && r.ter > 0);
+          if (conTer.length === 0) continue;
+
+          setTerFuentes((prev) => {
+            const next = { ...prev };
+            for (const r of conTer) if (r.fuente) next[r.fundId] = { fuente: r.fuente, listado: r.listado };
+            return next;
+          });
+          const porId = new Map(conTer.map((r) => [r.fundId, r]));
+          setAllocations((prev) =>
+            prev.map((a) => {
+              const r = porId.get(a.fund.id);
+              if (!r || r.ter === undefined) return a;
+              // Se relee la condición sobre el estado ACTUAL: si mientras llegaba
+              // la respuesta el usuario escribió un TER a mano, manda el suyo.
+              const sigueFaltando = !a.fund.ter || a.fund.terConfirmed === false || a.fund.terSource === "estimated";
+              if (!sigueFaltando) return a;
+              return { ...a, fund: { ...a.fund, ter: r.ter, terSource: r.fuente, terConfirmed: true } };
+            })
+          );
+        } catch {
+          // Silencioso a propósito: sin TER automático, la caja sigue editable.
+          // El contador de intentos permite un reintento y luego se rinde, para
+          // no disparar una petición por cada tecla si la ruta está caída.
+        } finally {
+          for (const f of tanda) terEnVuelo.current.delete(f.id);
+        }
+      }
+    })();
+  }, [allocations]);
   // Carteras guardadas localmente por el usuario (localStorage)
   const [savedPortfolios, setSavedPortfolios] = useState<SavedPortfolio[]>([]);
   // Estrategias momentum guardadas por el usuario (también en localStorage).
@@ -1698,6 +1801,20 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                       }
                     />
                     <span className="text-xs text-slate-500">%</span>
+                    {terFuentes[allocation.fund.id] ? (
+                      <span
+                        className="text-[10px] leading-none px-1 py-0.5 rounded bg-slate-100 text-slate-500 uppercase tracking-wide"
+                        title={`TER traído automáticamente de ${
+                          terFuentes[allocation.fund.id]?.fuente === "ft" ? "Financial Times" : "EODHD"
+                        }${
+                          terFuentes[allocation.fund.id]?.listado
+                            ? ` (${terFuentes[allocation.fund.id]?.listado})`
+                            : ""
+                        }. Si no cuadra, corrígelo a mano.`}
+                      >
+                        {terFuentes[allocation.fund.id]?.fuente === "ft" ? "FT" : "EODHD"}
+                      </span>
+                    ) : null}
                     {allocation.fund.terConfirmed === false && (
                       <span
                         className="text-amber-500 cursor-help text-xs font-bold"

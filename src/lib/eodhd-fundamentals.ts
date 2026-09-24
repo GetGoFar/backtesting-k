@@ -153,7 +153,13 @@ interface EodhdFundamentalsResponse {
     ISIN?: string;
     Name?: string;
     Asset_Class?: string;
+    /** @deprecated EODHD nunca ha devuelto este nombre; se conserva por compatibilidad. */
     Net_Expense_Ratio?: number | string;
+    /** Gastos corrientes de los ETFs USA, en FRACCIÓN (0.00095 = 0,095 %). Los
+     *  europeos traen `Ongoing_Charge` en PORCENTAJE (0.0700 = 0,07 %). */
+    NetExpenseRatio?: number | string;
+    /** Fecha del dato de `Ongoing_Charge` (p. ej. "2025-01-27"). */
+    Date_Ongoing_Charge?: string | null;
     // --- Ficha (16-sep-2026): coste, tamaño, índice, RF, valoración, Morningstar, rentabilidades ---
     Company_Name?: string;
     Domicile?: string;
@@ -937,13 +943,22 @@ function fichaDe(etf: NonNullable<EodhdFundamentalsResponse["ETF_Data"]>, listad
     a5: num(perf["Returns_5Y"]),
     a10: num(perf["Returns_10Y"]),
   });
+  // TER: los ETFs EUROPEOS traen `Ongoing_Charge` en PORCENTAJE (0.0700 = 0,07 %) y los
+  // de EEUU `NetExpenseRatio` en FRACCIÓN (0.00095 = 0,095 %). Ojo al nombre: EODHD lo
+  // devuelve SIN guiones bajos; leyéndolo como `Net_Expense_Ratio` los ETFs USA se
+  // quedaban sin TER (bug detectado en sep-2026 al cablear la caja del TER).
+  // La heurística del 0,05: ningún ETF cobra un 5 % (fracción 0.05), así que por debajo
+  // de ese valor interpretamos fracción y multiplicamos por 100.
+  const ocEtf = num(etf.Ongoing_Charge);
+  const nerEtf = num(etf.NetExpenseRatio) ?? num(etf.Net_Expense_Ratio);
+  const terEtf = ocEtf ?? (nerEtf === undefined ? undefined : nerEtf < 0.05 ? nerEtf * 100 : nerEtf);
   const ficha: FichaFundamental = {
     listado,
     gestora: etf.Company_Name || undefined,
     domicilio: etf.Domicile || undefined,
     indice: etf.Index_Name || undefined,
     lanzamiento: etf.Inception_Date || undefined,
-    ter: num(etf.Ongoing_Charge) ?? num(etf.Net_Expense_Ratio),
+    ter: terEtf,
     aum: num(etf.TotalAssets),
     rotacion: num(etf.AnnualHoldingsTurnover),
     estrellas: num(ms?.Ratio),
