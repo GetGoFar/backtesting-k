@@ -44,6 +44,14 @@ Tests con Vitest, colocados junto al código (`src/lib/*.test.ts`): `backtest-en
   navegador y comprobar que el **CSS global** contiene una clase nueva del
   cambio (Tailwind solo emite las que se usan). Estado real de los deploys:
   Vercel vía `claude-in-chrome`, vercel.com/consultoria-9043s-projects/backtesting-k.
+- **¿Está una ruta de API en producción?** `curl -s -o /dev/null -w "%{http_code}"
+  -X POST https://backtesting-k.vercel.app/api/<ruta> -d '{}'`: **404** = no está
+  desplegada; **400/405** = sí está (validó el body). Es la forma rápida de
+  descartar "no funciona" cuando en realidad es "no se ha subido" — pasó en
+  sep-2026 con `/api/ter`. En los **previews de rama** esto NO sirve: la
+  protección de despliegue de Vercel devuelve **401** a cualquier petición
+  anónima (la página da 302 hacia el muro de acceso). El preview hay que abrirlo
+  en un navegador con sesión de Vercel.
 - **El repo vivía dentro de OneDrive** (`C:\Users\goovi\OneDrive\Documentos\Claude\backtesting-k`). OneDrive **trunca ficheros fuente** (los corta a media línea → errores de sintaxis que rompen todo el build) y provoca `Error UNKNOWN: read` (errno -4094) al arrancar `next dev`. **Si un backtest "no compila" o "no sale nada", sospechar corrupción PRIMERO**: `git diff <fichero-con-error>` normalmente muestra solo cola truncada → recuperar con `git checkout HEAD -- <fichero>`. (Recomendación abierta: mover el repo a `C:\dev\backtesting-k`, fuera de OneDrive.)
 - **No hay `node`/`npm` en el PATH del agente** ni el preview puede arrancarlos (`spawn npm ENOENT`). Para type-check usar el node de Adobe:
   `& "C:\Program Files\Adobe\Adobe Creative Cloud Experience\libs\node.exe" node_modules\typescript\bin\tsc --noEmit`
