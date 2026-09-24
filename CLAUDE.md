@@ -157,6 +157,28 @@ no el `startDate` enviado.
 - **Modos de valoración (`ValueMode`): `bruto` / `camino` (neta del camino) / `liquidar`.** El selector de la UI reescala la serie de patrimonio y las métricas. La serie por modo se construye en `lib/value-mode-series.ts` (`buildScaledSeries`), extraída de `PerformanceChart` para reutilizarla.
 - **⚠️ CAGR por modo duplicado — mantener en sync:** la lógica `cagrByMode` vive en **`components/MetricsTable.tsx`** (KPI de cabecera "CAGR al liquidar") y está **replicada** en `lib/value-mode-series.ts` (`cagrByMode`, usada por `HorizonReturnsTable` fila "Desde inicio"). Ambas deben coincidir: ancla en `metrics.cagr`, escala por `scaleFactor`, anualiza sobre años exactos (días/365.25). Si cambias una, cambia la otra, o "Desde inicio" dejará de cuadrar con el KPI.
 - **Rebalanceo por bandas:** la UI pasa el ancho de banda en % (p.ej. 50) y `page.tsx` lo convierte a decimal (`/100 → 0.5`) antes del motor. `checkBandsBreached` usa banda **relativa** (`|drift|/target > banda`).
+- **Primer mes completo (sep-2026):** el análisis NUNCA empieza en un mes a
+  medias. Si el primer dato de un activo se pierde más de 3 días hábiles del
+  mes (`primerMesCompletoDesde` en `date-utils.ts`), ese mes se descarta y se
+  arranca el día 1 del siguiente. Motivo: el activo joven estrenaba con cuatro
+  días mientras el otro contaba el mes entero (junio 2016: L&G Gold Mining
+  +22,7 % contra +2,0 % del Schroder ISF Global Gold, que salió el día 29). Se
+  aplica en los DOS sitios que fijan el inicio —
+  `findCommonDateRangeForPortfolios` (rango común) y `findCommonDailyDateRange`
+  (por cartera, también con el rango común desactivado)— para que lo hereden
+  cabecera, patrimonio, horizontes, métricas por activo, mapas de calor,
+  drawdowns y rolling. Deja un aviso `type: "partial_month"` que la pantalla
+  pinta bajo el rango efectivo, en "Información sobre los datos" y en el PDF.
+- **La correlación es SIEMPRE mensual**, sea cual sea `displayGranularity`:
+  cabecera, matriz, correlación promedio y la del benchmark. En diario, un
+  fondo y un ETF del mismo subyacente salen artificialmente descorrelacionados
+  (0,44 frente a 0,95) porque no fijan precio a la misma hora. Para eso
+  `BacktestResult` lleva `monthlyTimeSeries` además de `timeSeries`. Beta,
+  tracking error y capture ratios SÍ siguen la granularidad elegida.
+- **Los dos Max DD se etiquetan con su base:** "Max Drawdown (cierres
+  mensuales)" en la cabecera y en la tabla de drawdowns (la etiqueta sigue a la
+  granularidad), "Max DD (diario)" en Métricas por activo. Sin la etiqueta,
+  −41,8 % en un sitio y −47,1 % en otro parece un error de la app.
 - **Impuestos (IRPF):** `lib/tax-utils.ts` (`computeTaxOnGain`); impuesto diferido "pendiente" solo afecta al modo `liquidar`. Una cartera sin régimen fiscal hereda el de la cartera comparada para no "ganar" artificialmente al liquidar.
 
 ## Convenciones de código
@@ -235,10 +257,66 @@ campus, copiloto y clientes antiguos no cambian). La UI arranca en EUR.
   cálculo directo sobre las series crudas; SPY en EUR da CAGR 14,02 % vs 13,84 %
   del iShares S&P 500 UCITS EUR (2015-2026; la diferencia es TER + retención
   de dividendos); oro spot en EUR 12,09 % vs 11,88 % del Invesco Physical Gold.
-- ⚠️ **Pendiente de datos (no de código):** la auditoría destapó ISIN de los
-  presets BBVA que en EODHD son OTRO fondo (`bbvac-amundi-eur-liquidity`
-  LU0568621618 = Amundi Cash USD; `bbvar-vontobel-us-equity` LU0136412771 =
-  Ethna Aktiv; `bbvar-amundi-us-equity` LU1883320993 = Amundi Global Equity
-  Sustainable Income; `bbvar-gs-japan-equity` LU0234572450 = GS Global EM;
-  `bbvaa-bnp-euro-govt` LU0823411888 = BNP Consumer Innovators USD). Descargan
-  el NAV equivocado; hay que corregir los ISIN.
+- ✅ **Los cinco ISIN BBVA cruzados ya están corregidos** (commit 2215db2).
+  Reauditados en sep-2026 contra `/search/{ISIN}`: `bbvac-amundi-eur-liquidity`
+  LU0568620560, `bbvar-vontobel-us-equity` LU0035765741, `bbvar-amundi-us-equity`
+  LU1883859230, `bbvar-gs-japan-equity` LU0234695293 y `bbvaa-bnp-euro-govt`
+  LU0111548326 devuelven hoy el fondo que dice el catálogo.
+
+## Auditoría de ISIN del catálogo (sep-2026)
+
+Los 259 fondos de `fund-database.ts` pasados por `/search/{ISIN}` de EODHD, y
+además —los que tienen ticker— por el cruce inverso `/search/{ticker}` → ISIN,
+que es la prueba fuerte: si EODHD asocia otro ISIN a ese ticker, uno de los dos
+está mal. Guion de la auditoría: ad hoc, no quedó en `scripts/`.
+
+**Por qué importa aunque los precios salgan bien:** en `eodhd-fundamentals.ts`
+(`getFundComposition`) **el ISIN tiene prioridad sobre el ticker** — prueba
+`ISIN.EUFUND` → listings de `/search/{ISIN}` → ticker. Un ISIN equivocado sirve
+la ficha de otro producto (TER, composición, sectores) aunque el NAV sea el
+correcto. En `data-fetcher.ts`/`providers/eodhd.ts` es al revés: manda el
+ticker y el ISIN solo entra como *fallback* si el ticker no devuelve nada.
+
+- ✅ **Corregido:** `vanguard-vfinx` tenía US9229085538, que es VNQ (Vanguard
+  Real Estate ETF) → **US9229081081**. Por eso la búsqueda de TER devolvía
+  `VNQ.US` con 0,12 % en vez del 0,14 % de VFINX. Los precios nunca se vieron
+  afectados (ticker `VFINX`; además US9229085538.EUFUND da 404). Ojo: el ISIN
+  que circula como "el bueno" de VFINX, **US9229087286, es en realidad VTSAX**
+  (Vanguard Total Stock Market Admiral) — estaba colado en `campus-whitelist.ts`
+  y se quitó.
+- ⚠️ **Pendiente 1 — fondos SIN ticker cuyo ISIN descarga el NAV de otro fondo**
+  (esto sí contamina backtests): `bankinter-espana` ES0114105036 = Bankinter
+  EE.UU. Nasdaq 100; `bbvar-bbva-usa-isr` ES0114205034 = BBVA Bonos Corporativos
+  Largo Plazo; `bbvar-jpm-us-select` LU0210526637 = JPMorgan China;
+  `bbvar-ab-select-us` LU0079474960 = AB American Growth; `bbvaa-pimco-em-bond`
+  IE00B11XZ103 = PIMCO Global Bond; `bbvaa-invesco-eur-corp` LU0243957239 =
+  Invesco Pan European High Income; `bbvaa-fidelity-eur-hy` LU0261948227 =
+  Fidelity Germany; `bbvaa-muzinich-em-sd` IE00B4Z6HC18 = BNY Mellon Global Real
+  Return; `bbvaa-lumyna-market-neutral` LU0834815101 = OptoFlex I;
+  `jl-yis-3-5-emu-govt-bond-z` LU0335987698 = Eurizon EF Bond EUR Medium Term.
+  Hay que sacar el ISIN del folleto de cada uno, no de EODHD.
+- ⚠️ **Pendiente 2 — fondos CON ticker cuyo ISIN no es el que EODHD da para ese
+  ticker.** Solo estropea la ficha/TER, no los precios. Entre paréntesis, el que
+  devuelve EODHD: `vanguard-vgsix` US9229085538 (US9219087031 — el actual es
+  VNQ, la clase ETF, no VGSIX), `vanguard-vustx` US9219086547 (US9220315058),
+  `vanguard-vfitx` US9219086208 (US9220318029), `vanguard-vfisx` US9219085101
+  (US9220317039), `vanguard-vwehx` US9219084153 (US9220312089), `vanguard-vtmgx`
+  US9219091257 (US9219438093), `vanguard-veiex` US9220428588 (US9220423043),
+  `vanguard-veurx` US9220428406 (US9220422052), `vanguard-vbmfx` US9219371078
+  (US9219371088), `vanguard-naesx` US9229087682 (US9229087021), `ishares-ewj`
+  US4642868487 (US46434G8226, mismo nombre — puede ser un CUSIP viejo),
+  `rf-goehring-rozencwajg-resources` US38035R1095 = clase Retail mientras el
+  ticker `GRHIX` es la Institucional (US38035R2085): el nombre o el ticker
+  sobran.
+- ⚠️ **Pendiente 3 — ISIN con dígito de control inválido** (no existen como
+  ISIN, aunque el fondo sí): los de arriba `vanguard-vustx`, `vanguard-vfitx`,
+  `vanguard-vfisx`, `vanguard-vwehx`, `vanguard-vtmgx`, `vanguard-vbmfx`, más
+  `caixabank-global` ES0114768030, `santander-espana` ES0175279036,
+  `bbva-sostenible` ES0113536034, `santander-rf` ES0138883035, `caixabank-rf`
+  ES0164803033 y `bbvaa-janus-uk-abs-return` IE00B4P7Q881. Los 11 pseudo-ISIN de
+  divisas y oro (`XAUUSD`, `EURUSD`, …) son intencionados y no cuentan.
+- **Falsos positivos que NO hay que tocar:** EODHD abrevia nombres
+  (`bbvac-ms-short-maturity` → "MRG ST IF-SH MAT EU BD-A", `bbvac-bluebay-ig-absolute`,
+  `bbvac-pictet-eur-short-term`, `caixa-smart-rf-inflacion`), y en los listados
+  `.EUFUND` publica `ISIN: null` con el ISIN en el campo `Code` — un filtro que
+  exija `ISIN` exacto los marca como "sin resultado" sin motivo.

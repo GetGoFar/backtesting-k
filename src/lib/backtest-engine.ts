@@ -52,6 +52,8 @@ import {
   isNewMonth,
   aggregateDailyReturns,
   getMonthFromDate,
+  primerMesCompletoDesde,
+  formatMesAnio,
 } from "./date-utils";
 
 // -----------------------------------------------------------------------------
@@ -94,6 +96,11 @@ export async function runBacktest(
   let effectiveEndDate = config.endDate;
   let commonDateRange: { start: string; end: string } | undefined;
 
+  // Meses descartados por incompletos: los detecta el rango común (si está
+  // activo) y, si no, cada cartera por su cuenta. El aviso se compone al final,
+  // cuando ya sabemos en qué mes arrancó de verdad el análisis.
+  const mesesIncompletos: Array<{ mes: string; activo: string; inicio: string }> = [];
+
   // Composición del benchmark seleccionado (si lo hay). Se incluye en el
   // cálculo del rango común para que "usar rango común" también lo abarque:
   // si el histórico del benchmark es más corto (p.ej. un ETF que cotiza desde
@@ -132,6 +139,13 @@ export async function runBacktest(
       effectiveStartDate = rangeResult.startDate;
       effectiveEndDate = rangeResult.endDate;
       commonDateRange = { start: rangeResult.startDate, end: rangeResult.endDate };
+      if (rangeResult.mesDescartado) {
+        mesesIncompletos.push({
+          mes: rangeResult.mesDescartado.mes,
+          activo: rangeResult.mesDescartado.activo,
+          inicio: rangeResult.startDate,
+        });
+      }
       console.log(`[BacktestEngine] Rango común encontrado: ${effectiveStartDate} - ${effectiveEndDate}`);
     }
   }
@@ -180,7 +194,8 @@ export async function runBacktest(
         taxModeA,
         bandRel,
         bandAbs,
-        contribRebalanceA
+        contribRebalanceA,
+        mesesIncompletos
       )
     : Promise.resolve(null);
 
@@ -198,16 +213,60 @@ export async function runBacktest(
         taxModeB,
         bandRel,
         bandAbs,
-        contribRebalanceB
+        contribRebalanceB,
+        mesesIncompletos
       )
     : Promise.resolve(null);
 
   const [resultA, resultB] = await Promise.all([resultAPromise, resultBPromise]);
 
-  // Correlación entre carteras (siempre usa datos mensuales para estabilidad)
+  // -------------------------------------------------------------------------
+  // AVISO: hemos descartado un mes a medias
+  // -------------------------------------------------------------------------
+  // Solo se enseña si el mes descartado es el que MANDA en la fecha de inicio
+  // real; si otro activo arranca más tarde todavía, el mes a medias no cambió
+  // nada y contarlo sería ruido.
+  if (mesesIncompletos.length > 0) {
+    const iniciosReales = [resultA, resultB]
+      .map((r) => r?.timeSeries[0]?.exactDate)
+      .filter((d): d is string => !!d)
+      .sort();
+    const inicioReal = iniciosReales[iniciosReales.length - 1];
+    const nota = mesesIncompletos
+      .slice()
+      .sort((x, y) => (x.inicio < y.inicio ? 1 : x.inicio > y.inicio ? -1 : 0))[0];
+    if (nota && inicioReal && getMonthFromDate(nota.inicio) === getMonthFromDate(inicioReal)) {
+      // Si las carteras NO arrancan el mismo mes (rango común desactivado),
+      // decir "empezamos en X" despistaría: la otra puede venir de años antes.
+      const arrancanJuntas = iniciosReales.every(
+        (d) => getMonthFromDate(d) === getMonthFromDate(inicioReal)
+      );
+      const mesInicio = formatMesAnio(getMonthFromDate(inicioReal));
+      engineWarnings.push({
+        type: "partial_month",
+        severity: "info",
+        message: arrancanJuntas
+          ? `Empezamos en ${mesInicio}, el primer mes completo con datos de todas las carteras. ` +
+            `${nota.activo} empezó a cotizar a mitad de ${formatMesAnio(nota.mes)}; contar ese ` +
+            `mes le daría ventaja a la otra cartera, que sí lo tiene entero.`
+          : `${nota.activo} empieza en ${mesInicio}, su primer mes completo: empezó a cotizar a ` +
+            `mitad de ${formatMesAnio(nota.mes)} y contar ese mes a medias le daría ventaja a la ` +
+            `otra cartera, que sí lo tiene entero.`,
+      });
+    }
+  }
+
+  // Correlación entre carteras: SIEMPRE mensual, aunque se esté viendo el
+  // gráfico en diario. Con datos diarios un fondo y un ETF del mismo subyacente
+  // salen artificialmente descorrelacionados (0,44 frente a 0,95 en el caso
+  // L&G Gold Mining vs Schroder ISF Global Gold) porque no fijan precio a la
+  // misma hora, y eso confunde más de lo que informa.
   let correlation: number | undefined;
   if (resultA && resultB) {
-    correlation = calculateCorrelation(resultA.timeSeries, resultB.timeSeries);
+    correlation = calculateCorrelation(
+      resultA.monthlyTimeSeries ?? resultA.timeSeries,
+      resultB.monthlyTimeSeries ?? resultB.timeSeries
+    );
   }
 
   // FIX: el benchmark debe correr sobre el periodo REAL de los portfolios
@@ -409,7 +468,10 @@ async function runPortfolioBacktest(
   taxMode: TaxMode = "none",
   rebalanceBandRelative: number = 0,
   rebalanceBandAbsolute: number = 0,
-  contributionRebalance: boolean = false
+  contributionRebalance: boolean = false,
+  /** Recolector: meses descartados por estar incompletos (ver el aviso que
+   *  compone `runBacktest`). Se rellena, no se lee aquí. */
+  mesesIncompletos?: Array<{ mes: string; activo: string; inicio: string }>
 ): Promise<BacktestResult | null> {
   console.log(`[BacktestEngine] Procesando cartera: ${portfolio.name}`);
 
@@ -599,11 +661,18 @@ async function runPortfolioBacktest(
       : [];
 
   // 2. Encontrar el rango de fechas diarias (unión + forward-fill + intersección)
-  const { commonDates, intersectionDates, startDay, endDay } = findCommonDailyDateRange(
-    fundPrices,
-    startDate,
-    endDate
-  );
+  const { commonDates, intersectionDates, startDay, endDay, mesDescartado } =
+    findCommonDailyDateRange(fundPrices, startDate, endDate);
+
+  if (mesDescartado && mesesIncompletos) {
+    const h = portfolio.holdings.find((x) => x.fundId === mesDescartado.fundId);
+    const fondo = getFundById(mesDescartado.fundId) ?? h?.fund;
+    mesesIncompletos.push({
+      mes: mesDescartado.mes,
+      activo: fondo?.shortName || fondo?.name || mesDescartado.fundId,
+      inicio: commonDates[0] ?? "",
+    });
+  }
 
   if (commonDates.length < 2) {
     console.error("[BacktestEngine] Rango de fechas insuficiente");
@@ -662,6 +731,18 @@ async function runPortfolioBacktest(
   }
 
   if (timeSeries.length === 0) return null;
+
+  // 4a-bis. Serie MENSUAL, se haya pedido la granularidad que se haya pedido.
+  // La correlación se calcula siempre con ella: en diario un fondo y un ETF
+  // parecen menos relacionados de lo que están, porque no fijan su precio a la
+  // misma hora (NAV de cierre vs cierre de Xetra), tienen festivos distintos y
+  // cada uno arrastra el tipo de cambio de su día.
+  const monthlyTimeSeries: TimeSeriesPoint[] =
+    displayGranularity === "monthly"
+      ? timeSeries
+      : getLastDatePerPeriod(commonDates, "monthly")
+          .filter((d) => dailyMap.has(d))
+          .map((d) => ({ date: d.substring(0, 7), value: dailyMap.get(d)!, exactDate: d }));
 
   // 4b. Contrafactual BRUTO: agregar su serie a la misma granularidad y
   // exponerla SOLO si la cartera pagó impuestos (si no, bruto == neto y no
@@ -845,6 +926,7 @@ async function runPortfolioBacktest(
     finalValue,
     grossFinalValue,
     grossTimeSeries,
+    monthlyTimeSeries,
   };
 }
 
@@ -1833,12 +1915,15 @@ function computeBenchmarkComparison(
 
   const beta = benchVariance > 0 ? covariance / benchVariance : 0;
 
-  // Correlación de Pearson
-  const portStd = Math.sqrt(portVariance);
-  const benchStd = Math.sqrt(benchVariance);
-  const correl = portStd > 0 && benchStd > 0
-    ? covariance / (portStd * benchStd)
-    : 0;
+  // Correlación de Pearson — SIEMPRE con rentabilidades MENSUALES, aunque se
+  // esté viendo el gráfico en diario. A diario el valor liquidativo de un fondo
+  // y el cierre de un ETF no se fijan a la misma hora, así que la correlación
+  // sale artificialmente baja. Beta, tracking error y capture ratios sí siguen
+  // la granularidad elegida (miden otra cosa).
+  const correl = calculateCorrelation(
+    portfolioResult.monthlyTimeSeries ?? portfolioResult.timeSeries,
+    benchmarkResult.monthlyTimeSeries ?? benchmarkResult.timeSeries
+  );
   const rSquared = correl * correl;
 
   // Alpha de Jensen anualizado:
@@ -2441,7 +2526,13 @@ function findCommonDailyDateRange(
   fundPrices: Map<string, Map<string, number>>,
   requestedStart: string,
   requestedEnd: string
-): { commonDates: string[]; intersectionDates: Set<string>; startDay: string; endDay: string } {
+): {
+  commonDates: string[];
+  intersectionDates: Set<string>;
+  startDay: string;
+  endDay: string;
+  mesDescartado?: { mes: string; fundId: string };
+} {
   if (fundPrices.size === 0) {
     return { commonDates: [], intersectionDates: new Set(), startDay: "", endDay: "" };
   }
@@ -2468,13 +2559,27 @@ function findCommonDailyDateRange(
     return month >= startPrefix && month <= endPrefix;
   });
 
-  // Solo incluir fechas desde el primer día en que TODOS los fondos tienen al menos un dato
-  const fundFirstDates: string[] = [];
-  for (const prices of fundPrices.values()) {
+  // Solo incluir fechas desde el primer día en que TODOS los fondos tienen al
+  // menos un dato Y ese mes está completo: el activo que sale a cotizar a mitad
+  // de mes no puede estrenar con medio mes, porque lo compararíamos contra el
+  // mes entero del otro (ver `primerMesCompletoDesde`). Aplica aunque el rango
+  // común esté desactivado — aquí pasa SIEMPRE cada cartera.
+  const primerosPorFondo: Array<{ fundId: string; fecha: string }> = [];
+  for (const [fundId, prices] of fundPrices) {
     const dates = Array.from(prices.keys()).sort();
-    if (dates[0]) fundFirstDates.push(dates[0]);
+    if (dates[0]) primerosPorFondo.push({ fundId, fecha: dates[0] });
   }
-  const latestFirstDate = fundFirstDates.sort().pop() ?? "";
+  const candidatos = primerosPorFondo.map(({ fundId, fecha }) => {
+    if (getMonthFromDate(fecha) < startPrefix) return { fundId, inicio: fecha };
+    const r = primerMesCompletoDesde(fecha);
+    return { fundId, inicio: r.inicio, mesDescartado: r.mesDescartado };
+  });
+  candidatos.sort((x, y) => (x.inicio < y.inicio ? 1 : x.inicio > y.inicio ? -1 : 0));
+  const vinculante = candidatos[0];
+  const latestFirstDate = vinculante?.inicio ?? "";
+  const mesDescartado = vinculante?.mesDescartado
+    ? { mes: vinculante.mesDescartado, fundId: vinculante.fundId }
+    : undefined;
 
   if (latestFirstDate) {
     sortedDates = sortedDates.filter((date) => date >= latestFirstDate);
@@ -2514,6 +2619,7 @@ function findCommonDailyDateRange(
     intersectionDates,
     startDay: sortedDates[0] ?? "",
     endDay: sortedDates[sortedDates.length - 1] ?? "",
+    mesDescartado,
   };
 }
 
@@ -2523,7 +2629,11 @@ async function findCommonDateRangeForPortfolios(
   requestedStart: string,
   requestedEnd: string,
   benchmarkHoldings?: PortfolioHolding[]
-): Promise<{ startDate: string; endDate: string } | null> {
+): Promise<{
+  startDate: string;
+  endDate: string;
+  mesDescartado?: { mes: string; activo: string };
+} | null> {
   console.log("[BacktestEngine] Buscando rango común...");
 
   // Incluimos los holdings del benchmark (si se ha seleccionado) en la
@@ -2541,6 +2651,10 @@ async function findCommonDateRangeForPortfolios(
   // estrategia podría producir señal: latest first date entre sus activos
   // subyacentes + el lookback necesario.
   const derivedFirstDates: string[] = [];
+  // Primer dato de cada activo CON SU NOMBRE: hace falta para descartar el mes
+  // incompleto del que arranque a mitad de mes y poder decir en el aviso quién
+  // fue (ver `primerMesCompletoDesde`).
+  const primerosDatos: Array<{ nombre: string; fecha: string }> = [];
 
   for (const holding of allHoldings) {
     // === RAMA 1: Holding de momentum dinámico ===
@@ -2588,6 +2702,10 @@ async function findCommonDateRangeForPortfolios(
         firstViable.setUTCMonth(firstViable.getUTCMonth() + minMonthsNeeded);
         const firstViableStr = firstViable.toISOString().substring(0, 10);
         derivedFirstDates.push(firstViableStr);
+        primerosDatos.push({
+          nombre: holding.fund?.shortName ?? holding.fund?.name ?? holding.fundId,
+          fecha: firstViableStr,
+        });
         console.log(
           `[BacktestEngine] Momentum holding ${holding.fundId}: primer dato viable ≈ ${firstViableStr} (assets desde ${anchorFirst} + ${minMonthsNeeded}m lookback${cfg.allowPartialUniverse ? ", universo evolutivo" : ""})`
         );
@@ -2610,6 +2728,8 @@ async function findCommonDateRangeForPortfolios(
       const { prices } = await getDailyPricesIn(holding.fundId, fund.ticker, fund.isin, fund.currency);
       if (prices.size > 0) {
         allDateSets.push(new Set(prices.keys()));
+        const primera = Array.from(prices.keys()).sort()[0];
+        if (primera) primerosDatos.push({ nombre: fund.shortName || fund.name, fecha: primera });
         console.log(`[BacktestEngine] ${fund.shortName}: ${prices.size} días disponibles`);
       }
     } catch (error) {
@@ -2638,9 +2758,41 @@ async function findCommonDateRangeForPortfolios(
   }
   // Combinar con las fechas derivadas de momentum holdings.
   const allFirstDates = [...fundFirstDates, ...derivedFirstDates];
-  const latestFirstDate = allFirstDates.sort().pop() ?? "";
 
   const startPrefix = requestedStart.substring(0, 7);
+
+  // PRIMER MES COMPLETO: si un activo arranca a mitad de mes, ese mes se
+  // descarta. Contarlo compara su trocito de mes contra el mes entero del otro
+  // activo, que sale ganando sin haber hecho nada (junio de 2016: L&G Gold
+  // Mining +22,7 % el mes entero vs Schroder ISF Global Gold +2,0 % en dos
+  // días). Solo aplica a los activos cuyo histórico empieza DENTRO del periodo
+  // pedido: si el fondo cotiza desde hace años, su primer mes da igual.
+  const candidatos = allFirstDates.map((fecha) => {
+    if (getMonthFromDate(fecha) < startPrefix) return { inicio: fecha };
+    const r = primerMesCompletoDesde(fecha);
+    return {
+      inicio: r.inicio,
+      ...(r.mesDescartado
+        ? {
+            mesDescartado: r.mesDescartado,
+            activo:
+              primerosDatos.find((a) => a.fecha === fecha)?.nombre ?? "Uno de los activos",
+          }
+        : {}),
+    };
+  });
+  candidatos.sort((x, y) => (x.inicio < y.inicio ? 1 : x.inicio > y.inicio ? -1 : 0));
+  const vinculante = candidatos[0];
+  const latestFirstDate = vinculante?.inicio ?? "";
+  const mesDescartado =
+    vinculante?.mesDescartado && vinculante.activo
+      ? { mes: vinculante.mesDescartado, activo: vinculante.activo }
+      : undefined;
+  if (mesDescartado) {
+    console.log(
+      `[BacktestEngine] Mes incompleto descartado: ${mesDescartado.mes} (${mesDescartado.activo}) → se empieza en ${latestFirstDate}`
+    );
+  }
   const endPrefix = requestedEnd.substring(0, 7);
 
   const sortedDates = Array.from(allDatesUnion)
@@ -2663,6 +2815,7 @@ async function findCommonDateRangeForPortfolios(
   return {
     startDate: firstDate,
     endDate: lastDate,
+    mesDescartado,
   };
 }
 

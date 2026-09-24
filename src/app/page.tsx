@@ -1020,6 +1020,19 @@ export default function Home() {
                   Rango efectivo: {formatDateForDisplay(results.effectiveDateRange.startDate)} - {formatDateForDisplay(results.effectiveDateRange.endDate)}
                 </p>
               )}
+              {/* Mes a medias descartado: solo aparece cuando de verdad se ha
+                  descartado uno, y explica por qué la fecha de inicio no es la
+                  del primer dato del fondo más joven. */}
+              {(() => {
+                const nota = results?.warnings?.find(
+                  (w: BacktestWarning) => w.type === "partial_month"
+                );
+                return nota ? (
+                  <p className="mt-2 ml-7 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                    ℹ️ {nota.message}
+                  </p>
+                ) : null;
+              })()}
             </div>
 
             {/* Selector de benchmark */}

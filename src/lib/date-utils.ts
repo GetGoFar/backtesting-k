@@ -158,3 +158,75 @@ export function formatPeriodLabel(period: string): string {
   }
   return period;
 }
+
+// -----------------------------------------------------------------------------
+// PRIMER MES COMPLETO (sep-2026)
+// -----------------------------------------------------------------------------
+// Un activo que sale a cotizar a mitad de mes tiene un primer "mes" que en
+// realidad son cuatro días. Si el otro activo de la comparación sí tiene el mes
+// entero, ese mes le regala una ventaja falsa (caso real: junio de 2016, el
+// L&G Gold Mining hizo +22,7 % y el Schroder ISF Global Gold, que arrancó el
+// día 29, solo +2,0 %). La regla es descartar ese mes y empezar en el siguiente.
+
+/**
+ * Días hábiles (lun-vie) entre el día 1 del mes y `fecha`, sin contarla.
+ * Un fondo que arranca el 29 se ha perdido ~20; uno que arranca el 4 de enero
+ * solo se ha perdido el festivo de Año Nuevo.
+ */
+function diasHabilesAntesEnElMes(fecha: string): number {
+  const year = Number(fecha.substring(0, 4));
+  const month = Number(fecha.substring(5, 7));
+  const day = Number(fecha.substring(8, 10));
+  if (!year || !month || !day) return 0;
+  let habiles = 0;
+  for (let d = 1; d < day; d++) {
+    const dow = new Date(Date.UTC(year, month - 1, d)).getUTCDay();
+    if (dow !== 0 && dow !== 6) habiles++;
+  }
+  return habiles;
+}
+
+/**
+ * Cuántos días hábiles puede perderse un activo al principio de su primer mes
+ * y seguir contando como mes completo. Cubre los festivos de apertura de mes
+ * (Año Nuevo, Semana Santa, Pascua): ningún mercado cierra 4 hábiles seguidos.
+ */
+const HABILES_TOLERADOS_INICIO_MES = 3;
+
+export interface PrimerMesUtil {
+  /** Primera fecha utilizable como inicio (la misma, o el día 1 del mes que viene). */
+  inicio: string;
+  /** Mes descartado en formato YYYY-MM. Ausente si no se descartó ninguno. */
+  mesDescartado?: string;
+}
+
+/**
+ * Dada la primera fecha con datos de un activo, devuelve desde cuándo se puede
+ * empezar a medir sin contar un mes a medias.
+ */
+export function primerMesCompletoDesde(primeraFecha: string): PrimerMesUtil {
+  if (primeraFecha.length < 10) return { inicio: primeraFecha };
+  if (diasHabilesAntesEnElMes(primeraFecha) <= HABILES_TOLERADOS_INICIO_MES) {
+    return { inicio: primeraFecha };
+  }
+  const year = Number(primeraFecha.substring(0, 4));
+  const month = Number(primeraFecha.substring(5, 7));
+  const inicio =
+    month === 12
+      ? `${year + 1}-01-01`
+      : `${year}-${String(month + 1).padStart(2, "0")}-01`;
+  return { inicio, mesDescartado: getMonthFromDate(primeraFecha) };
+}
+
+const MESES_ES = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+
+/** "2016-07" → "julio de 2016". Para los avisos que lee el alumno. */
+export function formatMesAnio(mes: string): string {
+  const year = mes.substring(0, 4);
+  const idx = Number(mes.substring(5, 7)) - 1;
+  const nombre = MESES_ES[idx];
+  return nombre ? `${nombre} de ${year}` : mes;
+}

@@ -454,7 +454,7 @@ function MatrixSummary({ matrix }: { matrix: CorrelationMatrixType }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
       <div className="flex flex-col">
-        <span className="text-slate-500">Correlación promedio</span>
+        <span className="text-slate-500">Correlación promedio (mensual)</span>
         <span className={`font-semibold ${avgCorrelation > 0.7 ? "text-red-600" : avgCorrelation > 0.5 ? "text-amber-600" : "text-emerald-600"}`}>
           {avgCorrelation.toFixed(2)}
         </span>
@@ -597,9 +597,9 @@ export function CorrelationMatrix({
               />
             </svg>
             <h3 className="text-lg font-semibold text-slate-900">
-              Matriz de Correlaciones
+              Matriz de Correlaciones (mensual)
             </h3>
-            <Tooltip content="Muestra la correlación entre los retornos mensuales de cada par de activos. Valores cercanos a 0 indican mayor diversificación.">
+            <Tooltip content="Muestra la correlación entre los retornos de cada par de activos. Valores cercanos a 0 indican mayor diversificación. Se calcula con datos mensuales. Con datos diarios, un fondo y un ETF parecen menos relacionados de lo que están, porque no calculan su precio a la misma hora.">
               <svg
                 className="w-4 h-4 text-slate-400 cursor-help"
                 fill="currentColor"
