@@ -1385,6 +1385,25 @@ const EDICIONES_TALLER_PRESETS: PortfolioPreset[] = [
       { fundId: "stock-byd", weight: 9.0909 },
     ],
   },
+  {
+    id: "edicion-taller-sepoct26",
+    name: "Edición Sep/Oct26",
+    description:
+      "Equiponderada (10% cada una) de las 10 empresas cotizadas que sugirieron los alumnos de la edición de septiembre-octubre 2026: NVIDIA, Cloudflare, Meta, Microsoft, Berkshire Hathaway, McDonald's, AstraZeneca, Apple, Alphabet/Google y Nestlé. La alumna que dio tres nombres (Google, Meta o Apple) cuenta como Meta, la única que no había nombrado nadie más. Se ignoró Denodo por no cotizar. El histórico común arranca en sep-2019 (salida a bolsa de Cloudflare).",
+    type: "index",
+    holdings: [
+      { fundId: "stock-nvda",   weight: 10 },
+      { fundId: "stock-net",    weight: 10 },
+      { fundId: "stock-meta",   weight: 10 },
+      { fundId: "stock-msft",   weight: 10 },
+      { fundId: "stock-brk-a",  weight: 10 },
+      { fundId: "stock-mcd",    weight: 10 },
+      { fundId: "stock-azn",    weight: 10 },
+      { fundId: "stock-aapl",   weight: 10 },
+      { fundId: "stock-googl",  weight: 10 },
+      { fundId: "stock-nestle", weight: 10 },
+    ],
+  },
 ];
 
 // Las carteras PRIVADAS (clientes de consultoría, extractos reales) NO están aquí ni viajan en el bundle:
