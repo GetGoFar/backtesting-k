@@ -1,6 +1,11 @@
 "use client";
 
-import type { BacktestResponse, BacktestResult, DrawdownEpisode } from "@/lib/types";
+import type {
+  BacktestResponse,
+  BacktestResult,
+  DisplayGranularity,
+  DrawdownEpisode,
+} from "@/lib/types";
 import { formatPct } from "@/lib/formatters";
 
 interface TopDrawdownsTableProps {
@@ -31,14 +36,26 @@ function formatDurationMonths(months: number | null): string {
   return `${years === 1 ? "1 año" : `${years} años`} ${remainingMonths === 1 ? "1 mes" : `${remainingMonths} meses`}`;
 }
 
+// Base de cálculo de estos drawdowns: son los cierres del periodo que se está
+// viendo, no precios diarios. Se dice en la cabecera porque "Métricas por
+// activo" usa datos diarios y da una caída mayor; sin la etiqueta parece un
+// error de la app.
+const CIERRES_LABEL: Record<DisplayGranularity, string> = {
+  daily: "cierres diarios",
+  monthly: "cierres mensuales",
+  quarterly: "cierres trimestrales",
+};
+
 function PortfolioDrawdownsTable({
   result,
   colorClass,
+  granularity,
 }: {
   // Solo se leen estos dos campos; se acepta el BacktestResult completo o un
   // objeto virtual del benchmark con la misma forma para reutilizar la card.
   result: Pick<BacktestResult, "topDrawdowns" | "portfolioName">;
   colorClass: "blue" | "rose" | "purple";
+  granularity: DisplayGranularity;
 }) {
   const episodes: DrawdownEpisode[] = result.topDrawdowns ?? [];
   if (episodes.length === 0) return null;
@@ -54,7 +71,7 @@ function PortfolioDrawdownsTable({
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
       <div className="px-6 py-4 border-b border-slate-100">
         <h4 className={`text-base font-semibold ${headerColor} font-serif`}>
-          Drawdowns — {result.portfolioName}
+          Drawdowns ({CIERRES_LABEL[granularity]}) — {result.portfolioName}
         </h4>
         <p className="text-xs text-brand-tertiary mt-0.5">
           Top {episodes.length} peores caídas desde un máximo, con tiempo de recuperación
@@ -123,6 +140,8 @@ export function TopDrawdownsTable({ results, isLoading }: TopDrawdownsTableProps
   const { resultA, resultB } = results;
   if (!resultA && !resultB) return null;
 
+  const granularity: DisplayGranularity = results.displayGranularity ?? "monthly";
+
   // El benchmark es global (compartido por A y B); se toma del primero disponible.
   const bm = resultA?.benchmark ?? resultB?.benchmark;
   const benchmarkEpisodes = bm?.benchmarkTopDrawdowns;
@@ -130,8 +149,12 @@ export function TopDrawdownsTable({ results, isLoading }: TopDrawdownsTableProps
 
   return (
     <div className="space-y-4">
-      {resultA && <PortfolioDrawdownsTable result={resultA} colorClass="blue" />}
-      {resultB && <PortfolioDrawdownsTable result={resultB} colorClass="rose" />}
+      {resultA && (
+        <PortfolioDrawdownsTable result={resultA} colorClass="blue" granularity={granularity} />
+      )}
+      {resultB && (
+        <PortfolioDrawdownsTable result={resultB} colorClass="rose" granularity={granularity} />
+      )}
       {hasBenchmark && (
         <PortfolioDrawdownsTable
           result={{
@@ -139,6 +162,7 @@ export function TopDrawdownsTable({ results, isLoading }: TopDrawdownsTableProps
             portfolioName: bm?.benchmarkName ?? "Benchmark",
           }}
           colorClass="purple"
+          granularity={granularity}
         />
       )}
     </div>

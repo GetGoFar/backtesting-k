@@ -81,6 +81,15 @@ const GRANULARITY_LABELS: Record<DisplayGranularity, { singular: string; plural:
   quarterly: { singular: "trimestre", plural: "trimestres" },
 };
 
+// Base de cálculo del Max Drawdown de cabecera. Se dice siempre, porque la
+// tabla "Métricas por activo" lo calcula con precios DIARIOS y, al ver -41,8 %
+// en un sitio y -47,1 % en otro, parece un error cuando no lo es.
+const CIERRES_LABEL: Record<DisplayGranularity, string> = {
+  daily: "cierres diarios",
+  monthly: "cierres mensuales",
+  quarterly: "cierres trimestrales",
+};
+
 // Tooltips en español para cada métrica
 function buildTooltips(granularity: DisplayGranularity) {
   const { singular, plural } = GRANULARITY_LABELS[granularity];
@@ -98,7 +107,7 @@ function buildTooltips(granularity: DisplayGranularity) {
     sortino:
       "Similar al Sharpe, pero solo penaliza la volatilidad negativa (caídas). Más relevante si te preocupan las pérdidas.",
     maxDrawdown:
-      "La peor caída desde un máximo histórico. Mide cuánto podrías haber perdido si hubieras invertido en el peor momento posible.",
+      `La peor caída desde un máximo histórico. Mide cuánto podrías haber perdido si hubieras invertido en el peor momento posible. Se calcula con ${CIERRES_LABEL[granularity]}. Con precios diarios la caída máxima sale igual o mayor que con cierres de mes, porque recoge el peor día aunque se recupere antes de fin de mes. Las dos son correctas; miden distinto.`,
     bestMonth:
       `El mejor ${singular} del periodo. Muestra el potencial alcista de la cartera.`,
     worstMonth:
@@ -309,7 +318,7 @@ function buildMetricsConfig(
   },
   {
     key: "maxDrawdown",
-    label: "Max Drawdown",
+    label: `Max Drawdown (${CIERRES_LABEL[granularity]})`,
     getValue: (r) => r.metrics.maxDrawdown,
     format: (v) => formatPct(v, 1),
     higherIsBetter: true,
@@ -827,7 +836,7 @@ export function MetricsTable({ results, isLoading, valueMode, onValueModeChange 
       {correlation !== undefined && !isSinglePortfolio && (
         <div className="flex items-center justify-center">
           <div className="inline-flex items-center gap-3 px-6 py-3 bg-white rounded-full border border-slate-100 shadow-sm">
-            <span className="text-sm font-medium text-brand-secondary">Correlación entre carteras</span>
+            <span className="text-sm font-medium text-brand-secondary">Correlación entre carteras (mensual)</span>
             <span className={`text-2xl sm:text-3xl font-bold font-serif ${
               Math.abs(correlation) > 0.7 ? "text-amber-600" :
               Math.abs(correlation) > 0.3 ? "text-blue-600" :
@@ -835,7 +844,7 @@ export function MetricsTable({ results, isLoading, valueMode, onValueModeChange 
             }`}>
               {(correlation * 100).toFixed(0)}%
             </span>
-            <Tooltip content="Correlación de Pearson entre los retornos mensuales de ambas carteras. Cerca de 100% = se mueven igual. Cerca de 0% = independientes.">
+            <Tooltip content="Correlación de Pearson entre los retornos de ambas carteras. Cerca de 100% = se mueven igual. Cerca de 0% = independientes. Se calcula con datos mensuales. Con datos diarios, un fondo y un ETF parecen menos relacionados de lo que están, porque no calculan su precio a la misma hora.">
               <svg className="w-4 h-4 text-slate-300 hover:text-brand-coral transition-colors" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
               </svg>

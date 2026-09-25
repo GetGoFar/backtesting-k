@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDailyPrices, NoPriceDataError } from "@/lib/data-fetcher";
 import { runWithContext } from "@/lib/request-context";
+import { hayClaveEodhd, MENSAJE_SIN_CLAVE } from "@/lib/eodhd-config";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   // Yahoo data source eliminado — siempre EODHD.
@@ -22,6 +23,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           { error: "Se requiere ticker o un fundId válido" },
           { status: 400 }
         );
+      }
+
+      // Sin clave el proveedor devuelve [] y la tarjeta diría "no se pudo
+      // obtener el rango", que suena a fondo sin datos en vez de a despliegue
+      // mal configurado. Se distingue.
+      if (!hayClaveEodhd()) {
+        return NextResponse.json({
+          firstDate: null,
+          lastDate: null,
+          months: 0,
+          sinClave: true,
+          error: MENSAJE_SIN_CLAVE,
+        });
       }
 
       const { prices } = await getDailyPrices(fundId, ticker, isin);

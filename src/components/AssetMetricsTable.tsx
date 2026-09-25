@@ -325,8 +325,8 @@ export function AssetMetricsTable({
                 </Tooltip>
               </th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                <Tooltip content="Máxima caída desde un pico hasta el siguiente valle">
-                  <span className="cursor-help">Max DD</span>
+                <Tooltip content="Máxima caída desde un pico hasta el siguiente valle, calculada con precios DIARIOS. Con precios diarios la caída máxima sale igual o mayor que con cierres de mes, porque recoge el peor día aunque se recupere antes de fin de mes. Las dos son correctas; miden distinto.">
+                  <span className="cursor-help">Max DD (diario)</span>
                 </Tooltip>
               </th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -474,7 +474,12 @@ export function AssetMetricsTable({
             </div>
             <div>
               <dt className="font-medium text-slate-600 inline">Max DD: </dt>
-              <dd className="inline">Máximo drawdown. La mayor caída desde un máximo hasta el siguiente mínimo.</dd>
+              <dd className="inline">
+                Máximo drawdown. La mayor caída desde un máximo hasta el siguiente mínimo. Aquí se
+                calcula con precios diarios; la cabecera lo hace con cierres de mes. Con precios
+                diarios la caída máxima sale igual o mayor que con cierres de mes, porque recoge el
+                peor día aunque se recupere antes de fin de mes. Las dos son correctas; miden distinto.
+              </dd>
             </div>
             <div>
               <dt className="font-medium text-slate-600 inline">Sharpe: </dt>

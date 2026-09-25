@@ -171,8 +171,8 @@ function PortfolioBenchmarkPanel({
 
         {/* Correlación */}
         <MetricRow
-          label="Correlación con benchmark"
-          tooltip="Correlación de Pearson entre los retornos de tu cartera y los del benchmark. 1 = se mueven exactamente igual. 0 = independientes. -1 = se mueven en sentido contrario."
+          label="Correlación con benchmark (mensual)"
+          tooltip="Correlación de Pearson entre los retornos de tu cartera y los del benchmark. 1 = se mueven exactamente igual. 0 = independientes. -1 = se mueven en sentido contrario. Se calcula con datos mensuales. Con datos diarios, un fondo y un ETF parecen menos relacionados de lo que están, porque no calculan su precio a la misma hora."
           value={`${(bm.correlation * 100).toFixed(1)}%`}
           interpretation={
             bm.correlation > 0.9

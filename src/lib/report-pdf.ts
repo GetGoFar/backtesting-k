@@ -1027,6 +1027,16 @@ function renderRecommendation(ctx: RenderCtx, score: PortfolioScore) {
   );
 }
 
+/**
+ * Nota del mes a medias descartado. Se pinta una sola vez, arriba de la primera
+ * página de contenido, porque explica por qué el periodo analizado no empieza
+ * donde el alumno esperaría (el primer dato del fondo más joven).
+ */
+function drawNotaPeriodo(ctx: RenderCtx, nota: string) {
+  drawBody(ctx, `Nota sobre el periodo: ${nota}`, { size: 9, italic: true, color: RGB.gray });
+  ctx.y += 2;
+}
+
 function renderDisclaimer(ctx: RenderCtx) {
   drawSectionHeader(ctx, "—", "Aviso legal");
 
@@ -2201,6 +2211,9 @@ export function generateReportPDF(
   const other = config.primaryPortfolio === "a" ? results.resultB : results.resultA;
   if (!result) throw new Error("No hay datos para generar el informe");
 
+  // Mes descartado por incompleto (ver `primerMesCompletoDesde` en el motor).
+  const notaPeriodo = results.warnings?.find((w) => w.type === "partial_month")?.message;
+
   const score = computePortfolioScore(result);
   // El benchmark es global (A y B comparten benchmark). Se obtiene del que lo tenga.
   const benchmark = result.benchmark ?? other?.benchmark;
@@ -2257,6 +2270,7 @@ export function generateReportPDF(
       (c) => renderDisclaimer(c),
     ];
 
+    let notaPintadaComp = false;
     for (const render of compSections) {
       pdf.addPage();
       cctx.pageNum++;
@@ -2264,6 +2278,10 @@ export function generateReportPDF(
       drawHeader(pdf, compSubtitle);
       drawFooter(pdf, cctx.pageNum);
       cctx.y = MT + 8;
+      if (notaPeriodo && !notaPintadaComp) {
+        drawNotaPeriodo(cctx, notaPeriodo);
+        notaPintadaComp = true;
+      }
       render(cctx);
     }
     return pdf.output("blob");
@@ -2288,6 +2306,7 @@ export function generateReportPDF(
 
   let pageNum = 0;
   let coverDone = false;
+  let notaPintada = false;
   const ctx: RenderCtx = { pdf, pageNum: 0, totalPages: 0, y: MT + 8, subtitle };
 
   const benchName = benchmark?.benchmarkName;
@@ -2313,6 +2332,10 @@ export function generateReportPDF(
       drawHeader(pdf, subtitle);
       drawFooter(pdf, ctx.pageNum);
       ctx.y = MT + 8;
+      if (notaPeriodo && !notaPintada) {
+        drawNotaPeriodo(ctx, notaPeriodo);
+        notaPintada = true;
+      }
 
       if (id === "score") renderScore(ctx, score, benchScore, benchName);
       else if (id === "summary") renderSummary(ctx, dResult, score);

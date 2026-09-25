@@ -34,6 +34,9 @@ import { isCampusMode } from "@/lib/campus-client";
 export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
   const [query, setQuery] = useState("");
   const [localResults, setLocalResults] = useState<Fund[]>([]);
+  /** Aviso del servidor cuando el despliegue no tiene clave de datos: sin esto
+   *  el desplegable no aparece y parece que el fondo buscado no existe. */
+  const [avisoSinClave, setAvisoSinClave] = useState<string | null>(null);
   const [externalResults, setExternalResults] = useState<ExternalSearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -79,6 +82,12 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
       const localData = await localResponse.json();
       const externalData = await externalResponse.json();
 
+      setAvisoSinClave(
+        externalData.sinClave && typeof externalData.aviso === "string"
+          ? externalData.aviso
+          : null
+      );
+
       // Filtrar fondos ya añadidos de resultados locales
       const filteredLocal = (localData.funds || []).filter(
         (fund: Fund) => !excludeIds.includes(fund.id)
@@ -97,6 +106,7 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
       console.error("Error buscando fondos:", error);
       setLocalResults([]);
       setExternalResults([]);
+      setAvisoSinClave(null);
     } finally {
       setIsLoading(false);
     }
@@ -190,6 +200,7 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
   };
 
   const hasResults = localResults.length > 0 || externalResults.length > 0;
+  const hayQueAbrir = hasResults || !!avisoSinClave;
 
   return (
     <div ref={wrapperRef} className="relative">
@@ -223,8 +234,13 @@ export function FundSearch({ onSelect, excludeIds = [] }: FundSearchProps) {
       </div>
 
       {/* Resultados */}
-      {isOpen && hasResults && (
+      {isOpen && hayQueAbrir && (
         <div className="absolute z-30 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-80 overflow-auto">
+          {avisoSinClave && (
+            <div className="px-3 py-2 bg-red-50 border-b border-red-200 text-xs text-red-700">
+              {avisoSinClave}
+            </div>
+          )}
           {/* Resultados locales (base de datos) */}
           {localResults.length > 0 && (
             <>

@@ -18,6 +18,8 @@ import {
   quoteCurrencyOf,
   isMetalCode,
 } from "@/lib/forex";
+import { hayClaveEodhd, MENSAJE_SIN_CLAVE } from "@/lib/eodhd-config";
+import { terminosEnIngles, normalizaTexto } from "@/lib/busqueda-es";
 
 const EODHD_API_TOKEN = process.env.EODHD_API_TOKEN || "";
 const EODHD_BASE_URL = "https://eodhd.com/api";
@@ -217,9 +219,50 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ results: [] });
     }
 
+    // Sin clave la búsqueda devolvería [] en silencio y parecería que el fondo
+    // no existe. Se dice, para que la interfaz pueda explicarlo.
+    if (!hayClaveEodhd()) {
+      return NextResponse.json({ results: [], sinClave: true, aviso: MENSAJE_SIN_CLAVE });
+    }
+
     const query = normalizeSearchQuery(rawQuery);
     const campus = isCampusRequest(searchParams);
-    const eodhResults = await searchEODHD(query);
+    let eodhResults = await searchEODHD(query);
+
+    // EODHD solo entiende inglés: "mineras de oro" daba CERO resultados y
+    // "gold miners" encontraba GDX y GDXJ; "mineras" a secas solo sacaba
+    // acciones mineras latinoamericanas. Cuando la consulta lleva una palabra
+    // en español que sabemos traducir, se pide también la traducción y se
+    // fusionan los dos listados (una llamada extra como mucho, y solo en ese
+    // caso). Los resultados originales van primero.
+    const traducciones = terminosEnIngles(rawQuery).filter(
+      (t) => t !== normalizaTexto(rawQuery)
+    );
+    const enEspanol = traducciones.length > 0;
+    if (enEspanol) {
+      const vistos = new Set(eodhResults.map((r) => r.Code + "." + r.Exchange));
+      for (const termino of traducciones) {
+        const extra = await searchEODHD(termino);
+        for (const r of extra) {
+          const clave = r.Code + "." + r.Exchange;
+          if (!vistos.has(clave)) {
+            vistos.add(clave);
+            eodhResults.push(r);
+          }
+        }
+        if (eodhResults.length >= 20) break;
+      }
+    }
+
+    // Si la búsqueda era en lenguaje natural ("mineras de oro"), lo que se
+    // busca es un producto, no una acción suelta: los fondos y ETF van delante.
+    // Con un ticker ("AAPL", "SGLN.L") se respeta el orden de EODHD.
+    if (enEspanol) {
+      eodhResults = [
+        ...eodhResults.filter((r) => r.Type !== "Common Stock"),
+        ...eodhResults.filter((r) => r.Type === "Common Stock"),
+      ];
+    }
 
     if (eodhResults.length === 0) {
       return NextResponse.json({ results: [] });

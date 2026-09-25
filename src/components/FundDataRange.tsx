@@ -26,6 +26,8 @@ export function FundDataRange({ fund, onRangeLoaded }: FundDataRangeProps) {
   const [range, setRange] = useState<DataRangeInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  /** El despliegue no tiene clave de datos: no es que al fondo le falte histórico. */
+  const [sinClave, setSinClave] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,6 +35,7 @@ export function FundDataRange({ fund, onRangeLoaded }: FundDataRangeProps) {
     async function fetchRange() {
       setLoading(true);
       setError(false);
+      setSinClave(null);
       try {
         const params = new URLSearchParams();
         params.set("fundId", fund.id);
@@ -43,10 +46,13 @@ export function FundDataRange({ fund, onRangeLoaded }: FundDataRangeProps) {
         if (!res.ok) throw new Error("fetch failed");
 
         const data = await res.json();
-        if (!cancelled && data.firstDate && data.lastDate) {
+        if (cancelled) return;
+        if (data.firstDate && data.lastDate) {
           setRange(data);
           onRangeLoaded?.(fund.id, data.firstDate);
-        } else if (!cancelled) {
+        } else if (data.sinClave) {
+          setSinClave(typeof data.error === "string" ? data.error : "Falta la clave de datos.");
+        } else {
           setError(true);
         }
       } catch {
@@ -67,6 +73,10 @@ export function FundDataRange({ fund, onRangeLoaded }: FundDataRangeProps) {
         Consultando rango de datos...
       </p>
     );
+  }
+
+  if (sinClave) {
+    return <p className="text-xs text-red-600 mt-0.5">{sinClave}</p>;
   }
 
   if (error || !range) {

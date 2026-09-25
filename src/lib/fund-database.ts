@@ -3,6 +3,7 @@
 // =============================================================================
 
 import type { Fund, FundType, FundCategory } from "./types";
+import { normalizaTexto, coincideTexto } from "./busqueda-es";
 
 // -----------------------------------------------------------------------------
 // ETFs y Fondos Indexados (datos de EODHD vía el ticker base)
@@ -3475,23 +3476,27 @@ export function fundMatchesQuery(
   query: string,
   allowTokens: boolean = true
 ): boolean {
-  const q = query.toLowerCase().trim();
+  const q = normalizaTexto(query);
   if (q === "") return true;
-  const haystack = [
-    fund.name,
-    fund.shortName,
-    fund.isin,
-    fund.category,
-    fund.bank ?? "",
-    fund.ticker ?? "",
-    ...(fund.keywords ?? []),
-  ]
-    .join(" ")
-    .toLowerCase();
+  const haystack = normalizaTexto(
+    [
+      fund.name,
+      fund.shortName,
+      fund.isin,
+      fund.category,
+      fund.bank ?? "",
+      fund.ticker ?? "",
+      ...(fund.keywords ?? []),
+    ].join(" ")
+  );
+  // Sin acentos en los dos lados: "japon" encuentra "Japón" y al revés.
   if (haystack.includes(q)) return true;
   if (!allowTokens) return false;
   const tokens = q.split(/\s+/).filter((t) => t.length > 0);
-  return tokens.length > 1 && tokens.every((t) => haystack.includes(t));
+  if (tokens.length > 1 && tokens.every((t) => haystack.includes(t))) return true;
+  // Y por traducción al inglés ("mineras" encuentra "Gold Mining"), exigiendo
+  // palabra completa para que "oro" no acabe casando con "Goldman Sachs".
+  return coincideTexto(haystack, query);
 }
 
 /**

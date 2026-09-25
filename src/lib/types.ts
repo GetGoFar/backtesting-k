@@ -88,7 +88,7 @@ export interface Fund {
   /** Si el ETF/fondo reparte dividendos (distributing vs accumulating) */
   distributing?: boolean;
   /** Fuente del valor TER */
-  terSource?: "curated" | "morningstar" | "user" | "estimated";
+  terSource?: "curated" | "morningstar" | "user" | "estimated" | "eodhd" | "ft";
   /** Si el TER esta verificado como correcto */
   terConfirmed?: boolean;
   /** Términos extra por los que el buscador local debe encontrar el fondo
@@ -632,6 +632,12 @@ export interface BacktestResult {
   /** Serie temporal del contrafactual bruto (misma granularidad que
    *  timeSeries). Solo presente si la cartera pagó impuestos. */
   grossTimeSeries?: TimeSeriesPoint[];
+  /** Serie MENSUAL del patrimonio, sea cual sea la granularidad elegida para
+   *  ver el gráfico. La correlación se calcula siempre con esta base: en
+   *  diario, un fondo y un ETF parecen menos relacionados de lo que están
+   *  porque no fijan su precio a la misma hora (NAV vs cierre de bolsa),
+   *  festivos distintos y el tipo de cambio de cada día. */
+  monthlyTimeSeries?: TimeSeriesPoint[];
 }
 
 /** Aviso sobre datos o configuración */
@@ -647,6 +653,7 @@ export interface BacktestWarning {
     | "data_quality"
     | "data_gap"
     | "data_missing"
+    | "partial_month"
     | "currency";
   /** Mensaje descriptivo */
   message: string;
