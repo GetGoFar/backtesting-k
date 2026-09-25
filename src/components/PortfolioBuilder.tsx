@@ -1804,13 +1804,13 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                     {terFuentes[allocation.fund.id] ? (
                       <span
                         className="text-[10px] leading-none px-1 py-0.5 rounded bg-slate-100 text-slate-500 uppercase tracking-wide"
-                        title={`TER traído automáticamente de ${
+                        title={`Gastos corrientes (OCF) según ${
                           terFuentes[allocation.fund.id]?.fuente === "ft" ? "Financial Times" : "EODHD"
                         }${
                           terFuentes[allocation.fund.id]?.listado
                             ? ` (${terFuentes[allocation.fund.id]?.listado})`
                             : ""
-                        }. Si no cuadra, corrígelo a mano.`}
+                        }. OJO: son los gastos corrientes, que NO incluyen los costes de transacción del fondo. El DFI y Morningstar publican además el "coste total PRIIPS", que sale mayor — por ejemplo, Unicaja RV USA A: 1,58 % de gastos corrientes frente a 2,21 % de coste PRIIPS. Si quieres la cifra completa, corrígela a mano.`}
                       >
                         {terFuentes[allocation.fund.id]?.fuente === "ft" ? "FT" : "EODHD"}
                       </span>
