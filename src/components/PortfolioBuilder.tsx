@@ -1795,9 +1795,17 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                           : "border-slate-200"
                       }`}
                       title={
+                        // Qué cifra es ESTA depende de dónde salió. Un fondo
+                        // curado a mano lleva el COSTE TOTAL del KID (PRIIPS,
+                        // incluye costes de transacción); uno traído de FT o
+                        // EODHD lleva solo los gastos corrientes, que se quedan
+                        // cortos. Decirlo evita la confusión de comparar con
+                        // Morningstar y pensar que la app falla.
                         allocation.fund.terConfirmed === false
                           ? "TER no confirmado — edita el valor correcto"
-                          : "Editar TER"
+                          : allocation.fund.terSource === "curated"
+                            ? "Coste total del fondo (PRIIPS): gastos corrientes más costes de transacción. Es lo que de verdad te descuentan, y es la cifra que publica el KID. Revisado a mano."
+                            : "Gastos corrientes del fondo. NO incluyen los costes de transacción, así que el coste real es algo mayor. Puedes corregirlo a mano."
                       }
                     />
                     <span className="text-xs text-slate-500">%</span>
