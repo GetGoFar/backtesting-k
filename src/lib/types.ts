@@ -349,6 +349,13 @@ export interface BenchmarkComparison {
   benchmarkReturnsHistogram?: ReturnsHistogram;
   /** Allocation del benchmark (opcional, AllocationPieChart) */
   benchmarkAllocation?: PortfolioAllocation;
+  /** Métricas y series del benchmark en base MENSUAL, para el informe PDF.
+   *  Presente solo si la granularidad pedida no era mensual. */
+  benchmarkMonthly?: {
+    metrics: Metrics;
+    timeSeries: TimeSeriesPoint[];
+    topDrawdowns?: DrawdownEpisode[];
+  };
   /** Fund IDs que componen el benchmark — para poder agrupar/filtrar por
    *  "Benchmark" en Métricas por activo y Correlaciones. */
   benchmarkFundIds?: string[];
@@ -632,6 +639,36 @@ export interface BacktestResult {
   /** Serie temporal del contrafactual bruto (misma granularidad que
    *  timeSeries). Solo presente si la cartera pagó impuestos. */
   grossTimeSeries?: TimeSeriesPoint[];
+  /** Diversificación medida por RIESGO, no por número de activos: cuánto del
+   *  riesgo diversificable elimina de verdad la combinación elegida.
+   *    ratio   = Σ(wᵢ·σᵢ) / σ_cartera   (1 = no diversifica nada)
+   *    removed = 1 − σ_cartera / Σ(wᵢ·σᵢ) (0 = no quita nada)
+   *  Un solo activo da 0. Dos fondos mundiales casi idénticos (VWCE + IWDA)
+   *  también dan 0, aunque "sean dos activos": medido, −0,1 %. */
+  diversification?: {
+    /** Fracción del riesgo diversificable eliminada (0-1). */
+    removed: number;
+    /** Ratio de diversificación Σ(wᵢ·σᵢ)/σ_cartera. */
+    ratio: number;
+    /** Activos con datos usados en el cálculo. */
+    assets: number;
+    /** Peso de la cartera cubierto por esos activos (0-1). */
+    coverage: number;
+  };
+  /** Todo lo que depende de la granularidad, recalculado en base MENSUAL.
+   *  Presente solo cuando la granularidad pedida NO era mensual. El informe
+   *  PDF se genera SIEMPRE desde aquí: sus cifras no pueden cambiar porque el
+   *  alumno mirase el gráfico en diario antes de darle a "generar informe". */
+  monthly?: {
+    metrics: Metrics;
+    annualReturns: AnnualReturn[];
+    drawdowns: DrawdownPoint[];
+    topDrawdowns: DrawdownEpisode[];
+    stressPeriods: StressPeriodResult[];
+    rollingReturns: RollingReturns;
+    rollingStats: RollingStats;
+    returnsHistogram: ReturnsHistogram;
+  };
   /** Serie MENSUAL del patrimonio, sea cual sea la granularidad elegida para
    *  ver el gráfico. La correlación se calcula siempre con esta base: en
    *  diario, un fondo y un ETF parecen menos relacionados de lo que están

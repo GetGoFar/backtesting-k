@@ -18,6 +18,7 @@ interface ScoringInput {
   metrics: Metrics;
   fees: FeesSummary;
   allocation?: PortfolioAllocation;
+  diversification?: BacktestResult["diversification"];
 }
 
 // -----------------------------------------------------------------------------
@@ -201,10 +202,65 @@ function scoreCoste(result: ScoringInput): ScoreDetail {
 }
 
 /**
- * DIVERSIFICACIÓN — basada en composición de la cartera.
- *   Más activos + más clases + más regiones = mejor nota.
+ * DIVERSIFICACIÓN — cuánto RIESGO DIVERSIFICABLE elimina la cartera.
+ *
+ * Contar activos, clases o categorías no mide diversificación: mide variedad de
+ * etiquetas. Dos ETF mundiales casi idénticos son "dos activos" y no quitan
+ * nada de riesgo (VWCE + IWDA al 50 %: −0,1 % medido), y un 60/40 de solo dos
+ * fondos quita un 30,5 %. Lo que importa es cuánto baja la volatilidad de la
+ * cartera respecto a la media ponderada de las de sus activos.
+ *
+ * Escala: 0 % de riesgo eliminado → 0; 50 % → 10. Referencias medidas sobre las
+ * carteras reales de la app (sep-2026): K3 Inbestme 43,5 %, K3 Geográfica UCIT
+ * 39,0 %, K3 Sectorial USA 37,2 %, K1 Inbestme 35,5 %, 60/40 30,5 %.
+ *
+ * Con UN SOLO ACTIVO la nota es 0: no hay nada que diversificar, cargas con
+ * todo su riesgo específico.
  */
+const RIESGO_ELIMINADO_PARA_UN_10 = 50;
+
 function scoreDiversificacion(result: ScoringInput): ScoreDetail {
+  const div = result.diversification;
+  if (div) {
+    const pct = div.removed * 100;
+    const value = linearScore(pct, 0, RIESGO_ELIMINADO_PARA_UN_10);
+    const formatted =
+      div.assets <= 1
+        ? "1 activo · no diversifica"
+        : `quita el ${pct.toFixed(0)}% del riesgo diversificable · ${div.assets} activos`;
+    let explanation: string;
+    if (div.assets <= 1) {
+      // OJO con el texto: un índice mundial es UN activo aquí, pero por dentro
+      // lleva miles de empresas. Decir "cargas con todo el riesgo específico"
+      // sería falso. Esta nota mide la COMBINACIÓN, y con un solo activo no hay
+      // combinación que medir.
+      explanation =
+        "Con un solo activo no hay combinación que medir: esta nota mide cuánto riesgo se elimina " +
+        "al juntar activos que no se mueven a la vez. Si ese activo es un índice mundial, ya está " +
+        "diversificado por dentro (miles de empresas), pero eso no se ve desde aquí.";
+    } else if (value >= 8.5) {
+      explanation = `Muy bien diversificada: combinar estos activos elimina el ${pct.toFixed(0)}% del riesgo que tendrías si se movieran todos a la vez.`;
+    } else if (value >= 7) {
+      explanation = `Diversificación adecuada: la combinación quita el ${pct.toFixed(0)}% del riesgo diversificable.`;
+    } else if (value >= 5) {
+      explanation = `Diversificación básica: solo se elimina el ${pct.toFixed(0)}% del riesgo. Tus activos se mueven bastante a la vez.`;
+    } else if (value >= 3) {
+      explanation = `Poca diversificación real: apenas se elimina el ${pct.toFixed(0)}% del riesgo. Tener varios fondos no basta si suben y bajan juntos.`;
+    } else {
+      explanation =
+        "Casi sin diversificación: tus activos se mueven prácticamente a la vez, así que sumarlos no reduce el riesgo. " +
+        "Ojo a los fondos que se solapan (dos índices mundiales son, en la práctica, el mismo).";
+    }
+    return { value, metric: formatted, explanation };
+  }
+  // Sin volatilidades por activo (p.ej. el benchmark): se cae a la heurística
+  // antigua de composición, que al menos distingue una cartera de un solo tipo
+  // de activo de una repartida.
+  return scoreDiversificacionPorComposicion(result);
+}
+
+/** Heurística antigua: nº de clases y categorías. Solo como respaldo. */
+function scoreDiversificacionPorComposicion(result: ScoringInput): ScoreDetail {
   const byClass = result.allocation?.byAssetClass ?? [];
   const byCategory = result.allocation?.byCategory ?? [];
   const numClasses = byClass.length;

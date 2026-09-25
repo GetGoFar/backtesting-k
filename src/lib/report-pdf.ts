@@ -1028,12 +1028,67 @@ function renderRecommendation(ctx: RenderCtx, score: PortfolioScore) {
 }
 
 /**
+ * EL INFORME SE CALCULA SIEMPRE CON CIERRES MENSUALES.
+ *
+ * En pantalla el alumno puede mirar el gráfico en diario o trimestral, y eso
+ * cambia la volatilidad, el Max DD, los drawdowns y el histograma (en un caso
+ * real, −47,1 % en diario frente a −41,8 % en mensual). Un informe que cambia
+ * según el desplegable que estuviera puesto al pulsar "generar" no se puede
+ * enseñar a nadie ni comparar con el de otro cliente. El motor deja preparada
+ * la cosecha mensual en `result.monthly`; aquí se sustituye entera.
+ */
+function vistaMensualBenchmark(
+  bm: BenchmarkComparison | undefined
+): BenchmarkComparison | undefined {
+  if (!bm?.benchmarkMonthly) return bm;
+  const m = bm.benchmarkMonthly;
+  return {
+    ...bm,
+    benchmarkTimeSeries: m.timeSeries,
+    benchmarkMetrics: m.metrics,
+    benchmarkVolatility: m.metrics.volatility,
+    benchmarkCagr: m.metrics.cagr,
+    benchmarkTotalReturn: m.metrics.totalReturn,
+    benchmarkTopDrawdowns: m.topDrawdowns ?? bm.benchmarkTopDrawdowns,
+  };
+}
+
+function vistaMensual(r: BacktestResult | null | undefined): BacktestResult | null {
+  if (!r) return null;
+  const benchmark = vistaMensualBenchmark(r.benchmark);
+  if (!r.monthly) {
+    return benchmark === r.benchmark ? r : { ...r, benchmark };
+  }
+  return {
+    ...r,
+    timeSeries: r.monthlyTimeSeries ?? r.timeSeries,
+    metrics: r.monthly.metrics,
+    annualReturns: r.monthly.annualReturns,
+    drawdowns: r.monthly.drawdowns,
+    topDrawdowns: r.monthly.topDrawdowns,
+    stressPeriods: r.monthly.stressPeriods,
+    rollingReturns: r.monthly.rollingReturns,
+    rollingStats: r.monthly.rollingStats,
+    returnsHistogram: r.monthly.returnsHistogram,
+    benchmark,
+  };
+}
+
+/**
  * Nota del mes a medias descartado. Se pinta una sola vez, arriba de la primera
  * página de contenido, porque explica por qué el periodo analizado no empieza
  * donde el alumno esperaría (el primer dato del fondo más joven).
  */
-function drawNotaPeriodo(ctx: RenderCtx, nota: string) {
-  drawBody(ctx, `Nota sobre el periodo: ${nota}`, { size: 9, italic: true, color: RGB.gray });
+function drawNotaPeriodo(ctx: RenderCtx, nota: string | undefined) {
+  drawBody(
+    ctx,
+    "Base de cálculo: todas las cifras de este informe se calculan con cierres mensuales, " +
+      "sea cual sea la granularidad con la que se estuviera viendo el gráfico en pantalla.",
+    { size: 9, italic: true, color: RGB.gray }
+  );
+  if (nota) {
+    drawBody(ctx, `Nota sobre el periodo: ${nota}`, { size: 9, italic: true, color: RGB.gray });
+  }
   ctx.y += 2;
 }
 
@@ -2204,9 +2259,15 @@ function valueModeCoverNote(mode: ValueMode): string {
  * Genera el informe PDF y devuelve un Blob descargable.
  */
 export function generateReportPDF(
-  results: BacktestResponse,
+  resultsEnPantalla: BacktestResponse,
   config: ReportConfig
 ): Blob {
+  // Todo lo que sigue trabaja sobre la vista MENSUAL (ver `vistaMensual`).
+  const results: BacktestResponse = {
+    ...resultsEnPantalla,
+    resultA: vistaMensual(resultsEnPantalla.resultA),
+    resultB: vistaMensual(resultsEnPantalla.resultB),
+  };
   const result = config.primaryPortfolio === "a" ? results.resultA : results.resultB;
   const other = config.primaryPortfolio === "a" ? results.resultB : results.resultA;
   if (!result) throw new Error("No hay datos para generar el informe");
@@ -2278,7 +2339,7 @@ export function generateReportPDF(
       drawHeader(pdf, compSubtitle);
       drawFooter(pdf, cctx.pageNum);
       cctx.y = MT + 8;
-      if (notaPeriodo && !notaPintadaComp) {
+      if (!notaPintadaComp) {
         drawNotaPeriodo(cctx, notaPeriodo);
         notaPintadaComp = true;
       }
@@ -2332,7 +2393,7 @@ export function generateReportPDF(
       drawHeader(pdf, subtitle);
       drawFooter(pdf, ctx.pageNum);
       ctx.y = MT + 8;
-      if (notaPeriodo && !notaPintada) {
+      if (!notaPintada) {
         drawNotaPeriodo(ctx, notaPeriodo);
         notaPintada = true;
       }

@@ -193,6 +193,18 @@ no el `startDate` enviado.
   mensuales)" en la cabecera y en la tabla de drawdowns (la etiqueta sigue a la
   granularidad), "Max DD (diario)" en Métricas por activo. Sin la etiqueta,
   −41,8 % en un sitio y −47,1 % en otro parece un error de la app.
+- **La diversificación se mide por RIESGO, no contando activos.** La nota del
+  informe usa `BacktestResult.diversification`: cuánto baja la volatilidad de la
+  cartera respecto a la media ponderada de las de sus activos
+  (`removed = 1 − σ_cartera / Σ(wᵢ·σᵢ)`). Contar activos, clases o categorías
+  medía variedad de etiquetas, no diversificación: VWCE + IWDA al 50 % son "dos
+  activos" y eliminan el 0,2 % del riesgo, mientras que un 60/40 de dos fondos
+  elimina el 17,2 %. Un solo activo da 0 por definición. Escala: 0 % → 0 y 50 %
+  → 10 (medidas sep-2026: K3 Inbestme 44,1 %, K3 Sectorial USA 36,8 %).
+  Se calcula SIEMPRE en base mensual, como la correlación, porque la
+  diversificación depende del horizonte (el mismo 60/40 daba 30,5 % en diario y
+  17,2 % en mensual) y una nota no puede cambiar al tocar un desplegable. Con
+  pesos de la cartera, no con `AssetMetrics.weight`, que deduplica entre A y B.
 - **Impuestos (IRPF):** `lib/tax-utils.ts` (`computeTaxOnGain`); impuesto diferido "pendiente" solo afecta al modo `liquidar`. Una cartera sin régimen fiscal hereda el de la cartera comparada para no "ganar" artificialmente al liquidar.
 
 ## Convenciones de código
