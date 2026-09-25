@@ -376,7 +376,41 @@ function renderCover(pdf: jsPDF, result: BacktestResult, config: ReportConfig, o
   });
 }
 
-function renderScore(ctx: RenderCtx, score: PortfolioScore, benchScore?: PortfolioScore | null, benchName?: string) {
+/** Un ciclo de mercado completo no cabe en menos de esto. Por debajo, la nota
+ *  habla más del tramo que le tocó que de la cartera. */
+const ANIOS_CICLO_COMPLETO = 7;
+
+/**
+ * Aviso cuando la nota se ha calculado sobre un tramo corto o inusualmente
+ * tranquilo. No es un matiz académico: una cartera agresiva puntúa altísimo si
+ * el periodo analizado esquiva todas las crisis, y esa nota no es comparable
+ * con la de otra cartera medida sobre veinte años. Se mira si el periodo cubre
+ * alguna de las crisis de referencia del motor (2008, el euro, China 2015,
+ * Q4 2018, Covid, 2022), que es más informativo que contar años a secas.
+ */
+function avisoPeriodo(r: BacktestResult): string | undefined {
+  const anios = yearsOf(r);
+  const crisis = (r.stressPeriods ?? []).filter((p) => p.hasFullData);
+  const corto = anios < ANIOS_CICLO_COMPLETO;
+  if (!corto && crisis.length > 0) return undefined;
+  const dur = `${anios.toFixed(1).replace(".", ",")} años`;
+  if (crisis.length === 0) {
+    return (
+      `La nota está calculada sobre ${dur} que no incluyen ninguna de las crisis de ` +
+      `referencia (2008, la crisis del euro, el Covid o 2022). Mide un tramo de mercado ` +
+      `favorable, no cómo se comporta la cartera cuando las cosas se tuercen: una nota alta ` +
+      `aquí dice menos de lo que parece, y no es comparable con otra calculada sobre un ` +
+      `periodo más largo.`
+    );
+  }
+  return (
+    `La nota está calculada sobre ${dur}, poco para juzgar una cartera: un ciclo de mercado ` +
+    `completo dura más. El periodo sí incluye ${crisis.map((c) => c.name).join(", ")}, pero ` +
+    `conviene leerla como la foto de un tramo, no como una conclusión sobre la cartera.`
+  );
+}
+
+function renderScore(ctx: RenderCtx, score: PortfolioScore, benchScore?: PortfolioScore | null, benchName?: string, aviso?: string) {
   drawSectionHeader(ctx, "01", "Tu cartera de 0 a 10");
   const bmName = benchName ?? "Benchmark";
 
@@ -386,6 +420,8 @@ function renderScore(ctx: RenderCtx, score: PortfolioScore, benchScore?: Portfol
     "no depende de tu situación fiscal personal.",
     { size: 11 }
   );
+
+  if (aviso) drawCTABox(ctx, "Cuidado con el periodo", aviso);
 
   ensureSpace(ctx, 50);
   // Caja de nota global
@@ -1793,8 +1829,127 @@ function renderCompareHero(ctx: RenderCtx, a: BacktestResult, b: BacktestResult)
   drawCTABox(ctx, "Lectura rápida", verdict);
 }
 
+/**
+ * Las dos carteras de 0 a 10, enfrentadas. El informe de una sola cartera ya
+ * tenía su sección de nota; el comparativo no, y es justo donde más se necesita:
+ * es la única cifra que resume "cuál es mejor" sin tener que leer ocho tablas.
+ */
+function renderCompareScore(
+  ctx: RenderCtx,
+  a: BacktestResult,
+  b: BacktestResult,
+  benchScore: PortfolioScore | null,
+  benchName?: string,
+  aviso?: string
+) {
+  drawSectionHeader(ctx, "02", "Las dos carteras de 0 a 10");
+  const sa = computePortfolioScore(a);
+  const sb = computePortfolioScore(b);
+
+  drawBody(
+    ctx,
+    "La misma valoración que en el informe individual, para las dos a la vez. Se calcula " +
+      "sobre las métricas antes de impuestos, porque la calidad de una cartera no depende de " +
+      "tu situación fiscal.",
+    { size: 11 }
+  );
+
+  if (aviso) drawCTABox(ctx, "Cuidado con el periodo", aviso);
+
+  // Caja con las dos notas globales, una a cada lado.
+  ensureSpace(ctx, 46);
+  ctx.pdf.setFillColor(...RGB.rowAlt);
+  ctx.pdf.rect(ML, ctx.y, CW, 40, "F");
+  const mitad = ML + CW / 2;
+  const columnas: Array<[PortfolioScore, BacktestResult, [number, number, number], number]> = [
+    [sa, a, RGB.blueA, ML + CW / 4],
+    [sb, b, RGB.roseB, mitad + CW / 4],
+  ];
+  for (const [score, res, color, cx] of columnas) {
+    ctx.pdf.setFont("helvetica", "normal");
+    ctx.pdf.setFontSize(8);
+    ctx.pdf.setTextColor(...RGB.gray);
+    ctx.pdf.text(res.portfolioName.substring(0, 30).toUpperCase(), cx, ctx.y + 7, { align: "center" });
+    ctx.pdf.setFont("helvetica", "bold");
+    ctx.pdf.setFontSize(34);
+    ctx.pdf.setTextColor(...color);
+    ctx.pdf.text(score.global.toFixed(1).replace(".", ","), cx, ctx.y + 24, { align: "center" });
+    ctx.pdf.setFont("helvetica", "bolditalic");
+    ctx.pdf.setFontSize(11);
+    ctx.pdf.text(score.adjective, cx, ctx.y + 33, { align: "center" });
+  }
+  // Separador vertical entre las dos.
+  ctx.pdf.setDrawColor(...RGB.lightGray);
+  ctx.pdf.setLineWidth(0.3);
+  ctx.pdf.line(mitad, ctx.y + 4, mitad, ctx.y + 36);
+
+  if (benchScore) {
+    ctx.pdf.setFont("helvetica", "bold");
+    ctx.pdf.setFontSize(8);
+    ctx.pdf.setTextColor(...RGB.purple);
+    ctx.pdf.text(
+      `${benchName ?? "Benchmark"} (referencia): ${benchScore.global.toFixed(1).replace(".", ",")}`,
+      PAGE_W / 2,
+      ctx.y + 38,
+      { align: "center" }
+    );
+  }
+  ctx.y += 46;
+
+  // Una fila por dimensión, con dos barras: A arriba (azul), B abajo (rosa).
+  const filas: Array<[string, ScoreDetail, ScoreDetail]> = [
+    ["Rentabilidad", sa.rentabilidad, sb.rentabilidad],
+    ["Eficiencia", sa.eficiencia, sb.eficiencia],
+    ["Resistencia", sa.resistencia, sb.resistencia],
+    ["Estabilidad", sa.estabilidad, sb.estabilidad],
+    ["Coste", sa.coste, sb.coste],
+    ["Diversificación", sa.diversificacion, sb.diversificacion],
+  ];
+  const barX = ML + 38;
+  const barW = CW - 38 - 16;
+  const valueCol = PAGE_W - MR;
+
+  for (const [nombre, da, db] of filas) {
+    ensureSpace(ctx, 20);
+    ctx.pdf.setFont("helvetica", "bold");
+    ctx.pdf.setFontSize(10);
+    ctx.pdf.setTextColor(...RGB.dark);
+    ctx.pdf.text(nombre, ML, ctx.y + 4);
+
+    for (const [detalle, color, dy] of [
+      [da, RGB.blueA, 0] as [ScoreDetail, [number, number, number], number],
+      [db, RGB.roseB, 5.5] as [ScoreDetail, [number, number, number], number],
+    ]) {
+      ctx.pdf.setFillColor(...RGB.rowAlt);
+      ctx.pdf.rect(barX, ctx.y + dy, barW, 3.4, "F");
+      ctx.pdf.setFillColor(...color);
+      ctx.pdf.rect(barX, ctx.y + dy, (detalle.value / 10) * barW, 3.4, "F");
+      ctx.pdf.setFont("helvetica", "bold");
+      ctx.pdf.setFontSize(9.5);
+      ctx.pdf.setTextColor(...color);
+      ctx.pdf.text(detalle.value.toFixed(1).replace(".", ","), valueCol, ctx.y + dy + 3, {
+        align: "right",
+      });
+    }
+
+    // Qué hay detrás de cada nota, en pequeño.
+    ctx.pdf.setFont("helvetica", "normal");
+    ctx.pdf.setFontSize(6.8);
+    ctx.pdf.setTextColor(...RGB.gray);
+    ctx.pdf.text(`A: ${da.metric}  ·  B: ${db.metric}`.substring(0, 120), barX, ctx.y + 13);
+
+    ctx.y += 17;
+  }
+
+  ctx.pdf.setFont("helvetica", "bold");
+  ctx.pdf.setFontSize(7);
+  ctx.pdf.setTextColor(...RGB.gray);
+  ctx.pdf.text("Barra superior: cartera A  ·  Barra inferior: cartera B", ML, ctx.y + 2);
+  ctx.y += 6;
+}
+
 function renderCompareMetrics(ctx: RenderCtx, a: BacktestResult, b: BacktestResult, benchmark?: BenchmarkComparison) {
-  drawSectionHeader(ctx, "02", "Todas las métricas, cara a cara");
+  drawSectionHeader(ctx, "03", "Todas las métricas, cara a cara");
   drawBody(ctx, "El cuadro completo. La columna del índice de referencia te dice si cualquiera de las dos está, al menos, batiendo a lo fácil y barato.");
   const ma = a.metrics, mb = b.metrics;
   const bm = benchmark?.benchmarkMetrics;
@@ -1831,7 +1986,7 @@ function renderCompareMetrics(ctx: RenderCtx, a: BacktestResult, b: BacktestResu
 }
 
 function renderCompareEvolution(ctx: RenderCtx, a: BacktestResult, b: BacktestResult, benchmark?: BenchmarkComparison) {
-  drawSectionHeader(ctx, "03", "Cómo crece tu dinero (A vs B)");
+  drawSectionHeader(ctx, "04", "Cómo crece tu dinero (A vs B)");
   drawBody(ctx, "Las dos curvas, mismo punto de partida. No te fijes solo en dónde acaban: fíjate en cómo de baches es el camino de cada una.");
   const tsA = a.timeSeries, tsB = b.timeSeries;
   const bmTs = benchmark?.benchmarkTimeSeries;
@@ -1890,7 +2045,7 @@ function renderCompareEvolution(ctx: RenderCtx, a: BacktestResult, b: BacktestRe
 }
 
 function renderCompareAnnual(ctx: RenderCtx, a: BacktestResult, b: BacktestResult) {
-  drawSectionHeader(ctx, "04", "Rentabilidad año a año (A vs B)");
+  drawSectionHeader(ctx, "05", "Rentabilidad año a año (A vs B)");
   drawBody(ctx, "El año a año desnuda el carácter de cada cartera: cuál sufre más en los años malos y cuál aprovecha mejor los buenos.");
   const byYear = new Map<number, { a?: number; b?: number }>();
   for (const r of a.annualReturns) byYear.set(r.year, { ...(byYear.get(r.year) ?? {}), a: r.returnPct });
@@ -1923,7 +2078,7 @@ function renderCompareAnnual(ctx: RenderCtx, a: BacktestResult, b: BacktestResul
 }
 
 function renderCompareDrawdown(ctx: RenderCtx, a: BacktestResult, b: BacktestResult) {
-  drawSectionHeader(ctx, "05", "Quién aguanta mejor las caídas");
+  drawSectionHeader(ctx, "06", "Quién aguanta mejor las caídas");
   drawBody(ctx,
     "Aquí se separan los inversores de los que dicen que lo son. La cartera que menos cae es la que " +
     "más fácil te resulta mantener sin vender en el peor momento — y vender en el fondo es lo único " +
@@ -1939,7 +2094,7 @@ function renderCompareDrawdown(ctx: RenderCtx, a: BacktestResult, b: BacktestRes
 }
 
 function renderCompareRolling(ctx: RenderCtx, a: BacktestResult, b: BacktestResult) {
-  drawSectionHeader(ctx, "06", "Rentabilidad sostenida (ventanas móviles)");
+  drawSectionHeader(ctx, "07", "Rentabilidad sostenida (ventanas móviles)");
   drawBody(ctx, "La rentabilidad media a 1, 3 y 5 años según cuándo entraste, y con qué frecuencia cada cartera terminó en positivo. Cuanto más alto el % positivo, menos depende tu resultado de tener suerte con el timing.");
   const win = (la: typeof a.rollingStats.oneYear, lb: typeof b.rollingStats.oneYear, label: string) =>
     (la.count > 0 || lb.count > 0)
@@ -1961,7 +2116,7 @@ function renderCompareRolling(ctx: RenderCtx, a: BacktestResult, b: BacktestResu
 }
 
 function renderCompareCosts(ctx: RenderCtx, a: BacktestResult, b: BacktestResult) {
-  drawSectionHeader(ctx, "07", "El coste, que nunca se ve pero siempre se paga");
+  drawSectionHeader(ctx, "08", "El coste, que nunca se ve pero siempre se paga");
   drawBody(ctx,
     "Las comisiones son el único factor que conoces de antemano con certeza absoluta. Un punto más " +
     "de coste al año, compuesto durante décadas, se come una porción enorme de tu patrimonio final. " +
@@ -2012,7 +2167,7 @@ function taxScenarios(r: BacktestResult, other: BacktestResult) {
  *  camino y neta al liquidar) para AMBAS carteras (y el benchmark si lo hay).
  *  Antes el comparativo reutilizaba renderTaxes, que solo mostraba A vs índice. */
 function renderCompareTaxes(ctx: RenderCtx, a: BacktestResult, b: BacktestResult, benchmark?: BenchmarkComparison) {
-  drawSectionHeader(ctx, "08", "Cómo afectan los impuestos — A vs B");
+  drawSectionHeader(ctx, "09", "Cómo afectan los impuestos — A vs B");
   drawBody(ctx,
     "Hay tres rentabilidades que conviene distinguir, y aquí las ves para las dos carteras. " +
     "La que de verdad importa es la NETA AL LIQUIDAR: el dinero que acaba en tu bolsillo " +
@@ -2114,7 +2269,7 @@ function renderCompareTaxes(ctx: RenderCtx, a: BacktestResult, b: BacktestResult
 }
 
 function renderCompareConclusion(ctx: RenderCtx, a: BacktestResult, b: BacktestResult) {
-  drawSectionHeader(ctx, "08", "Conclusiones");
+  drawSectionHeader(ctx, "09", "Conclusiones");
   const ma = a.metrics, mb = b.metrics;
   const better = ma.cagr >= mb.cagr ? a : b;
   const safer = ma.maxDrawdown >= mb.maxDrawdown ? a : b;
@@ -2318,8 +2473,11 @@ export function generateReportPDF(
       (a.fees.taxMode != null && a.fees.taxMode !== "none") ||
       (b.fees.taxMode != null && b.fees.taxMode !== "none");
 
+    const avisoComp = avisoPeriodo(aD);
+    const benchScoreComp = computeBenchmarkScore(bmD);
     const compSections: Array<(c: RenderCtx) => void> = [
       (c) => renderCompareHero(c, aD, bD),
+      (c) => renderCompareScore(c, aD, bD, benchScoreComp, bm?.benchmarkName, avisoComp),
       (c) => renderCompareMetrics(c, aD, bD, bmD),
       (c) => renderCompareEvolution(c, aD, bD, bmD),
       (c) => renderCompareAnnual(c, aD, bD),
@@ -2399,7 +2557,7 @@ export function generateReportPDF(
         notaPintada = true;
       }
 
-      if (id === "score") renderScore(ctx, score, benchScore, benchName);
+      if (id === "score") renderScore(ctx, score, benchScore, benchName, avisoPeriodo(dResult));
       else if (id === "summary") renderSummary(ctx, dResult, score);
       else if (id === "metricsFull") renderMetricsFull(ctx, dResult, dBenchmark);
       else if (id === "evolution") renderEvolution(ctx, dResult, dBenchmark);

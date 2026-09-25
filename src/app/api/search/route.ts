@@ -90,6 +90,11 @@ async function fetchTerFromMorningstar(
   symbol: string
 ): Promise<MorningstarData> {
   try {
+    // MUERTA desde que morningstar.es se mudó a global.morningstar.com: este
+    // endpoint responde 301 con cuerpo vacío, así que la función siempre
+    // devolvía {ter:null} en silencio (comprobado sep-2026). Se conserva la
+    // llamada porque falla rápido y sin coste, pero NO cuentes con ella: el
+    // sitio nuevo renderiza en cliente y no hay API pública sin clave.
     const searchUrl = `https://www.morningstar.es/es/util/SecuritySearch.ashx?q=${encodeURIComponent(searchQuery)}&limit=5`;
     const searchRes = await fetch(searchUrl, {
       headers: { "User-Agent": "Mozilla/5.0" },

@@ -212,6 +212,22 @@ no el `startDate` enviado.
   diversificación depende del horizonte (el mismo 60/40 daba 30,5 % en diario y
   17,2 % en mensual) y una nota no puede cambiar al tocar un desplegable. Con
   pesos de la cartera, no con `AssetMetrics.weight`, que deduplica entre A y B.
+- **El TER que se enseña son GASTOS CORRIENTES (OCF), no el coste total.** La
+  fuente automática es EODHD y, si no tiene el fondo, el "Ongoing charge" de
+  FT. Eso NO incluye los costes de transacción, así que Morningstar y el DFI
+  publican un "coste total PRIIPS" mayor: Unicaja RV USA A (ES0181407000) da
+  1,58 % de gastos corrientes frente a 2,21 % de coste PRIIPS. No es un fallo de
+  parseo (verificado sep-2026: FT dice literalmente 1.58 % para ese ISIN). El
+  coste PRIIPS no se puede automatizar hoy — Morningstar renderiza en cliente y
+  EODHD no tiene fondos españoles —, así que la caja lo explica en su tooltip y
+  se puede corregir a mano. Ojo: el TER NO afecta a la rentabilidad del
+  backtest (los NAV ya lo llevan descontado); solo alimenta el coste
+  informativo, la nota de Coste y el Índice de Saqueo.
+- **La nota del informe avisa si el periodo es corto o tranquilo**
+  (`avisoPeriodo` en `report-pdf.ts`): si el tramo dura menos de 7 años o no
+  cubre ninguna de las crisis de referencia del motor, se pinta una caja
+  "Cuidado con el periodo". Sin ella, dos carteras cualesquiera sacan 9,2 y 9,4
+  en 2023-2026 y el informe parece decir que son excelentes.
 - **Impuestos (IRPF):** `lib/tax-utils.ts` (`computeTaxOnGain`); impuesto diferido "pendiente" solo afecta al modo `liquidar`. Una cartera sin régimen fiscal hereda el de la cartera comparada para no "ganar" artificialmente al liquidar.
 
 ## Convenciones de código

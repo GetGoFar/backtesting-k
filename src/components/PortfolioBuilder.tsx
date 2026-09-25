@@ -1795,22 +1795,30 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                           : "border-slate-200"
                       }`}
                       title={
+                        // Qué cifra es ESTA depende de dónde salió. Un fondo
+                        // curado a mano lleva el COSTE TOTAL del KID (PRIIPS,
+                        // incluye costes de transacción); uno traído de FT o
+                        // EODHD lleva solo los gastos corrientes, que se quedan
+                        // cortos. Decirlo evita la confusión de comparar con
+                        // Morningstar y pensar que la app falla.
                         allocation.fund.terConfirmed === false
                           ? "TER no confirmado — edita el valor correcto"
-                          : "Editar TER"
+                          : allocation.fund.terSource === "curated"
+                            ? "Coste total del fondo (PRIIPS): gastos corrientes más costes de transacción. Es lo que de verdad te descuentan, y es la cifra que publica el KID. Revisado a mano."
+                            : "Gastos corrientes del fondo. NO incluyen los costes de transacción, así que el coste real es algo mayor. Puedes corregirlo a mano."
                       }
                     />
                     <span className="text-xs text-slate-500">%</span>
                     {terFuentes[allocation.fund.id] ? (
                       <span
                         className="text-[10px] leading-none px-1 py-0.5 rounded bg-slate-100 text-slate-500 uppercase tracking-wide"
-                        title={`TER traído automáticamente de ${
+                        title={`Gastos corrientes (OCF) según ${
                           terFuentes[allocation.fund.id]?.fuente === "ft" ? "Financial Times" : "EODHD"
                         }${
                           terFuentes[allocation.fund.id]?.listado
                             ? ` (${terFuentes[allocation.fund.id]?.listado})`
                             : ""
-                        }. Si no cuadra, corrígelo a mano.`}
+                        }. OJO: son los gastos corrientes, que NO incluyen los costes de transacción del fondo. El DFI y Morningstar publican además el "coste total PRIIPS", que sale mayor — por ejemplo, Unicaja RV USA A: 1,58 % de gastos corrientes frente a 2,21 % de coste PRIIPS. Si quieres la cifra completa, corrígela a mano.`}
                       >
                         {terFuentes[allocation.fund.id]?.fuente === "ft" ? "FT" : "EODHD"}
                       </span>
