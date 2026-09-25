@@ -1,7 +1,7 @@
 "use client";
 
 import type { BacktestResponse, RollingStats, RollingStatsBucket } from "@/lib/types";
-import { formatPct } from "@/lib/formatters";
+import { formatPct, formatPositiveRatio } from "@/lib/formatters";
 import { Tooltip } from "./Tooltip";
 
 interface RollingStatsTableProps {
@@ -128,7 +128,7 @@ function PortfolioRollingTable({
                     {formatPct(bucket.medianCagr, 2)}
                   </td>
                   <td className="py-2.5 px-3 text-sm text-right font-semibold text-brand-navy tabular-nums">
-                    {(bucket.positiveRatio * 100).toFixed(0)}%
+                    {formatPositiveRatio(bucket.positiveRatio)}
                   </td>
                 </tr>
               );

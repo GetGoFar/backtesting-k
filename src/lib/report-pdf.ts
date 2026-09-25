@@ -20,6 +20,7 @@ import { FULL_BACKTEST_ORDER } from "./report-types";
 import { LOGO_WHITE_PNG, LOGO_DARK_PNG, LOGO_ASPECT, KMARK_RED_PNG, KMARK_ASPECT } from "./report-logo";
 import { computePortfolioScore, computeBenchmarkScore, type PortfolioScore, type ScoreDetail } from "./report-scoring";
 import { computeTaxOnGain, type TaxMode } from "./tax-utils";
+import { formatPositiveRatio } from "./formatters";
 
 // -----------------------------------------------------------------------------
 // COLORES (RGB para jsPDF)
@@ -1377,7 +1378,7 @@ function renderRolling(ctx: RenderCtx, result: BacktestResult) {
       fmtPct(b.bestCagr * 100),
       fmtPct(b.avgCagr * 100),
       fmtPct(b.worstCagr * 100),
-      `${(b.positiveRatio * 100).toFixed(0)}%`,
+      formatPositiveRatio(b.positiveRatio),
     ]);
   if (body.length === 0) { drawBody(ctx, "El periodo es demasiado corto para ventanas móviles.", { italic: true }); return; }
   drawTable(ctx, ["Ventana", "Nº", "Mejor", "Media", "Peor", "% positivas"], body, {
@@ -1945,8 +1946,8 @@ function renderCompareRolling(ctx: RenderCtx, a: BacktestResult, b: BacktestResu
       ? [label,
          la.count > 0 ? fmtPct(la.avgCagr * 100) : "—",
          lb.count > 0 ? fmtPct(lb.avgCagr * 100) : "—",
-         la.count > 0 ? `${(la.positiveRatio * 100).toFixed(0)}%` : "—",
-         lb.count > 0 ? `${(lb.positiveRatio * 100).toFixed(0)}%` : "—"]
+         la.count > 0 ? formatPositiveRatio(la.positiveRatio) : "—",
+         lb.count > 0 ? formatPositiveRatio(lb.positiveRatio) : "—"]
       : null;
   const body = [
     win(a.rollingStats.oneYear, b.rollingStats.oneYear, "1 año"),

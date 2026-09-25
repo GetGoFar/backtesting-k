@@ -73,6 +73,24 @@ export function formatPctNoSign(value: number, decimals = 1): string {
 }
 
 /**
+ * Porcentaje de ventanas/periodos positivos SIN redondear al alza a 100 %.
+ *
+ * 273 ventanas positivas de 274 = 99,6 %. Redondearlo a "100 %" es mentira:
+ * la columna "peor CAGR" (negativa) lo desmiente en la misma fila. Se trunca
+ * al entero: "100%" solo cuando TODAS las ventanas son positivas; "<1%" si
+ * hay alguna positiva pero no llega al 1 %. Compartido por la tabla web
+ * (RollingStatsTable) y el informe PDF para que ambos digan lo mismo.
+ * @param ratio - Fracción de periodos positivos (0..1)
+ */
+export function formatPositiveRatio(ratio: number): string {
+  if (!Number.isFinite(ratio)) return "—";
+  if (ratio >= 1) return "100%";
+  if (ratio <= 0) return "0%";
+  const pct = Math.floor(ratio * 100);
+  return pct === 0 ? "<1%" : `${pct}%`;
+}
+
+/**
  * Formatea un ratio (Sharpe, Sortino, etc.)
  * @param value - Valor del ratio
  */
