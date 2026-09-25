@@ -764,7 +764,11 @@ const INDEXED_FUNDS: Fund[] = [
     id: "vanguard-vfinx",
     name: "Vanguard 500 Index Investor",
     shortName: "VFINX S&P 500",
-    isin: "US9229085538",
+    // sep-2026: aquí había US9229085538, que es el ISIN de VNQ (Vanguard Real
+    // Estate ETF). Los precios nunca se vieron afectados (manda el ticker),
+    // pero `getFundComposition` resuelve el ISIN ANTES que el ticker y servía
+    // la ficha de VNQ: TER 0,12 % en vez del 0,14 % de VFINX.
+    isin: "US9229081081",
     ticker: "VFINX",
     ter: 0.14,
     category: "RV EEUU",

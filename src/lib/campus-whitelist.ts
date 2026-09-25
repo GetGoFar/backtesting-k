@@ -115,7 +115,8 @@ const INBESTME_EXCEL: string[] = [
 // -----------------------------------------------------------------------------
 // 3. Instrumentos de las 6 familias de carteras predefinidas (resueltos
 //    fundId -> ISIN contra fund-database.ts y verificados de forma independiente).
-//    43 ISINs únicos + el ISIN real de VFINX (ver nota del bug abajo).
+//    43 ISINs únicos. El de VFINX estaba duplicado (uno de ellos, US9229087286,
+//    es en realidad VTSAX); se dejó solo el bueno en sep-2026.
 // -----------------------------------------------------------------------------
 const FAMILIAS: string[] = [
   // UCITS (Indexa / K Geográfica UCIT / K Inbestme — los que no estaban ya arriba)
@@ -149,8 +150,7 @@ const FAMILIAS: string[] = [
   "US9219086208", // Vanguard Intermediate-Term Treasury (VFITX)
   "US9219086547", // Vanguard Long-Term Treasury (VUSTX)
   // K Geográfica USA
-  "US9229087286", // Vanguard 500 Index Investor (VFINX) — ISIN "correcto" segun verificador
-  "US9229081081", // Vanguard 500 Index Investor (VFINX) — ISIN que devuelve EODHD en vivo (operativo)
+  "US9229081081", // Vanguard 500 Index Investor (VFINX)
   "US9219091257", // Vanguard Developed Markets Index Admiral (VTMGX)
   // (spot-gold no tiene ISIN real: se permite por fundId, ver CAMPUS_FUND_IDS)
 ];
