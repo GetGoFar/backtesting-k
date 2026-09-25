@@ -223,6 +223,12 @@ no el `startDate` enviado.
   se puede corregir a mano. Ojo: el TER NO afecta a la rentabilidad del
   backtest (los NAV ya lo llevan descontado); solo alimenta el coste
   informativo, la nota de Coste y el Índice de Saqueo.
+  **El aviso solo aplica a lo que viene de FT**, que es el respaldo para FONDOS
+  europeos de gestión activa. Lo que trae EODHD es el expense ratio de un ETF (o
+  de un fondo de EEUU) y ahí la cifra YA es el coste anual total: un indexado
+  apenas rota cartera y los de EEUU ni publican KID PRIIPS. Por eso la etiqueta
+  de la caja dice "TER:" en general y "Gastos:" solo en los de FT — "TER"
+  significa coste total y no se usa donde la cifra no lo es.
   Marcador: `terSource: "priips"` es el ÚNICO valor que significa coste total;
   todos los demás (incluido `curated`) son gastos corrientes. La app avisa en
   alto —caja ámbar en el constructor y aviso `ter_estimated` que llega al
