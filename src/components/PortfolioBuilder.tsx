@@ -1782,7 +1782,13 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                   />
                   {/* TER editable */}
                   <div className="flex items-center gap-1 mt-0.5">
-                    <span className="text-xs text-slate-500">TER:</span>
+                    {/* "TER" significa coste TOTAL, así que solo se llama así
+                        cuando la cifra lo es. Lo que viene de FT son gastos
+                        corrientes de un fondo activo y se queda corto: ahí la
+                        etiqueta cambia, para no prometer lo que no es. */}
+                    <span className="text-xs text-slate-500">
+                      {allocation.fund.terSource === "ft" ? "Gastos:" : "TER:"}
+                    </span>
                     <NumberInput
                       min={0}
                       max={10}
@@ -1804,10 +1810,10 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                         allocation.fund.terConfirmed === false
                           ? "TER no confirmado — edita el valor correcto"
                           : allocation.fund.terSource === "priips"
-                            ? "Coste total del fondo (PRIIPS): gastos corrientes MÁS costes de transacción. Es lo que de verdad te descuentan, la cifra que publica el KID."
-                            : allocation.fund.terSource === "curated"
-                              ? "Gastos corrientes del fondo, revisados a mano. NO incluyen los costes de transacción, así que el coste real es algo mayor."
-                              : "Gastos corrientes del fondo. NO incluyen los costes de transacción, así que el coste real es algo mayor. Puedes corregirlo a mano."
+                            ? "Coste total del fondo (PRIIPS): gastos corrientes MÁS costes de transacción. Es la cifra que publica el DFI."
+                            : allocation.fund.terSource === "ft"
+                              ? "Gastos corrientes del fondo. NO incluyen los costes de transacción, así que el coste total (PRIIPS) que publica el DFI es mayor. Compruébalo en Morningstar y corrígelo aquí si te importa la cifra."
+                              : "Coste anual del fondo. En un ETF indexado es prácticamente el coste total, porque apenas rota la cartera."
                       }
                     />
                     <span className="text-xs text-slate-500">%</span>
@@ -1966,9 +1972,10 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                 fuera los costes de transacción, así que el coste real es mayor.
                 En el caso medido, 1,58 % frente a 2,21 %. */}
             {(() => {
-              const auto = allocations.filter(
-                (a) => a.fund.terSource === "ft" || a.fund.terSource === "eodhd"
-              );
+              // Solo FT: es el respaldo para fondos europeos y su cifra son
+              // gastos corrientes. Lo de EODHD es el expense ratio de un ETF,
+              // que ya es el coste total del producto (ver `data-warnings`).
+              const auto = allocations.filter((a) => a.fund.terSource === "ft");
               if (auto.length === 0) return null;
               return (
                 <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">

@@ -63,12 +63,16 @@ export function getTerWarnings(
       continue;
     }
 
-    // Traído de una fuente automática: es el GASTO CORRIENTE, no el coste total.
-    // Antes esto no avisaba de nada, porque el autorrelleno los deja como
-    // confirmados. Pero el KID publica además los costes de transacción, y la
-    // diferencia no es menor: Unicaja RV USA A da 1,58 % de gastos corrientes
-    // frente a 2,21 % de coste total.
-    if (fund.terSource === "ft" || fund.terSource === "eodhd") {
+    // Solo los que vienen de FT, que es nuestro respaldo para FONDOS europeos:
+    // ahí la cifra son gastos corrientes y deja fuera los costes de
+    // transacción, que en gestión activa no son menores (Unicaja RV USA A:
+    // 1,58 % frente a 2,21 % de coste total PRIIPS).
+    //
+    // Los de EODHD NO llevan aviso a propósito: son el expense ratio de un ETF
+    // (o de un fondo estadounidense), que ya es el coste anual total del
+    // producto. Un ETF indexado apenas rota cartera, y los de EEUU ni siquiera
+    // publican KID PRIIPS. Avisar ahí sería ruido.
+    if (fund.terSource === "ft") {
       automaticos.push(fund.shortName || fund.name);
     }
   }
