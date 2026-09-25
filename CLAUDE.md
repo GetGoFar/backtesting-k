@@ -223,6 +223,11 @@ no el `startDate` enviado.
   se puede corregir a mano. Ojo: el TER NO afecta a la rentabilidad del
   backtest (los NAV ya lo llevan descontado); solo alimenta el coste
   informativo, la nota de Coste y el Índice de Saqueo.
+  Marcador: `terSource: "priips"` es el ÚNICO valor que significa coste total;
+  todos los demás (incluido `curated`) son gastos corrientes. La app avisa en
+  alto —caja ámbar en el constructor y aviso `ter_estimated` que llega al
+  informe— cuando alguno viene de fuente automática, para que nadie compare con
+  Morningstar y crea que la cifra está mal.
 - **La nota del informe avisa si el periodo es corto o tranquilo**
   (`avisoPeriodo` en `report-pdf.ts`): si el tramo dura menos de 7 años o no
   cubre ninguna de las crisis de referencia del motor, se pinta una caja

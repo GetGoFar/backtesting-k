@@ -376,6 +376,22 @@ function renderCover(pdf: jsPDF, result: BacktestResult, config: ReportConfig, o
   });
 }
 
+/**
+ * Nota de que el coste mostrado se queda corto. El motor avisa con
+ * `type: "ter_estimated"` cuando algún TER vino de FT/EODHD: esa cifra son
+ * gastos corrientes y deja fuera los costes de transacción del fondo.
+ */
+function avisoCoste(results: BacktestResponse): string | undefined {
+  const hay = (results.warnings ?? []).some((w) => w.type === "ter_estimated");
+  if (!hay) return undefined;
+  return (
+    "Los costes de esta cartera pueden ser MAYORES de lo que figura aquí: el TER de alguno de " +
+    "los fondos se ha obtenido de una fuente automática y son gastos corrientes, que no incluyen " +
+    "los costes de transacción. El coste total real (PRIIPS) lo publica el DFI del fondo y se " +
+    "puede consultar en Morningstar."
+  );
+}
+
 /** Un ciclo de mercado completo no cabe en menos de esto. Por debajo, la nota
  *  habla más del tramo que le tocó que de la cartera. */
 const ANIOS_CICLO_COMPLETO = 7;
@@ -410,7 +426,7 @@ function avisoPeriodo(r: BacktestResult): string | undefined {
   );
 }
 
-function renderScore(ctx: RenderCtx, score: PortfolioScore, benchScore?: PortfolioScore | null, benchName?: string, aviso?: string) {
+function renderScore(ctx: RenderCtx, score: PortfolioScore, benchScore?: PortfolioScore | null, benchName?: string, aviso?: string, notaCoste?: string) {
   drawSectionHeader(ctx, "01", "Tu cartera de 0 a 10");
   const bmName = benchName ?? "Benchmark";
 
@@ -533,6 +549,11 @@ function renderScore(ctx: RenderCtx, score: PortfolioScore, benchScore?: Portfol
     ctx.pdf.setTextColor(...RGB.purple);
     ctx.pdf.text(`Cifra púrpura / marca = nota de ${bmName} (referencia)`, ML, ctx.y + 2);
     ctx.y += 4;
+  }
+
+  if (notaCoste) {
+    ctx.y += 3;
+    drawBody(ctx, `Aviso: ${notaCoste}`, { size: 8.5, italic: true, color: RGB.gray });
   }
 
   ctx.y += 4;
@@ -2115,7 +2136,7 @@ function renderCompareRolling(ctx: RenderCtx, a: BacktestResult, b: BacktestResu
   });
 }
 
-function renderCompareCosts(ctx: RenderCtx, a: BacktestResult, b: BacktestResult) {
+function renderCompareCosts(ctx: RenderCtx, a: BacktestResult, b: BacktestResult, notaCoste?: string) {
   drawSectionHeader(ctx, "08", "El coste, que nunca se ve pero siempre se paga");
   drawBody(ctx,
     "Las comisiones son el único factor que conoces de antemano con certeza absoluta. Un punto más " +
@@ -2127,6 +2148,7 @@ function renderCompareCosts(ctx: RenderCtx, a: BacktestResult, b: BacktestResult
     ["Comisiones pagadas (periodo)", fmtEUR(a.fees.totalFees), fmtEUR(b.fees.totalFees)],
     ["Coste sobre patrimonio final", fmtPct(a.fees.feesAsPercentage).replace("+", ""), fmtPct(b.fees.feesAsPercentage).replace("+", "")],
   ], { 1: { halign: "right", fontStyle: "bold" }, 2: { halign: "right", fontStyle: "bold" } });
+  if (notaCoste) drawBody(ctx, `Aviso: ${notaCoste}`, { size: 8.5, italic: true, color: RGB.gray });
   const cheaper = a.fees.weightedTer <= b.fees.weightedTer ? "A" : "B";
   const diff = Math.abs(a.fees.weightedTer - b.fees.weightedTer);
   if (diff > 0.05) {
@@ -2430,6 +2452,7 @@ export function generateReportPDF(
 
   // Mes descartado por incompleto (ver `primerMesCompletoDesde` en el motor).
   const notaPeriodo = results.warnings?.find((w) => w.type === "partial_month")?.message;
+  const notaCoste = avisoCoste(results);
 
   const score = computePortfolioScore(result);
   // El benchmark es global (A y B comparten benchmark). Se obtiene del que lo tenga.
@@ -2483,7 +2506,7 @@ export function generateReportPDF(
       (c) => renderCompareAnnual(c, aD, bD),
       (c) => renderCompareDrawdown(c, aD, bD),
       (c) => renderCompareRolling(c, aD, bD),
-      (c) => renderCompareCosts(c, aD, bD),
+      (c) => renderCompareCosts(c, aD, bD, notaCoste),
       // Impuestos: ORIGINALES, para mostrar bruta / camino / liquidar de ambas.
       ...(compTaxes ? [(c: RenderCtx) => renderCompareTaxes(c, a, b, bm)] : []),
       (c) => renderCompareConclusion(c, aD, bD),
@@ -2557,7 +2580,7 @@ export function generateReportPDF(
         notaPintada = true;
       }
 
-      if (id === "score") renderScore(ctx, score, benchScore, benchName, avisoPeriodo(dResult));
+      if (id === "score") renderScore(ctx, score, benchScore, benchName, avisoPeriodo(dResult), notaCoste);
       else if (id === "summary") renderSummary(ctx, dResult, score);
       else if (id === "metricsFull") renderMetricsFull(ctx, dResult, dBenchmark);
       else if (id === "evolution") renderEvolution(ctx, dResult, dBenchmark);

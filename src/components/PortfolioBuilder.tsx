@@ -1803,9 +1803,11 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                         // Morningstar y pensar que la app falla.
                         allocation.fund.terConfirmed === false
                           ? "TER no confirmado — edita el valor correcto"
-                          : allocation.fund.terSource === "curated"
-                            ? "Coste total del fondo (PRIIPS): gastos corrientes más costes de transacción. Es lo que de verdad te descuentan, y es la cifra que publica el KID. Revisado a mano."
-                            : "Gastos corrientes del fondo. NO incluyen los costes de transacción, así que el coste real es algo mayor. Puedes corregirlo a mano."
+                          : allocation.fund.terSource === "priips"
+                            ? "Coste total del fondo (PRIIPS): gastos corrientes MÁS costes de transacción. Es lo que de verdad te descuentan, la cifra que publica el KID."
+                            : allocation.fund.terSource === "curated"
+                              ? "Gastos corrientes del fondo, revisados a mano. NO incluyen los costes de transacción, así que el coste real es algo mayor."
+                              : "Gastos corrientes del fondo. NO incluyen los costes de transacción, así que el coste real es algo mayor. Puedes corregirlo a mano."
                       }
                     />
                     <span className="text-xs text-slate-500">%</span>
@@ -1958,6 +1960,26 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                 {weightedTer.toFixed(2)}%
               </span>
             </div>
+
+            {/* Aviso VISIBLE (no un tooltip) cuando alguno de los TER viene de
+                una fuente automática: esa cifra son gastos corrientes y deja
+                fuera los costes de transacción, así que el coste real es mayor.
+                En el caso medido, 1,58 % frente a 2,21 %. */}
+            {(() => {
+              const auto = allocations.filter(
+                (a) => a.fund.terSource === "ft" || a.fund.terSource === "eodhd"
+              );
+              if (auto.length === 0) return null;
+              return (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  ⚠️ El TER de {auto.length === 1 ? "un fondo" : `${auto.length} fondos`} se ha
+                  traído automáticamente y son <strong>gastos corrientes</strong>: no incluyen los
+                  costes de transacción, así que el coste real es mayor. Si la cifra te importa,
+                  mira el <strong>coste total (PRIIPS)</strong> en Morningstar o en el DFI del fondo
+                  y corrígelo aquí a mano.
+                </p>
+              );
+            })()}
 
             {/* Comisión de gestión adicional */}
             <div className="flex justify-between items-center text-sm">
