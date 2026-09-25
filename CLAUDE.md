@@ -86,6 +86,13 @@ Herramientas (page + engine):
 - **Perfil por bandas** — `perfil-bandas-engine.ts`
 - **Quiz Carteras K**, **cartera-analisis/backtest/seguimiento**, **kray**, **equivalente**: variantes de UI sobre estos motores.
 
+**Modo campus:** `isCampusMode()` (`lib/campus-client.ts`) se activa con
+`?campus=1` o dentro de un iframe, y **se recuerda en `sessionStorage`** durante
+toda la sesión del navegador (ojo al probar: una visita con `?campus=1` deja el
+resto de pestañas en modo campus hasta cerrar). Ahí se ocultan los presets de
+consultoría, el botón de informe PDF y —desde sep-2026— la granularidad
+**Diario**: al alumno solo se le ofrece mensual y trimestral.
+
 **Access gate:** varias rutas y páginas van tras un muro de acceso (`acceso/`, `components/AccessGate.tsx`, `lib/access-codes.ts`, `lib/access-log.ts`). Rutas `api/campus/*` sirven a la versión embebida en el campus del alumno.
 
 **Generación de informes:** PDF cliente con jsPDF (`lib/report-pdf.ts`, `report-scoring.ts`, `report-types.ts`, `components/ReportGeneratorModal.tsx`). Para informes con marca completa fuera de la app se usa el skill `proyectok-pdf` (ReportLab), no este código.
