@@ -158,3 +158,33 @@
 .stagger-2 { animation-delay: 75ms; }
 .stagger-3 { animation-delay: 150ms; }
 .stagger-4 { animation-delay: 225ms; }
+
+/* ============================================================================
+   MI CARTERA (Laboratorio K) — reglas de la app cartera-k, acotadas a .lab-cartera
+   (el <main> que LabShell pone en /cartera, /aportar, /simuladores y /perfil).
+   Con :where() la especificidad queda en la de una clase, así que las utilidades
+   (font-semibold, text-sm, pr-*) siguen mandando sobre estos valores por defecto.
+   ============================================================================ */
+
+@layer base {
+  .lab-cartera :where(h1, h2, h3) {
+    @apply font-serif font-normal tracking-tight;
+  }
+  .lab-cartera :where(input[type="text"], input[type="number"], input[type="date"], select) {
+    @apply bg-white border border-borde rounded-xl px-4 py-3 text-tinta outline-none transition-shadow;
+  }
+  .lab-cartera :where(input, select):focus {
+    @apply ring-2 ring-tinta/15 border-tinta/30;
+  }
+}
+
+.lab-cartera .tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lab-cartera * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

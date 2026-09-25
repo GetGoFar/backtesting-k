@@ -40,6 +40,18 @@ const config: Config = {
         // (gris cálido) hace que TODA la app entone con el beige del sitio
         // sin tocar ni una clase en los componentes.
         slate: colors.stone,
+        // Tokens de Mi cartera (la app cartera-k, ahora dentro del Laboratorio K): misma paleta
+        // de elproyectok.com con los nombres que usan sus componentes.
+        crema: "#F5F0EB",
+        "crema-2": "#EFE8DF",
+        tinta: "#202020",
+        gris: "#5A5A5A",
+        "gris-2": "#8A8580",
+        borde: "hsla(30, 10%, 7%, 0.08)",
+        k: { DEFAULT: "#C81E2E", dark: "#A3182A", soft: "#FBE9EB" },
+        verde: { DEFAULT: "#1F8A4C", soft: "#E6F4EA" },
+        ambar: { DEFAULT: "#C7791A", soft: "#FCF1E0" },
+        rojo: { DEFAULT: "#C81E2E", soft: "#FBE9EB" },
       },
       borderRadius: {
         pill: "35px",
@@ -51,6 +63,8 @@ const config: Config = {
         md: "0 4px 6px -1px rgba(0, 0, 0, 0.04), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
         lg: "0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03)",
         xl: "0 20px 25px -5px rgba(0, 0, 0, 0.06), 0 10px 10px -5px rgba(0, 0, 0, 0.02)",
+        // Tarjetas de Mi cartera
+        card: "0 1px 2px rgba(0,0,0,0.03), 0 4px 16px -6px rgba(32,32,32,0.08)",
       },
       fontSize: {
         "stat-xl": ["3.5rem", { lineHeight: "1", fontWeight: "700" }],

@@ -27,9 +27,10 @@ Tests con Vitest, colocados junto al código (`src/lib/*.test.ts`): `backtest-en
 
 ### ⚠️ Entorno del agente Claude (Windows) — importante
 
-- **El repo YA NO está en OneDrive**: vive en `C:\dev\backtesting-k` (mudado
-  jul-2026). La copia antigua en `OneDrive\Documentos\Claude\backtesting-k` está
-  obsoleta — no editarla. Lo de abajo se conserva por si alguien vuelve a
+- **El repo vive en `C:\Users\goovi\backtesting-k`** (clon limpio del
+  15-sep-2026, fuera de OneDrive). `C:\dev\backtesting-k` (jul-2026) ya no existe
+  y la copia antigua en `OneDrive\Documentos\Claude\backtesting-k` está obsoleta:
+  no editar ninguna de las dos. Lo de abajo se conserva por si alguien vuelve a
   trabajar sobre una copia sincronizada.
 - **`npm` no funciona a secas**: la política de ejecución de PowerShell bloquea
   `npm.ps1`. Usar **`npm.cmd`**. Node vive en `C:\Program Files\nodejs` y puede
@@ -44,7 +45,7 @@ Tests con Vitest, colocados junto al código (`src/lib/*.test.ts`): `backtest-en
   navegador y comprobar que el **CSS global** contiene una clase nueva del
   cambio (Tailwind solo emite las que se usan). Estado real de los deploys:
   Vercel vía `claude-in-chrome`, vercel.com/consultoria-9043s-projects/backtesting-k.
-- **El repo vivía dentro de OneDrive** (`C:\Users\goovi\OneDrive\Documentos\Claude\backtesting-k`). OneDrive **trunca ficheros fuente** (los corta a media línea → errores de sintaxis que rompen todo el build) y provoca `Error UNKNOWN: read` (errno -4094) al arrancar `next dev`. **Si un backtest "no compila" o "no sale nada", sospechar corrupción PRIMERO**: `git diff <fichero-con-error>` normalmente muestra solo cola truncada → recuperar con `git checkout HEAD -- <fichero>`. (Recomendación abierta: mover el repo a `C:\dev\backtesting-k`, fuera de OneDrive.)
+- **El repo vivía dentro de OneDrive** (`C:\Users\goovi\OneDrive\Documentos\Claude\backtesting-k`). OneDrive **trunca ficheros fuente** (los corta a media línea → errores de sintaxis que rompen todo el build) y provoca `Error UNKNOWN: read` (errno -4094) al arrancar `next dev`. **Si un backtest "no compila" o "no sale nada", sospechar corrupción PRIMERO**: `git diff <fichero-con-error>` normalmente muestra solo cola truncada → recuperar con `git checkout HEAD -- <fichero>`. (Resuelto: el repo ya vive fuera de OneDrive, ver arriba.)
 - **No hay `node`/`npm` en el PATH del agente** ni el preview puede arrancarlos (`spawn npm ENOENT`). Para type-check usar el node de Adobe:
   `& "C:\Program Files\Adobe\Adobe Creative Cloud Experience\libs\node.exe" node_modules\typescript\bin\tsc --noEmit`
 
@@ -72,7 +73,7 @@ Herramientas (page + engine):
 - **Perfil por bandas** — `perfil-bandas-engine.ts`
 - **Quiz Carteras K**, **cartera-analisis/backtest/seguimiento**, **kray**, **equivalente**: variantes de UI sobre estos motores.
 
-**Access gate:** varias rutas y páginas van tras un muro de acceso (`acceso/`, `components/AccessGate.tsx`, `lib/access-codes.ts`, `lib/access-log.ts`). Rutas `api/campus/*` sirven a la versión embebida en el campus del alumno.
+**Access gate:** varias rutas y páginas van tras un muro de acceso (`middleware.ts`, `acceso/`, `lib/access-codes.ts`, `lib/access-log.ts`, `lib/lab-auth.ts`; ver «Laboratorio K» abajo). Rutas `api/campus/*` sirven a la versión embebida en el campus del alumno.
 
 **Generación de informes:** PDF cliente con jsPDF (`lib/report-pdf.ts`, `report-scoring.ts`, `report-types.ts`, `components/ReportGeneratorModal.tsx`). Para informes con marca completa fuera de la app se usa el skill `proyectok-pdf` (ReportLab), no este código.
 
@@ -242,3 +243,37 @@ campus, copiloto y clientes antiguos no cambian). La UI arranca en EUR.
   Sustainable Income; `bbvar-gs-japan-equity` LU0234572450 = GS Global EM;
   `bbvaa-bnp-euro-govt` LU0823411888 = BNP Consumer Innovators USD). Descargan
   el NAV equivocado; hay que corregir los ISIN.
+
+## Laboratorio K (26-sep-2026)
+
+El Laboratorio K es UNA sola app (esta) con menú a la izquierda, embebida en la
+pestaña "Laboratorio K" del portal de Ataraxia (iframe, `?campus=1`). Cinco
+entradas: **Mi cartera** `/cartera` (+ `/cartera/posiciones`) · **Aportar**
+`/aportar` · **Simuladores** `/simuladores` · **Backtest** `/` (el comparador de
+siempre) · **Mi perfil** `/perfil`. Código de Mi cartera: `src/lib/mi-cartera/*`,
+`src/components/mi-cartera/*`, `src/app/api/cartera/*` (motor e invariantes en
+`docs/mi-cartera-origen.md`). El Backtest NUNCA escribe en Mi cartera, y Pablo
+entrando directo (sin campus) lo ve como hasta ahora, sin menú.
+
+- **Quién entra:** solo socios con el token firmado del portal (`/api/acceso/ataraxia`,
+  secreto compartido `ATARAXIA_LAB_SECRET`) y Pablo con su código personal
+  (`/api/acceso`). Nadie más: `/acceso` es la puerta cerrada. Contrato compartido
+  en `src/lib/lab-auth.ts` (`exigirAcceso`, `identidadDe`, `firmarIdentidad`…); las
+  rutas `/api/cartera/*` lo llaman porque el middleware deja pasar todo `/api/*`.
+- **Identidad (`epk-socio`):** el portal manda en `lw` un id anónimo de 32 hex (HMAC
+  del id de LearnWorlds que solo él calcula) o "socio". Se firma con HMAC-SHA256 del
+  secreto (`<id>.<firma>`; un año, HttpOnly, SameSite=None, Partitioned) y viaja junto
+  a `epk-access`; Pablo recibe "pablo". Sin id válido, la cookie se borra. El id no se
+  guarda en el registro de accesos.
+- **Aterrizaje:** `a=` (cartera | aportar | simuladores | perfil | backtest) elige la
+  sección (`/<a>?campus=1`); un `next` con `&k=` (Kopiloto) manda sobre todo; sin `a` y
+  con el `next` de siempre, el socio con cartera guardada aterriza en `/cartera?campus=1`
+  y el resto en `/?campus=1`.
+- **Estado por socio:** `cartera:<id>` en Upstash (`src/lib/cartera-store.ts`; JSON, sin
+  caducidad, tope 200 KB) vía `GET/PUT /api/cartera/estado` (401 sin acceso; sin identidad
+  GET devuelve `{datos:null, identidad:false}` y PUT 403). El cliente es dueño del
+  formato (`version: 2`, `guardado` ISO opcional). Test de la identidad: `lab-auth.test.ts`.
+- **Variables en Vercel:** `ANTHROPIC_API_KEY` (NUEVA: importar capturas en
+  `/api/cartera/importar`), `ATARAXIA_LAB_SECRET` (ya existe; mismo valor que
+  `LABORATORIO_SECRET` en ataraxia-bot) y el Upstash de siempre (`KV_REST_API_URL` /
+  `KV_REST_API_TOKEN` o `UPSTASH_REDIS_REST_*`), que ahora también guarda las carteras.

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Poppins, Source_Serif_4 } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
+import { StoreProvider } from "@/lib/mi-cartera/store";
+import { LabShell } from "@/components/LabShell";
 
 // Contenedor GTM de El Proyecto K. Cargar el MISMO contenedor que la web padre
 // permite (con la medición cross-domain activada en GA4) recuperar el tiempo de
@@ -105,7 +107,11 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             />
           </noscript>
         )}
-        {children}
+        {/* Laboratorio K: el estado de Mi cartera y su menú. LabShell solo envuelve en las rutas del
+            Laboratorio (y en "/" dentro del campus); en el resto devuelve los hijos tal cual. */}
+        <StoreProvider>
+          <LabShell>{children}</LabShell>
+        </StoreProvider>
       </body>
     </html>
   );

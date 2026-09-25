@@ -12,11 +12,18 @@
 // Además, REGISTRA cada intento (correcto o no) en el log de accesos
 // (lib/access-log.ts → Upstash Redis): etiqueta del código, ciudad/país
 // (headers de Vercel), IP truncada y navegador. Visor: /api/acceso/log.
+//
+// Identidad (26-sep-2026): con el código de Pablo se emite además la cookie
+// `epk-socio` firmada con la identidad "pablo" (lib/lab-auth.ts), para que su
+// Mi cartera se guarde en servidor como cartera:pablo. Con cualquier otro
+// código la cookie de identidad se borra: nadie hereda la de otro socio.
+// Los socios de Ataraxia no pasan por aquí: entran por /api/acceso/ataraxia.
 // =============================================================================
 
 import { NextRequest, NextResponse } from "next/server";
 import { ACCESS_CODES } from "@/lib/access-codes";
 import { logAccess, simplifyUserAgent, truncateIp } from "@/lib/access-log";
+import { cookieIdentidad, cookieIdentidadBorrar, firmarIdentidad } from "@/lib/lab-auth";
 
 async function sha256Hex(value: string): Promise<string> {
   const data = new TextEncoder().encode(value.trim().toLowerCase());
@@ -86,5 +93,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     "Set-Cookie",
     `epk-access=${candidateHash}; Path=/; Max-Age=${60 * 60 * 24 * 365}; HttpOnly; Secure; SameSite=None; Partitioned`
   );
+  // Identidad para Mi cartera: solo el código de Pablo la lleva ("pablo"). Sin secreto
+  // (firmarIdentidad devuelve null) o con otro código, se borra la que hubiera.
+  const firmada = matched.label === "pablo" ? await firmarIdentidad("pablo") : null;
+  res.headers.append("Set-Cookie", firmada ? cookieIdentidad(firmada) : cookieIdentidadBorrar());
   return res;
 }

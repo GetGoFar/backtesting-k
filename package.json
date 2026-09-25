@@ -12,6 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
     "@upstash/redis": "^1.36.3",
     "date-fns": "^4.1.0",
     "jspdf": "^4.2.1",
@@ -20,7 +21,8 @@
     "papaparse": "^5.5.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "recharts": "^2.12.0"
+    "recharts": "^2.12.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

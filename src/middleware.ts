@@ -16,10 +16,17 @@
 //     side, no se puede esquivar.
 //
 // Rutas:
-//   GATED (requieren cookie):       /, /momentum, /kray, /equivalente, /jubilacion
+//   GATED (requieren cookie):       /, /momentum, /kray, /equivalente, /jubilacion,
+//                                   /cartera-backtest, /cartera-analisis, /cartera-seguimiento
+//                                   y el Laboratorio K de los socios (26-sep-2026): /cartera,
+//                                   /cartera/posiciones, /aportar, /simuladores, /perfil
 //   PÚBLICAS (sin cookie):          /acceso, /simulador-retiro, /informe/[isin],
 //                                   /api/*, /_next/*, /wordpress/*
 //   INTERNAS (redirect a EPK):      cualquier otra
+//
+// La cookie la emiten /api/acceso (código: Pablo) y /api/acceso/ataraxia (token del portal:
+// socios). La identidad del socio (cookie `epk-socio`) no se mira aquí: la leen las rutas
+// /api/cartera/* con lib/lab-auth.ts.
 // =============================================================================
 
 import { NextResponse } from "next/server";
@@ -46,9 +53,18 @@ const RUTAS_GATED = new Set([
   "/cartera-backtest",
   "/cartera-analisis",
   "/cartera-seguimiento",
+  // Laboratorio K (menú de los socios): Mi cartera, Aportar, Simuladores y Mi perfil.
+  // Rutas exactas, no prefijo: /cartera-* son las páginas del Campus y ya están arriba.
+  "/cartera",
+  "/cartera/posiciones",
+  "/aportar",
+  "/simuladores",
+  "/perfil",
 ]);
 
-/** Herramientas que NO se sirven dentro de un iframe (modo campus / Ataraxia). */
+/** Herramientas que NO se sirven dentro de un iframe (modo campus / Ataraxia).
+ *  Las del Laboratorio K (/cartera, /aportar, /simuladores, /perfil) viven precisamente
+ *  dentro del iframe de Ataraxia: nunca van aquí. */
 const SOLO_FUERA_DEL_MARCO = new Set(["/momentum", "/kray", "/equivalente", "/jubilacion"]);
 
 /** Prefijos gated: estáticos de /public que también exigen la cookie.
@@ -86,10 +102,11 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     if (pathname.startsWith(prefijo)) return NextResponse.next();
   }
 
-  // 2a. Dentro de un marco (Campus, Ataraxia) solo existe el backtest: las demás
-  //     herramientas se devuelven a la portada. Se mira Sec-Fetch-Dest, que el navegador
-  //     pone en las cargas de un iframe; el uso directo (pestaña propia) no cambia.
-  //     Las páginas /cartera-* son del Campus y también van en marco: no se tocan.
+  // 2a. Dentro de un marco (Campus, Ataraxia) las herramientas sueltas (momentum, kray,
+  //     equivalente, jubilación) se devuelven a la portada. Se mira Sec-Fetch-Dest, que el
+  //     navegador pone en las cargas de un iframe; el uso directo (pestaña propia) no cambia.
+  //     Las páginas /cartera-* son del Campus y el Laboratorio K (/cartera, /aportar,
+  //     /simuladores, /perfil) es de Ataraxia: todas van en marco y no se tocan.
   const dest = req.headers.get("sec-fetch-dest");
   if ((dest === "iframe" || dest === "frame") && SOLO_FUERA_DEL_MARCO.has(pathname)) {
     const url = req.nextUrl.clone();
