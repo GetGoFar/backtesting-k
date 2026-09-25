@@ -25,13 +25,15 @@ const BOLSAS_PREFERIDAS = ["XETRA", "AS", "MI", "PA", "MC", "LSE", "SW", "EUFUND
 
 type Holding = PortfolioHolding;
 
-async function json<T>(url: string, init?: RequestInit, ms = 8000): Promise<T | null> {
+/** JSON de una respuesta ok, o null. `status` guarda el código HTTP (null si no hubo respuesta)
+ *  para que un fallo del motor de backtest deje pista sin volcar su cuerpo (puede ser HTML). */
+async function json<T>(url: string, init?: RequestInit, ms = 8000): Promise<{ data: T | null; status: number | null }> {
   try {
     const res = await fetch(url, { ...init, signal: AbortSignal.timeout(ms) });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
+    if (!res.ok) return { data: null, status: res.status };
+    return { data: (await res.json()) as T, status: res.status };
   } catch {
-    return null;
+    return { data: null, status: null };
   }
 }
 
@@ -163,13 +165,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // Al motor de backtest de esta misma app, por HTTP y en el mismo origen que
   // la petición (en local, localhost; en Vercel, el despliegue que atiende).
   const origen = new URL(req.url).origin;
+  // El fetch interno hereda la cookie del socio y, en previews de Vercel con Deployment
+  // Protection, el bypass de la protección: sin él Vercel responde 401 a este fetch (no al
+  // navegador) y aquí saldría un 502 sin pista.
+  const cabeceras: Record<string, string> = { "content-type": "application/json" };
+  const cookie = req.headers.get("cookie");
+  if (cookie) cabeceras.cookie = cookie;
+  const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+  if (bypass) cabeceras["x-vercel-protection-bypass"] = bypass;
   type Punto = { date: string; exactDate?: string; value: number };
   type Resultado = { metrics?: { volatility?: number; maxDrawdown?: number }; timeSeries?: Punto[] };
-  const bt = await json<{ resultA?: Resultado; a?: Resultado; error?: string; message?: string }>(
+  const { data: bt, status: estadoBt } = await json<{ resultA?: Resultado; a?: Resultado; error?: string; message?: string }>(
     `${origen}/api/backtest`,
     {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: cabeceras,
       body: JSON.stringify({
         portfolioA: { name: "Mi cartera", holdings },
         startDate: iso(inicio),
@@ -185,7 +195,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const resultado = bt?.resultA ?? bt?.a;
   const vol = resultado?.metrics?.volatility;
   if (typeof vol !== "number" || !Number.isFinite(vol)) {
-    return NextResponse.json({ error: "La herramienta no ha podido calcular la volatilidad", detalle: bt?.message ?? bt?.error ?? null, excluidos }, { status: 502 });
+    // Sin cuerpo JSON: solo el código HTTP del motor (o que no respondió), nunca su HTML.
+    const detalle = bt
+      ? (bt.message ?? bt.error ?? null)
+      : estadoBt !== null
+        ? `El motor de backtest ha respondido HTTP ${estadoBt}`
+        : "El motor de backtest no ha respondido (tiempo agotado o error de red)";
+    return NextResponse.json({ error: "La herramienta no ha podido calcular la volatilidad", detalle, excluidos }, { status: 502 });
   }
   const serie = resultado?.timeSeries ?? [];
   const primero = serie[0];

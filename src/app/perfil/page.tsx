@@ -40,7 +40,7 @@ function Resultado({ perfil, onRepetir }: { perfil: number; onRepetir: () => voi
             <span>{t.horizonteMinimo}</span>
           </li>
         </ul>
-        <p className="mt-4 text-sm text-gris leading-relaxed">Es una orientación educativa, no una recomendación. El plan de tu cartera lo decides tú en Mi cartera.</p>
+        <p className="mt-4 text-sm text-gris leading-relaxed">Es una orientación educativa, no una recomendación. El plan de tu cartera lo decides tú en Mis posiciones.</p>
       </Tarjeta>
 
       <div className="flex flex-wrap items-center gap-3">

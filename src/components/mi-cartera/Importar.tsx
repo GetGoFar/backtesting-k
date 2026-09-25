@@ -310,7 +310,7 @@ export function Importar({ compacto, onRevisando }: { compacto: boolean; onRevis
         <span className="hidden text-sm text-gris md:inline">o pega una captura con Ctrl+V</span>
       </div>
       {error && <p className="mt-3 text-sm text-rojo">{error}</p>}
-      <p className="mt-3 text-xs text-gris-2">La imagen se envía a Claude (Anthropic) solo para leerla y no se guarda. Los nombres de los activos se buscan en la Backtesting Tool de El Proyecto K.</p>
+      <p className="mt-3 text-xs text-gris-2">La imagen se envía a Claude (Anthropic) solo para leerla y no se guarda. Los nombres de los activos se buscan en el catálogo del Laboratorio K y en el mercado.</p>
       {selectorArchivo}
     </Tarjeta>
   );

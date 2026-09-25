@@ -1,6 +1,7 @@
-// Riesgo que asume el socio: volatilidad real de su cartera (datos de la
-// Backtesting Tool) traducida al perfil 1-10 con la tabla de volatilidades
-// objetivo de la Excel (hoja CONFIG, "Volatilidad Objetivo (1DE)").
+// Riesgo que asume el socio: volatilidad real de su cartera, calculada por el backtest
+// de la ruta propia de esta app (/api/cartera/riesgo, en el mismo origen), traducida
+// al perfil 1-10 con la tabla de volatilidades objetivo de la Excel (hoja CONFIG,
+// "Volatilidad Objetivo (1DE)").
 
 import type { Posicion } from "./cartera";
 

@@ -472,8 +472,7 @@ function MiPlan({ plan, nucleo, ultimoRebalanceo }: { plan: Plan; nucleo: number
   };
 
   return (
-    <Tarjeta className="scroll-mt-6" >
-      <div id="plan" />
+    <Tarjeta id="plan" className="scroll-mt-6">
       <h2 className="text-xl">Mi plan</h2>
       <p className="mt-1 text-sm text-gris">Tu plan es tuyo: cuánto quieres en cada categoría de tu Cartera Núcleo.</p>
       {perfil ? (
@@ -626,6 +625,15 @@ export default function PaginaCartera() {
     });
   }, [posiciones]);
 
+  // Con un ancla en la URL (#plan, #aportado) la página arranca en <Cargando/> y el navegador no
+  // encuentra el destino: al llegar el contenido, llevamos la vista al elemento del hash.
+  useEffect(() => {
+    if (!hidratado) return;
+    const id = window.location.hash.slice(1);
+    if (!id) return;
+    document.getElementById(id)?.scrollIntoView();
+  }, [hidratado]);
+
   if (!hidratado) return <Cargando />;
 
   const borrador = { ...(cartera ?? { posiciones: [], plan: { objetivo: {} }, aportado: 0 }), posiciones: posiciones.map((p) => ({ ...p, valor: valores[p.id] ?? 0 })) };
@@ -636,7 +644,7 @@ export default function PaginaCartera() {
 
   return (
     <div className="flex flex-col gap-5">
-      <Titulo sub="Lo que tienes hoy, en euros. Tú decides dónde va cada cosa.">Mi cartera</Titulo>
+      <Titulo sub="Lo que tienes hoy, en euros. Tú decides dónde va cada cosa.">Mis posiciones</Titulo>
 
       <Importar compacto={posiciones.length > 0} onRevisando={setRevisandoImportacion} />
 

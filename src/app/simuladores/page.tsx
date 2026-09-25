@@ -123,7 +123,7 @@ export default function Simuladores() {
                       <td className="px-5 md:px-6 py-2">{f.ano}</td>
                       <td className="px-3 py-2 text-right">{eur(f.aportado)}</td>
                       <td className="px-3 py-2 text-right">{eur(f.valor)}</td>
-                      <td className="px-5 md:px-6 py-2 text-right text-verde">{eur(f.beneficio)}</td>
+                      <td className={`px-5 md:px-6 py-2 text-right ${f.beneficio >= 0 ? "text-verde" : "text-rojo"}`}>{eur(f.beneficio)}</td>
                     </tr>
                   ))}
                 </tbody>

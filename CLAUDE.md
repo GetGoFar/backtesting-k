@@ -257,7 +257,9 @@ entrando directo (sin campus) lo ve como hasta ahora, sin menú.
 
 - **Quién entra:** solo socios con el token firmado del portal (`/api/acceso/ataraxia`,
   secreto compartido `ATARAXIA_LAB_SECRET`) y Pablo con su código personal
-  (`/api/acceso`). Nadie más: `/acceso` es la puerta cerrada. Contrato compartido
+  (`/api/acceso`; el valor vive en la variable `PABLO_LAB_CODE`, nunca en el repo, que es
+  público). Nadie más: `/acceso` es la puerta cerrada. El `next` de vuelta se resuelve contra
+  el propio origen y solo vale si coincide (sin `\`): nada de mandar a otro dominio. Contrato compartido
   en `src/lib/lab-auth.ts` (`exigirAcceso`, `identidadDe`, `firmarIdentidad`…); las
   rutas `/api/cartera/*` lo llaman porque el middleware deja pasar todo `/api/*`.
 - **Identidad (`epk-socio`):** el portal manda en `lw` un id anónimo de 32 hex (HMAC
@@ -274,6 +276,11 @@ entrando directo (sin campus) lo ve como hasta ahora, sin menú.
   GET devuelve `{datos:null, identidad:false}` y PUT 403). El cliente es dueño del
   formato (`version: 2`, `guardado` ISO opcional). Test de la identidad: `lab-auth.test.ts`.
 - **Variables en Vercel:** `ANTHROPIC_API_KEY` (NUEVA: importar capturas en
-  `/api/cartera/importar`), `ATARAXIA_LAB_SECRET` (ya existe; mismo valor que
-  `LABORATORIO_SECRET` en ataraxia-bot) y el Upstash de siempre (`KV_REST_API_URL` /
-  `KV_REST_API_TOKEN` o `UPSTASH_REDIS_REST_*`), que ahora también guarda las carteras.
+  `/api/cartera/importar`), `PABLO_LAB_CODE` (NUEVA: el código personal de Pablo, 8+
+  caracteres; sin ella no hay código de Pablo ni presets privados. El valor que estuvo en
+  claro en `src/lib/access-codes.ts` hasta el 26-sep-2026 está quemado: ROTARLO, poner el
+  nuevo aquí y en `.env.local`; rotar invalida sus sesiones), `ATARAXIA_LAB_SECRET` (ya
+  existe; mismo valor que `LABORATORIO_SECRET` en ataraxia-bot) y el Upstash de siempre
+  (`KV_REST_API_URL` / `KV_REST_API_TOKEN` o `UPSTASH_REDIS_REST_*`), que ahora también
+  guarda las carteras. En previews con Deployment Protection, `VERCEL_AUTOMATION_BYPASS_SECRET`
+  (la pone Vercel) deja pasar el fetch interno de `/api/cartera/riesgo` a `/api/backtest`.

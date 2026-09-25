@@ -10,9 +10,10 @@
 //
 // Mismo patrón que access-log.ts: cliente perezoso, credenciales en
 // KV_REST_API_URL || UPSTASH_REDIS_REST_URL y KV_REST_API_TOKEN ||
-// UPSTASH_REDIS_REST_TOKEN, y NUNCA lanza. Sin credenciales, leer devuelve
-// null, existe devuelve false y guardar devuelve false: la app sigue viva en
-// el navegador.
+// UPSTASH_REDIS_REST_TOKEN, y NUNCA lanza. Sin credenciales o con Redis
+// caído, leer devuelve { ok: false } (no se sabe qué hay: nunca se confunde
+// con "vacío", para que el cliente no machaque una cartera guardada), existe
+// devuelve false y guardar devuelve false: la app sigue viva en el navegador.
 //
 // Solo servidor (runtime nodejs): no importar desde componentes ni desde el
 // middleware.
@@ -77,27 +78,35 @@ export async function existeCartera(id: string): Promise<boolean> {
   }
 }
 
-/** El estado guardado del socio (JSON ya parseado) o null si no hay nada, no hay Redis
- *  o lo guardado no se puede leer. */
-export async function leerCartera(id: string): Promise<unknown | null> {
+/** Resultado de leer: `ok: false` cuando no se puede saber qué hay (sin Redis o con error);
+ *  `datos: null` cuando el socio está identificado pero no tiene nada guardado. */
+export type LecturaCartera = { ok: true; datos: unknown | null } | { ok: false };
+
+/** El estado guardado del socio (JSON ya parseado). Distingue vacío de fallo: sin Redis
+ *  configurado o con error de lectura devuelve { ok: false }; si no hay nada guardado (o lo
+ *  guardado no es JSON legible), { ok: true, datos: null }. Nunca lanza. */
+export async function leerCartera(id: string): Promise<LecturaCartera> {
   try {
     const redis = await getRedis();
+    if (!redis) return { ok: false };
     const k = clave(id);
-    if (!redis || !k) return null;
+    // Un id sin la forma esperada no puede tener nada guardado (guardarCartera lo rechaza).
+    if (!k) return { ok: true, datos: null };
     // El cliente de Upstash intenta parsear el JSON por su cuenta; si llega como texto, se parsea aquí.
     const raw = await redis.get<unknown>(k);
-    if (raw === null || raw === undefined) return null;
+    if (raw === null || raw === undefined) return { ok: true, datos: null };
     if (typeof raw === "string") {
       try {
-        return JSON.parse(raw) as unknown;
+        return { ok: true, datos: JSON.parse(raw) as unknown };
       } catch {
-        return null;
+        console.warn("[CarteraStore] Lo guardado no es JSON legible; se trata como vacío.");
+        return { ok: true, datos: null };
       }
     }
-    return raw;
+    return { ok: true, datos: raw };
   } catch (e) {
     console.warn("[CarteraStore] No se pudo leer la cartera:", e);
-    return null;
+    return { ok: false };
   }
 }
 

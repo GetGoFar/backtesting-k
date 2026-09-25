@@ -20,12 +20,25 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 const URL_ATARAXIA = "https://hub.elproyectok.com/course/ataraxia";
 
+/**
+ * Destino tras entrar: solo rutas de esta misma app. `next` se resuelve contra el origen de la
+ * página y se acepta únicamente si el origen coincide; fuera "//otro.dominio", "https://..." y
+ * también "/\otro.dominio" (barra invertida: el navegador la lee como "//"). Se navega con
+ * pathname + search; cualquier otra cosa lleva a "/".
+ */
+function destinoSeguro(next: string | null): string {
+  if (!next || !next.startsWith("/") || next.includes("\\")) return "/";
+  try {
+    const u = new URL(next, window.location.origin);
+    return u.origin === window.location.origin ? u.pathname + u.search : "/";
+  } catch {
+    return "/";
+  }
+}
+
 function PuertaCerrada() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  // Solo rutas relativas de esta app (nunca "//otro.dominio" ni "https://...").
-  const rawNext = searchParams.get("next") ?? "/";
-  const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";
 
   const [mostrarCodigo, setMostrarCodigo] = useState(false);
   const [code, setCode] = useState("");
@@ -57,8 +70,8 @@ function PuertaCerrada() {
         error?: string;
       };
       if (res.ok && data.ok) {
-        // Cookie ya emitida: vuelta al destino original.
-        router.replace(next);
+        // Cookie ya emitida: vuelta al destino original (validado en el navegador, al enviar).
+        router.replace(destinoSeguro(searchParams.get("next")));
       } else {
         setError(data.error ?? "Código incorrecto");
         setCode("");

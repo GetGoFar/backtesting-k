@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { SinIdentidad, cargarEstado, estaVacio, guardarEstado, mandaElServidor } from "./sync";
+import { ESTADO_SERVIDOR_INICIAL, EstadoAnticuado, SinIdentidad, accionAlCambiar, cargarEstado, estaVacio, guardadoEn, guardarEstado, mandaElServidor } from "./sync";
 import type { Datos } from "./store";
 
 const vacio: Datos = { version: 2, movimientos: [] };
@@ -40,6 +40,33 @@ describe("mandaElServidor", () => {
   });
 });
 
+describe("guardadoEn (dónde vive la cartera)", () => {
+  it("sin confirmar mientras el GET no haya respondido bien", () => {
+    expect(guardadoEn(ESTADO_SERVIDOR_INICIAL)).toBe("sin-confirmar");
+    expect(guardadoEn({ confirmado: false, sinIdentidad: false, ultimoPut: "ok" })).toBe("sin-confirmar");
+  });
+  it("servidor con GET confirmado e identidad, y el último PUT bien o ninguno aún", () => {
+    expect(guardadoEn({ confirmado: true, sinIdentidad: false, ultimoPut: null })).toBe("servidor");
+    expect(guardadoEn({ confirmado: true, sinIdentidad: false, ultimoPut: "ok" })).toBe("servidor");
+  });
+  it("navegador sin identidad o cuando el PUT falla (503 u otros)", () => {
+    expect(guardadoEn({ confirmado: true, sinIdentidad: true, ultimoPut: null })).toBe("navegador");
+    expect(guardadoEn({ confirmado: true, sinIdentidad: false, ultimoPut: "fallo" })).toBe("navegador");
+  });
+});
+
+describe("accionAlCambiar (sin GET no hay PUT)", () => {
+  it("con el GET sin confirmar, un cambio no sube nada: vuelve a consultar", () => {
+    expect(accionAlCambiar(ESTADO_SERVIDOR_INICIAL)).toBe("consultar");
+    expect(accionAlCambiar({ confirmado: false, sinIdentidad: false, ultimoPut: "fallo" })).toBe("consultar");
+  });
+  it("confirmado, se sube; sin identidad, nada", () => {
+    expect(accionAlCambiar({ confirmado: true, sinIdentidad: false, ultimoPut: null })).toBe("subir");
+    expect(accionAlCambiar({ confirmado: true, sinIdentidad: false, ultimoPut: "fallo" })).toBe("subir");
+    expect(accionAlCambiar({ confirmado: true, sinIdentidad: true, ultimoPut: null })).toBe("nada");
+  });
+});
+
 describe("cargarEstado", () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -70,11 +97,27 @@ describe("cargarEstado", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "sin_acceso" }), { status: 401 })));
     await expect(cargarEstado()).rejects.toBeInstanceOf(SinIdentidad);
   });
+  it("un fallo del almacén (503 {error: 'almacen'}) es un error, no vacío ni sin identidad", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "almacen" }), { status: 503 })));
+    const e = await cargarEstado().catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(Error);
+    expect(e).not.toBeInstanceOf(SinIdentidad);
+    expect(e).not.toBeNull();
+  });
   it("otro fallo lanza un Error corriente", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 500 })));
     const e = await cargarEstado().catch((x: unknown) => x);
     expect(e).toBeInstanceOf(Error);
     expect(e).not.toBeInstanceOf(SinIdentidad);
+  });
+  it("una red caída (fetch que lanza) tampoco se toma por vacío", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("Failed to fetch");
+      }),
+    );
+    await expect(cargarEstado()).rejects.toBeInstanceOf(Error);
   });
 });
 
@@ -94,5 +137,30 @@ describe("guardarEstado", () => {
   it("401/403 lanzan SinIdentidad", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 403 })));
     await expect(guardarEstado(vacio)).rejects.toBeInstanceOf(SinIdentidad);
+  });
+  it("409 anticuado lanza EstadoAnticuado con los datos del servidor, que mandan sobre lo enviado", async () => {
+    const enviado = conCartera("2026-09-25T10:00:00.000Z");
+    const servidor = conCartera("2026-09-26T10:00:00.000Z");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "anticuado", guardado: servidor.guardado, datos: servidor }), { status: 409 })));
+    const e = await guardarEstado(enviado).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(EstadoAnticuado);
+    const a = e as EstadoAnticuado;
+    expect(a.datos).toEqual(servidor);
+    expect(a.guardado).toBe("2026-09-26T10:00:00.000Z");
+    // El cliente adopta lo del servidor en vez de insistir.
+    expect(mandaElServidor(a.datos, enviado)).toBe(true);
+  });
+  it("409 sin datos válidos es un Error corriente", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "anticuado" }), { status: 409 })));
+    const e = await guardarEstado(vacio).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(Error);
+    expect(e).not.toBeInstanceOf(EstadoAnticuado);
+    expect(e).not.toBeInstanceOf(SinIdentidad);
+  });
+  it("503 sin almacén es un Error corriente (no SinIdentidad)", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "sin_almacen" }), { status: 503 })));
+    const e = await guardarEstado(vacio).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(Error);
+    expect(e).not.toBeInstanceOf(SinIdentidad);
   });
 });

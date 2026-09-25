@@ -7,8 +7,12 @@ import type { Semaforo } from "@/lib/mi-cartera/cartera";
 
 export type FilaDistribucion = { nombre: string; pesoActual: number; pesoObjetivo: number; rango: { min: number; max: number }; semaforo: Semaforo };
 
-export function Tarjeta({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <section className={`rounded-2xl bg-white border border-borde shadow-card p-5 md:p-6 ${className}`}>{children}</section>;
+export function Tarjeta({ children, className = "", id }: { children: ReactNode; className?: string; id?: string }) {
+  return (
+    <section id={id} className={`rounded-2xl bg-white border border-borde shadow-card p-5 md:p-6 ${className}`}>
+      {children}
+    </section>
+  );
 }
 
 export function Titulo({ children, sub }: { children: ReactNode; sub?: ReactNode }) {

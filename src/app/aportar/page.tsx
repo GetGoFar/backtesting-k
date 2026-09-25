@@ -32,7 +32,7 @@ function ListaOperaciones({ titulo, ops, tono }: { titulo: string; ops: Operacio
                 <p className="text-xs text-gris-2">
                   Aún no tienes ninguno:{" "}
                   <Link href="/cartera/posiciones" className="text-k hover:underline">
-                    añádelo en Mi cartera
+                    añádelo en Mis posiciones
                   </Link>
                   .
                 </p>
@@ -87,7 +87,7 @@ function Aportar() {
             Calcular aportación
           </Boton>
         </div>
-        <p className="mt-3 text-xs text-gris-2">Satélite y Play Money se actualizan a mano en Mi cartera.</p>
+        <p className="mt-3 text-xs text-gris-2">Satélite y Play Money se actualizan a mano en Mis posiciones.</p>
       </Tarjeta>
 
       {plan && (

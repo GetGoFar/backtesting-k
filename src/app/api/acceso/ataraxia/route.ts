@@ -90,10 +90,19 @@ async function verificar(token: string): Promise<{ lw: string } | null> {
 
 const DESTINO_POR_DEFECTO = "/?campus=1";
 
-/** Solo rutas relativas del propio sitio: nada de mandar al socio a otro dominio. */
-function destinoSeguro(next: string | null): string {
-  if (!next || !next.startsWith("/") || next.startsWith("//")) return DESTINO_POR_DEFECTO;
-  return next;
+/**
+ * Solo rutas relativas del propio sitio: nada de mandar al socio a otro dominio. `next` se resuelve
+ * contra la URL de la petición y solo vale si el origen coincide; fuera "//otro", "https://…" y
+ * también "/\otro" (barra invertida: el navegador la lee como "//"). Devuelve pathname + search.
+ */
+function destinoSeguro(next: string | null, base: URL): string {
+  if (!next || !next.startsWith("/") || next.includes("\\")) return DESTINO_POR_DEFECTO;
+  try {
+    const u = new URL(next, base.origin);
+    return u.origin === base.origin ? u.pathname + u.search : DESTINO_POR_DEFECTO;
+  } catch {
+    return DESTINO_POR_DEFECTO;
+  }
 }
 
 /** Secciones del menú del Laboratorio K que admite el parámetro `a`, con su ruta. */
@@ -105,10 +114,11 @@ const SECCIONES = new Map<string, string>([
   ["backtest", "/"],
 ]);
 
-/** Destino de la sección pedida en `a` (siempre en modo campus), o null si no viene o no existe. */
+/** Destino de la sección pedida en `a` (siempre en modo campus), o null si no viene o no existe.
+ *  Las rutas salen de SECCIONES (constantes propias), no del parámetro: no hace falta validarlas. */
 function seccionDe(a: string | null): string | null {
   const ruta = a ? SECCIONES.get(a) : undefined;
-  return ruta ? destinoSeguro(ruta + "?campus=1") : null;
+  return ruta ? ruta + "?campus=1" : null;
 }
 
 /** ¿Trae `next` la cartera montada por el Kopiloto (/?campus=1&k=…)? Ese caso manda. */
@@ -125,7 +135,7 @@ function idDelPortal(lw: string): string | null {
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const q = request.nextUrl.searchParams;
   const t = q.get("t") || "";
-  const next = destinoSeguro(q.get("next"));
+  const next = destinoSeguro(q.get("next"), request.nextUrl);
   const seccion = seccionDe(q.get("a"));
   // Destino antes de saber quién entra: el Kopiloto manda; luego la sección pedida; luego `next`.
   let destino = traeKopiloto(next) ? next : (seccion ?? next);

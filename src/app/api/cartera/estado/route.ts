@@ -4,7 +4,10 @@
 //
 //   GET  → { datos, identidad: true }           (datos: lo guardado, o null si nada)
 //        → { datos: null, identidad: false }    (sin cookie de identidad: vive en el navegador)
+//        → 503 { error: "almacen" }             (Redis sin configurar o caído: NO se sabe qué hay)
 //   PUT  { datos } → { ok: true, guardado: <ISO> }
+//                  → 409 { error: "anticuado", guardado, datos }  (lo guardado es más reciente)
+//                  → 503 { error: "sin_almacen" }
 //
 // Puerta en dos pasos: primero la cookie de acceso (exigirAcceso → 401 sin ella;
 // el middleware deja pasar todo /api/*), luego la identidad de la cookie `epk-socio`
@@ -15,7 +18,12 @@
 // `guardado` en ISO 8601 o ausente) y nada más: el formato es del cliente
 // (lib/mi-cartera/store.tsx). Si `guardado` falta, se sella con la hora del servidor
 // para que lo devuelto coincida con lo guardado. Tope: CARTERA_MAX_BYTES (413).
-// Sin Redis configurado, PUT responde 503 { error: "sin_almacen" }.
+//
+// Vacío y fallo no son lo mismo: si el almacén no responde, GET contesta 503 (nunca
+// "no hay nada"), para que el cliente no suba lo suyo encima de una cartera guardada.
+// Y PUT lee antes lo guardado: si el sello recibido es ANTERIOR al almacenado, no
+// sobreescribe y devuelve 409 con lo del servidor para que el cliente lo adopte.
+// (La lectura y la escritura no son atómicas; es una salvaguarda, no un cerrojo.)
 // =============================================================================
 
 import { NextRequest, NextResponse } from "next/server";
@@ -44,6 +52,11 @@ function esFechaISO(v: unknown): v is string {
   );
 }
 
+/** El sello `guardado` de un estado almacenado, si lo tiene y es una fecha válida. */
+function selloDe(datos: unknown): string | undefined {
+  return esObjeto(datos) && esFechaISO(datos.guardado) ? datos.guardado : undefined;
+}
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const sinAcceso = await exigirAcceso(req);
   if (sinAcceso) {
@@ -52,8 +65,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
   const id = await identidadDe(req);
   if (!id) return responder({ datos: null, identidad: false });
-  const datos = await leerCartera(id);
-  return responder({ datos, identidad: true });
+  const lectura = await leerCartera(id);
+  if (!lectura.ok) return responder({ error: "almacen" }, 503);
+  return responder({ datos: lectura.datos, identidad: true });
 }
 
 export async function PUT(req: NextRequest): Promise<NextResponse> {
@@ -82,6 +96,14 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
   const guardado = esFechaISO(datos.guardado) ? datos.guardado : new Date().toISOString();
   const aGuardar = { ...datos, guardado };
   if (tamanoSerializado(JSON.stringify(aGuardar)) > CARTERA_MAX_BYTES) return responder({ error: "demasiado_grande" }, 413);
+
+  // Lo almacenado manda si es más reciente: no se pisa con un estado anterior.
+  const previo = await leerCartera(id);
+  if (!previo.ok) return responder({ error: "sin_almacen" }, 503);
+  const selloPrevio = selloDe(previo.datos);
+  if (selloPrevio !== undefined && Date.parse(guardado) < Date.parse(selloPrevio)) {
+    return responder({ error: "anticuado", guardado: selloPrevio, datos: previo.datos }, 409);
+  }
 
   const ok = await guardarCartera(id, aGuardar);
   if (!ok) return responder({ error: "sin_almacen" }, 503);

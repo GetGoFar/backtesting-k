@@ -1,6 +1,7 @@
-// Búsqueda de activos por nombre o ISIN. El servidor (app/api/cartera/buscar) pregunta
-// a la Backtesting Tool de El Proyecto K (catálogo curado + EODHD) y aquí se
-// normaliza el resultado y se sugiere una categoría que el socio confirma.
+// Búsqueda de activos por nombre o ISIN. La ruta es propia de esta app: el servidor
+// (/api/cartera/buscar, en el mismo origen) consulta el catálogo del Laboratorio K y el
+// mercado (EODHD); aquí se normaliza el resultado y se sugiere una categoría que el
+// socio confirma.
 
 import { sugerirCategoria, type Categoria } from "./cartera";
 
@@ -14,7 +15,7 @@ export type Activo = {
   origen: "catalogo" | "mercado";
 };
 
-/** Categorías del catálogo de la Backtesting Tool → categorías de Mi cartera. */
+/** Categorías del catálogo del Laboratorio K → categorías de Mi cartera. */
 export function categoriaDesdeCatalogo(categoria: string | undefined, nombre: string, tipo: TipoActivo): Categoria {
   const porNombre = sugerirCategoria(nombre);
   if (porNombre === "rf-hy") return "rf-hy"; // el catálogo no distingue high yield

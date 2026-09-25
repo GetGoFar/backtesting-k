@@ -1,10 +1,23 @@
 "use client";
 
-import { useStore } from "@/lib/mi-cartera/store";
+import { useStore, type GuardadoEn } from "@/lib/mi-cartera/store";
 import { calcularEstado, textoSemaforo } from "@/lib/mi-cartera/cartera";
 import { eur, eurSigno, fechaCorta, pct } from "@/lib/mi-cartera/formato";
 import { Boton, Cargando, Cifra, Distribucion, EstadoGrande, Tarjeta } from "@/components/mi-cartera/ui";
 import { TarjetaRiesgo } from "@/components/mi-cartera/Riesgo";
+
+const TEXTO_GUARDADO: Record<GuardadoEn, string> = {
+  servidor: "Guardada en tu cuenta de Ataraxia",
+  navegador: "Solo en este navegador",
+  "sin-confirmar": "Sin conexión con el servidor: los cambios se quedan en este navegador hasta que vuelva",
+};
+
+/** Una línea discreta al pie: dónde vive la cartera. Nada hasta que el servidor haya contestado
+ *  (o agotado la espera), para que no parpadee en la primera consulta. */
+function DondeSeGuarda({ guardadoEn, consultado }: { guardadoEn: GuardadoEn; consultado: boolean }) {
+  if (!consultado) return null;
+  return <p className="text-xs text-gris">{TEXTO_GUARDADO[guardadoEn]}.</p>;
+}
 
 function Paso({ titulo, texto, cta, href }: { titulo: string; texto: string; cta: string; href: string }) {
   return (
@@ -19,8 +32,9 @@ function Paso({ titulo, texto, cta, href }: { titulo: string; texto: string; cta
 }
 
 export default function Inicio() {
-  const { datos, hidratado } = useStore();
+  const { datos, hidratado, guardadoEn, servidorConsultado } = useStore();
   if (!hidratado) return <Cargando />;
+  const pie = <DondeSeGuarda guardadoEn={guardadoEn} consultado={servidorConsultado} />;
 
   const cartera = datos.cartera;
   const estado = cartera ? calcularEstado(cartera) : undefined;
@@ -34,7 +48,7 @@ export default function Inicio() {
             Mi cartera te dice dónde estás, dónde quieres estar y si tienes que hacer algo. La mayoría de las veces, la respuesta será que no.
           </p>
         </div>
-        <Paso titulo="Añade lo que tienes hoy" texto="Tus fondos, ETFs o liquidez, en euros, por categoría. La app no elige por ti: tú decides el plan." cta="Ir a mi cartera" href="/cartera/posiciones" />
+        <Paso titulo="Añade lo que tienes hoy" texto="Tus fondos, ETFs o liquidez, en euros, por categoría. La app no elige por ti: tú decides el plan." cta="Añadir mis activos" href="/cartera/posiciones" />
         <p className="text-sm text-gris">
           ¿No sabes cuánto riesgo quieres asumir?{" "}
           <a href="/perfil" className="text-k hover:underline">
@@ -42,6 +56,7 @@ export default function Inicio() {
           </a>
           .
         </p>
+        {pie}
       </div>
     );
   }
@@ -126,6 +141,7 @@ export default function Inicio() {
           Actualizar valores
         </Boton>
       </p>
+      {pie}
     </div>
   );
 }
