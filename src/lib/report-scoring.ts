@@ -230,9 +230,14 @@ function scoreDiversificacion(result: ScoringInput): ScoreDetail {
         : `quita el ${pct.toFixed(0)}% del riesgo diversificable · ${div.assets} activos`;
     let explanation: string;
     if (div.assets <= 1) {
+      // OJO con el texto: un índice mundial es UN activo aquí, pero por dentro
+      // lleva miles de empresas. Decir "cargas con todo el riesgo específico"
+      // sería falso. Esta nota mide la COMBINACIÓN, y con un solo activo no hay
+      // combinación que medir.
       explanation =
-        "Con un solo activo no hay diversificación posible: cargas con todo su riesgo específico. " +
-        "Repartir entre activos que no se muevan a la vez reduce el riesgo sin renunciar a rentabilidad esperada.";
+        "Con un solo activo no hay combinación que medir: esta nota mide cuánto riesgo se elimina " +
+        "al juntar activos que no se mueven a la vez. Si ese activo es un índice mundial, ya está " +
+        "diversificado por dentro (miles de empresas), pero eso no se ve desde aquí.";
     } else if (value >= 8.5) {
       explanation = `Muy bien diversificada: combinar estos activos elimina el ${pct.toFixed(0)}% del riesgo que tendrías si se movieran todos a la vez.`;
     } else if (value >= 7) {

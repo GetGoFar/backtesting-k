@@ -34,6 +34,9 @@ describe("nota de diversificación (por riesgo, no por número de activos)", () 
     expect(s.diversificacion.value).toBe(0);
     expect(s.diversificacion.metric).toContain("no diversifica");
     expect(s.diversificacion.explanation).toContain("un solo activo");
+    // No debe afirmar que cargas con el riesgo específico: un índice mundial
+    // es UN activo aquí y por dentro lleva miles de empresas.
+    expect(s.diversificacion.explanation).not.toContain("riesgo específico");
   });
 
   it("dos fondos que se solapan sacan casi cero aunque sean dos activos", () => {
