@@ -88,7 +88,10 @@ export interface Fund {
   /** Si el ETF/fondo reparte dividendos (distributing vs accumulating) */
   distributing?: boolean;
   /** Fuente del valor TER */
-  terSource?: "curated" | "morningstar" | "user" | "estimated" | "eodhd" | "ft";
+  /** De dónde salió el TER. "priips" es el único que significa COSTE TOTAL del
+   *  KID (gastos corrientes + costes de transacción); todos los demás son
+   *  gastos corrientes y se quedan cortos. */
+  terSource?: "curated" | "morningstar" | "user" | "estimated" | "eodhd" | "ft" | "priips";
   /** Si el TER esta verificado como correcto */
   terConfirmed?: boolean;
   /** Términos extra por los que el buscador local debe encontrar el fondo
