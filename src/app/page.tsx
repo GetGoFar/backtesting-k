@@ -271,6 +271,12 @@ export default function Home() {
   const bEffectiveMonthly = bUsesOwnParams ? bMonthlyContribution : monthlyContribution;
   const [displayGranularity, setDisplayGranularity] =
     useState<DisplayGranularity>("monthly");
+  // Resguardo: si el modo campus se detecta cuando ya había "diario" puesto
+  // (el estado no se persiste, pero sí puede quedar al volver atrás), se cae a
+  // mensual, que es lo único que el campus ofrece.
+  useEffect(() => {
+    if (campus && displayGranularity === "daily") setDisplayGranularity("monthly");
+  }, [campus, displayGranularity]);
   // Divisa/unidad de los resultados: cada activo se convierte con el tipo de
   // cambio de cada día (EUR por defecto; "XAU" mide todo en onzas de oro).
   const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>("EUR");
@@ -951,7 +957,16 @@ export default function Home() {
                   // el motor detecta esos fondos y, en diario, cae a base mensual
                   // SOLO para las estadísticas (volatilidad/Sharpe/distribución),
                   // avisando en pantalla; el gráfico y el drawdown sí van en diario.
-                  { value: "daily", label: "Diario" },
+                  //
+                  // EN EL CAMPUS NO SE OFRECE (sep-2026). Tres motivos: contradice
+                  // lo que enseña el método ("cuanto menos mires la cartera, menos
+                  // sufrirás"); las cifras parecen errores al alumno (el mismo K3
+                  // da Max DD -5,7 % en mensual y -11,6 % en diario, Calmar 1,07
+                  // frente a 0,52); y es la base donde peor comparan un fondo y un
+                  // ETF, que no fijan precio a la misma hora (la correlación salía
+                  // 0,44 cuando la real es 0,95). El informe ya va siempre en
+                  // mensual, así que además evita el desajuste pantalla-PDF.
+                  ...(campus ? [] : [{ value: "daily", label: "Diario" }]),
                   { value: "monthly", label: "Mensual" },
                   { value: "quarterly", label: "Trimestral" },
                 ].map((option) => (
