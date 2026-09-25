@@ -393,6 +393,34 @@ export async function runBacktest(
     ]);
   }
 
+  // Diversificación por riesgo, una por cartera y con SUS pesos, siempre en
+  // base mensual (ver la nota de `computeDiversification`).
+  if ((resultA && config.portfolioA) || (resultB && config.portfolioB)) {
+    const metricasMensuales =
+      displayGranularity === "monthly"
+        ? assetMetrics
+        : await calculateIndividualAssetMetrics(
+            allHoldings,
+            actualStartDate,
+            actualEndDate,
+            "monthly"
+          );
+    if (resultA && config.portfolioA) {
+      resultA.diversification = computeDiversification(
+        config.portfolioA.holdings,
+        metricasMensuales,
+        volatilidadMensual(resultA.monthlyTimeSeries)
+      );
+    }
+    if (resultB && config.portfolioB) {
+      resultB.diversification = computeDiversification(
+        config.portfolioB.holdings,
+        metricasMensuales,
+        volatilidadMensual(resultB.monthlyTimeSeries)
+      );
+    }
+  }
+
   // Warnings de TER
   engineWarnings.push(...getTerWarnings(allHoldings));
 
@@ -2964,6 +2992,85 @@ async function getHoldingMonthlySeries(
   const fund = getFundById(holding.fundId) || holding.fund;
   const { prices } = await getMonthlyPricesIn(holding.fundId, fund?.ticker, fund?.isin, fund?.currency);
   return prices;
+}
+
+/** Volatilidad anualizada a partir de una serie MENSUAL de patrimonio. */
+function volatilidadMensual(serie: TimeSeriesPoint[] | undefined): number | undefined {
+  if (!serie || serie.length < 7) return undefined;
+  const retornos: number[] = [];
+  for (let i = 1; i < serie.length; i++) {
+    const previo = serie[i - 1]!.value;
+    const actual = serie[i]!.value;
+    if (previo > 0) retornos.push(actual / previo - 1);
+  }
+  if (retornos.length < 6) return undefined;
+  const media = retornos.reduce((a, b) => a + b, 0) / retornos.length;
+  const varianza =
+    retornos.reduce((a, b) => a + (b - media) * (b - media), 0) / (retornos.length - 1);
+  return Math.sqrt(varianza) * Math.sqrt(12);
+}
+
+/**
+ * DIVERSIFICACIÓN POR RIESGO, no por número de activos.
+ *
+ * Compara la volatilidad real de la cartera con la que tendría si sus activos
+ * se movieran todos a la vez (la media ponderada de sus volatilidades). Lo que
+ * falta es el riesgo diversificable que la combinación ha eliminado:
+ *
+ *   ratio   = Σ(wᵢ·σᵢ) / σ_cartera
+ *   removed = 1 − σ_cartera / Σ(wᵢ·σᵢ)
+ *
+ * Contar activos o categorías no mide esto: dos ETF mundiales casi idénticos
+ * son "dos activos" y no diversifican nada (medido con VWCE + IWDA al 50 %:
+ * −0,1 %), mientras que un 60/40 con solo dos fondos quita un 30,5 %.
+ *
+ * Se calcula por CARTERA (con sus propios pesos), no con `AssetMetrics.weight`,
+ * porque esa lista deduplica por fondo entre A, B y benchmark y se queda con el
+ * peso del primero que aparece.
+ *
+ * SIEMPRE sobre base MENSUAL, sea cual sea la granularidad elegida para ver el
+ * gráfico: la diversificación depende del horizonte y con el mismo 60/40 se
+ * medía un 30,5 % en diario y un 17,6 % en mensual. Una nota del informe no
+ * puede cambiar porque el alumno toque un desplegable. Mismo criterio que la
+ * correlación.
+ */
+function computeDiversification(
+  holdings: PortfolioHolding[],
+  assetMetrics: AssetMetrics[] | undefined,
+  portfolioVolatility: number | undefined
+): BacktestResult["diversification"] | undefined {
+  if (!assetMetrics || assetMetrics.length === 0) return undefined;
+  if (portfolioVolatility === undefined) return undefined;
+  if (!Number.isFinite(portfolioVolatility) || portfolioVolatility <= 0) return undefined;
+
+  const volPorFondo = new Map(assetMetrics.map((m) => [m.fundId, m.volatility]));
+  let sumaPonderada = 0;
+  let cobertura = 0;
+  let activos = 0;
+  for (const h of holdings) {
+    const vol = volPorFondo.get(h.fundId);
+    if (vol === undefined || !Number.isFinite(vol) || vol <= 0) continue;
+    const w = h.weight / 100;
+    if (w <= 0) continue;
+    sumaPonderada += w * vol;
+    cobertura += w;
+    activos++;
+  }
+  // Con menos del 95 % de la cartera medida, el número engañaría más que ayuda.
+  if (activos === 0 || cobertura < 0.95 || sumaPonderada <= 0) return undefined;
+
+  // Un solo activo no diversifica NADA por definición. Se fuerza a 0 en vez de
+  // dejar que el ruido (rebalanceo, TER) devuelva un 0,4 % espurio.
+  if (activos === 1) {
+    return { removed: 0, ratio: 1, assets: 1, coverage: cobertura };
+  }
+
+  // Normalizar por la cobertura: si un activo se quedó sin datos, la media
+  // ponderada se compara con la volatilidad de TODA la cartera.
+  const media = sumaPonderada / cobertura;
+  const ratio = media / portfolioVolatility;
+  const removed = Math.max(0, Math.min(1, 1 - portfolioVolatility / media));
+  return { removed, ratio, assets: activos, coverage: cobertura };
 }
 
 async function calculateIndividualAssetMetrics(
