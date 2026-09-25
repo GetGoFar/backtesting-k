@@ -349,6 +349,13 @@ export interface BenchmarkComparison {
   benchmarkReturnsHistogram?: ReturnsHistogram;
   /** Allocation del benchmark (opcional, AllocationPieChart) */
   benchmarkAllocation?: PortfolioAllocation;
+  /** Métricas y series del benchmark en base MENSUAL, para el informe PDF.
+   *  Presente solo si la granularidad pedida no era mensual. */
+  benchmarkMonthly?: {
+    metrics: Metrics;
+    timeSeries: TimeSeriesPoint[];
+    topDrawdowns?: DrawdownEpisode[];
+  };
   /** Fund IDs que componen el benchmark — para poder agrupar/filtrar por
    *  "Benchmark" en Métricas por activo y Correlaciones. */
   benchmarkFundIds?: string[];
@@ -647,6 +654,20 @@ export interface BacktestResult {
     assets: number;
     /** Peso de la cartera cubierto por esos activos (0-1). */
     coverage: number;
+  };
+  /** Todo lo que depende de la granularidad, recalculado en base MENSUAL.
+   *  Presente solo cuando la granularidad pedida NO era mensual. El informe
+   *  PDF se genera SIEMPRE desde aquí: sus cifras no pueden cambiar porque el
+   *  alumno mirase el gráfico en diario antes de darle a "generar informe". */
+  monthly?: {
+    metrics: Metrics;
+    annualReturns: AnnualReturn[];
+    drawdowns: DrawdownPoint[];
+    topDrawdowns: DrawdownEpisode[];
+    stressPeriods: StressPeriodResult[];
+    rollingReturns: RollingReturns;
+    rollingStats: RollingStats;
+    returnsHistogram: ReturnsHistogram;
   };
   /** Serie MENSUAL del patrimonio, sea cual sea la granularidad elegida para
    *  ver el gráfico. La correlación se calcula siempre con esta base: en

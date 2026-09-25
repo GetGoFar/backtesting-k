@@ -896,6 +896,43 @@ async function runPortfolioBacktest(
   const rollingStats = calculateRollingStats(timeSeries, displayGranularity);
   const returnsHistogram = calculateReturnsHistogram(volatilityReturns, displayGranularity);
 
+  // 6b. LA MISMA COSECHA, EN BASE MENSUAL.
+  // El informe PDF se genera siempre desde aquí. Sus cifras no pueden depender
+  // de que el alumno estuviera mirando el gráfico en diario cuando pulsó
+  // "generar informe": en diario la volatilidad, el Max DD y los drawdowns
+  // salen distintos (−47,1 % frente a −41,8 % en un caso real), y un informe
+  // que cambia según un desplegable no se puede enseñar a nadie.
+  // Solo se calcula si hace falta; si ya era mensual, el informe usa lo de arriba.
+  let monthly: BacktestResult["monthly"];
+  if (displayGranularity !== "monthly" || statsGranularity !== "monthly") {
+    const retornosMensuales = aggregateDailyReturns(simulation.dailyReturns, "monthly").map(
+      (r) => r.returnValue
+    );
+    const valoresMensuales = monthlyTimeSeries.map((p) => p.value);
+    if (valoresMensuales.length >= 2 && retornosMensuales.length >= 2) {
+      monthly = {
+        metrics: calculateMetrics(
+          valoresMensuales,
+          retornosMensuales,
+          retornosMensuales,
+          simulation.totalContributions,
+          finalValue,
+          years,
+          "monthly",
+          dailyInitialValue,
+          allDailyReturnsForTWRR
+        ),
+        annualReturns: calculateAnnualReturns(monthlyTimeSeries, dailyInitialValue),
+        drawdowns: calculateDrawdowns(monthlyTimeSeries),
+        topDrawdowns: calculateTopDrawdowns(monthlyTimeSeries, 10),
+        stressPeriods: calculateStressPeriods(monthlyTimeSeries),
+        rollingReturns: calculateRollingReturns(monthlyTimeSeries, "monthly"),
+        rollingStats: calculateRollingStats(monthlyTimeSeries, "monthly"),
+        returnsHistogram: calculateReturnsHistogram(retornosMensuales, "monthly"),
+      };
+    }
+  }
+
   // Composición de la cartera (agregación por categoría, asset class, tipo gestión)
   const allocation = calculatePortfolioAllocation(portfolio.holdings);
 
@@ -955,6 +992,7 @@ async function runPortfolioBacktest(
     grossFinalValue,
     grossTimeSeries,
     monthlyTimeSeries,
+    monthly,
   };
 }
 
@@ -2025,6 +2063,14 @@ function computeBenchmarkComparison(
     benchmarkRollingStats: benchmarkResult.rollingStats,
     benchmarkReturnsHistogram: benchmarkResult.returnsHistogram,
     benchmarkAllocation: benchmarkResult.allocation,
+    // Base mensual para el informe PDF (ver `BacktestResult.monthly`).
+    benchmarkMonthly: benchmarkResult.monthly
+      ? {
+          metrics: benchmarkResult.monthly.metrics,
+          timeSeries: benchmarkResult.monthlyTimeSeries ?? benchmarkResult.timeSeries,
+          topDrawdowns: benchmarkResult.monthly.topDrawdowns,
+        }
+      : undefined,
   };
 }
 
