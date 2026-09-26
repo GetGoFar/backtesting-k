@@ -99,7 +99,7 @@ export function LabShell({ children }: { children: ReactNode }) {
   // El contenido: en Mi cartera, columna centrada y acotada; en el Backtest dentro del campus, todo el ancho
   // a la derecha del menú y hueco abajo para la barra inferior en móvil; fuera del Laboratorio, sin clases.
   const claseContenido = enCartera
-    ? "lab-cartera min-w-0 flex-1 mx-auto w-full max-w-2xl px-4 pt-4 pb-28 md:px-10 md:pt-12 md:pb-10"
+    ? "lab-cartera min-w-0 flex-1 mx-auto w-full max-w-3xl px-4 pt-4 pb-28 md:px-10 md:pt-12 md:pb-10"
     : enLaboratorio
       ? "min-w-0 flex-1 pb-20 md:pb-0"
       : "";

@@ -234,7 +234,7 @@ export function Importar({ compacto, onRevisando }: { compacto: boolean; onRevis
                     ) : (
                       <>
                         <input type="text" value={f.nombre} onChange={(e) => cambiar(i, { nombre: e.target.value })} className="w-full !py-2 text-[15px]" aria-label="Nombre del activo" />
-                        <div className="mt-2 grid grid-cols-2 gap-2 lg:grid-cols-[1.1fr_1fr_0.9fr_1fr]">
+                        <div className="mt-2 grid grid-cols-2 gap-2 [&>*]:min-w-0 [&>*]:w-full">
                           {f.origen !== null && f.isin !== "" ? (
                             <p className="tabular self-center px-1 text-sm text-gris">{f.isin}</p>
                           ) : (
