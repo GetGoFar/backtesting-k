@@ -52,7 +52,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       console.error("[importar] configuración de la API rechazada", e.status);
       return NextResponse.json({ error: "La importación por captura no está bien configurada en este servidor." }, { status: 503 });
     }
-    if (e instanceof Anthropic.BadRequestError) return NextResponse.json({ error: "No he podido leer esta imagen. Prueba con otra captura." }, { status: 422 });
+undefined
     if (e instanceof Anthropic.RateLimitError) return NextResponse.json({ error: "Demasiadas capturas seguidas. Espera un minuto y vuelve a probar." }, { status: 429 });
     if (e instanceof Anthropic.APIConnectionTimeoutError) return NextResponse.json({ error: "La lectura ha tardado demasiado. Prueba con una captura de menos filas." }, { status: 504 });
     if (e instanceof Anthropic.APIConnectionError || e instanceof Anthropic.APIError) {
