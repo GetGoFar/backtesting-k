@@ -18,6 +18,13 @@ const MAX_LADO = 2200;
 const ESPERA_MAXIMA_MS = 58_000;
 
 type Fila = PosicionImportada & { incluir: boolean };
+type ModoImportacion = "actualizar" | "sustituir" | "satelite" | "play";
+const MODOS: { id: ModoImportacion; nombre: string; detalle: string }[] = [
+  { id: "actualizar", nombre: "Actualizar mi cartera", detalle: "Lo que ya tienes cambia de importe; lo nuevo se añade donde digas." },
+  { id: "sustituir", nombre: "Sustituir la cartera actual", detalle: "Se quita todo lo que hay y queda solo esto. El plan no se toca." },
+  { id: "satelite", nombre: "Añadir todo como Satélite", detalle: "Todas las filas van a la Cartera Satélite." },
+  { id: "play", nombre: "Añadir todo como Play Money", detalle: "Todas las filas van a Play Money." },
+];
 
 /**
  * Las capturas grandes se reducen en el navegador para no pasar del límite del
@@ -45,7 +52,10 @@ async function prepararImagen(archivo: File): Promise<Blob> {
 const esEuro = (moneda: string | null) => !moneda || moneda.toUpperCase() === "EUR";
 
 export function Importar({ compacto, onRevisando }: { compacto: boolean; onRevisando?: (revisando: boolean) => void }) {
-  const { datos, anadirPosiciones, actualizarValores } = useStore();
+  const { datos, anadirPosiciones, actualizarValores, sustituirPosiciones } = useStore();
+  // Qué hacer con lo leído: actualizar lo que hay (lo normal cada mes), sustituir la cartera entera, o meterlo
+  // todo en Satélite o en Play Money (una cuenta aparte, un bróker de apuestas…).
+  const [modo, setModo] = useState<ModoImportacion>("actualizar");
   const [abierto, setAbierto] = useState(false);
   const [fase, setFase] = useState<"inicio" | "leyendo" | "revisar">("inicio");
   const [error, setError] = useState<string | undefined>();
@@ -117,7 +127,15 @@ export function Importar({ compacto, onRevisando }: { compacto: boolean; onRevis
   // Activos que ya están en la cartera, por ISIN: se actualizan en vez de duplicarse.
   const existentes = new Map<string, Posicion>();
   for (const p of datos.cartera?.posiciones ?? []) if (p.isin) existentes.set(p.isin.toUpperCase(), p);
-  const yaEnCartera = (f: Fila): Posicion | undefined => (f.isin ? existentes.get(limpiarIsin(f.isin)) : undefined);
+  const parteForzada: Fila["parte"] | undefined = modo === "satelite" ? "satelite" : modo === "play" ? "play" : undefined;
+  const parteDe = (f: Fila): Fila["parte"] => parteForzada ?? f.parte;
+  const yaEnCartera = (f: Fila): Posicion | undefined => {
+    if (modo === "sustituir" || !f.isin) return undefined;
+    const p = existentes.get(limpiarIsin(f.isin));
+    if (!p) return undefined;
+    if (parteForzada && p.parte !== parteForzada) return undefined;
+    return p;
+  };
 
   const cambiar = (i: number, cambios: Partial<Fila>) => setFilas((fs) => fs.map((f, k) => (k === i ? { ...f, ...cambios } : f)));
   const seleccionadas = filas.filter((f) => f.incluir && f.valor > 0 && f.nombre.trim().length > 0);
@@ -134,10 +152,16 @@ export function Importar({ compacto, onRevisando }: { compacto: boolean; onRevis
     if (compacto) setAbierto(false);
   };
 
+  const aPosicion = (f: Fila) => ({ nombre: f.nombre.trim(), isin: limpiarIsin(f.isin), categoria: f.categoria, parte: parteDe(f), valor: f.valor });
   const anadir = () => {
-    if (actualizadas.length > 0) actualizarValores(Object.fromEntries(actualizadas.map((f) => [yaEnCartera(f)!.id, f.valor])));
-    if (nuevas.length > 0) anadirPosiciones(nuevas.map((f) => ({ nombre: f.nombre.trim(), isin: limpiarIsin(f.isin), categoria: f.categoria, parte: f.parte, valor: f.valor })));
-    setHecho({ nuevas: nuevas.length, actualizadas: actualizadas.length });
+    if (modo === "sustituir") {
+      sustituirPosiciones(seleccionadas.map(aPosicion));
+      setHecho({ nuevas: seleccionadas.length, actualizadas: 0 });
+    } else {
+      if (actualizadas.length > 0) actualizarValores(Object.fromEntries(actualizadas.map((f) => [yaEnCartera(f)!.id, f.valor])));
+      if (nuevas.length > 0) anadirPosiciones(nuevas.map(aPosicion));
+      setHecho({ nuevas: nuevas.length, actualizadas: actualizadas.length });
+    }
     setFilas([]);
     setAvisos([]);
     setFase("inicio");
@@ -207,11 +231,29 @@ export function Importar({ compacto, onRevisando }: { compacto: boolean; onRevis
   }
 
   if (fase === "revisar") {
-    const etiquetaBoton = [nuevas.length > 0 ? (nuevas.length === 1 ? "Añadir 1" : `Añadir ${nuevas.length}`) : "", actualizadas.length > 0 ? (actualizadas.length === 1 ? "actualizar 1" : `actualizar ${actualizadas.length}`) : ""].filter(Boolean).join(" y ");
+    const etiquetaBoton =
+      modo === "sustituir"
+        ? `Sustituir por ${seleccionadas.length === 1 ? "1 activo" : `${seleccionadas.length} activos`}`
+        : [nuevas.length > 0 ? (nuevas.length === 1 ? "Añadir 1" : `Añadir ${nuevas.length}`) : "", actualizadas.length > 0 ? (actualizadas.length === 1 ? "actualizar 1" : `actualizar ${actualizadas.length}`) : ""].filter(Boolean).join(" y ");
     return (
       <Tarjeta>
         <h2 className="text-xl">Revisa lo que he leído</h2>
         <p className="mt-1 text-sm text-gris">Confirma categoría y parte de cada activo. Lo que no quieras, desmárcalo.</p>
+        <fieldset className="mt-4 grid gap-2 sm:grid-cols-2">
+          <legend className="mb-1 text-sm font-medium">¿Qué hago con lo leído?</legend>
+          {MODOS.map((m) => (
+            <label key={m.id} className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 text-sm ${modo === m.id ? "border-tinta bg-white" : "border-borde bg-crema/60"}`}>
+              <input type="radio" name="modo-importacion" value={m.id} checked={modo === m.id} onChange={() => setModo(m.id)} className="mt-1 accent-[#C81E2E]" />
+              <span>
+                <span className="block font-medium">{m.nombre}</span>
+                <span className="block text-xs text-gris">{m.detalle}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+        {modo === "sustituir" && (datos.cartera?.posiciones.length ?? 0) > 0 && (
+          <p className="mt-2 text-xs text-ambar">Ojo: se quitarán las {datos.cartera?.posiciones.length} posiciones que tienes ahora.</p>
+        )}
         <ul className="mt-4 divide-y divide-borde">
           {filas.map((f, i) => {
             const ya = yaEnCartera(f);
@@ -256,7 +298,7 @@ export function Importar({ compacto, onRevisando }: { compacto: boolean; onRevis
                               </option>
                             ))}
                           </select>
-                          <select value={f.parte} onChange={(e) => cambiar(i, { parte: e.target.value as Fila["parte"] })} className="!py-2 text-sm" aria-label="Parte de la cartera">
+                          <select value={parteDe(f)} disabled={parteForzada !== undefined} onChange={(e) => cambiar(i, { parte: e.target.value as Fila["parte"] })} className="!py-2 text-sm disabled:opacity-60" aria-label="Parte de la cartera">
                             {PARTES.map((p) => (
                               <option key={p.id} value={p.id}>
                                 {p.nombre.replace("Cartera ", "")}

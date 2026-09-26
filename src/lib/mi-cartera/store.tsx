@@ -69,6 +69,8 @@ type Acciones = {
   guardarPerfil: (respuestas: Respuestas) => ResultadoPerfil;
   anadirPosicion: (p: Omit<Posicion, "id">) => string;
   anadirPosiciones: (lista: Omit<Posicion, "id">[]) => void;
+  /** Deja SOLO estas posiciones (el plan, el perfil y lo aportado no se tocan). Para «sustituir la cartera» al importar. */
+  sustituirPosiciones: (lista: Omit<Posicion, "id">[]) => void;
   editarPosicion: (id: string, cambios: Partial<Omit<Posicion, "id">>) => void;
   borrarPosicion: (id: string) => void;
   actualizarValores: (valores: Record<string, number>) => void;
@@ -362,6 +364,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [cambiar],
   );
 
+  const sustituirPosiciones = useCallback(
+    (lista: Omit<Posicion, "id">[]) => {
+      cambiar((d) => {
+        const c = conCartera(d);
+        const nuevas = lista.map((p) => ({ ...p, id: nuevoId(), valor: Math.max(0, Math.round(p.valor || 0)) }));
+        const cartera = { ...c, posiciones: nuevas, actualizadoEl: ahora() };
+        return { ...d, cartera, movimientos: [...d.movimientos, movimiento("actualizacion", totalDe(cartera))].slice(-200) };
+      });
+    },
+    [cambiar],
+  );
+
   const editarPosicion = useCallback(
     (id: string, cambios: Partial<Omit<Posicion, "id">>) => {
       cambiar((d) => {
@@ -486,6 +500,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       guardarPerfil,
       anadirPosicion,
       anadirPosiciones,
+      sustituirPosiciones,
       editarPosicion,
       borrarPosicion,
       actualizarValores,
