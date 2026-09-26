@@ -52,7 +52,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       console.error("[importar] configuración de la API rechazada", e.status);
       return NextResponse.json({ error: "La importación por captura no está bien configurada en este servidor." }, { status: 503 });
     }
-undefined
+    if (e instanceof Anthropic.BadRequestError) {
+      // Un 400 de Anthropic casi nunca es la imagen: suele ser la cuenta (sin saldo, tope de gasto) o la petición
+      // (modelo o parámetro que esa clave no admite). El mensaje de la API no lleva datos de la captura: se registra.
+      console.error("[importar] petición rechazada (400):", e.message);
+      const m = String(e.message || "").toLowerCase();
+      if (m.includes("credit") || m.includes("balance") || m.includes("billing") || m.includes("spend"))
+        return NextResponse.json({ error: "La cuenta de lectura no tiene saldo o ha llegado a su tope de gasto. Avisa a Pablo." }, { status: 503 });
+      if (m.includes("model") || m.includes("output_config") || m.includes("effort"))
+        return NextResponse.json({ error: "La importación por captura no está bien configurada en este servidor (modelo o parámetros)." }, { status: 503 });
+      return NextResponse.json({ error: "No he podido leer esta imagen. Prueba con otra captura." }, { status: 422 });
+    }
     if (e instanceof Anthropic.RateLimitError) return NextResponse.json({ error: "Demasiadas capturas seguidas. Espera un minuto y vuelve a probar." }, { status: 429 });
     if (e instanceof Anthropic.APIConnectionTimeoutError) return NextResponse.json({ error: "La lectura ha tardado demasiado. Prueba con una captura de menos filas." }, { status: 504 });
     if (e instanceof Anthropic.APIConnectionError || e instanceof Anthropic.APIError) {
