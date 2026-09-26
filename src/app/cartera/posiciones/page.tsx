@@ -463,19 +463,30 @@ function Bloque({ parte, posiciones, total, valores, estrategia, onValor, hojaAb
 // ---------------------------------------------------------------------------
 // Mi plan
 
+/** Porcentajes con hasta tres decimales: el plan admite 12,5 % o 33,333 % sin redondear al entero. */
+const redondear3 = (n: number) => Math.round(n * 1000) / 1000;
+const es100 = (suma: number) => Math.abs(suma - 100) < 0.0005;
+const fmtPct = (n: number) => redondear3(n).toLocaleString("es-ES", { maximumFractionDigits: 3 });
+/** «Suma 100 %.» / «Suma 97,5 %. Faltan 2,5 puntos.» / «Suma 102 %. Sobran 2 puntos.» */
+function textoSuma(prefijo: string, suma: number): string {
+  if (es100(suma)) return `${prefijo} suma 100 %.`;
+  const dif = redondear3(Math.abs(100 - suma));
+  return `${prefijo} suma ${fmtPct(suma)} %. ${suma < 100 ? "Faltan" : "Sobran"} ${fmtPct(dif)} punto${dif === 1 ? "" : "s"}.`;
+}
+
 function InputPct({ id, valor, onChange, placeholder = "0" }: { id: string; valor: number | undefined; onChange: (n: number | undefined) => void; placeholder?: string }) {
   return (
     <div className="relative">
       <input
         id={id}
         type="number"
-        inputMode="numeric"
+        inputMode="decimal"
         min={0}
         max={100}
-        step={1}
+        step={0.001}
         value={valor === undefined ? "" : valor}
         placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value === "" ? undefined : Math.max(0, Math.min(100, Number(e.target.value))))}
+        onChange={(e) => onChange(e.target.value === "" ? undefined : redondear3(Math.max(0, Math.min(100, Number(e.target.value)))))}
         className="tabular w-full pr-9 text-right"
       />
       <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gris">%</span>
@@ -497,7 +508,7 @@ function OpcionMetodo({ activa, titulo, detalle, onClick }: { activa: boolean; t
 
 function MiPlan({ plan, nucleo, ultimoRebalanceo }: { plan: Plan; nucleo: number; ultimoRebalanceo?: string }) {
   const { datos, fijarPlan, usarActualComoPlan } = useStore();
-  const aPct = (f: number | undefined) => (f === undefined ? undefined : Math.round(f * 100));
+  const aPct = (f: number | undefined) => (f === undefined ? undefined : redondear3(f * 100));
   const [pesos, setPesos] = useState<Partial<Record<Categoria, number | undefined>>>(() => Object.fromEntries(CATEGORIAS.map((c) => [c.id, aPct(plan.objetivo[c.id])])));
   const [topeSat, setTopeSat] = useState<number | undefined>(aPct(plan.topeSatelite));
   const [topePlay, setTopePlay] = useState<number | undefined>(aPct(plan.topePlay));
@@ -513,7 +524,7 @@ function MiPlan({ plan, nucleo, ultimoRebalanceo }: { plan: Plan; nucleo: number
   const subsVisibles = subsDe(estrategia);
   const sumaRV = subsVisibles.reduce((s, x) => s + (pesosRV[x.id] ?? 0), 0);
   const hayRV = (pesos.rv ?? 0) > 0;
-  const repartoOk = !hayRV || sumaRV === 100;
+  const repartoOk = !hayRV || es100(sumaRV);
   const bandaPorDefecto = Math.round((tipoBanda === "absoluta" ? BANDA_ABSOLUTA_POR_DEFECTO : BANDA_RELATIVA_POR_DEFECTO) * 100);
   const bandaOk = metodo === "periodo" || (banda ?? bandaPorDefecto) > 0;
 
@@ -526,7 +537,7 @@ function MiPlan({ plan, nucleo, ultimoRebalanceo }: { plan: Plan; nucleo: number
   }, [plan]);
 
   const suma = CATEGORIAS.filter((c) => c.id !== "otros").reduce((s, c) => s + (pesos[c.id] ?? 0), 0);
-  const ok = suma === 100;
+  const ok = es100(suma);
   const perfil = datos.perfil;
 
   const guardar = () => {
@@ -578,7 +589,7 @@ function MiPlan({ plan, nucleo, ultimoRebalanceo }: { plan: Plan; nucleo: number
           </label>
         ))}
       </div>
-      <p className={`tabular mt-3 text-sm ${ok ? "text-verde" : "text-gris"}`}>{ok ? "Suma 100 %." : suma < 100 ? `Suma ${suma} %. Faltan ${100 - suma} puntos.` : `Suma ${suma} %. Sobran ${suma - 100} puntos.`}</p>
+      <p className={`tabular mt-3 text-sm ${ok ? "text-verde" : "text-gris"}`}>{textoSuma("El plan", suma)}</p>
 
       <div className="mt-4 grid grid-cols-2 gap-3 max-w-sm">
         <label htmlFor="tope-sat" className="block text-sm text-gris">
@@ -614,9 +625,7 @@ function MiPlan({ plan, nucleo, ultimoRebalanceo }: { plan: Plan; nucleo: number
               </label>
             ))}
           </div>
-          <p className={`tabular mt-3 text-sm ${sumaRV === 100 ? "text-verde" : "text-gris"}`}>
-            {sumaRV === 100 ? "La bolsa suma 100 %." : sumaRV < 100 ? `La bolsa suma ${sumaRV} %. Faltan ${100 - sumaRV} puntos.` : `La bolsa suma ${sumaRV} %. Sobran ${sumaRV - 100} puntos.`}
-          </p>
+          <p className={`tabular mt-3 text-sm ${es100(sumaRV) ? "text-verde" : "text-gris"}`}>{textoSuma("La bolsa", sumaRV)}</p>
         </>
       )}
 
