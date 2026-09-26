@@ -11,6 +11,7 @@ import { CATEGORIAS, PARTES, type Posicion } from "@/lib/mi-cartera/cartera";
 import { ES_ISIN, limpiarIsin, type PosicionImportada, type RespuestaImportacion } from "@/lib/mi-cartera/importar";
 import { eur } from "@/lib/mi-cartera/formato";
 import { Boton, InputEuros, Tarjeta } from "@/components/mi-cartera/ui";
+import { BuscadorIsin } from "@/components/mi-cartera/BuscadorIsin";
 
 const MAX_BYTES = 3.5 * 1024 * 1024;
 const MAX_LADO = 2200;
@@ -213,7 +214,6 @@ export function Importar({ compacto, onRevisando }: { compacto: boolean; onRevis
         <p className="mt-1 text-sm text-gris">Confirma categoría y parte de cada activo. Lo que no quieras, desmárcalo.</p>
         <ul className="mt-4 divide-y divide-borde">
           {filas.map((f, i) => {
-            const isinOk = f.isin === "" || ES_ISIN.test(f.isin.toUpperCase().trim());
             const ya = yaEnCartera(f);
             const enEuros = esEuro(f.moneda);
             return (
@@ -238,7 +238,16 @@ export function Importar({ compacto, onRevisando }: { compacto: boolean; onRevis
                           {f.origen !== null && f.isin !== "" ? (
                             <p className="tabular self-center px-1 text-sm text-gris">{f.isin}</p>
                           ) : (
-                            <input type="text" value={f.isin} onChange={(e) => cambiar(i, { isin: e.target.value.toUpperCase() })} placeholder="ISIN" className={`tabular !py-2 text-sm ${!isinOk || f.isin === "" ? "!border-ambar" : ""}`} aria-label="ISIN" />
+                            <div className="col-span-2">
+                              <BuscadorIsin
+                                compacto
+                                valor={f.isin}
+                                nombre={f.nombre}
+                                ticker={f.ticker}
+                                onCambio={(isin) => cambiar(i, { isin })}
+                                onElegir={(a) => cambiar(i, { isin: a.isin, nombre: a.nombre, origen: "nombre", ambiguo: false })}
+                              />
+                            </div>
                           )}
                           <select value={f.categoria} onChange={(e) => cambiar(i, { categoria: e.target.value as Fila["categoria"] })} className="!py-2 text-sm" aria-label="Categoría">
                             {CATEGORIAS.map((c) => (
@@ -258,10 +267,9 @@ export function Importar({ compacto, onRevisando }: { compacto: boolean; onRevis
                         </div>
                         {f.origen === null && (
                           <p className="mt-1 text-xs text-ambar">
-                            {f.ambiguo ? "Hay varios productos con ese nombre y no quiero adivinar." : `No he encontrado el ISIN${f.ticker ? ` de ${f.ticker}` : ""}.`} Escríbelo si lo tienes; si no, puedes añadirlo más tarde.
+                            {f.ambiguo ? "Hay varios productos con ese nombre y no quiero adivinar." : `No he encontrado el ISIN${f.ticker ? ` de ${f.ticker}` : ""}.`} Pulsa «Buscar» o escríbelo; si no, puedes añadirlo más tarde.
                           </p>
                         )}
-                        {f.isin !== "" && !isinOk && <p className="mt-1 text-xs text-ambar">Un ISIN tiene 12 caracteres, por ejemplo IE00B4L5Y983.</p>}
                       </>
                     )}
                     {!enEuros && <p className="mt-1 text-xs text-ambar">Leído en {f.moneda}. Pásalo a euros y marca la fila.</p>}

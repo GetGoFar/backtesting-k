@@ -10,6 +10,7 @@ import { tramoPerfil } from "@/lib/mi-cartera/perfil";
 import { eur, pct } from "@/lib/mi-cartera/formato";
 import { Boton, Cargando, InputEuros, Tarjeta, Titulo } from "@/components/mi-cartera/ui";
 import { Importar } from "@/components/mi-cartera/Importar";
+import { BuscadorIsin, ES_ISIN_RE } from "@/components/mi-cartera/BuscadorIsin";
 
 // ---------------------------------------------------------------------------
 // Hoja de alta: buscar → confirmar categoría y parte → euros
@@ -252,76 +253,24 @@ function HojaAlta({ parteInicial, estrategia, onAnadir, onCerrar }: { parteInici
 // ---------------------------------------------------------------------------
 // Fila de un activo
 
-// ISIN de una posición que llegó sin él (o con uno equivocado): se escribe a mano o se busca por el nombre
-// en el catálogo y el mercado, y al elegir un resultado se guardan su ISIN y su nombre oficial.
-const ES_ISIN_RE = /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/;
+// ISIN de una posición que llegó sin él (o con uno equivocado): se escribe a mano (se guarda cuando tiene
+// los 12 caracteres, o al vaciarlo) o se busca por el nombre y el ticker; al elegir, ISIN y nombre oficial.
 function EditorIsin({ posicion, onElegir }: { posicion: Posicion; onElegir: (cambios: Partial<Omit<Posicion, "id">>) => void }) {
   const [texto, setTexto] = useState(posicion.isin ?? "");
-  const [buscando, setBuscando] = useState(false);
-  const [resultados, setResultados] = useState<Activo[] | null>(null);
-  const ctrl = useRef<AbortController | null>(null);
-  const limpio = texto.trim().toUpperCase();
-  const valido = limpio === "" || ES_ISIN_RE.test(limpio);
-  const guardar = () => {
-    if (!valido) return;
-    onElegir({ isin: limpio === "" ? undefined : limpio });
-  };
-  const buscar = async () => {
-    ctrl.current?.abort();
-    ctrl.current = new AbortController();
-    setBuscando(true);
-    setResultados(null);
-    try {
-      const r = await buscarActivos(posicion.nombre, ctrl.current.signal);
-      setResultados(r.slice(0, 6));
-    } catch {
-      setResultados([]);
-    } finally {
-      setBuscando(false);
-    }
-  };
   return (
-    <div className="text-xs text-gris">
-      <label className="block">
-        ISIN
-        <div className="mt-1 flex gap-2">
-          <input
-            type="text"
-            value={texto}
-            onChange={(e) => setTexto(e.target.value.toUpperCase())}
-            onBlur={guardar}
-            placeholder="Sin ISIN: escríbelo o búscalo por el nombre"
-            className={`tabular w-full text-sm text-tinta ${valido ? "" : "!border-ambar"}`}
-            aria-label="ISIN"
-          />
-          <button type="button" onClick={buscar} disabled={buscando} className="shrink-0 rounded-full border border-borde bg-white px-3 text-sm text-tinta hover:border-tinta disabled:opacity-50">
-            {buscando ? "Buscando…" : "Buscar por nombre"}
-          </button>
-        </div>
-      </label>
-      {!valido && <p className="mt-1 text-ambar">Un ISIN tiene 12 caracteres, por ejemplo IE00B4L5Y983.</p>}
-      {resultados && resultados.length === 0 && <p className="mt-1">No encuentro nada con ese nombre. Escribe el ISIN a mano (lo tienes en tu bróker).</p>}
-      {resultados && resultados.length > 0 && (
-        <ul className="mt-2 divide-y divide-borde rounded-xl border border-borde bg-white">
-          {resultados.map((a) => (
-            <li key={a.isin}>
-              <button
-                type="button"
-                className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-tinta hover:bg-crema"
-                onClick={() => {
-                  setTexto(a.isin);
-                  setResultados(null);
-                  onElegir({ isin: a.isin, nombre: a.nombre });
-                }}
-              >
-                <span className="min-w-0 truncate">{a.nombre}</span>
-                <span className="tabular shrink-0 text-xs text-gris">{a.isin}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <BuscadorIsin
+      valor={texto}
+      nombre={posicion.nombre}
+      onCambio={(isin) => {
+        setTexto(isin);
+        const limpio = isin.trim();
+        if (limpio === "" || ES_ISIN_RE.test(limpio)) onElegir({ isin: limpio === "" ? undefined : limpio });
+      }}
+      onElegir={(a) => {
+        setTexto(a.isin);
+        onElegir({ isin: a.isin, nombre: a.nombre });
+      }}
+    />
   );
 }
 
