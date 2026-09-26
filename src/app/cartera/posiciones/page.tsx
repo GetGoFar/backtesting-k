@@ -252,6 +252,79 @@ function HojaAlta({ parteInicial, estrategia, onAnadir, onCerrar }: { parteInici
 // ---------------------------------------------------------------------------
 // Fila de un activo
 
+// ISIN de una posición que llegó sin él (o con uno equivocado): se escribe a mano o se busca por el nombre
+// en el catálogo y el mercado, y al elegir un resultado se guardan su ISIN y su nombre oficial.
+const ES_ISIN_RE = /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/;
+function EditorIsin({ posicion, onElegir }: { posicion: Posicion; onElegir: (cambios: Partial<Omit<Posicion, "id">>) => void }) {
+  const [texto, setTexto] = useState(posicion.isin ?? "");
+  const [buscando, setBuscando] = useState(false);
+  const [resultados, setResultados] = useState<Activo[] | null>(null);
+  const ctrl = useRef<AbortController | null>(null);
+  const limpio = texto.trim().toUpperCase();
+  const valido = limpio === "" || ES_ISIN_RE.test(limpio);
+  const guardar = () => {
+    if (!valido) return;
+    onElegir({ isin: limpio === "" ? undefined : limpio });
+  };
+  const buscar = async () => {
+    ctrl.current?.abort();
+    ctrl.current = new AbortController();
+    setBuscando(true);
+    setResultados(null);
+    try {
+      const r = await buscarActivos(posicion.nombre, ctrl.current.signal);
+      setResultados(r.slice(0, 6));
+    } catch {
+      setResultados([]);
+    } finally {
+      setBuscando(false);
+    }
+  };
+  return (
+    <div className="text-xs text-gris">
+      <label className="block">
+        ISIN
+        <div className="mt-1 flex gap-2">
+          <input
+            type="text"
+            value={texto}
+            onChange={(e) => setTexto(e.target.value.toUpperCase())}
+            onBlur={guardar}
+            placeholder="Sin ISIN: escríbelo o búscalo por el nombre"
+            className={`tabular w-full text-sm text-tinta ${valido ? "" : "!border-ambar"}`}
+            aria-label="ISIN"
+          />
+          <button type="button" onClick={buscar} disabled={buscando} className="shrink-0 rounded-full border border-borde bg-white px-3 text-sm text-tinta hover:border-tinta disabled:opacity-50">
+            {buscando ? "Buscando…" : "Buscar por nombre"}
+          </button>
+        </div>
+      </label>
+      {!valido && <p className="mt-1 text-ambar">Un ISIN tiene 12 caracteres, por ejemplo IE00B4L5Y983.</p>}
+      {resultados && resultados.length === 0 && <p className="mt-1">No encuentro nada con ese nombre. Escribe el ISIN a mano (lo tienes en tu bróker).</p>}
+      {resultados && resultados.length > 0 && (
+        <ul className="mt-2 divide-y divide-borde rounded-xl border border-borde bg-white">
+          {resultados.map((a) => (
+            <li key={a.isin}>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-tinta hover:bg-crema"
+                onClick={() => {
+                  setTexto(a.isin);
+                  setResultados(null);
+                  onElegir({ isin: a.isin, nombre: a.nombre });
+                }}
+              >
+                <span className="min-w-0 truncate">{a.nombre}</span>
+                <span className="tabular shrink-0 text-xs text-gris">{a.isin}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function Fila({ p, valor, estrategia, onValor }: { p: Posicion; valor: number | undefined; estrategia: EstrategiaRV | undefined; onValor: (n: number | undefined) => void }) {
   const { editarPosicion, borrarPosicion } = useStore();
   const [editando, setEditando] = useState(false);
@@ -305,6 +378,9 @@ function Fila({ p, valor, estrategia, onValor }: { p: Posicion; valor: number | 
             Nombre
             <input type="text" value={p.nombre} onChange={(e) => editarPosicion(p.id, { nombre: e.target.value })} className="mt-1 w-full text-sm text-tinta" />
           </label>
+          <div className="sm:col-span-3">
+            <EditorIsin posicion={p} onElegir={(cambios) => editarPosicion(p.id, cambios)} />
+          </div>
           <label className="block text-xs text-gris">
             Categoría
             <select value={p.categoria} onChange={(e) => editarPosicion(p.id, { categoria: e.target.value as Categoria })} className="mt-1 w-full text-sm text-tinta">
