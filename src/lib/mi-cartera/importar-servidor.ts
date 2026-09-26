@@ -18,7 +18,7 @@ import { sugerirCategoria, type Categoria } from "./cartera";
 import { acortarNombre, categoriaDesdeCatalogo, type TipoActivo } from "./buscar";
 import { categoriaPorGrupo, coincidencia, elegirCandidato, esCripto, limpiarIsin, partePorGrupo, sufijoBolsa, valorDe, type Extraccion, type FilaExtraida, type OrigenIsin, type PosicionImportada, type RespuestaImportacion } from "./importar";
 
-export const MODELO = process.env.ANTHROPIC_MODEL ?? "claude-opus-5";
+export const MODELO = process.env.ANTHROPIC_MODEL ?? "claude-opus-5-5";
 
 /** Tiempo máximo de la resolución de ISIN (la ruta tiene 60 s en total; la lectura puede llevarse 30-40). */
 const PRESUPUESTO_RESOLUCION_MS = 20_000;
