@@ -3,25 +3,20 @@
 // pesos por valor) calculada por el motor de backtest del propio Laboratorio K
 // (POST /api/backtest en el mismo origen de la petición, nunca un dominio
 // fijo), más la volatilidad del peor tramo de 3 años (serie diaria) para no
-// fiarse de una década tranquila. Cada ISIN se resuelve primero en el catálogo
-// curado (id local, en memoria) y, si no está, como activo de mercado (ticker
-// EODHD) inline.
+// fiarse de una década tranquila. Cada ISIN se resuelve con
+// @/lib/mi-cartera/resolver-isin: primero en el catálogo curado (id local, en
+// memoria) y, si no está, como activo de mercado (ticker EODHD) inline.
 // Solo para socios: exige la cookie del Laboratorio, porque gasta EODHD y CPU.
 
 import { NextRequest, NextResponse } from "next/server";
 import { exigirAcceso } from "@/lib/lab-auth";
-import { getAllFunds } from "@/lib/fund-database";
-import { buscarMercado, type ResultadoBusqueda } from "@/lib/eodhd-search";
-import type { Fund, PortfolioHolding } from "@/lib/types";
+import type { PortfolioHolding } from "@/lib/types";
 import type { ActivoRiesgo, RespuestaRiesgo } from "@/lib/mi-cartera/riesgo";
+import { ES_ISIN, resolver } from "@/lib/mi-cartera/resolver-isin";
 
 // Vercel corta la función a los 60 s: el backtest se limita a 50 para poder responder.
 export const maxDuration = 60;
 const TIMEOUT_BACKTEST_MS = 50_000;
-const TIMEOUT_MERCADO_MS = 10_000;
-
-const ES_ISIN = /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/;
-const BOLSAS_PREFERIDAS = ["XETRA", "AS", "MI", "PA", "MC", "LSE", "SW", "EUFUND"];
 
 type Holding = PortfolioHolding;
 
@@ -35,42 +30,6 @@ async function json<T>(url: string, init?: RequestInit, ms = 8000): Promise<{ da
   } catch {
     return { data: null, status: null };
   }
-}
-
-/**
- * Catálogo curado por ISIN exacto: el primero de la lista, como hacía
- * /api/funds?search=. Sin los fondos ad hoc que otras rutas registran en caliente.
- */
-function catalogoPorIsin(isin: string): Fund | undefined {
-  return getAllFunds().find((f) => f.isin.toUpperCase() === isin);
-}
-
-async function resolver(a: ActivoRiesgo): Promise<{ holding: Holding; nombre: string } | { motivo: string }> {
-  const exacto = catalogoPorIsin(a.isin);
-  if (exacto) return { holding: { fundId: exacto.id, weight: 0 }, nombre: exacto.name || a.nombre };
-
-  let mercado: ResultadoBusqueda[] = [];
-  try {
-    mercado = await buscarMercado(a.isin, { signal: AbortSignal.timeout(TIMEOUT_MERCADO_MS) });
-  } catch {
-    mercado = [];
-  }
-  const listados = mercado.filter((r) => (r.isin ?? "").toUpperCase() === a.isin && r.symbol && !r.isCurrency);
-  if (listados.length === 0) return { motivo: "sin datos de precios" };
-  const rango = (r: ResultadoBusqueda) => {
-    const i = BOLSAS_PREFERIDAS.indexOf(r.exchange);
-    return (i < 0 ? 50 : i) + (r.currency === "EUR" ? 0 : 100);
-  };
-  const mejor = [...listados].sort((x, y) => rango(x) - rango(y))[0]!;
-  const nombre = mejor.name || a.nombre;
-  return {
-    holding: {
-      fundId: `eodhd-${a.isin}`,
-      weight: 0,
-      fund: { id: `eodhd-${a.isin}`, name: nombre, shortName: nombre.length > 40 ? `${nombre.slice(0, 37)}…` : nombre, isin: a.isin, ticker: mejor.symbol, ter: 0, category: "RV Global", type: "active", currency: mejor.currency || "EUR" },
-    },
-    nombre,
-  };
 }
 
 /** Desviación típica muestral. */

@@ -58,6 +58,9 @@ interface PortfolioBuilderProps {
   } | null;
   /** Llamado al pulsar "Copiar a la otra cartera" (el padre hace la copia). */
   onCopyToOther?: () => void;
+  /** Carteras que llegan del padre y van delante de las predefinidas (p. ej. «Mi cartera»
+   *  del socio, id "mi-cartera", en modo campus). Se listan en la sección «Tu cartera». */
+  extraPresets?: PortfolioPreset[];
 }
 
 // Colores según el side — estilo El Proyecto K
@@ -92,7 +95,7 @@ import {
   type SavedMomentumStrategy,
 } from "@/lib/saved-momentum-strategies";
 
-export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: PortfolioBuilderProps) {
+export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther, extraPresets }: PortfolioBuilderProps) {
   const [allocations, setAllocations] = useState<FundAllocation[]>([]);
   // Carteras guardadas localmente por el usuario (localStorage)
   const [savedPortfolios, setSavedPortfolios] = useState<SavedPortfolio[]>([]);
@@ -172,9 +175,11 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
   // Las carteras privadas llegan por red (solo al código personal de Pablo); al llegar, repinta.
   usePresetsPrivados();
   const allPresets = getAllPresets();
-  const presets = isCampusMode()
+  const presetsFiltrados = isCampusMode()
     ? allPresets.filter((p) => isCampusPreset(p.id))
     : allPresets;
+  // Las carteras extra del padre (Mi cartera) van delante, después del filtro de campus.
+  const presets = extraPresets && extraPresets.length > 0 ? [...extraPresets, ...presetsFiltrados] : presetsFiltrados;
   const colors = SIDE_COLORS[side];
 
   // Calcular peso total
@@ -740,7 +745,10 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
   // de cada edición). Prefijo "edicion-taller-" → sección propia "Ediciones
   // Taller"; se excluyen del cajón genérico "Carteras Tradicionales".
   const edicionesTallerPresets = presets.filter((p) => p.id.startsWith("edicion-taller-"));
+  // Carteras extra del padre (Mi cartera del socio): sección propia «Tu cartera».
+  const tuCarteraPresets = presets.filter((p) => p.id.startsWith("mi-cartera"));
   const indexPresets = presets.filter((p) => p.type === "index"
+    && !p.id.startsWith("mi-cartera")
     && !p.id.startsWith("k-inbestme")
     && !p.id.startsWith("k-sectorial-usa")
     && !p.id.startsWith("k-geografica-usa")
@@ -769,7 +777,8 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
       !p.id.startsWith("bbva-inversion-rv") &&
       !p.id.startsWith("bbva-acumulacion") &&
       !p.id.startsWith("momentum-") &&
-      !p.id.startsWith("pablo-castro-")
+      !p.id.startsWith("pablo-castro-") &&
+      !p.id.startsWith("mi-cartera")
   );
 
   return (
@@ -926,6 +935,37 @@ export function PortfolioBuilder({ side, onUpdate, importData, onCopyToOther }: 
                     >
                       <div className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-purple-600" />
+                        <span className="font-medium text-sm text-slate-800">
+                          {preset.name}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 ml-4 mt-0.5">
+                        {preset.description}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Tu cartera: la de Mi cartera, en pesos de hoy (solo llega en modo campus). */}
+              {tuCarteraPresets.length > 0 && (
+                <div className="p-2 border-b border-slate-100 bg-emerald-50/40">
+                  <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider px-2 py-1 flex items-center gap-1.5">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
+                    </svg>
+                    Tu cartera
+                  </p>
+                  {tuCarteraPresets.map((preset) => (
+                    <button
+                      key={preset.id}
+                      onClick={() => handlePresetSelect(preset)}
+                      className={`w-full text-left px-3 py-2 rounded-lg hover:bg-emerald-100/60 transition-colors ${
+                        selectedPresetId === preset.id ? "bg-emerald-100/60" : ""
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-600" />
                         <span className="font-medium text-sm text-slate-800">
                           {preset.name}
                         </span>

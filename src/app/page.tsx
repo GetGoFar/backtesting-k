@@ -21,6 +21,7 @@ import type {
   DisplayGranularity,
   DisplayCurrency,
   PortfolioHolding,
+  PortfolioPreset,
   BacktestWarning,
   Fund,
 } from "@/lib/types";
@@ -34,6 +35,7 @@ import { usePresetsPrivados } from "@/lib/presets-privados-client";
 import { fetchWithSource } from "@/lib/data-source";
 import { setLastBacktestPortfolios } from "@/lib/last-backtest-portfolios";
 import { readKopilotoLink, KOPILOTO_PARAM } from "@/lib/kopiloto-link";
+import { MiCarteraPuente } from "@/components/MiCarteraPuente";
 
 /** Lo que el PortfolioBuilder acepta como importación (copia A↔B o enlace del Kopiloto). */
 type ImportPayload = NonNullable<React.ComponentProps<typeof PortfolioBuilder>["importData"]>;
@@ -324,11 +326,15 @@ export default function Home() {
   // "Copiar a A/B"), se ajustan importes/fechas/benchmark, se limpia la URL y,
   // si lo pide, se lanza el backtest en cuanto los builders den por válidas
   // EXACTAMENTE las carteras importadas (no las que restauren del localStorage).
-  const [kopilotoNotice, setKopilotoNotice] = useState<string[] | null>(null);
+  // El mismo aviso sirve para las dos cargas automáticas: el Kopiloto y Mi cartera.
+  const [avisoCarga, setAvisoCarga] = useState<{ titulo: string; detalle: string; avisos: string[] } | null>(null);
   const kopilotoPending = useRef<{ a: string | null; b: string | null } | null>(null);
+  // Si ha entrado un enlace del Kopiloto, Mi cartera no se carga por defecto en A.
+  const kopilotoAplicado = useRef(false);
   useEffect(() => {
     const link = readKopilotoLink(window.location.search);
     if (!link) return;
+    kopilotoAplicado.current = true;
     const base = {
       taxMode: "none" as const,
       taxRate: 0.21,
@@ -349,7 +355,11 @@ export default function Home() {
     const sig = (p: { holdings: PortfolioHolding[] } | null) =>
       p ? p.holdings.map((h) => h.fundId).join("|") : null;
     kopilotoPending.current = link.run ? { a: sig(link.a), b: sig(link.b) } : null;
-    setKopilotoNotice(link.warnings);
+    setAvisoCarga({
+      titulo: "Carteras cargadas desde el Kopiloto de ATARAXIA",
+      detalle: "Revisa los pesos y los parámetros; si el backtest no ha arrancado solo, pulsa «Ejecutar backtest».",
+      avisos: link.warnings,
+    });
     // Quitar el parámetro de la URL: al recargar, el socio se queda con lo que
     // haya editado (el builder lo autoguarda), no con la cartera original.
     try {
@@ -372,6 +382,55 @@ export default function Home() {
     void handleRunBacktest();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [portfolioA, portfolioB]);
+
+  // --- Mi cartera del socio (solo en modo campus) ---
+  // MiCarteraPuente (montado solo con campus === true, porque useStore() arranca la
+  // sincronización de red de Mi cartera) entrega la cartera real del socio YA EN PESOS
+  // como preset «Mi cartera»: (1) siempre disponible en el desplegable de los dos builders
+  // (extraPresets) y (2) cargada por defecto en A la primera vez de la sesión, si no ha
+  // entrado un enlace del Kopiloto y A está vacía. El Backtest nunca escribe en Mi cartera.
+  const [miCartera, setMiCartera] = useState<{ preset: PortfolioPreset | null; excluidos: string[] }>({ preset: null, excluidos: [] });
+  const handleMiCartera = useCallback((preset: PortfolioPreset | null, excluidos: string[]) => {
+    setMiCartera({ preset, excluidos });
+  }, []);
+  const extraPresets = useMemo(() => (miCartera.preset ? [miCartera.preset] : []), [miCartera.preset]);
+  // Estado de A leído por ref: la carga por defecto solo debe reaccionar a la llegada de Mi cartera.
+  const portfolioARef = useRef(portfolioA);
+  portfolioARef.current = portfolioA;
+  useEffect(() => {
+    const preset = miCartera.preset;
+    if (!preset || preset.holdings.length === 0) return;
+    if (kopilotoAplicado.current) return;
+    if (portfolioARef.current.holdings.length > 0) return;
+    const CLAVE = "k-micartera-cargada";
+    try {
+      if (sessionStorage.getItem(CLAVE) === "1") return;
+      sessionStorage.setItem(CLAVE, "1");
+    } catch {
+      /* sin sessionStorage: se carga igualmente */
+    }
+    setImportToA({
+      name: preset.name,
+      holdings: preset.holdings,
+      managementFee: 0,
+      taxMode: "none",
+      taxRate: 0.21,
+      rebalanceFrequency: "annual",
+      rebalanceBandRelativePct: 0,
+      rebalanceBandAbsolutePct: 0,
+      keepName: true,
+      nonce: ++copyNonce.current,
+    });
+    // El auto-run de arriba lanza el backtest en cuanto A dé por válida esta cartera (b null = no se espera a B).
+    kopilotoPending.current = { a: preset.holdings.map((h) => h.fundId).join("|"), b: null };
+    if (miCartera.excluidos.length > 0) {
+      setAvisoCarga({
+        titulo: "Mi cartera cargada como Cartera 1",
+        detalle: "En pesos de hoy, sin euros. Si el backtest no ha arrancado solo, pulsa «Ejecutar backtest».",
+        avisos: [`De Mi cartera no entran: ${miCartera.excluidos.join(", ")} (sin ISIN o sin datos de precios).`],
+      });
+    }
+  }, [miCartera]);
 
   // Validar que las carteras están completas
   const hasHoldingsA = portfolioA.holdings.length > 0;
@@ -645,25 +704,26 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Aviso: carteras precargadas desde el Kopiloto de ATARAXIA */}
-        {kopilotoNotice && (
+        {/* Mi cartera del socio → preset «Mi cartera» (solo en campus; fuera no se toca el store). */}
+        {campus && <MiCarteraPuente onCartera={handleMiCartera} />}
+
+        {/* Aviso: carteras precargadas (Kopiloto de ATARAXIA o Mi cartera del socio) */}
+        {avisoCarga && (
           <div className="mb-6 p-4 bg-white border border-brand-border rounded-lg flex items-start gap-3">
             <span className="text-xl leading-none mt-0.5" aria-hidden="true">🧭</span>
             <div className="flex-1 text-sm">
-              <p className="font-medium text-brand-navy">Carteras cargadas desde el Kopiloto de ATARAXIA</p>
-              <p className="text-brand-secondary mt-1">
-                Revisa los pesos y los parámetros; si el backtest no ha arrancado solo, pulsa «Ejecutar backtest».
-              </p>
-              {kopilotoNotice.length > 0 && (
+              <p className="font-medium text-brand-navy">{avisoCarga.titulo}</p>
+              <p className="text-brand-secondary mt-1">{avisoCarga.detalle}</p>
+              {avisoCarga.avisos.length > 0 && (
                 <ul className="mt-2 list-disc pl-5 text-amber-700">
-                  {kopilotoNotice.map((w) => (
+                  {avisoCarga.avisos.map((w) => (
                     <li key={w}>{w}</li>
                   ))}
                 </ul>
               )}
             </div>
             <button
-              onClick={() => setKopilotoNotice(null)}
+              onClick={() => setAvisoCarga(null)}
               className="text-brand-tertiary hover:text-brand-navy p-1"
               aria-label="Cerrar aviso"
             >
@@ -717,8 +777,8 @@ export default function Home() {
             1. Configura tus carteras
           </h3>
           <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
-            <PortfolioBuilder side="a" onUpdate={handlePortfolioAUpdate} importData={importToA} onCopyToOther={handleCopyAToB} />
-            <PortfolioBuilder side="b" onUpdate={handlePortfolioBUpdate} importData={importToB} onCopyToOther={handleCopyBToA} />
+            <PortfolioBuilder side="a" onUpdate={handlePortfolioAUpdate} importData={importToA} onCopyToOther={handleCopyAToB} extraPresets={extraPresets} />
+            <PortfolioBuilder side="b" onUpdate={handlePortfolioBUpdate} importData={importToB} onCopyToOther={handleCopyBToA} extraPresets={extraPresets} />
           </div>
         </section>
 
