@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useStore } from "@/lib/mi-cartera/store";
-import { BANDA_ABSOLUTA_POR_DEFECTO, BANDA_RELATIVA_POR_DEFECTO, CATEGORIAS, ESTRATEGIAS_RV, METODO_POR_DEFECTO, PARTES, calcularEstado, mesAno, nombreCategoria, nombreSubRV, puedeIrAlNucleo, subsDe, sugerirCategoria, sugerirSubRV, sumarMeses, type Categoria, type EstrategiaRV, type Parte, type Plan, type Posicion, type SubRV, type TipoActivo } from "@/lib/mi-cartera/cartera";
+import { BANDA_ABSOLUTA_POR_DEFECTO, BANDA_RELATIVA_POR_DEFECTO, CATEGORIAS, ESTRATEGIAS_RV, METODO_POR_DEFECTO, PARTES, TOPE_PLAY_POR_DEFECTO, TOPE_SATELITE_POR_DEFECTO, calcularEstado, mesAno, nombreCategoria, nombreSubRV, puedeIrAlNucleo, subsDe, sugerirCategoria, sugerirSubRV, sumarMeses, type Categoria, type EstrategiaRV, type Parte, type Plan, type Posicion, type SubRV, type TipoActivo } from "@/lib/mi-cartera/cartera";
 import { buscarActivos, esIsin, nombreTipo, type Activo } from "@/lib/mi-cartera/buscar";
 import { tramoPerfil } from "@/lib/mi-cartera/perfil";
 import { eur, pct } from "@/lib/mi-cartera/formato";
@@ -223,7 +223,7 @@ function HojaAlta({ parteInicial, estrategia, onAnadir, onCerrar }: { parteInici
                   );
                 })}
               </div>
-              {esAccion && <p className="mt-1.5 text-xs text-gris-2">Las acciones de empresa van en Satélite o Play Money.</p>}
+              {esAccion && <p className="mt-1.5 text-xs text-gris">Las acciones de empresa van en Satélite o Play Money.</p>}
             </div>
           </div>
 
@@ -469,7 +469,13 @@ function MiPlan({ plan, nucleo, ultimoRebalanceo }: { plan: Plan; nucleo: number
   const [ultimo, setUltimo] = useState<string>(() => (ultimoRebalanceo ?? new Date().toISOString()).slice(0, 10));
   const [estrategia, setEstrategia] = useState<EstrategiaRV>(plan.estrategiaRV ?? "geografica");
   const [pesosRV, setPesosRV] = useState<Partial<Record<SubRV, number | undefined>>>(() => Object.fromEntries(subsDe(undefined).map((s) => [s.id, aPct(plan.objetivoRV?.[s.id])])));
+  const [diaAportacion, setDiaAportacion] = useState<number | undefined>(plan.aportacion?.dia);
   const [guardado, setGuardado] = useState(false);
+  // «Usar mi reparto actual como plan»: el plan anterior se guarda para poder deshacer durante unos segundos.
+  const planAnterior = useRef<Plan | undefined>(undefined);
+  const [deshacerVisible, setDeshacerVisible] = useState(false);
+  const temporizadorDeshacer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(temporizadorDeshacer.current), []);
   const subsVisibles = subsDe(estrategia);
   const sumaRV = subsVisibles.reduce((s, x) => s + (pesosRV[x.id] ?? 0), 0);
   const hayRV = (pesos.rv ?? 0) > 0;
@@ -483,6 +489,7 @@ function MiPlan({ plan, nucleo, ultimoRebalanceo }: { plan: Plan; nucleo: number
     setTopePlay(aPct(plan.topePlay));
     if (plan.estrategiaRV) setEstrategia(plan.estrategiaRV);
     if (plan.objetivoRV) setPesosRV(Object.fromEntries(subsDe(undefined).map((s) => [s.id, aPct(plan.objetivoRV?.[s.id])])));
+    setDiaAportacion(plan.aportacion?.dia);
   }, [plan]);
 
   const suma = CATEGORIAS.filter((c) => c.id !== "otros").reduce((s, c) => s + (pesos[c.id] ?? 0), 0);
@@ -493,8 +500,9 @@ function MiPlan({ plan, nucleo, ultimoRebalanceo }: { plan: Plan; nucleo: number
     const objetivo: Plan["objetivo"] = {};
     for (const c of CATEGORIAS) if (c.id !== "otros" && (pesos[c.id] ?? 0) > 0) objetivo[c.id] = (pesos[c.id] ?? 0) / 100;
     const nuevo: Plan = { objetivo };
-    if (topeSat !== undefined && topeSat > 0) nuevo.topeSatelite = topeSat / 100;
-    if (topePlay !== undefined && topePlay > 0) nuevo.topePlay = topePlay / 100;
+    if (topeSat !== undefined) nuevo.topeSatelite = topeSat / 100;
+    if (topePlay !== undefined) nuevo.topePlay = topePlay / 100;
+    if (diaAportacion !== undefined) nuevo.aportacion = { dia: diaAportacion };
     nuevo.rebalanceo = metodo === "periodo" ? { metodo: "periodo", meses } : { metodo: "bandas", tipo: tipoBanda, banda: (banda ?? bandaPorDefecto) / 100 };
     if (hayRV) {
       nuevo.estrategiaRV = estrategia;
@@ -505,6 +513,22 @@ function MiPlan({ plan, nucleo, ultimoRebalanceo }: { plan: Plan; nucleo: number
     fijarPlan(nuevo, metodo === "periodo" ? new Date(`${ultimo}T12:00:00`).toISOString() : undefined);
     setGuardado(true);
     setTimeout(() => setGuardado(false), 2500);
+  };
+
+  const usarActual = () => {
+    if (!window.confirm("¿Sustituir tu plan por el reparto actual? Puedes volver a cambiarlo después.")) return;
+    planAnterior.current = plan;
+    usarActualComoPlan();
+    setDeshacerVisible(true);
+    clearTimeout(temporizadorDeshacer.current);
+    temporizadorDeshacer.current = setTimeout(() => setDeshacerVisible(false), 8000);
+  };
+
+  const deshacer = () => {
+    if (planAnterior.current) fijarPlan(planAnterior.current);
+    planAnterior.current = undefined;
+    clearTimeout(temporizadorDeshacer.current);
+    setDeshacerVisible(false);
   };
 
   return (
@@ -544,15 +568,16 @@ function MiPlan({ plan, nucleo, ultimoRebalanceo }: { plan: Plan; nucleo: number
         <label htmlFor="tope-sat" className="block text-sm text-gris">
           Tope Satélite (del total)
           <div className="mt-1">
-            <InputPct id="tope-sat" valor={topeSat} onChange={setTopeSat} placeholder="sin tope" />
+            <InputPct id="tope-sat" valor={topeSat} onChange={setTopeSat} placeholder={`${Math.round(TOPE_SATELITE_POR_DEFECTO * 100)} (por defecto)`} />
           </div>
         </label>
         <label htmlFor="tope-play" className="block text-sm text-gris">
           Tope Play Money (del total)
           <div className="mt-1">
-            <InputPct id="tope-play" valor={topePlay} onChange={setTopePlay} placeholder="sin tope" />
+            <InputPct id="tope-play" valor={topePlay} onChange={setTopePlay} placeholder={`${Math.round(TOPE_PLAY_POR_DEFECTO * 100)} (por defecto)`} />
           </div>
         </label>
+        <p className="text-xs text-gris col-span-2">Si lo dejas vacío, valen los topes por defecto. Un 0 quita el aviso.</p>
       </div>
 
       {hayRV && (
@@ -622,14 +647,36 @@ function MiPlan({ plan, nucleo, ultimoRebalanceo }: { plan: Plan; nucleo: number
         </div>
       )}
 
+      <h3 className="mt-6 text-lg">¿Qué día del mes aportas?</h3>
+      <p className="mt-1 text-sm text-gris">Solo lo apuntamos para recordártelo. No cambia ningún cálculo.</p>
+      <label htmlFor="dia-aportacion" className="mt-3 block text-sm text-gris max-w-[260px]">
+        Día
+        <select id="dia-aportacion" value={diaAportacion ?? ""} onChange={(e) => setDiaAportacion(e.target.value === "" ? undefined : Number(e.target.value))} className="mt-1 w-full text-tinta">
+          <option value="">No aporto de forma fija</option>
+          {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
+            <option key={d} value={d}>
+              El día {d}
+            </option>
+          ))}
+        </select>
+      </label>
+
       <div className="mt-5 flex flex-wrap items-center gap-3">
         <Boton disabled={!ok || !bandaOk || !repartoOk} onClick={guardar}>
           {guardado ? "Plan guardado" : "Guardar plan"}
         </Boton>
-        {nucleo > 0 && (
-          <button type="button" className="text-sm text-k hover:underline" onClick={usarActualComoPlan}>
+        {nucleo > 0 && !deshacerVisible && (
+          <button type="button" className="text-sm text-k hover:underline" onClick={usarActual}>
             Usar mi reparto actual como plan
           </button>
+        )}
+        {deshacerVisible && (
+          <span className="text-sm text-gris" role="status">
+            Plan sustituido por tu reparto actual.{" "}
+            <button type="button" className="text-k hover:underline" onClick={deshacer}>
+              Deshacer
+            </button>
+          </span>
         )}
       </div>
     </Tarjeta>

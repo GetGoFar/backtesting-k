@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcularEstado, carteraVacia, planDefinido, planificarAportacion, planificarRebalanceo, sugerirCategoria, type Cartera, type MetodoRebalanceo } from "./cartera";
+import { BANDA_ABSOLUTA_POR_DEFECTO, BANDA_RELATIVA_POR_DEFECTO, TOPE_PLAY_POR_DEFECTO, TOPE_SATELITE_POR_DEFECTO, bandaDe, calcularEstado, carteraVacia, planDefinido, planificarAportacion, planificarRebalanceo, subcategoriasSobreRV, sugerirCategoria, type Cartera, type MetodoRebalanceo } from "./cartera";
 
 const pos = (id: string, categoria: Cartera["posiciones"][number]["categoria"], valor: number, parte: Cartera["posiciones"][number]["parte"] = "nucleo") => ({
   id,
@@ -50,6 +50,21 @@ describe("bandas relativas (hoja GEO - ETFs, perfil 7, 20.000 €)", () => {
     const rf = calcularEstado(base).categorias.find((c) => c.categoria === "rf-gob")!;
     expect(rf.rango.min).toBeCloseTo(0.1125, 6);
     expect(rf.rango.max).toBeCloseTo(0.1875, 6);
+    expect(rf.rango).toEqual(bandaDe(0.15, base.plan));
+  });
+});
+
+describe("bandaDe", () => {
+  it("relativa: ±Y % del objetivo; absoluta: ±X puntos, sin salirse de 0-100", () => {
+    expect(bandaDe(0.15, { objetivo: {}, rebalanceo: { metodo: "bandas", tipo: "relativa", banda: BANDA_RELATIVA_POR_DEFECTO } })).toEqual({ min: 0.15 * 0.75, max: 0.15 * 1.25 });
+    const abs = bandaDe(0.15, { objetivo: {}, rebalanceo: { metodo: "bandas", tipo: "absoluta", banda: BANDA_ABSOLUTA_POR_DEFECTO } });
+    expect(abs.min).toBeCloseTo(0.1, 6);
+    expect(abs.max).toBeCloseTo(0.2, 6);
+    expect(bandaDe(0.03, { objetivo: {}, rebalanceo: { metodo: "bandas", tipo: "absoluta", banda: 0.05 } }).min).toBe(0);
+  });
+  it("por periodo (y sin método) no hay banda: min y max son el objetivo", () => {
+    expect(bandaDe(0.65, { objetivo: {} })).toEqual({ min: 0.65, max: 0.65 });
+    expect(bandaDe(0.65, { objetivo: {}, rebalanceo: { metodo: "periodo", meses: 24 } })).toEqual({ min: 0.65, max: 0.65 });
   });
 });
 
@@ -99,6 +114,23 @@ describe("partes y categorías", () => {
     expect(e.partes.find((p) => p.parte === "satelite")?.excedido).toBe(false);
     expect(e.partes.find((p) => p.parte === "play")?.excedido).toBe(true); // 12,5 % > 5 %
     expect(e.semaforo).toBe("ambar");
+  });
+  it("sin topes en el plan, Satélite avisa por encima del 10 % y Play Money por encima del 5 %", () => {
+    expect(TOPE_SATELITE_POR_DEFECTO).toBe(0.1);
+    expect(TOPE_PLAY_POR_DEFECTO).toBe(0.05);
+    const sinTopes: Cartera = { ...base, plan: { objetivo: base.plan.objetivo, rebalanceo: BANDAS_EXCEL } };
+    // 20.000 en el Núcleo + 2.500 Satélite + 1.000 Play = 23.500 → 10,6 % y 4,3 %
+    const e = calcularEstado({ ...sinTopes, posiciones: [...base.posiciones, pos("tema", "rv", 2500, "satelite"), pos("juego", "otros", 1000, "play")] });
+    const sat = e.partes.find((p) => p.parte === "satelite")!;
+    const play = e.partes.find((p) => p.parte === "play")!;
+    expect(sat.tope).toBe(0.1);
+    expect(sat.excedido).toBe(true);
+    expect(play.tope).toBe(0.05);
+    expect(play.excedido).toBe(false);
+    expect(e.semaforo).toBe("ambar");
+    // Un tope explícito a 0 desactiva el aviso.
+    const sinAviso = calcularEstado({ ...sinTopes, plan: { ...sinTopes.plan, topeSatelite: 0 }, posiciones: [...base.posiciones, pos("tema", "rv", 2500, "satelite")] });
+    expect(sinAviso.partes.find((p) => p.parte === "satelite")?.excedido).toBe(false);
   });
   it("dinero en una categoría que no está en el plan → ámbar y aviso", () => {
     const c = { ...base, posiciones: [...base.posiciones, pos("banco", "otros", 2000)] };
@@ -233,6 +265,22 @@ describe("reparto de la renta variable por región/sector", () => {
     const e = calcularEstado(c);
     expect(e.subcategoriasRV.some((s) => s.sub === "sin-clasificar")).toBe(true);
     expect(e.semaforo).not.toBe("verde");
+  });
+  it("sobre la renta variable, los pesos son los que el socio calcularía a mano", () => {
+    // Global 3.000 y emergentes 500 de 3.500 en bolsa → 85,7 % y 14,3 % frente a 93 % y 7 %.
+    const c: Cartera = { ...geo, posiciones: [posSub("world", "global", 3000), posSub("em", "emergentes", 500), pos("gob", "rf-gob", 3500), pos("corp", "rf-corp", 900), pos("hy", "rf-hy", 600), pos("oro", "oro", 1500)] };
+    const filas = subcategoriasSobreRV(calcularEstado(c), c.plan);
+    const g = filas.find((f) => f.sub === "global")!;
+    const em = filas.find((f) => f.sub === "emergentes")!;
+    expect(g.pesoActual).toBeCloseTo(3000 / 3500, 6);
+    expect(g.pesoObjetivo).toBe(0.93);
+    expect((g.pesoActual - g.pesoObjetivo) * 100).toBeCloseTo(-7.3, 1);
+    expect(g.diferencia).toBeCloseTo(0.93 * 3500 - 3000, 6); // faltan 255 €
+    expect(em.pesoActual).toBeCloseTo(500 / 3500, 6);
+    expect(em.diferencia).toBeCloseTo(0.07 * 3500 - 500, 6); // sobran 255 €
+    expect(em.rango).toEqual(bandaDe(0.07, c.plan));
+    expect(em.semaforo).toBe("rojo");
+    expect(filas.reduce((s, f) => s + f.pesoActual, 0)).toBeCloseTo(1, 6);
   });
   it("sin reparto definido, la renta variable se mide solo en conjunto", () => {
     const c: Cartera = { ...geo, plan: { ...geo.plan, objetivoRV: undefined } };

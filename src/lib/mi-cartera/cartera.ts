@@ -13,7 +13,7 @@
 //   también vigila ese reparto.
 // - Las acciones de empresa solo entran en Satélite o Play Money.
 // - Satélite y Play Money no se rebalancean: solo avisan si superan el tope
-//   que el socio les haya puesto sobre el total.
+//   que el socio les haya puesto sobre el total (10 % y 5 % si no dice nada).
 // - Diferencias por debajo de 10 € no cuentan.
 
 export type Categoria = "rv" | "rf-gob" | "rf-corp" | "rf-hy" | "oro" | "otros";
@@ -125,6 +125,9 @@ export type MetodoRebalanceo =
 export const METODO_POR_DEFECTO: MetodoRebalanceo = { metodo: "periodo", meses: 12 };
 export const BANDA_ABSOLUTA_POR_DEFECTO = 0.05; // 5 puntos
 export const BANDA_RELATIVA_POR_DEFECTO = 0.25; // 25 % del objetivo (la de la Excel)
+/** Topes de Satélite y Play Money sobre el total cuando el plan no dice otra cosa. */
+export const TOPE_SATELITE_POR_DEFECTO = 0.1;
+export const TOPE_PLAY_POR_DEFECTO = 0.05;
 
 export type Plan = {
   /** Peso objetivo de cada categoría dentro de la Cartera Núcleo (fracciones, suman 1). */
@@ -133,11 +136,13 @@ export type Plan = {
   estrategiaRV?: EstrategiaRV;
   /** Reparto de la renta variable por región/sector: fracciones DE LA RENTA VARIABLE, suman 1. */
   objetivoRV?: Partial<Record<SubRV, number>>;
-  /** Tope de la Satélite sobre el total de la cartera (fracción). Sin tope = sin aviso. */
+  /** Tope de la Satélite sobre el total de la cartera (fracción). Sin valor = 10 %; 0 = sin aviso. */
   topeSatelite?: number;
-  /** Tope de Play Money sobre el total (fracción). */
+  /** Tope de Play Money sobre el total (fracción). Sin valor = 5 %; 0 = sin aviso. */
   topePlay?: number;
   rebalanceo?: MetodoRebalanceo;
+  /** Día del mes (1-28) en que el socio aporta. Solo se guarda: no cambia ningún cálculo. */
+  aportacion?: { dia: number };
 };
 
 export type Cartera = {
@@ -287,6 +292,15 @@ function rangoDe(objetivo: number, metodo: MetodoRebalanceo): { min: number; max
   return { min: objetivo * (1 - metodo.banda), max: objetivo * (1 + metodo.banda) };
 }
 
+/**
+ * Banda de tolerancia de un objetivo según el método del plan: ±X puntos
+ * (absoluta) o ±Y % del objetivo (relativa). Por periodo no hay banda: min y
+ * max coinciden con el objetivo. Es la misma que usa el semáforo.
+ */
+export function bandaDe(objetivo: number, plan: Plan): { min: number; max: number } {
+  return rangoDe(objetivo, plan.rebalanceo ?? METODO_POR_DEFECTO);
+}
+
 /** Reparto de un grupo entre sus posiciones: proporcional a lo que tienen; a partes iguales si están a cero. */
 function cuotas(posiciones: Posicion[]): number[] {
   const suma = posiciones.reduce((s, p) => s + (p.valor || 0), 0);
@@ -314,7 +328,7 @@ export function calcularEstado(cartera: Cartera, opciones: { capitalFinalNucleo?
   const partes: EstadoParte[] = PARTES.map((pt) => {
     const valor = cartera.posiciones.filter((p) => p.parte === pt.id).reduce((s, p) => s + valorDe(p), 0);
     const pesoTotal = total > 0 ? valor / total : 0;
-    const tope = pt.id === "satelite" ? cartera.plan.topeSatelite : pt.id === "play" ? cartera.plan.topePlay : undefined;
+    const tope = pt.id === "satelite" ? (cartera.plan.topeSatelite ?? TOPE_SATELITE_POR_DEFECTO) : pt.id === "play" ? (cartera.plan.topePlay ?? TOPE_PLAY_POR_DEFECTO) : undefined;
     return { parte: pt.id, nombre: pt.nombre, valor, pesoTotal, tope, excedido: tope !== undefined && tope > 0 && pesoTotal > tope + 1e-9 && valor >= IMPORTE_MINIMO };
   });
 
@@ -336,7 +350,7 @@ export function calcularEstado(cartera: Cartera, opciones: { capitalFinalNucleo?
       diferencia,
       desviacionRelativa: objetivo > 0 ? (pesoActual - objetivo) / objetivo : 0,
       semaforo,
-      rango: rangoDe(objetivo, metodo),
+      rango: bandaDe(objetivo, cartera.plan),
       fueraDePlan: !sinPlan && objetivo <= 0 && valor >= IMPORTE_MINIMO,
       sinActivos: objetivo > 0 && propias.length === 0,
     };
@@ -372,7 +386,7 @@ export function calcularEstado(cartera: Cartera, opciones: { capitalFinalNucleo?
         diferencia,
         desviacionRelativa: objetivo > 0 ? (pesoActual - objetivo) / objetivo : 0,
         semaforo: vacia ? "verde" : semaforoDe(objetivo, pesoActual, diferencia, metodo),
-        rango: rangoDe(objetivo, metodo),
+        rango: bandaDe(objetivo, cartera.plan),
         sinActivos: objetivo > 0 && g.propias.length === 0,
       });
     }
@@ -418,6 +432,50 @@ export function calcularEstado(cartera: Cartera, opciones: { capitalFinalNucleo?
   const semaforo = vacia || sinPlan ? "verde" : peorSemaforo([...categorias.map((c) => c.semaforo), semaforoSubs, semaforoPartes, semaforoRevision]);
 
   return { total, nucleo, partes, categorias, subcategoriasRV, lineas, semaforo, avisos, vacia, sinPlan, metodo, revision };
+}
+
+// ---------------------------------------------------------------------------
+// Vista de la bolsa sobre la renta variable (la base en que el socio fija su plan)
+
+export type SubRVSobreRV = {
+  sub: SubRV | "sin-clasificar";
+  nombre: string;
+  valor: number;
+  /** Peso actual sobre la renta variable del Núcleo. */
+  pesoActual: number;
+  /** Fracción del plan (objetivoRV), sobre la renta variable. */
+  pesoObjetivo: number;
+  /** Banda del plan aplicada a esa fracción. */
+  rango: { min: number; max: number };
+  /** Positivo = falta, negativo = sobra: el objetivo aplicado a la bolsa actual menos el valor. */
+  diferencia: number;
+  semaforo: Semaforo;
+  sinActivos: boolean;
+};
+
+/**
+ * Traduce las regiones/sectores del estado (pesos sobre el Núcleo) a pesos
+ * sobre la renta variable, que es como el socio escribió su plan y como lo
+ * calcularía a mano: «Global es el 92,3 % de mi bolsa; el plan dice 93 %».
+ * Solo presentación: el semáforo es el que ya calculó el motor.
+ */
+export function subcategoriasSobreRV(estado: Estado, plan: Plan): SubRVSobreRV[] {
+  const rv = estado.categorias.find((c) => c.categoria === "rv")?.valor ?? 0;
+  return estado.subcategoriasRV.map((s) => {
+    const fraccion = s.sub === "sin-clasificar" ? 0 : (plan.objetivoRV?.[s.sub] ?? 0);
+    const pesoActual = rv > 0 ? s.valor / rv : 0;
+    return {
+      sub: s.sub,
+      nombre: s.nombre,
+      valor: s.valor,
+      pesoActual,
+      pesoObjetivo: fraccion,
+      rango: bandaDe(fraccion, plan),
+      diferencia: fraccion * rv - s.valor,
+      semaforo: s.semaforo,
+      sinActivos: s.sinActivos,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------

@@ -1,9 +1,9 @@
 "use client";
 
 import { useStore, type GuardadoEn } from "@/lib/mi-cartera/store";
-import { calcularEstado, textoSemaforo } from "@/lib/mi-cartera/cartera";
+import { calcularEstado, subcategoriasSobreRV, textoSemaforo } from "@/lib/mi-cartera/cartera";
 import { eur, eurSigno, fechaCorta, pct } from "@/lib/mi-cartera/formato";
-import { Boton, Cargando, Cifra, Distribucion, EstadoGrande, Tarjeta } from "@/components/mi-cartera/ui";
+import { Boton, Cargando, Cifra, Distribucion, EstadoGrande, Tarjeta, pctObjetivo } from "@/components/mi-cartera/ui";
 import { TarjetaRiesgo } from "@/components/mi-cartera/Riesgo";
 
 const TEXTO_GUARDADO: Record<GuardadoEn, string> = {
@@ -64,28 +64,13 @@ export default function Inicio() {
   const resultado = estado.total - cartera.aportado;
   const texto = textoSemaforo(estado);
   const excedidas = estado.partes.filter((p) => p.excedido);
+  // Satélite y Play Money a cero se pliegan a una línea; el Núcleo siempre se ve entero.
+  const partesConDinero = estado.partes.filter((p) => p.parte === "nucleo" || p.valor > 0);
+  const partesVacias = estado.partes.filter((p) => p.parte !== "nucleo" && p.valor <= 0);
+  const bolsaSobreRV = subcategoriasSobreRV(estado, cartera.plan);
 
   return (
     <div className="flex flex-col gap-5">
-      <div>
-        <p className="tabular text-5xl md:text-6xl font-serif tracking-tight">{eur(estado.total)}</p>
-        <p className="mt-1 text-gris">Valor actual de la cartera</p>
-        {cartera.aportado > 0 ? (
-          <div className="mt-5 grid grid-cols-2 gap-4 max-w-sm">
-            <Cifra etiqueta="Aportado" valor={eur(cartera.aportado)} />
-            <Cifra etiqueta="Resultado acumulado" valor={eurSigno(resultado)} tono={resultado > 0 ? "positivo" : resultado < 0 ? "negativo" : "normal"} />
-          </div>
-        ) : (
-          <p className="mt-4 text-sm text-gris">
-            ¿Cuánto has aportado hasta hoy?{" "}
-            <a href="/cartera/posiciones#aportado" className="text-k hover:underline">
-              Indícalo
-            </a>{" "}
-            y verás tu resultado acumulado.
-          </p>
-        )}
-      </div>
-
       {estado.sinPlan ? (
         <EstadoGrande semaforo="verde" titulo={texto.titulo} detalle={texto.detalle} accion={<Boton href="/cartera/posiciones#plan">Fijar mi plan</Boton>} />
       ) : (
@@ -103,19 +88,47 @@ export default function Inicio() {
         />
       )}
 
+      <div>
+        <p className="tabular text-3xl md:text-4xl font-serif tracking-tight">{eur(estado.total)}</p>
+        <p className="mt-1 text-sm text-gris">Valor actual de la cartera</p>
+        {cartera.aportado > 0 ? (
+          <div className="mt-4 grid grid-cols-2 gap-4 max-w-sm">
+            <Cifra etiqueta="Aportado" valor={eur(cartera.aportado)} />
+            <Cifra etiqueta="Resultado acumulado" valor={eurSigno(resultado)} tono={resultado > 0 ? "positivo" : resultado < 0 ? "negativo" : "normal"} />
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-gris">
+            ¿Cuánto has aportado hasta hoy?{" "}
+            <a href="/cartera/posiciones#aportado" className="text-k hover:underline">
+              Indícalo
+            </a>{" "}
+            y verás tu resultado acumulado.
+          </p>
+        )}
+      </div>
+
       <Tarjeta>
-        <div className="grid grid-cols-3 gap-3">
-          {estado.partes.map((p) => (
+        <div className={`grid gap-3 ${partesConDinero.length === 3 ? "grid-cols-3" : partesConDinero.length === 2 ? "grid-cols-2" : "grid-cols-1"}`}>
+          {partesConDinero.map((p) => (
             <div key={p.parte}>
               <p className="text-xs text-gris">{p.nombre.replace("Cartera ", "")}</p>
               <p className="tabular text-lg font-medium">{eur(p.valor)}</p>
               <p className={`tabular text-xs ${p.excedido ? "text-ambar" : "text-gris"}`}>
                 {pct(p.pesoTotal, 0)}
-                {p.tope !== undefined && p.tope > 0 ? ` · tope ${pct(p.tope, 0)}` : ""}
+                {p.tope !== undefined && p.tope > 0 ? ` · tope ${pctObjetivo(p.tope)}` : ""}
               </p>
             </div>
           ))}
         </div>
+        {partesVacias.length > 0 && (
+          <p className="tabular mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gris">
+            {partesVacias.map((p) => (
+              <span key={p.parte}>
+                {p.nombre.replace("Cartera ", "")} · {eur(0)}
+              </span>
+            ))}
+          </p>
+        )}
         {excedidas.length > 0 && <p className="mt-3 text-sm text-ambar">{excedidas.map((p) => `${p.nombre} pasa de su tope`).join(". ")}.</p>}
       </Tarjeta>
 
@@ -123,13 +136,14 @@ export default function Inicio() {
         <Tarjeta>
           <h2 className="text-xl mb-4">Cartera Núcleo</h2>
           <Distribucion categorias={estado.categorias} />
-          {estado.subcategoriasRV.length > 0 && (
+          {bolsaSobreRV.length > 0 && (
             <div className="mt-5 border-t border-borde pt-4">
               <p className="mb-3 text-xs font-medium uppercase tracking-wide text-gris">Dentro de la bolsa</p>
-              <Distribucion categorias={estado.subcategoriasRV} compacta />
+              <Distribucion categorias={bolsaSobreRV} compacta />
+              <p className="mt-3 text-xs text-gris">Porcentajes sobre tu renta variable, como en tu plan.</p>
             </div>
           )}
-          <p className="mt-4 text-xs text-gris-2">La zona sombreada es el rango aceptable; la marca negra, tu objetivo.</p>
+          <p className="mt-4 text-xs text-gris">La zona sombreada es la banda de tu plan; la marca negra, tu objetivo. Debajo de cada barra, cuánto te desvías.</p>
         </Tarjeta>
       )}
 

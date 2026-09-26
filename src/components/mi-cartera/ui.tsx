@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { eur, numero, parseEuros, pct } from "@/lib/mi-cartera/formato";
-import type { Semaforo } from "@/lib/mi-cartera/cartera";
+import { IMPORTE_MINIMO, type Semaforo } from "@/lib/mi-cartera/cartera";
 
-export type FilaDistribucion = { nombre: string; pesoActual: number; pesoObjetivo: number; rango: { min: number; max: number }; semaforo: Semaforo };
+/** Una fila de la distribución: pesos en la misma base (Núcleo o renta variable) y la diferencia en euros (positivo = falta). */
+export type FilaDistribucion = { nombre: string; pesoActual: number; pesoObjetivo: number; rango: { min: number; max: number }; semaforo: Semaforo; diferencia: number };
 
 export function Tarjeta({ children, className = "", id }: { children: ReactNode; className?: string; id?: string }) {
   return (
@@ -64,17 +65,21 @@ const COLOR: Record<Semaforo, { punto: string; texto: string; fondo: string }> =
   rojo: { punto: "bg-rojo", texto: "text-rojo", fondo: "bg-rojo-soft" },
 };
 
+/** El color, en palabras: para quien no lo distingue y para el lector de pantalla. */
+export const ETIQUETA_SEMAFORO: Record<Semaforo, string> = { verde: "Verde", ambar: "Ámbar", rojo: "Rojo" };
+
 export function Punto({ semaforo, className = "" }: { semaforo: Semaforo; className?: string }) {
-  return <span aria-hidden className={`inline-block h-3 w-3 rounded-full ${COLOR[semaforo].punto} ${className}`} />;
+  return <span role="img" aria-label={ETIQUETA_SEMAFORO[semaforo]} className={`inline-block h-3 w-3 shrink-0 rounded-full ${COLOR[semaforo].punto} ${className}`} />;
 }
 
 export function EstadoGrande({ semaforo, titulo, detalle, accion }: { semaforo: Semaforo; titulo: string; detalle: string; accion?: ReactNode }) {
   const c = COLOR[semaforo];
   return (
     <div className={`rounded-2xl ${c.fondo} p-5 md:p-6`}>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <Punto semaforo={semaforo} className="h-3.5 w-3.5" />
         <h2 className={`text-xl md:text-2xl font-semibold ${c.texto}`}>{titulo}</h2>
+        <span className="text-xs uppercase tracking-wide text-gris">{ETIQUETA_SEMAFORO[semaforo]}</span>
       </div>
       <p className="mt-2 text-tinta/80 leading-relaxed">{detalle}</p>
       {accion && <div className="mt-4">{accion}</div>}
@@ -83,7 +88,34 @@ export function EstadoGrande({ semaforo, titulo, detalle, accion }: { semaforo: 
 }
 
 // ---------------------------------------------------------------------------
-// Distribución por clase de activo: barra horizontal con el rango objetivo
+// Distribución por clase de activo: barra horizontal con la banda del plan
+
+/** Objetivo con un decimal solo cuando no es entero: 65 % · 8,8 % · 33,3 %. */
+export function pctObjetivo(fraccion: number): string {
+  const puntos = fraccion * 100;
+  return Math.abs(puntos - Math.round(puntos)) < 1e-6 ? pct(fraccion, 0) : pct(fraccion, 1);
+}
+
+/** «−2,0 puntos» / «+1,5 puntos» / «0,0 puntos». */
+export function textoPuntos(desviacion: number): string {
+  const puntos = Math.round(desviacion * 1000) / 10;
+  const abs = numero(Math.abs(puntos), 1);
+  const signo = puntos > 0 ? "+" : puntos < 0 ? "−" : "";
+  return `${signo}${abs} punto${abs === "1,0" ? "" : "s"}`;
+}
+
+/** «te faltan ≈48.800 €» / «te sobran ≈12.000 €», a centenas; nada si no llega a 50 €. */
+export function textoEuros(diferencia: number): string | undefined {
+  const centenas = Math.round(diferencia / 100) * 100;
+  if (centenas === 0) return undefined;
+  return `${centenas > 0 ? "te faltan" : "te sobran"} ≈${eur(Math.abs(centenas))}`;
+}
+
+/** Fuera de la banda del plan (y la diferencia cuenta: 10 € o más). */
+export function fueraDeBanda(f: Pick<FilaDistribucion, "pesoActual" | "rango" | "diferencia">): boolean {
+  if (Math.abs(f.diferencia) < IMPORTE_MINIMO) return false;
+  return f.pesoActual < f.rango.min - 1e-9 || f.pesoActual > f.rango.max + 1e-9;
+}
 
 export function Distribucion({ categorias, compacta = false, escala }: { categorias: FilaDistribucion[]; compacta?: boolean; escala?: number }) {
   const maxEscala = escala ?? Math.max(0.5, ...categorias.map((c) => Math.max(c.pesoActual, c.rango.max))) * 1.05;
@@ -91,27 +123,46 @@ export function Distribucion({ categorias, compacta = false, escala }: { categor
     <ul className={compacta ? "flex flex-col gap-3" : "flex flex-col gap-4"}>
       {categorias.map((c, i) => {
         const w = (x: number) => `${Math.min(100, (x / maxEscala) * 100)}%`;
+        const fuera = fueraDeBanda(c);
+        const euros = fuera ? textoEuros(c.diferencia) : undefined;
+        const colorDesvio = !fuera ? "text-gris" : c.semaforo === "verde" ? "text-tinta" : COLOR[c.semaforo].texto;
         return (
           <li key={`${c.nombre}-${i}`}>
-            <div className="flex items-baseline justify-between text-[15px]">
+            <div className="flex items-baseline justify-between gap-3 text-[15px]">
               <span className="flex items-center gap-2">
-                {!compacta && <Punto semaforo={c.semaforo} className="h-2.5 w-2.5" />}
+                <Punto semaforo={c.semaforo} className={compacta ? "h-2 w-2" : "h-2.5 w-2.5"} />
                 {c.nombre}
               </span>
-              <span className="tabular text-gris">
+              <span className="tabular text-gris whitespace-nowrap">
                 <span className="text-tinta font-medium">{pct(c.pesoActual)}</span>
                 <span className="mx-1.5 text-gris-2">·</span>
-                objetivo {pct(c.pesoObjetivo, 0)}
+                objetivo {pctObjetivo(c.pesoObjetivo)}
               </span>
             </div>
             <div className="relative mt-2 h-2.5 w-full rounded-full bg-crema-2 overflow-hidden" aria-hidden>
+              {/* banda del plan (debajo del peso, para que la barra se lea sobre ella) */}
+              <div className="absolute inset-y-0 bg-tinta/10" style={{ left: w(c.rango.min), width: `calc(${w(c.rango.max)} - ${w(c.rango.min)})` }} />
               {/* peso actual */}
-              <div className={`absolute inset-y-0 left-0 rounded-full ${COLOR[c.semaforo].punto} transition-all`} style={{ width: w(c.pesoActual) }} />
-              {/* rango aceptable (encima de la barra, para que se vea siempre) */}
-              <div className="absolute inset-y-0 bg-tinta/15" style={{ left: w(c.rango.min), width: `calc(${w(c.rango.max)} - ${w(c.rango.min)})` }} />
+              <div className={`absolute inset-y-0 left-0 rounded-full ${COLOR[c.semaforo].punto} opacity-90 transition-all`} style={{ width: w(c.pesoActual) }} />
+              {/* límites de la banda, visibles también sobre la barra */}
+              {c.rango.max - c.rango.min > 1e-9 && (
+                <>
+                  <div className="absolute inset-y-0 w-px bg-tinta/40" style={{ left: w(c.rango.min) }} />
+                  <div className="absolute inset-y-0 w-px bg-tinta/40" style={{ left: w(c.rango.max) }} />
+                </>
+              )}
               {/* objetivo */}
               <div className="absolute inset-y-0 w-0.5 bg-tinta" style={{ left: w(c.pesoObjetivo) }} />
             </div>
+            <p className={`tabular mt-1 text-xs ${colorDesvio}`}>
+              {textoPuntos(c.pesoActual - c.pesoObjetivo)}
+              {euros && (
+                <>
+                  <span className="mx-1.5 text-gris-2">·</span>
+                  {euros}
+                </>
+              )}
+            </p>
           </li>
         );
       })}

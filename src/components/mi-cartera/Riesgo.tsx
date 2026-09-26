@@ -69,14 +69,15 @@ export function TarjetaRiesgo({ posiciones, perfilDeclarado }: { posiciones: Pos
             </p>
           )}
           <p className="mt-2 text-sm text-gris">
-            En un año extremo podrías ver alrededor de un −{pct(riesgo.caidaExtrema, 0)}. La peor caída real en este periodo fue del −{pct(Math.abs(riesgo.caidaMaxima), 0)}.
+            Con esta volatilidad, un año de tres desviaciones equivale a un −{pct(riesgo.caidaExtrema, 0)}.
+            {Number.isFinite(riesgo.caidaMaxima) && riesgo.caidaMaxima < 0 && ` La peor caída real del periodo fue del −${pct(Math.abs(riesgo.caidaMaxima), 0)}.`}
           </p>
           {riesgo.cobertura < 0.995 && (
-            <p className="mt-2 text-xs text-gris-2">
+            <p className="mt-2 text-xs text-gris">
               Calculado con el {pct(riesgo.cobertura, 0)} de tu cartera. Sin datos: {riesgo.sinDatos.join(", ")}.
             </p>
           )}
-          <p className="mt-2 text-xs text-gris-2">
+          <p className="mt-2 text-xs text-gris">
             Volatilidad histórica de tus activos en el periodo en que todos tienen datos, con la tabla de perfiles de El Proyecto K como referencia. No es una previsión.
             {riesgo.sinCrisis.length > 0 && ` El periodo no incluye ${riesgo.sinCrisis.join(" ni ")}: en una década tranquila el riesgo real es mayor de lo que parece.`}
           </p>
