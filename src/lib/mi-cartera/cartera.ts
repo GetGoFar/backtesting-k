@@ -113,6 +113,8 @@ export type Posicion = {
   valor: number;
   /** Región o sector, solo para renta variable del Núcleo. */
   sub?: SubRV;
+  /** % real de esa región/sector según la composición (EODHD). Solo informativo: no entra en ningún cálculo. */
+  subPct?: number;
   tipo?: TipoActivo;
 };
 

@@ -11,6 +11,7 @@ import { eur, pct } from "@/lib/mi-cartera/formato";
 import { Boton, Cargando, InputEuros, Tarjeta, Titulo } from "@/components/mi-cartera/ui";
 import { Importar } from "@/components/mi-cartera/Importar";
 import { BuscadorIsin, ES_ISIN_RE } from "@/components/mi-cartera/BuscadorIsin";
+import { pedirSugerencia, resumenEodhd, type RespuestaComposicion } from "@/lib/mi-cartera/composicion-cliente";
 
 // ---------------------------------------------------------------------------
 // Hoja de alta: buscar → confirmar categoría y parte → euros
@@ -279,7 +280,51 @@ function Fila({ p, valor, estrategia, onValor }: { p: Posicion; valor: number | 
   const [editando, setEditando] = useState(false);
   const esAccion = !puedeIrAlNucleo(p.tipo);
   const rvNucleo = p.categoria === "rv" && p.parte === "nucleo";
-  const sugerido = rvNucleo && !p.sub ? sugerirSubRV(p.nombre, estrategia) : undefined;
+  const isinValido = rvNucleo && !!p.isin && ES_ISIN_RE.test(p.isin);
+
+  // Composición real (EODHD) de la bolsa del Núcleo: una petición por ISIN, con caché.
+  // `undefined` = aún no se ha pedido o está en vuelo; `null` = sin composición.
+  const [comp, setComp] = useState<RespuestaComposicion | null | undefined>(undefined);
+  useEffect(() => {
+    if (!isinValido) {
+      setComp(undefined);
+      return;
+    }
+    const ctrl = new AbortController();
+    setComp(undefined);
+    pedirSugerencia(p.isin, ctrl.signal).then(setComp, () => {
+      if (!ctrl.signal.aborted) setComp(null);
+    });
+    return () => ctrl.abort();
+  }, [isinValido, p.isin]);
+
+  // Sin sub: se etiqueta sola con la casilla que da la composición para la estrategia del plan.
+  // Con sub puesta (a mano o antes): no se toca; solo se rellena el % si falta y se conoce.
+  const casillas = comp?.sugerencia.casillas;
+  useEffect(() => {
+    if (!rvNucleo || !comp?.composicion || !casillas) return;
+    if (!p.sub) {
+      const sub = comp.sugerencia[estrategia ?? "mixta"];
+      if (sub) editarPosicion(p.id, { sub, subPct: casillas[sub] });
+    } else if (p.subPct === undefined) {
+      const pct = casillas[p.sub];
+      if (pct !== undefined) editarPosicion(p.id, { subPct: pct });
+    }
+  }, [rvNucleo, comp, casillas, estrategia, p.id, p.sub, p.subPct, editarPosicion]);
+
+  // La sugerencia por nombre queda de respaldo cuando no hay composición (sin clave EODHD,
+  // fondos sin datos) o cuando la composición no decide (sectorial sin sector dominante).
+  const sinComposicion = !isinValido || comp === null || (comp !== undefined && !comp.composicion);
+  const compSinDecidir = !!comp?.composicion && !comp.sugerencia[estrategia ?? "mixta"];
+  const sugerido = rvNucleo && !p.sub && (sinComposicion || compSinDecidir) ? sugerirSubRV(p.nombre, estrategia) : undefined;
+  const cambiarSub = (sub: SubRV | undefined) => editarPosicion(p.id, { sub, subPct: sub ? casillas?.[sub] : undefined });
+  const detalleSub = p.sub
+    ? p.subPct !== undefined
+      ? ` · ${Math.round(p.subPct)} %`
+      : p.sub === "global" && comp?.sugerencia.region?.id === "global"
+        ? " · sin región dominante"
+        : ""
+    : "";
   return (
     <li className="py-3 first:pt-0 last:pb-0">
       <div className="flex items-start justify-between gap-3">
@@ -296,11 +341,11 @@ function Fila({ p, valor, estrategia, onValor }: { p: Posicion; valor: number | 
             {rvNucleo && (
               <>
                 <span className="mx-1.5 text-gris-2">·</span>
-                <span className={p.sub ? "" : "text-ambar"}>{p.sub ? nombreSubRV(p.sub) : "sin región ni sector"}</span>
+                <span className={p.sub ? "" : "text-ambar"}>{p.sub ? `${nombreSubRV(p.sub)}${detalleSub}` : "sin región ni sector"}</span>
                 {sugerido && (
                   <>
                     {" "}
-                    <button type="button" className="text-k hover:underline" onClick={() => editarPosicion(p.id, { sub: sugerido })}>
+                    <button type="button" className="text-k hover:underline" onClick={() => cambiarSub(sugerido)}>
                       ¿{nombreSubRV(sugerido)}?
                     </button>
                   </>
@@ -354,7 +399,8 @@ function Fila({ p, valor, estrategia, onValor }: { p: Posicion; valor: number | 
           {rvNucleo && (
             <label className="block text-xs text-gris sm:col-span-3">
               Región o sector
-              <SelectorSub id={`sub-${p.id}`} valor={p.sub} estrategia={estrategia} onChange={(sub) => editarPosicion(p.id, { sub })} />
+              <SelectorSub id={`sub-${p.id}`} valor={p.sub} estrategia={estrategia} onChange={cambiarSub} />
+              {comp?.composicion && resumenEodhd(comp.sugerencia) && <span className="mt-1 block text-xs text-gris">Según EODHD: {resumenEodhd(comp.sugerencia)}</span>}
             </label>
           )}
           <button type="button" className="justify-self-start text-sm text-rojo hover:underline sm:pb-3" onClick={() => borrarPosicion(p.id)}>
