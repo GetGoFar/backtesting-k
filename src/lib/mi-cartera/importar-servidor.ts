@@ -18,7 +18,9 @@ import { sugerirCategoria, type Categoria } from "./cartera";
 import { acortarNombre, categoriaDesdeCatalogo, type TipoActivo } from "./buscar";
 import { categoriaPorGrupo, coincidencia, elegirCandidato, esCripto, limpiarIsin, partePorGrupo, sufijoBolsa, valorDe, type Extraccion, type FilaExtraida, type OrigenIsin, type PosicionImportada, type RespuestaImportacion } from "./importar";
 
-export const MODELO = process.env.ANTHROPIC_MODEL ?? "claude-opus-5-5";
+// Leer una tabla no es un problema de razonamiento: Sonnet 5 lo hace en la mitad de tiempo y por menos, y cabe en
+// los 60 s de la ruta. ANTHROPIC_MODEL en Vercel lo cambia sin desplegar.
+export const MODELO = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5";
 
 /** Tiempo máximo de la resolución de ISIN (la ruta tiene 60 s en total; la lectura puede llevarse 30-40). */
 const PRESUPUESTO_RESOLUCION_MS = 20_000;
@@ -87,13 +89,13 @@ export async function leerCaptura(datos: string, mediaType: MediaType): Promise<
   }
   if (!process.env.ANTHROPIC_API_KEY) throw new ErrorImportacion("sin-clave", "La importación por captura no está configurada en este servidor.");
 
-  // Sin reintentos largos: la ruta entera tiene 60 s.
-  const client = new Anthropic({ timeout: 40_000, maxRetries: 1 });
+  // Un solo intento de hasta 52 s: la ruta entera tiene 60 s y un reintento no cabría.
+  const client = new Anthropic({ timeout: 52_000, maxRetries: 0 });
   const respuesta = await client.messages.create({
     model: MODELO,
-    max_tokens: 16000,
+    max_tokens: 8000,
     system: SISTEMA,
-    output_config: { effort: "medium", format: zodOutputFormat(EsquemaExtraccion) },
+    output_config: { format: zodOutputFormat(EsquemaExtraccion) },
     messages: [
       {
         role: "user",
