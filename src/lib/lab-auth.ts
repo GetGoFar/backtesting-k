@@ -98,6 +98,36 @@ export async function identidadDe(req: NextRequest): Promise<string | null> {
   return igual(firma, await hmacB64url("socio:" + id)) ? id : null;
 }
 
+// ----- El token del portal (v1.<b64url(json)>.<b64url(HMAC)>, json = {lw, exp}) -----
+
+function deB64url(s: string): Uint8Array {
+  const t = s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice(0, (4 - (s.length % 4)) % 4);
+  const bin = atob(t);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+/** Verifica un token firmado por el portal de Ataraxia (api/laboratorio.js) con el secreto compartido:
+ *  firma en tiempo constante, caducidad y forma de lw. Lo usan la entrada de socios y /api/cartera/linea. */
+export async function verificarTokenPortal(token: string): Promise<{ lw: string } | null> {
+  try {
+    if (!SECRETO || SECRETO.length < 16) return null;
+    const partes = token.split(".");
+    if (partes.length !== 3 || partes[0] !== "v1") return null;
+    const esperada = await hmacB64url("v1." + partes[1]);
+    if (!igual(esperada, partes[2]!)) return null;
+    const datos = JSON.parse(new TextDecoder().decode(deB64url(partes[1]!))) as { lw?: unknown; exp?: unknown };
+    const ahora = Math.floor(Date.now() / 1000);
+    if (typeof datos.exp !== "number" || datos.exp <= ahora) return null;
+    const lw = String(datos.lw || "");
+    if (!/^[A-Za-z0-9_@.:-]{3,80}$/.test(lw)) return null;
+    return { lw };
+  } catch {
+    return null;
+  }
+}
+
 /** Cabecera Set-Cookie de la identidad (misma forma que epk-access: un año, Partitioned). */
 export function cookieIdentidad(valorFirmado: string): string {
   return `${COOKIE_SOCIO}=${valorFirmado}; Path=/; Max-Age=${UN_ANYO}; HttpOnly; Secure; SameSite=None; Partitioned`;
